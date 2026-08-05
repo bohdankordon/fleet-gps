@@ -11,3 +11,6 @@ Prisma-команды: `npm run db:format`, `db:validate`, `db:generate`, `db:mi
 История всех GPS-точек, токены, пароли и сырые ответы eQuGPS в БД не хранятся.
 
 На этапе 2B Prisma интегрирована через не-global `DatabaseModule`: в процессе существует один `PrismaClient` с `PrismaPg`, а соединение остаётся lazy до первого запроса. Nest lifecycle вызывает безопасный idempotent disconnect. Liveness `/api/health` не зависит от PostgreSQL; `/api/health/ready` выполняет отдельный ping. `DatabaseService.getClient()` предназначен только для infrastructure repositories, не для controllers или application services.
+## Состояние парка
+
+`Vehicle` — локальный реестр устройств, а `VehicleCurrentState` — только последнее состояние. При snapshot без позиции обновляются метаданные получения и статус, но прошлые координаты и скорость остаются сохранёнными. Автоматическое удаление машин отсутствует.

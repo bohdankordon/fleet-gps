@@ -19,6 +19,16 @@ test("API config rejects invalid port, missing credentials and unsafe official U
     assert.throws(() => parseApiConfig(env), ApiConfigurationError);
   }
 });
+test("API config exposes only safe eQuGPS field names", () => {
+  const cases: readonly [Record<string, string>, readonly string[]][] = [
+    [{ ...valid(), EQUGPS_EMAIL: "" }, ["EQUGPS_EMAIL"]],
+    [{ ...valid(), EQUGPS_BASE_URL: "http://trace.example.test" }, ["EQUGPS_BASE_URL"]],
+    [{ ...valid(), EQUGPS_REQUEST_TIMEOUT_MS: "invalid" }, ["EQUGPS_REQUEST_TIMEOUT_MS"]],
+  ];
+  for (const [env, expected] of cases) {
+    assert.throws(() => parseApiConfig(env), (error: unknown) => { assert.ok(error instanceof ApiConfigurationError); assert.deepEqual(error.issues, expected); return true; });
+  }
+});
 test("API configuration errors do not serialize secrets or environment values", () => {
   const email = "private@example.test", password = "private password", url = "https://trace.example.test/?token=private";
   try { parseApiConfig({ ...valid(), EQUGPS_EMAIL: email, EQUGPS_PASSWORD: password, EQUGPS_BASE_URL: url }); assert.fail("expected configuration error"); }
