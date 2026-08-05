@@ -86,3 +86,7 @@
 ### Этап 3A — внутренний snapshot парка
 
 Результат: ручная синхронизация `GET /devices` и `GET /positions` в локальные `Vehicle` и `VehicleCurrentState` через один transaction. Критерий готовности: отсутствие позиции не стирает последнюю известную, дублирующиеся позиции выбираются детерминированно, а startup не делает SQL или внешних вызовов. Scheduler, controllers и dashboard на этом этапе намеренно не реализуются.
+
+### Этап 3B — ручной provisional пробег
+
+Результат: `DashboardModule` сохраняет текущий день `/runs` в `DailyVehicleStat`. Критерии готовности: timezone берётся из settings, missing run не создаёт ноль, EXACT защищён, а startup не запускает web API. Scheduler и публичный dashboard остаются вне этапа.

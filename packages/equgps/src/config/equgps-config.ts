@@ -20,6 +20,7 @@ export const equGpsConfigSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   requestTimeoutMs: z.number().int().min(1_000).max(120_000),
+  runsRequestTimeoutMs: z.number().int().min(1_000).max(120_000).default(45_000),
 });
 
 export type EquGpsConfigInput = z.input<typeof equGpsConfigSchema>;
@@ -29,13 +30,14 @@ export type EquGpsSafeConfigSummary = {
   officialBaseUrl: string;
   webBaseUrl: string;
   requestTimeoutMs: number;
+  runsRequestTimeoutMs: number;
   hasEmail: boolean;
   hasPassword: boolean;
 };
 
 function safeIssuePath(path: PropertyKey[]): string {
   const field = path[0];
-  return typeof field === "string" && ["officialBaseUrl", "webBaseUrl", "email", "password", "requestTimeoutMs"].includes(field)
+  return typeof field === "string" && ["officialBaseUrl", "webBaseUrl", "email", "password", "requestTimeoutMs", "runsRequestTimeoutMs"].includes(field)
     ? field
     : "configuration";
 }
@@ -53,6 +55,7 @@ export function safeConfigSummary(config: EquGpsConfig): EquGpsSafeConfigSummary
     officialBaseUrl: config.officialBaseUrl,
     webBaseUrl: config.webBaseUrl,
     requestTimeoutMs: config.requestTimeoutMs,
+    runsRequestTimeoutMs: config.runsRequestTimeoutMs,
     hasEmail: config.email.length > 0,
     hasPassword: config.password.length > 0,
   };

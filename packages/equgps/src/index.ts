@@ -40,6 +40,6 @@ export {
   EquGpsUnauthorizedError,
   EquGpsHttpError,
 } from "./errors/equgps-errors";
-export type { EquGpsSafeOperation } from "./errors/equgps-errors";
+export type { EquGpsSafeOperation, EquGpsDiagnosticCode } from "./errors/equgps-errors";
 export { FetchHttpTransport } from "./transport/fetch-http-transport";
 export { createOfficialEquGpsClient, createWebRunsClient, createWebVehicleDetailsClient, createWebSpeedEventsClient, createWebRouteClient } from "./factories";

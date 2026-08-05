@@ -22,6 +22,7 @@ test("mode1 sends a form request and normalizes confirmed units", async () => {
   assert.equal(new URL(fake.requests[0]?.url ?? "").searchParams.get("token"), token);
   assert.deepEqual(fake.requests[0]?.formBody, { mode: "mode1", id: "7", date: "2026-08-05" });
   assert.equal(fake.requests[0]?.headers.Accept, "application/json");
+  assert.equal(fake.requests[0]?.timeoutMs, 5_000);
   assert.equal(result.distanceMeters, 1_000);
   assert.equal(result.movementDurationSeconds, 300);
   assert.equal(result.maxSpeedKph, 18.52);
@@ -61,6 +62,7 @@ test("mode2 keeps km/h, validates coordinates and hides raw timestamp", async ()
   const fake = new FakeHttpTransport(async () => response(mode2()));
   const result = await createWebSpeedEventsClient(config, fake).getExternalSpeedReport(token, params);
   assert.deepEqual(fake.requests[0]?.formBody, { mode: "mode2", id: "7", date: "2026-08-05" });
+  assert.equal(fake.requests[0]?.timeoutMs, 5_000);
   assert.equal(result.configuredLimitKph, 50);
   assert.equal(result.maxRecordedSpeedKph, 64);
   assert.equal(result.events[0]?.speedKph, 64);
@@ -77,6 +79,7 @@ test("route uses the allowlisted form, maps only route points and ignores opaque
   const result = await createWebRouteClient(config, fake).getVehicleRoute(token, params);
   assert.equal(new URL(fake.requests[0]?.url ?? "").pathname, "/api/devices/routes-new");
   assert.deepEqual(fake.requests[0]?.formBody, { id: "7", date: "2026-08-05" });
+  assert.equal(fake.requests[0]?.timeoutMs, 5_000);
   assert.equal(result.distanceMeters, 1_000);
   assert.equal(result.movementDurationSeconds, 300);
   assert.deepEqual(result.points, [{ occurredAt: null, latitude: 49.2, longitude: 28.4 }]);

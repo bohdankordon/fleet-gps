@@ -12,6 +12,14 @@ export type EquGpsSafeOperation =
   | "getVehicleRoute"
   | undefined;
 
+export type EquGpsDiagnosticCode =
+  | "invalid_json"
+  | "unexpected_response_shape"
+  | "runs_not_array"
+  | "runs_item_not_object"
+  | "runs_invalid_id"
+  | "runs_invalid_distance";
+
 export abstract class EquGpsError extends Error {
   public readonly operation: EquGpsSafeOperation;
   public readonly status: number | undefined;
@@ -61,8 +69,10 @@ export class EquGpsNetworkError extends EquGpsError {
 }
 
 export class EquGpsResponseValidationError extends EquGpsError {
-  public constructor(operation?: EquGpsSafeOperation) {
+  public readonly diagnosticCode: EquGpsDiagnosticCode | undefined;
+  public constructor(operation?: EquGpsSafeOperation, diagnosticCode?: EquGpsDiagnosticCode) {
     super("eQuGPS response does not match the expected contract.", operation);
+    this.diagnosticCode = diagnosticCode;
   }
 }
 

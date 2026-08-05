@@ -40,6 +40,7 @@
     "db:smoke": "npm --workspace @taxi-gps/api run db:smoke",
     "db:readiness-smoke": "npm --workspace @taxi-gps/api run database:readiness-smoke",
     "fleet:sync-smoke": "npm --workspace @taxi-gps/api run fleet:sync-smoke",
+    "dashboard:runs-sync-smoke": "npm --workspace @taxi-gps/api run dashboard:runs-sync-smoke",
     "api:equgps-package-smoke:built": "npm run equgps:build && npm run build && node dist/scripts/equgps-package-smoke.js",
     "api:equgps-web-details-smoke:built": "npm run equgps:build && npm run build && node dist/scripts/equgps-web-details-smoke.js",
     "equgps:build": "npm --workspace @taxi-gps/equgps run build",

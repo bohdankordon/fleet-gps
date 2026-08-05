@@ -14,3 +14,7 @@ Prisma-команды: `npm run db:format`, `db:validate`, `db:generate`, `db:mi
 ## Состояние парка
 
 `Vehicle` — локальный реестр устройств, а `VehicleCurrentState` — только последнее состояние. При snapshot без позиции обновляются метаданные получения и статус, но прошлые координаты и скорость остаются сохранёнными. Автоматическое удаление машин отсутствует.
+
+## Дневная статистика
+
+`DailyVehicleStat.serviceDate` — календарный день configured timezone. RUNS сохраняет distance в метрах с source `RUNS` и quality `PROVISIONAL`; строка без run не означает нулевое значение. EXACT никогда не понижается автоматической RUNS-синхронизацией.

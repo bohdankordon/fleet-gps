@@ -17,6 +17,11 @@ test("normalizes a valid configuration without trailing slashes", () => {
   assert.equal(config.webBaseUrl, "https://web.example.test");
   assert.equal(config.email, "user@example.test");
   assert.equal(config.password, " secret-password ");
+  assert.equal(config.runsRequestTimeoutMs, 45_000);
+});
+
+test("accepts a custom dedicated runs timeout", () => {
+  assert.equal(parseEquGpsConfig({ ...validConfig, runsRequestTimeoutMs: 46_000 }).runsRequestTimeoutMs, 46_000);
 });
 
 test("normalizes email but preserves a password exactly", () => {
@@ -36,6 +41,7 @@ test("accepts HTTPS paths and rejects unsafe base URLs", () => {
 test("rejects invalid timeout and blank passwords without exposing them", () => {
   assert.throws(() => parseEquGpsConfig({ ...validConfig, requestTimeoutMs: 999 }), EquGpsConfigurationError);
   assert.throws(() => parseEquGpsConfig({ ...validConfig, requestTimeoutMs: 120_001 }), EquGpsConfigurationError);
+  for (const runsRequestTimeoutMs of [999, 120_001, 1.5]) assert.throws(() => parseEquGpsConfig({ ...validConfig, runsRequestTimeoutMs }), EquGpsConfigurationError);
   assert.throws(() => parseEquGpsConfig({ ...validConfig, password: "" }), EquGpsConfigurationError);
   assert.throws(() => parseEquGpsConfig({ ...validConfig, password: "   " }), EquGpsConfigurationError);
   const invalidPassword = "   ";
@@ -53,6 +59,7 @@ test("safe configuration summary never exposes credentials", () => {
     officialBaseUrl: "https://trace.example.test/api",
     webBaseUrl: "https://web.example.test",
     requestTimeoutMs: 5_000,
+    runsRequestTimeoutMs: 45_000,
     hasEmail: true,
     hasPassword: true,
   });

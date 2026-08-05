@@ -71,3 +71,7 @@ grammY является основным framework Telegram-бота и запу
 ## Fleet cache
 
 Backend хранит локальный кэш устройств и только последнего нормализованного состояния. `FleetModule` обращается к eQuGPS исключительно через `EquGpsGatewayService`; frontend и будущие controllers не получают прямого доступа к внешнему API. Полный GPS-трек не хранится.
+
+## Daily dashboard statistics
+
+`DashboardModule` изолирует ручную синхронизацию `/runs`. Она пишет только текущий календарный день configured timezone, не затрагивает Fleet state и применяет precedence `EXACT > PROVISIONAL > ESTIMATED`.

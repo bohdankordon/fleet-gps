@@ -8,3 +8,9 @@
 # FleetModule
 
 `FleetModule` — внутренний модуль ручной синхронизации локального кэша машин и их последнего состояния. Он не публикует HTTP endpoint и не запускает синхронизацию при startup. Синхронизация использует только официальный gateway, а отсутствие позиции не стирает последнюю известную позицию.
+
+# DashboardModule
+
+`DashboardModule` вручную синхронизирует текущий дневной пробег из web API `/runs` в PROVISIONAL `DailyVehicleStat`. Отсутствие run не создаёт нулевую статистику, а EXACT-записи не перезаписываются.
+
+Для `/runs` composition root задаёт отдельный timeout 45 секунд через `EQUGPS_RUNS_TIMEOUT_MS`; общий timeout других eQuGPS endpoint остаётся 15 секунд. Timeout не вызывает retry и не меняет текущий дневной кэш.

@@ -55,7 +55,7 @@ export class FetchHttpTransport implements HttpTransport {
           try {
             body = JSON.parse(text);
           } catch {
-            throw new EquGpsResponseValidationError(request.operation);
+            throw new EquGpsResponseValidationError(request.operation, "invalid_json");
           }
         } else {
           body = text;

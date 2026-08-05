@@ -75,7 +75,7 @@ test("timeout, network, invalid JSON and HTTP statuses map to safe errors", asyn
     await assert.rejects(() => new FetchHttpTransport().execute(request()), EquGpsNetworkError);
   });
   await withFetch((async () => new Response("{", { headers: { "Content-Type": "application/json" } })) as typeof fetch, async () => {
-    await assert.rejects(() => new FetchHttpTransport().execute(request()), EquGpsResponseValidationError);
+    await assert.rejects(() => new FetchHttpTransport().execute(request()), (error: Error) => error instanceof EquGpsResponseValidationError && error.diagnosticCode === "invalid_json");
   });
   for (const [status, ErrorType] of [[401, EquGpsUnauthorizedError], [403, EquGpsForbiddenError], [429, EquGpsRateLimitError], [500, EquGpsHttpError]] as const) {
     await withFetch((async () => new Response("ignored", { status })) as typeof fetch, async () => {

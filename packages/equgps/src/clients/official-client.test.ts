@@ -12,6 +12,7 @@ test("createSession sends form credentials without Basic Auth and returns only t
     assert.equal(request.method, "POST");
     assert.deepEqual(request.formBody, { email: "user@example.test", password: " secret " });
     assert.equal(request.headers.Authorization, undefined);
+    assert.equal(request.timeoutMs, 5_000);
     return { status: 200, headers: {}, body: { token: "session", name: "ignored" } };
   });
   assert.equal(await new DefaultOfficialEquGpsClient(config, transport).createSession(), "session");
@@ -20,6 +21,7 @@ test("createSession sends form credentials without Basic Auth and returns only t
 test("devices normalize optional values and drop sensitive transport fields", async () => {
   const client = new DefaultOfficialEquGpsClient(config, new FakeHttpTransport(async (request) => {
     assert.match(request.headers.Authorization ?? "", /^Basic /);
+    assert.equal(request.timeoutMs, 5_000);
     return { status: 200, headers: {}, body: [{ id: 1, uniqueId: "hidden", phone: "hidden", attributes: { hidden: true } }] };
   }));
   assert.deepEqual(await client.getDevices(), [{ id: 1, name: null, status: null, disabled: null, lastUpdate: null }]);
