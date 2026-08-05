@@ -9,6 +9,7 @@ import { EQU_GPS_TRANSPORT } from "../equgps/equgps.tokens";
 import type { HttpRequest, HttpResponse, HttpTransport } from "@taxi-gps/equgps";
 import { DashboardModule } from "./dashboard.module";
 import { DailyRunsSyncService } from "./daily-runs-sync.service";
+import { DashboardController } from "./dashboard.controller";
 
 const config: ApiConfig = Object.freeze({ host: "127.0.0.1", port: 3000, database: Object.freeze({ url: "postgresql://user:password@example.test/db", poolMax: 1, connectionTimeoutMs: 100, idleTimeoutMs: 1_000 }), equGps: Object.freeze({ officialBaseUrl: "https://trace.example.test", webBaseUrl: "https://web.example.test", email: "user@example.test", password: "password", requestTimeoutMs: 1_000, runsRequestTimeoutMs: 45_000 }) });
 test("DashboardModule compiles lazily and exports only the daily runs sync service", async () => {
@@ -16,6 +17,6 @@ test("DashboardModule compiles lazily and exports only the daily runs sync servi
   const client = { $queryRaw: async () => { sql += 1; }, $disconnect: async () => {} } as unknown as PrismaClient;
   const transport: HttpTransport = { execute: async (_request: HttpRequest): Promise<HttpResponse> => { http += 1; throw new Error("unexpected"); } };
   const module = await Test.createTestingModule({ imports: [DashboardModule] }).overrideProvider(API_CONFIG).useValue(config).overrideProvider(DATABASE_CLIENT_FACTORY).useValue(() => client).overrideProvider(EQU_GPS_TRANSPORT).useValue(transport).compile();
-  try { assert.equal(module.get(DailyRunsSyncService), module.get(DailyRunsSyncService)); assert.equal(sql, 0); assert.equal(http, 0); assert.deepEqual(Reflect.getMetadata("exports", DashboardModule), [DailyRunsSyncService]); }
+  try { assert.equal(module.get(DailyRunsSyncService), module.get(DailyRunsSyncService)); assert.ok(module.get(DashboardController)); assert.equal(sql, 0); assert.equal(http, 0); assert.deepEqual(Reflect.getMetadata("exports", DashboardModule), [DailyRunsSyncService]); }
   finally { await module.close(); }
 });

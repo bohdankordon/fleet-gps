@@ -1,5 +1,9 @@
 # Локальная база данных
 
+## Read-only dashboard
+
+Dashboard API читает settings, машины, текущие состояния и статистику текущего календарного дня. `fixTime` используется для freshness; `externalLastUpdateAt` его не заменяет. Запрос не изменяет `fetchedAt`, stale/degraded флаги или другие данные БД.
+
 PostgreSQL запускается только через `compose.yaml`: `postgres:17-alpine`, named volume `postgres_data` и публикация `127.0.0.1:5433`. Проверка конфигурации: `npm run db:config`; запуск: `npm run db:up`; состояние: `npm run db:ps`; остановка без удаления данных: `npm run db:down`.
 
 `docker compose down -v` удаляет локальный volume с данными и намеренно не включён в штатные команды проекта.

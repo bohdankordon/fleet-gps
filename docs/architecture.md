@@ -1,8 +1,12 @@
 # Архитектура первой версии
 
+## Read-only Dashboard API
+
+На этапе 3C `DashboardModule` публикует локальный read-only список машин. Controller и query service читают только PostgreSQL-кэш и не вызывают eQuGPS или синхронизацию. Список не выдаёт координаты и внешний device ID. До реализации auth endpoint разрешён только локально либо в закрытой сети.
+
 ## Интеграционная граница eQuGPS
 
-Backend использует workspace `@taxi-gps/equgps` через NestJS `EquGpsModule`. Единственная экспортируемая граница модуля — `EquGpsGatewayService`; frontend, controllers и будущие доменные модули не получают transport, отдельные capability-клиенты или session token. Session создаётся лениво только при первом web-вызове и разделяется между capabilities. Startup и health-check не вызывают внешний API. На текущем этапе публичные fleet/dashboard endpoint отсутствуют.
+Backend использует workspace `@taxi-gps/equgps` через NestJS `EquGpsModule`. Единственная экспортируемая граница модуля — `EquGpsGatewayService`; frontend, controllers и будущие доменные модули не получают transport, отдельные capability-клиенты или session token. Session создаётся лениво только при первом web-вызове и разделяется между capabilities. Startup и health-check не вызывают внешний API. Публичные fleet endpoint пока отсутствуют; dashboard-list читает только локальный кэш.
 
 ## Локальное хранилище
 
