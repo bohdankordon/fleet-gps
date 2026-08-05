@@ -17,3 +17,4 @@ private/
 .idea/
 .DS_Store
 Thumbs.db
+.test-dist/

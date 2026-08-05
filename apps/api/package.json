@@ -8,12 +8,13 @@
   },
   "scripts": {
     "start:dev": "nest start --watch",
-    "build": "nest build",
+    "build": "node scripts/clean-output.cjs dist && nest build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "npm run build && node --test dist/modules/health/health.service.test.js",
+    "test": "npm run build && node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node --test .test-dist/config/api-config.test.js .test-dist/modules/health/health.service.test.js .test-dist/modules/equgps/equgps-gateway.service.test.js .test-dist/modules/equgps/equgps.module.test.js",
     "health:smoke": "npm run build && node dist/health-smoke.js"
   },
   "dependencies": {
+    "@taxi-gps/equgps": "0.1.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.7",
+    "@nestjs/testing": "^11.0.1",
     "@types/node": "^24.0.15",
     "typescript": "^5.8.3"
   }

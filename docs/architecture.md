@@ -1,5 +1,9 @@
 # Архитектура первой версии
 
+## Интеграционная граница eQuGPS
+
+Backend использует workspace `@taxi-gps/equgps` через NestJS `EquGpsModule`. Единственная экспортируемая граница модуля — `EquGpsGatewayService`; frontend, controllers и будущие доменные модули не получают transport, отдельные capability-клиенты или session token. Session создаётся лениво только при первом web-вызове и разделяется между capabilities. Startup и health-check не вызывают внешний API. На текущем этапе публичные fleet/dashboard endpoint отсутствуют.
+
 ## Стек
 
 - Node.js 24, TypeScript в строгом режиме и npm workspaces;
