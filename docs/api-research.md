@@ -22,6 +22,12 @@
 - Result A is confirmed: the application can obtain a compatible web API token through the configured email/password. `EQUGPS_WEB_TOKEN` may remain only as a diagnostic fallback for now.
 - No new response-type deviation from Swagger was confirmed in this run. The client intentionally retains only the diagnostic fields (`id`, `name`, `token`) and does not log a full User object.
 
+## Package web-details smoke @taxi-gps/equgps
+
+- Session orchestration успешна; выполнено 5 последовательных запросов: session, runs, mode1, mode2, routes-new.
+- Агрегаты: runs — 50 строк; mode1 — 2 поездки с доступным `goTime`; mode2 — 126 внешних событий; routes-new — 2 поездки и 3 796 нормализованных точек. Идентификаторы, даты, адреса, координаты, скорости и дистанции не фиксируются.
+- Согласованность: `routes-new.dataPositions.distance` совпала с `mode1.dataPositions.distance` в пределах 0.01 м.
+
 ## Package smoke @taxi-gps/equgps
 
 - Контролируемый compiled smoke после исправления transport schema: session orchestration успешна; выполнено 4 последовательных HTTP-запроса без refresh.

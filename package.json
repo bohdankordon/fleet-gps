@@ -26,6 +26,8 @@
     "api:test": "npm --workspace @taxi-gps/api run test",
     "api:health-smoke": "npm --workspace @taxi-gps/api run health:smoke",
     "api:equgps-package-smoke:built": "npm run equgps:build && npm run build && node dist/scripts/equgps-package-smoke.js",
+    "api:equgps-web-details-smoke:built": "npm run equgps:build && npm run build && node dist/scripts/equgps-web-details-smoke.js",
+    "api:equgps-web-details-smoke:built": "npm run equgps:build && npm run build && node dist/scripts/equgps-web-details-smoke.js",
     "equgps:build": "npm --workspace @taxi-gps/equgps run build",
     "equgps:typecheck": "npm --workspace @taxi-gps/equgps run typecheck",
     "equgps:test": "npm --workspace @taxi-gps/equgps run test",

@@ -17,7 +17,10 @@ export function buildOfficialUrl(baseUrl: string, path: "session" | "devices" | 
 }
 
 export function buildWebRunsUrl(baseUrl: string, token: string): string {
-  const url = new URL("api/devices/runs", `${baseUrl}/`);
+  return buildWebUrl(baseUrl, "api/devices/runs", token);
+}
+export function buildWebUrl(baseUrl: string, path: "api/devices/runs" | "api/devices/info" | "api/devices/routes-new", token: string): string {
+  const url = new URL(path, `${baseUrl}/`);
   url.searchParams.append("token", token);
   return url.toString();
 }

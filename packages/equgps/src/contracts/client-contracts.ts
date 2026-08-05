@@ -34,22 +34,36 @@ export type VehicleDayParams = {
   date: string;
 };
 
+export type Location = { latitude: number; longitude: number };
+export type VehicleTrip = { startedAt: string; endedAt: string; distanceMeters: number; maxSpeedKph: number | null; startLocation: Location | null; endLocation: Location | null; startAddress: string | null; endAddress: string | null; stopAfterSeconds: number | null };
 export type VehicleDayDetails = {
+  deviceId: number;
+  date: string;
   distanceMeters: number | null;
-  movementSeconds: number | null;
-  maximumSpeedKnots: number | null;
-  tripCount: number;
+  movementDurationSeconds: number | null;
+  maxSpeedKph: number | null;
+  trips: readonly VehicleTrip[];
 };
 
 export type ExternalSpeedEvent = {
-  speedKmh: number;
+  externalEventId: number;
+  deviceId: number;
+  speedKph: number;
   occurredAt: string | null;
-  latitude: number | null;
-  longitude: number | null;
+  latitude: number;
+  longitude: number;
+  overPercent: number | null;
 };
+export type ExternalSpeedReport = { deviceId: number; date: string; configuredLimitKph: number | null; maxRecordedSpeedKph: number | null; events: readonly ExternalSpeedEvent[] };
+export type RoutePoint = { occurredAt: string | null; latitude: number; longitude: number };
 
 export type VehicleRoute = {
-  points: readonly EquGpsPosition[];
+  deviceId: number;
+  date: string;
+  distanceMeters: number | null;
+  movementDurationSeconds: number | null;
+  trips: readonly VehicleTrip[];
+  points: readonly RoutePoint[];
 };
 
 export interface OfficialEquGpsClient {
@@ -62,3 +76,6 @@ export interface OfficialEquGpsClient {
 export interface WebRunsClient {
   getRuns(token: SessionToken): Promise<readonly DailyRun[]>;
 }
+export interface WebVehicleDetailsClient { getVehicleDayDetails(token: SessionToken, params: VehicleDayParams): Promise<VehicleDayDetails>; }
+export interface WebSpeedEventsClient { getExternalSpeedReport(token: SessionToken, params: VehicleDayParams): Promise<ExternalSpeedReport>; }
+export interface WebRouteClient { getVehicleRoute(token: SessionToken, params: VehicleDayParams): Promise<VehicleRoute>; }

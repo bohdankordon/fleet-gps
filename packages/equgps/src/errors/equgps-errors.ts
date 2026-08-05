@@ -7,6 +7,9 @@ export type EquGpsSafeOperation =
   | "getMode1"
   | "getMode2"
   | "getRoute"
+  | "getVehicleDayDetails"
+  | "getExternalSpeedReport"
+  | "getVehicleRoute"
   | undefined;
 
 export abstract class EquGpsError extends Error {
