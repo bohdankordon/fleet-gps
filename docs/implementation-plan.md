@@ -1,5 +1,9 @@
 # План реализации
 
+## Этап 2A: локальная база и первая миграция
+
+Цель: воспроизводимый PostgreSQL, Prisma 7 и минимальная схема fleet/dashboard. Зависимость: завершённый этап 1E. Результат: versioned migration, `ApplicationSettings` singleton и read-only database smoke. Готовность: миграция применена локально, client генерируется явно, startup/health не подключаются к БД. Не реализуются: PrismaService, DatabaseModule, controllers, polling и бизнес-логика.
+
 ## Этап 0 — checkpoint исследования
 
 - Цель: зафиксировать завершённое исследование API.

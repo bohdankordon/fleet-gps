@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .test-dist/
+/apps/api/src/generated/prisma/
 coverage/
 
 .env
@@ -17,4 +18,3 @@ private/
 .idea/
 .DS_Store
 Thumbs.db
-.test-dist/

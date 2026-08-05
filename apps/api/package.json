@@ -8,23 +8,36 @@
   },
   "scripts": {
     "start:dev": "nest start --watch",
-    "build": "node scripts/clean-output.cjs dist && nest build",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "npm run build && node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node --test .test-dist/config/api-config.test.js .test-dist/modules/health/health.service.test.js .test-dist/modules/equgps/equgps-gateway.service.test.js .test-dist/modules/equgps/equgps.module.test.js",
-    "health:smoke": "npm run build && node dist/health-smoke.js"
+    "build": "npm run prisma:generate && node scripts/clean-output.cjs dist && nest build",
+    "typecheck": "npm run prisma:generate && tsc --noEmit -p tsconfig.json",
+    "test": "npm run build && node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node --test scripts/database-smoke.test.cjs .test-dist/config/api-config.test.js .test-dist/modules/health/health.service.test.js .test-dist/modules/equgps/equgps-gateway.service.test.js .test-dist/prisma-client.fixture.test.js .test-dist/modules/equgps/equgps.module.test.js",
+    "health:smoke": "npm run build && node dist/health-smoke.js",
+    "prisma:format": "prisma format --config prisma.config.ts",
+    "prisma:validate": "prisma validate --config prisma.config.ts",
+    "prisma:generate": "prisma generate --config prisma.config.ts",
+    "prisma:migrate:dev": "node scripts/require-database-url.cjs && prisma migrate dev --config prisma.config.ts",
+    "prisma:migrate:deploy": "node scripts/require-database-url.cjs && prisma migrate deploy --config prisma.config.ts",
+    "prisma:migrate:status": "node scripts/require-database-url.cjs && prisma migrate status --config prisma.config.ts",
+    "db:smoke": "node scripts/require-database-url.cjs && npm run build && node --env-file=../../.env scripts/database-smoke.cjs"
   },
   "dependencies": {
     "@taxi-gps/equgps": "0.1.0",
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "reflect-metadata": "^0.2.2",
+    "pg": "8.22.0",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.7",
     "@nestjs/testing": "^11.0.1",
     "@types/node": "^24.0.15",
+    "@types/pg": "^8.15.4",
+    "dotenv": "^17.2.1",
+    "prisma": "7.9.1",
     "typescript": "^5.8.3"
   }
 }

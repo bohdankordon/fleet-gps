@@ -1,0 +1,95 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  runtime      = "nodejs"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum VehicleStatus {
+  ONLINE
+  OFFLINE
+  UNKNOWN
+}
+
+enum DailyStatSource {
+  RUNS
+  MODE1
+  HISTORICAL_POSITIONS
+}
+
+enum DataQuality {
+  EXACT
+  PROVISIONAL
+  ESTIMATED
+}
+
+model Vehicle {
+  id               String               @id @default(uuid()) @map("id") @db.Uuid
+  externalDeviceId Int                  @unique @map("external_device_id")
+  name             String               @map("name") @db.VarChar(255)
+  disabled         Boolean              @default(false) @map("disabled")
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  currentState     VehicleCurrentState?
+  dailyStats       DailyVehicleStat[]
+
+  @@map("vehicles")
+}
+
+model VehicleCurrentState {
+  vehicleId            String        @id @map("vehicle_id") @db.Uuid
+  status               VehicleStatus @default(UNKNOWN) @map("status")
+  externalLastUpdateAt DateTime?     @map("external_last_update_at") @db.Timestamptz(6)
+  fixTime              DateTime?     @map("fix_time") @db.Timestamptz(6)
+  latitude             Float?        @map("latitude")
+  longitude            Float?        @map("longitude")
+  speedKph             Float?        @map("speed_kph")
+  valid                Boolean?      @map("valid")
+  outdated             Boolean?      @map("outdated")
+  fetchedAt            DateTime      @default(now()) @map("fetched_at") @db.Timestamptz(6)
+  vehicle              Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@map("vehicle_current_states")
+}
+
+model DailyVehicleStat {
+  id                      String          @id @default(uuid()) @map("id") @db.Uuid
+  vehicleId               String          @map("vehicle_id") @db.Uuid
+  serviceDate             DateTime        @map("service_date") @db.Date
+  distanceMeters          Decimal         @map("distance_meters") @db.Decimal(14, 2)
+  movementDurationSeconds Int?            @map("movement_duration_seconds")
+  maxSpeedKph             Decimal?        @map("max_speed_kph") @db.Decimal(8, 3)
+  source                  DailyStatSource @map("source")
+  quality                 DataQuality     @map("quality")
+  isStale                 Boolean         @default(false) @map("is_stale")
+  isDegraded              Boolean         @default(false) @map("is_degraded")
+  fetchedAt               DateTime        @default(now()) @map("fetched_at") @db.Timestamptz(6)
+  createdAt               DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  vehicle                 Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleId, serviceDate])
+  @@index([serviceDate])
+  @@index([source])
+  @@map("daily_vehicle_stats")
+}
+
+model ApplicationSettings {
+  id                         Int      @id @default(1) @map("id")
+  timezone                   String   @default("Europe/Kyiv") @map("timezone") @db.VarChar(64)
+  minimumDailyDistanceMeters Int      @default(500) @map("minimum_daily_distance_meters")
+  citySpeedLimitKph          Int      @default(50) @map("city_speed_limit_kph")
+  outsideSpeedLimitKph       Int      @default(90) @map("outside_speed_limit_kph")
+  speedToleranceKph          Int      @default(10) @map("speed_tolerance_kph")
+  positionFreshnessSeconds   Int      @default(300) @map("position_freshness_seconds")
+  telegramChatId             String?  @map("telegram_chat_id") @db.VarChar(128)
+  dailyReportMinuteOfDay     Int      @default(10) @map("daily_report_minute_of_day")
+  createdAt                  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("application_settings")
+}
