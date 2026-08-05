@@ -59,9 +59,6 @@ export interface OfficialEquGpsClient {
   getHistoricalPositions(params: HistoricalPositionsParams): Promise<readonly EquGpsPosition[]>;
 }
 
-export interface WebEquGpsClient {
+export interface WebRunsClient {
   getRuns(token: SessionToken): Promise<readonly DailyRun[]>;
-  getMode1(token: SessionToken, params: VehicleDayParams): Promise<VehicleDayDetails>;
-  getMode2(token: SessionToken, params: VehicleDayParams): Promise<readonly ExternalSpeedEvent[]>;
-  getRoute(token: SessionToken, params: VehicleDayParams): Promise<VehicleRoute>;
 }

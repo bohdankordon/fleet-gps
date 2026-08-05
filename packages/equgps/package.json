@@ -21,7 +21,7 @@
   "scripts": {
     "build": "node scripts/clean-output.cjs dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "npm run build && node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node --test .test-dist/src/config/equgps-config.test.js .test-dist/src/contracts/fake-transport.test.js .test-dist/src/auth/session-token-provider.test.js .test-dist/src/auth/with-session-token.test.js .test-dist/src/errors/errors.test.js",
+    "test": "npm run build && node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node --test .test-dist/src/config/equgps-config.test.js .test-dist/src/contracts/fake-transport.test.js .test-dist/src/auth/session-token-provider.test.js .test-dist/src/auth/with-session-token.test.js .test-dist/src/errors/errors.test.js .test-dist/src/internal/url-builder.test.js .test-dist/src/transport/fetch-http-transport.test.js .test-dist/src/clients/official-client.test.js .test-dist/src/clients/web-runs-client.test.js .test-dist/src/factories.test.js",
     "public-api:typecheck": "tsc --noEmit -p tsconfig.public-api.json",
     "public-api:smoke": "npm run build && npm run public-api:typecheck && node test/public-api-smoke.cjs"
   },

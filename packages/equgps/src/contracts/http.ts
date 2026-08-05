@@ -1,6 +1,7 @@
 export type HttpMethod = "GET" | "POST";
 
 export type HttpRequest = {
+  operation: import("../errors/equgps-errors").EquGpsSafeOperation;
   method: HttpMethod;
   url: string;
   headers: Readonly<Record<string, string>>;

@@ -62,3 +62,9 @@ export class EquGpsResponseValidationError extends EquGpsError {
     super("eQuGPS response does not match the expected contract.", operation);
   }
 }
+
+export class EquGpsHttpError extends EquGpsError {
+  public constructor(status: number, operation?: EquGpsSafeOperation) {
+    super("eQuGPS returned an unsuccessful HTTP status.", operation, status);
+  }
+}

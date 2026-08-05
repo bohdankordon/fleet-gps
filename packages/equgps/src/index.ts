@@ -17,12 +17,13 @@ export type {
   VehicleDayDetails,
   VehicleDayParams,
   VehicleRoute,
-  WebEquGpsClient,
+  WebRunsClient,
 } from "./contracts/client-contracts";
 export type { HttpRequest, HttpResponse, HttpTransport } from "./contracts/http";
 export { SessionTokenProvider, type CreateSessionToken } from "./auth/session-token-provider";
 export { executeReadOnlyWithSessionToken, type ReadOnlyWebOperation } from "./auth/with-session-token";
 export {
+  EquGpsError,
   EquGpsConfigurationError,
   EquGpsForbiddenError,
   EquGpsNetworkError,
@@ -30,5 +31,8 @@ export {
   EquGpsResponseValidationError,
   EquGpsTimeoutError,
   EquGpsUnauthorizedError,
+  EquGpsHttpError,
 } from "./errors/equgps-errors";
 export type { EquGpsSafeOperation } from "./errors/equgps-errors";
+export { FetchHttpTransport } from "./transport/fetch-http-transport";
+export { createOfficialEquGpsClient, createWebRunsClient } from "./factories";
