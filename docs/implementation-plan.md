@@ -4,6 +4,10 @@
 
 Цель: локальный список машин с фильтрами, freshness позиции и дневной статистикой. Результат: `GET /api/dashboard/vehicles` читает только PostgreSQL-кэш. Критерии готовности: no external requests, нет записей в БД, missing daily stat не считается нулевым пробегом, ответ не раскрывает координаты или external device IDs. На этапе не реализуются frontend, auth и scheduler.
 
+## Этап 4A: Next.js dashboard
+
+Цель: responsive frontend списка автопарка. Результат: Next.js App Router с server-only BFF границей, desktop table и mobile cards. Критерии готовности: browser не знает backend URL и не обращается к eQuGPS, filters сохраняются в URL, no_data не выглядит как нулевой пробег, UI smoke использует только локальные процессы. Не реализуются auth, карта, scheduler, Telegram и отчёты.
+
 ## Этап 2A: локальная база и первая миграция
 
 Цель: воспроизводимый PostgreSQL, Prisma 7 и минимальная схема fleet/dashboard. Зависимость: завершённый этап 1E. Результат: versioned migration, `ApplicationSettings` singleton и read-only database smoke. Готовность: миграция применена локально, client генерируется явно, startup/health не подключаются к БД. Не реализуются: PrismaService, DatabaseModule, controllers, polling и бизнес-логика.

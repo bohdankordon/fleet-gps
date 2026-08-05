@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": false, "outDir": ".test-dist", "declaration": false, "module": "commonjs", "moduleResolution": "node", "jsx": "react-jsx", "incremental": false, "esModuleInterop": true },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", ".next", ".test-dist", "src/app/page.tsx", "src/components/dashboard-client.tsx", "src/app/layout.tsx"]
+}

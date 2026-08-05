@@ -1,0 +1,5 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { DashboardQueryError, parseDashboardQuery, serializeDashboardQuery } from "./dashboard-query";
+test("parses allowlisted dashboard filters and serializes only non-default values", () => { const parsed = parseDashboardQuery(new URLSearchParams("search=%20Taxi%20&status=online&ignored=x")); assert.deepEqual(parsed, { search: "Taxi", status: "online", activity: undefined, includeDisabled: true }); assert.equal(serializeDashboardQuery({ search: "Taxi", status: "online", includeDisabled: false }), "search=Taxi&status=online&includeDisabled=false"); });
+test("rejects invalid known dashboard query values", () => { assert.throws(() => parseDashboardQuery(new URLSearchParams("status=bad")), DashboardQueryError); assert.throws(() => parseDashboardQuery(new URLSearchParams("includeDisabled=1")), DashboardQueryError); assert.throws(() => parseDashboardQuery(new URLSearchParams(`search=${"x".repeat(101)}`)), DashboardQueryError); });

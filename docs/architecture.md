@@ -4,6 +4,10 @@
 
 На этапе 3C `DashboardModule` публикует локальный read-only список машин. Controller и query service читают только PostgreSQL-кэш и не вызывают eQuGPS или синхронизацию. Список не выдаёт координаты и внешний device ID. До реализации auth endpoint разрешён только локально либо в закрытой сети.
 
+## Web dashboard
+
+Next.js frontend из `apps/web` является единственной browser-границей. Browser обращается к ограниченному BFF route Next.js; только Next server вызывает Nest API по server-only internal URL. Внешний API eQuGPS не доступен frontend и не вызывается пользовательским HTTP-запросом dashboard.
+
 ## Интеграционная граница eQuGPS
 
 Backend использует workspace `@taxi-gps/equgps` через NestJS `EquGpsModule`. Единственная экспортируемая граница модуля — `EquGpsGatewayService`; frontend, controllers и будущие доменные модули не получают transport, отдельные capability-клиенты или session token. Session создаётся лениво только при первом web-вызове и разделяется между capabilities. Startup и health-check не вызывают внешний API. Публичные fleet endpoint пока отсутствуют; dashboard-list читает только локальный кэш.

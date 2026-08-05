@@ -1,0 +1,31 @@
+{
+  "name": "@taxi-gps/web",
+  "version": "0.1.0",
+  "private": true,
+  "engines": { "node": ">=24.0.0 <25" },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node --test .test-dist/lib/web-config.test.js .test-dist/lib/dashboard/dashboard-contract.test.js .test-dist/lib/dashboard/dashboard-query.test.js .test-dist/lib/dashboard/dashboard-navigation.test.js .test-dist/lib/dashboard/dashboard-formatters.test.js .test-dist/app/api/dashboard/vehicles/route.test.js",
+    "dashboard:smoke": "npm run build && node scripts/dashboard-ui-smoke.cjs"
+  },
+  "dependencies": {
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^24.0.15",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.8.3"
+  }
+}

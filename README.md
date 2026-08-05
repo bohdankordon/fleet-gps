@@ -1,5 +1,9 @@
 # eQuGPS API research
 
+## Web dashboard
+
+`apps/web` содержит Next.js dashboard. Браузер вызывает только локальный Next.js BFF, а Next server — Nest API через server-only `API_INTERNAL_BASE_URL`. Команды: `npm run web:dev`, `npm run web:build`, `npm run web:dashboard-smoke`. Dashboard не вызывает eQuGPS и не запускает sync; authentication пока отсутствует, поэтому доступ только локальный или из закрытой сети.
+
 ## Этап 2A: локальная БД
 
 Локальный PostgreSQL запускается через `npm run db:up`; Prisma 7 schema и миграции находятся в `apps/api/prisma`. На этом этапе Prisma ещё не подключена к NestJS startup, поэтому `GET /api/health` не обращается к БД. Подробности и безопасные команды — в `docs/database.md`.

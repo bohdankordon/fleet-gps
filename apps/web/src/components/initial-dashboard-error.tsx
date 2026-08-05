@@ -1,0 +1,2 @@
+"use client";
+export function InitialDashboardError() { return <main><header className="hero"><p className="eyebrow">Локальный кэш автопарка</p><h1>Автопарк</h1><p>Оперативное состояние и пробег за текущий день</p></header><section className="empty" role="alert"><h2>Не удалось загрузить данные автопарка</h2><p>Повторите попытку позже.</p><button type="button" aria-label="Повторить загрузку данных автопарка" onClick={() => window.location.reload()}>Повторить</button></section></main>; }

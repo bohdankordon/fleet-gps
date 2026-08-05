@@ -1,6 +1,9 @@
 node_modules/
 dist/
 .test-dist/
+/apps/web/.next/
+/apps/web/.test-dist/
+/apps/web/tsconfig.tsbuildinfo
 /apps/api/src/generated/prisma/
 coverage/
 
