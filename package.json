@@ -25,6 +25,10 @@
     "api:typecheck": "npm --workspace @taxi-gps/api run typecheck",
     "api:test": "npm --workspace @taxi-gps/api run test",
     "api:health-smoke": "npm --workspace @taxi-gps/api run health:smoke",
+    "equgps:build": "npm --workspace @taxi-gps/equgps run build",
+    "equgps:typecheck": "npm --workspace @taxi-gps/equgps run typecheck",
+    "equgps:test": "npm --workspace @taxi-gps/equgps run test",
+    "equgps:public-api-smoke": "npm --workspace @taxi-gps/equgps run public-api:smoke",
     "typecheck": "tsc --noEmit",
     "build": "tsc",
     "test": "npm run build && node --test dist/equgps/equgps-schemas.test.js dist/equgps/equgps-position.test.js dist/equgps/equgps-summary.test.js dist/equgps/equgps-session.test.js dist/equgps-web/equgps-web.test.js"

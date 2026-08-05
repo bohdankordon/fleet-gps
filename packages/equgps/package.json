@@ -1,0 +1,35 @@
+{
+  "name": "@taxi-gps/equgps",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "scripts": {
+    "build": "node scripts/clean-output.cjs dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "npm run build && node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node --test .test-dist/src/config/equgps-config.test.js .test-dist/src/contracts/fake-transport.test.js .test-dist/src/auth/session-token-provider.test.js .test-dist/src/auth/with-session-token.test.js .test-dist/src/errors/errors.test.js",
+    "public-api:typecheck": "tsc --noEmit -p tsconfig.public-api.json",
+    "public-api:smoke": "npm run build && npm run public-api:typecheck && node test/public-api-smoke.cjs"
+  },
+  "dependencies": {
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.15",
+    "typescript": "^5.8.3"
+  }
+}
