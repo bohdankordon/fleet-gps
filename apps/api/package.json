@@ -10,7 +10,7 @@
     "start:dev": "nest start --watch",
     "build": "npm run prisma:generate && node scripts/clean-output.cjs dist && nest build",
     "typecheck": "npm run prisma:generate && tsc --noEmit -p tsconfig.json",
-    "test": "npm run build && node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node --test scripts/database-smoke.test.cjs .test-dist/config/api-config.test.js .test-dist/modules/health/health.service.test.js .test-dist/modules/equgps/equgps-gateway.service.test.js .test-dist/prisma-client.fixture.test.js .test-dist/modules/equgps/equgps.module.test.js",
+    "test": "npm run build && node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node --test scripts/database-smoke.test.cjs .test-dist/config/api-config.test.js .test-dist/modules/database/database.service.test.js .test-dist/modules/database/database-readiness.service.test.js .test-dist/modules/database/database.module.test.js .test-dist/modules/health/health.service.test.js .test-dist/modules/health/health.controller.test.js .test-dist/modules/equgps/equgps-gateway.service.test.js .test-dist/prisma-client.fixture.test.js .test-dist/modules/equgps/equgps.module.test.js",
     "health:smoke": "npm run build && node dist/health-smoke.js",
     "prisma:format": "prisma format --config prisma.config.ts",
     "prisma:validate": "prisma validate --config prisma.config.ts",
@@ -18,7 +18,8 @@
     "prisma:migrate:dev": "node scripts/require-database-url.cjs && prisma migrate dev --config prisma.config.ts",
     "prisma:migrate:deploy": "node scripts/require-database-url.cjs && prisma migrate deploy --config prisma.config.ts",
     "prisma:migrate:status": "node scripts/require-database-url.cjs && prisma migrate status --config prisma.config.ts",
-    "db:smoke": "node scripts/require-database-url.cjs && npm run build && node --env-file=../../.env scripts/database-smoke.cjs"
+    "db:smoke": "node scripts/require-database-url.cjs && npm run build && node --env-file=../../.env scripts/database-smoke.cjs",
+    "database:readiness-smoke": "node scripts/require-database-url.cjs && npm run build && node --env-file=../../.env scripts/database-readiness-smoke.cjs"
   },
   "dependencies": {
     "@taxi-gps/equgps": "0.1.0",

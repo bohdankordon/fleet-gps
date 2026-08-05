@@ -6,7 +6,9 @@ Backend использует workspace `@taxi-gps/equgps` через NestJS `Equ
 
 ## Локальное хранилище
 
-PostgreSQL и Prisma 7 используют отдельные schema/migrations артефакты. До следующего этапа Prisma не подключается к `AppModule`: база нужна только для явных CLI-команд и read-only smoke.
+PostgreSQL и Prisma 7 используют отдельные schema/migrations артефакты. Prisma подключена к `AppModule` только через не-global `DatabaseModule`; liveness не выполняет SQL.
+
+`DatabaseModule` является явной (не global) backend-зависимостью. Он создаёт один lazy Prisma Client с PostgreSQL adapter; readiness отделён от liveness. Правило одной активной backend-реплики MVP сохраняется.
 
 ## Стек
 

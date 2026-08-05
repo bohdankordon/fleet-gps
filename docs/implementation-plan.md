@@ -4,6 +4,8 @@
 
 Цель: воспроизводимый PostgreSQL, Prisma 7 и минимальная схема fleet/dashboard. Зависимость: завершённый этап 1E. Результат: versioned migration, `ApplicationSettings` singleton и read-only database smoke. Готовность: миграция применена локально, client генерируется явно, startup/health не подключаются к БД. Не реализуются: PrismaService, DatabaseModule, controllers, polling и бизнес-логика.
 
+Этап 2B добавляет `DatabaseModule`, lazy Prisma client, readiness endpoint и graceful shutdown без fleet/dashboard controllers или синхронизации устройств.
+
 ## Этап 0 — checkpoint исследования
 
 - Цель: зафиксировать завершённое исследование API.

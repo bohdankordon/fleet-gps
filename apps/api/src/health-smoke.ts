@@ -9,6 +9,7 @@ const safeEnvironment = {
   EQUGPS_EMAIL: "health-smoke@example.test",
   EQUGPS_PASSWORD: "health-smoke-password",
   EQUGPS_REQUEST_TIMEOUT_MS: "15000",
+  DATABASE_URL: "postgresql://invalid:invalid@127.0.0.1:1/invalid?schema=public",
 };
 
 async function runSmokeTest(): Promise<void> {

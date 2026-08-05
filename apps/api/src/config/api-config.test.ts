@@ -2,20 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ApiConfigurationError, parseApiConfig } from "./api-config";
 
-const valid = () => ({ EQUGPS_BASE_URL: "https://trace.example.test/api", EQUGPS_WEB_BASE_URL: "https://web.example.test", EQUGPS_EMAIL: "user@example.test", EQUGPS_PASSWORD: " secret " });
+const valid = () => ({ EQUGPS_BASE_URL: "https://trace.example.test/api", EQUGPS_WEB_BASE_URL: "https://web.example.test", EQUGPS_EMAIL: "user@example.test", EQUGPS_PASSWORD: " secret ", DATABASE_URL: "postgresql://user:password@example.test/db" });
 
 test("API config applies safe defaults and preserves the input object", () => {
   const env = valid(); const before = { ...env };
   const config = parseApiConfig(env);
-  assert.equal(config.host, "127.0.0.1"); assert.equal(config.port, 3_000); assert.equal(config.equGps.requestTimeoutMs, 15_000);
+  assert.equal(config.host, "127.0.0.1"); assert.equal(config.port, 3_000); assert.equal(config.equGps.requestTimeoutMs, 15_000); assert.deepEqual(config.database, { url: "postgresql://user:password@example.test/db", poolMax: 10, connectionTimeoutMs: 5_000, idleTimeoutMs: 30_000 });
   assert.deepEqual(env, before); assert.equal(Object.isFrozen(config), true); assert.equal(Object.isFrozen(config.equGps), true);
 });
 test("API config accepts explicit valid values", () => {
-  const config = parseApiConfig({ ...valid(), HOST: "localhost", PORT: "3210", EQUGPS_REQUEST_TIMEOUT_MS: "16000" });
-  assert.equal(config.host, "localhost"); assert.equal(config.port, 3210); assert.equal(config.equGps.requestTimeoutMs, 16000);
+  const env = { ...valid(), HOST: " localhost ", PORT: "3210", EQUGPS_REQUEST_TIMEOUT_MS: "16000", DATABASE_POOL_MAX: "20", DATABASE_CONNECTION_TIMEOUT_MS: "6000", DATABASE_IDLE_TIMEOUT_MS: "40000" }; const config = parseApiConfig(env);
+  assert.equal(config.host, "localhost"); assert.equal(env.HOST, " localhost "); assert.equal(config.port, 3210); assert.equal(config.equGps.requestTimeoutMs, 16000); assert.equal(config.database.poolMax, 20); assert.equal(config.database.connectionTimeoutMs, 6000); assert.equal(config.database.idleTimeoutMs, 40000);
 });
 test("API config rejects invalid port, missing credentials and unsafe official URL", () => {
-  for (const env of [{ ...valid(), PORT: "0" }, { ...valid(), PORT: "x" }, { ...valid(), EQUGPS_EMAIL: "" }, { ...valid(), EQUGPS_PASSWORD: "" }, { ...valid(), EQUGPS_BASE_URL: "http://trace.example.test" }]) {
+  for (const env of [{ ...valid(), PORT: "0" }, { ...valid(), HOST: "   " }, { ...valid(), EQUGPS_EMAIL: "" }, { ...valid(), EQUGPS_BASE_URL: "http://trace.example.test" }, { ...valid(), DATABASE_URL: "" }, { ...valid(), DATABASE_POOL_MAX: "0" }, { ...valid(), DATABASE_CONNECTION_TIMEOUT_MS: "99" }, { ...valid(), DATABASE_IDLE_TIMEOUT_MS: "999" }]) {
     assert.throws(() => parseApiConfig(env), ApiConfigurationError);
   }
 });
