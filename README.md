@@ -1,5 +1,13 @@
 # eQuGPS API research
 
+## Monorepo и этап 1A
+
+Репозиторий использует npm workspaces: исследовательский TypeScript-код остаётся в корневом `src/`, минимальный NestJS backend находится в `apps/api`, а `apps/web`, `packages/equgps` и `packages/shared` пока являются placeholder-каталогами.
+
+Research probes продолжают запускаться прежними командами `npm run api:*`. NestJS API запускается командой `npm run api:dev`; health endpoint доступен по `GET /api/health` на `127.0.0.1:3000` (порт можно задать через `PORT`). Для краткой локальной проверки без долгоживущего процесса: `npm run api:health-smoke`.
+
+Текущие ограничения этапа 1A: без frontend, базы данных, Prisma, Docker, Telegram, scheduler и интеграции eQuGPS внутри NestJS.
+
 Минимальный диагностический TypeScript-клиент для безопасной проверки `GET /devices` eQuGPS API. Клиент выполняет только GET-запросы и не изменяет данные.
 
 ## Требования
