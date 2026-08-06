@@ -1,5 +1,9 @@
 # NestJS API workspace
 
+## Alert rule settings
+
+Stage 6A.1 exposes read-only `GET /api/system/alert-settings`. Its business rules are stored in the PostgreSQL `ApplicationSettings` singleton, not in `.env`: `50/90/10/2/300/60` for city/outside limits, tolerance, confirmation updates, inactivity distance, and inactivity duration. Effective speed thresholds are calculated on every read (defaults: `60/100`), and settings are not cached so a later UI update needs no restart. The nullable GeoJSON Polygon city geofence is currently unconfigured; there is no detector, Telegram integration, or edit endpoint yet. See [`docs/alert-rule-settings.md`](../../docs/alert-rule-settings.md).
+
 ## Scheduler
 
 The in-memory scheduler is disabled by default. When enabled, fleet runs every 60 seconds and daily runs every 300 seconds, with no immediate execution or retry. The read-only `GET /api/system/sync-status` endpoint is intended only for localhost or a closed network; multi-replica deployments need a distributed lock or queue.

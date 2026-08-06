@@ -1,5 +1,9 @@
 # План реализации
 
+## Stage 6A.1 — alert rule settings foundation
+
+Completed foundation: persisted singleton speed/inactivity rules with defaults `50/90/10/2/300/60`, a nullable GeoJSON Polygon city-geofence field, immutable validation service, and read-only API contract. The geofence remains unconfigured until a separately approved polygon-config stage. Future UI editing can update PostgreSQL without restart because reads are uncached. No position detector, background rule job, Telegram, notification, map, or alert-event table is included in this stage.
+
 ### Stage 5A — sync scheduler (completed)
 
 ### Stage 5B.1 — scheduler status UI

@@ -1,5 +1,9 @@
 # Архитектура первой версии
 
+## Alert rule settings
+
+`AlertSettingsModule` is a read-only PostgreSQL boundary around the `ApplicationSettings` singleton. It validates database values as untrusted, returns an immutable snapshot, and does not query on application bootstrap. `GET /api/system/alert-settings` is the future UI read contract; it neither writes, starts a detector, nor calls eQuGPS. Rule defaults `50/90/10/2/300/60` live in the database migration, while effective speed thresholds are calculated at read time. The optional city geofence is a validated GeoJSON Polygon JSON value without PostGIS and is currently `null`; detector cycles will later read one snapshot per batch.
+
 ## Sync scheduler
 
 The scheduler is disabled by default and runs fleet/runs only after their full 60/300-second intervals. It keeps independent in-memory locks and status, uses bounded shutdown, and provides read-only status only on localhost or a closed network. MVP requires one active backend replica; multiple replicas need a distributed lock or queue.
