@@ -84,10 +84,14 @@ async function run(argv, dependencies = {}) {
       restoreScheduler = true;
       loadRootEnv();
       process.env.SYNC_SCHEDULER_ENABLED = "false";
-      const createApplicationContext = dependencies.createApplicationContext ?? require("@nestjs/core").NestFactory.createApplicationContext;
       const CityGeofenceModule = dependencies.CityGeofenceModule ?? require("../dist/modules/city-geofence/city-geofence.module").CityGeofenceModule;
       const ManagementService = dependencies.ManagementService ?? require("../dist/modules/city-geofence/city-geofence-management.service").CityGeofenceManagementService;
-      app = await createApplicationContext(CityGeofenceModule, { logger: false, abortOnError: false });
+      if (dependencies.createApplicationContext !== undefined) {
+        app = await dependencies.createApplicationContext(CityGeofenceModule, { logger: false, abortOnError: false });
+      } else {
+        const NestFactory = dependencies.NestFactory ?? require("@nestjs/core").NestFactory;
+        app = await NestFactory.createApplicationContext(CityGeofenceModule, { logger: false, abortOnError: false });
+      }
       const management = app.get(ManagementService);
       if (options.clear) await management.clearCityGeofence();
       else await management.replaceCityGeofence(polygon);

@@ -49,6 +49,77 @@ test("apply loads root env, forces scheduler disabled, uses CityGeofenceModule, 
   }
 });
 
+test("default NestFactory path preserves the NestFactory receiver and writes once", async () => {
+  const output: string[] = [];
+  let writes = 0;
+  let closed = 0;
+  class CityGeofenceModule {}
+  class ManagementService {}
+  const app = {
+    get: (service: unknown) => {
+      assert.equal(service, ManagementService);
+      return { replaceCityGeofence: async () => { writes += 1; } };
+    },
+    close: async () => { closed += 1; },
+  };
+  const NestFactory = {
+    async createApplicationContext(this: unknown, module: unknown, options: unknown) {
+      assert.equal(this, NestFactory);
+      assert.equal(module, CityGeofenceModule);
+      assert.deepEqual(options, { logger: false, abortOnError: false });
+      return app;
+    },
+  };
+  const code = await cli.run(["--file", "fixture.json", "--apply"], {
+    fs: { statSync: () => ({ isFile: () => true, size: 100 }), readFileSync: () => Buffer.from(JSON.stringify(polygon)) },
+    validatePolygon,
+    loadRootEnv: () => undefined,
+    NestFactory,
+    CityGeofenceModule,
+    ManagementService,
+    output: (line: string) => output.push(line),
+  });
+  assert.equal(code, 0);
+  assert.equal(writes, 1);
+  assert.equal(closed, 1);
+  assert.ok(output.includes("database write performed: true"));
+  assert.ok(output.includes("geofence configured after operation: true"));
+  assert.ok(output.includes("application closed: true"));
+});
+
+test("failure before management write keeps the safe no-write state", async () => {
+  const output: string[] = [];
+  let writes = 0;
+  let closed = 0;
+  class CityGeofenceModule {}
+  class ManagementService {}
+  const app = {
+    get: () => {
+      throw new Error("management unavailable");
+    },
+    close: async () => { closed += 1; },
+  };
+  const NestFactory = {
+    async createApplicationContext() {
+      return app;
+    },
+  };
+  const code = await cli.run(["--file", "fixture.json", "--apply"], {
+    fs: { statSync: () => ({ isFile: () => true, size: 100 }), readFileSync: () => Buffer.from(JSON.stringify(polygon)) },
+    validatePolygon,
+    loadRootEnv: () => undefined,
+    NestFactory,
+    CityGeofenceModule,
+    ManagementService,
+    output: (line: string) => output.push(line),
+  });
+  assert.equal(code, 1);
+  assert.equal(writes, 0);
+  assert.equal(closed, 1);
+  assert.ok(output.includes("database write performed: false"));
+  assert.ok(output.includes("geofence configured after operation: false"));
+});
+
 test("fails safely for missing, oversized, invalid UTF-8, malformed, Feature, and oversized-read inputs", async () => {
   for (const dependency of [
     { fs: { statSync: () => { throw new Error("C:/secret.json"); } } },
