@@ -8,8 +8,9 @@ import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { SyncSchedulerModule } from "./modules/sync-scheduler/sync-scheduler.module";
 import { AlertSettingsModule } from "./modules/alert-settings/alert-settings.module";
 import { CityGeofenceModule } from "./modules/city-geofence/city-geofence.module";
+import { SpeedingDetectorModule } from "./modules/speeding-detector/speeding-detector.module";
 
 @Module({
-  imports: [ApiConfigModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule],
+  imports: [ApiConfigModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule],
 })
 export class AppModule {}
