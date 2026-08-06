@@ -2,6 +2,18 @@ const assert = require("node:assert/strict");
 const { NestFactory } = require("@nestjs/core");
 const { loadRootEnv } = require("./load-root-env.cjs");
 
+function assertCityGeofenceContract(cityGeofence, validateGeoJsonPolygon) {
+  assert.equal(typeof cityGeofence?.configured, "boolean");
+  if (!cityGeofence.configured) {
+    assert.equal(cityGeofence.geometry, null);
+    return null;
+  }
+  const polygon = validateGeoJsonPolygon(cityGeofence.geometry);
+  assert.notEqual(polygon, null);
+  assert.equal(polygon.type, "Polygon");
+  return polygon;
+}
+
 async function main() {
   let app;
   let healthStatus = 0;
@@ -19,7 +31,10 @@ async function main() {
     process.env.EQUGPS_WEB_BASE_URL = "https://web.alert-settings.invalid";
     globalThis.fetch = async (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (!url.startsWith("http://127.0.0.1:")) externalRequests += 1;
+      if (!url.startsWith("http://127.0.0.1:")) {
+        externalRequests += 1;
+        throw new Error("Unexpected external request.");
+      }
       return nativeFetch(input, init);
     };
     const { AppModule } = require("../dist/app.module");
@@ -43,7 +58,8 @@ async function main() {
     assert.equal(settings.inactivityDistanceMeters, 300);
     assert.equal(settings.inactivityDurationMinutes, 60);
     assert.equal(settings.timezone, "Europe/Kyiv");
-    assert.deepEqual(settings.cityGeofence, { configured: false, geometry: null });
+    const { validateGeoJsonPolygon } = require("../dist/modules/alert-settings/alert-settings.validation");
+    assertCityGeofenceContract(settings.cityGeofence, validateGeoJsonPolygon);
     assert.deepEqual(settings.effectiveSpeedThresholds, { cityKph: 60, outsideCityKph: 100 });
     assert.equal(Object.hasOwn(settings.effectiveSpeedThresholds, "outsideKph"), false);
     assert.equal(externalRequests, 0);
@@ -75,4 +91,6 @@ async function main() {
   }
 }
 
-void main();
+if (require.main === module) void main();
+
+module.exports = { assertCityGeofenceContract };

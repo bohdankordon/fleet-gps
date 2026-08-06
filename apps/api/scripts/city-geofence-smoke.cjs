@@ -2,6 +2,13 @@ const assert = require("node:assert/strict");
 const { NestFactory } = require("@nestjs/core");
 const { loadRootEnv } = require("./load-root-env.cjs");
 
+function assertDiagnosticState(diagnostic, beforeSettings) {
+  const expectedConfigured = !beforeSettings.geofenceIsNull;
+  assert.equal(diagnostic.configured, expectedConfigured);
+  assert.equal(diagnostic.classificationAvailable, expectedConfigured);
+  assert.equal(diagnostic.boundaryPolicy, "CITY");
+}
+
 async function main() {
   let app; let healthStatus = 0; let geofenceStatus = 0; let diagnostic = {}; let databaseWrites = "unknown"; let externalRequests = 0; let schedulerStarted = false; let closed = false;
   let insideClassification = "UNAVAILABLE"; let insideZone = "UNKNOWN"; let outsideClassification = "UNAVAILABLE"; let outsideZone = "UNKNOWN"; let boundaryClassification = "UNAVAILABLE"; let boundaryZone = "UNKNOWN"; let unconfiguredClassification = "UNAVAILABLE"; let unconfiguredZone = "UNKNOWN";
@@ -35,7 +42,7 @@ async function main() {
     unconfiguredClassification = classifyPointInPolygon(null, { longitude: 5, latitude: 5 }); unconfiguredZone = classifySpeedLimitZone(unconfiguredClassification);
     const afterSettings = await fingerprint();
     databaseWrites = beforeSettings.updatedAt === afterSettings.updatedAt && beforeSettings.geofenceIsNull === afterSettings.geofenceIsNull ? 0 : 1;
-    assert.equal(healthStatus, 200); assert.equal(geofenceStatus, 200); assert.equal(diagnostic.configured, false); assert.equal(diagnostic.classificationAvailable, false); assert.equal(diagnostic.boundaryPolicy, "CITY");
+    assert.equal(healthStatus, 200); assert.equal(geofenceStatus, 200); assertDiagnosticState(diagnostic, beforeSettings);
     assert.equal(insideClassification, "INSIDE"); assert.equal(insideZone, "CITY"); assert.equal(outsideClassification, "OUTSIDE"); assert.equal(outsideZone, "OUTSIDE_CITY"); assert.equal(boundaryClassification, "BOUNDARY"); assert.equal(boundaryZone, "CITY"); assert.equal(unconfiguredClassification, "UNCONFIGURED"); assert.equal(unconfiguredZone, "UNKNOWN");
     assert.equal(databaseWrites, 0); assert.equal(externalRequests, 0); assert.equal(schedulerStarted, false);
   } catch { console.log("errorType: unknown"); process.exitCode = 1; }
@@ -47,4 +54,6 @@ async function main() {
   }
 }
 
-void main().catch(() => { console.log("errorType: unknown"); process.exitCode = 1; });
+if (require.main === module) void main().catch(() => { console.log("errorType: unknown"); process.exitCode = 1; });
+
+module.exports = { assertDiagnosticState };
