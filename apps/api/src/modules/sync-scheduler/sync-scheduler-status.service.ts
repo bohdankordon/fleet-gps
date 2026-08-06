@@ -119,6 +119,10 @@ export class SyncSchedulerStatusService {
     this.runs.running = false;
   }
 
+  public clearRunning(job: SyncJobName): void {
+    this.statusFor(job).running = false;
+  }
+
   private statusFor(job: SyncJobName): MutableSyncJobStatus {
     return job === "fleet" ? this.fleet : this.runs;
   }

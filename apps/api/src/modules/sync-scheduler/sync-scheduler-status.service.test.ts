@@ -140,6 +140,20 @@ test("shutdown reset clears only running flags", () => {
   assert.equal(snapshot.runs.lastAttemptAt, "2026-08-06T10:01:00.000Z");
 });
 
+test("clearRunning affects only its selected job without changing history", () => {
+  const service = new SyncSchedulerStatusService();
+  service.tryStart("fleet", at("2026-08-06T10:00:00.000Z"));
+  service.tryStart("runs", at("2026-08-06T10:01:00.000Z"));
+  service.clearRunning("fleet");
+  service.clearRunning("fleet");
+
+  const snapshot = service.snapshot(config, at("2026-08-06T10:02:00.000Z"));
+  assert.equal(snapshot.fleet.running, false);
+  assert.equal(snapshot.fleet.lastAttemptAt, "2026-08-06T10:00:00.000Z");
+  assert.equal(snapshot.runs.running, true);
+  assert.equal(snapshot.runs.lastAttemptAt, "2026-08-06T10:01:00.000Z");
+});
+
 test("snapshots are isolated deep copies", () => {
   const service = new SyncSchedulerStatusService();
   const first = service.snapshot(config, at("2026-08-06T10:00:00.000Z"));
