@@ -4,6 +4,8 @@
 
 `AlertSettingsModule` is a read-only PostgreSQL boundary around the `ApplicationSettings` singleton. It validates database values as untrusted, returns an immutable snapshot, and does not query on application bootstrap. `GET /api/system/alert-settings` is the future UI read contract; it neither writes, starts a detector, nor calls eQuGPS. Rule defaults `50/90/10/2/300/60` live in the database migration, while effective speed thresholds are calculated at read time. The optional city geofence is a validated GeoJSON Polygon JSON value without PostGIS and is currently `null`; detector cycles will later read one snapshot per batch.
 
+`CityGeofenceModule` adds an isolated pure planar Polygon classifier and a separate speed-zone policy. It uses GeoJSON `[longitude, latitude]`, supports holes and boundaries, and maps a boundary to `CITY`; `null` means `UNCONFIGURED`, never outside city. Geometry has no NestJS, Prisma, I/O, eQuGPS, or environment dependency. The runtime rereads the immutable settings snapshot per call, while the internal management service shares alert-settings validation for a future authenticated UI. Its only HTTP surface today is read-only `GET /api/system/city-geofence`; controlled local import requires explicit apply and does no network lookup. No real Vinnytsia polygon, source/license/checksum, detector, event, or notification is present.
+
 ## Sync scheduler
 
 The scheduler is disabled by default and runs fleet/runs only after their full 60/300-second intervals. It keeps independent in-memory locks and status, uses bounded shutdown, and provides read-only status only on localhost or a closed network. MVP requires one active backend replica; multiple replicas need a distributed lock or queue.

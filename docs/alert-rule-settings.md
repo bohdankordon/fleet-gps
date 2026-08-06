@@ -11,3 +11,9 @@ The city geofence is a nullable PostgreSQL JSON value in exact GeoJSON `Polygon`
 This stage has no GPS-position processing, detector, rule background job, Telegram integration, notification, map, or alert-event persistence.
 
 Run the compiled, read-only smoke separately with `npm run alert-settings:smoke`. It disables the scheduler, redirects eQuGPS origins to invalid local-safe values, makes no eQuGPS requests, and performs no database writes.
+
+## Stage 6A.2 city geofence runtime
+
+The nullable Polygon is now classified locally with `[longitude, latitude]` planar point-in-polygon geometry. Outer rings, holes, concavity and boundaries are supported. `BOUNDARY` maps to the conservative `CITY` speed zone; `null` maps to `UNCONFIGURED`/`UNKNOWN`, never `OUTSIDE_CITY`; an invalid point maps to `INVALID_POINT`/`UNKNOWN`. The flat calculation is an explicit city-scale MVP tradeoff, not PostGIS or geodesic processing.
+
+`CityGeofenceManagementService` shares this module's existing Polygon validation and is ready for a future authenticated UI, but there is no HTTP write endpoint. The controlled compiled importer requires explicit `--dry-run` or `--apply`; `--apply` was not run for this stage. Runtime does no external geofence request and no real Vinnytsia boundary, source, license, or checksum is included yet. See [`docs/city-geofence.md`](./city-geofence.md).

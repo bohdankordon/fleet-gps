@@ -4,6 +4,10 @@
 
 Completed foundation: persisted singleton speed/inactivity rules with defaults `50/90/10/2/300/60`, a nullable GeoJSON Polygon city-geofence field, immutable validation service, and read-only API contract. The geofence remains unconfigured until a separately approved polygon-config stage. Future UI editing can update PostgreSQL without restart because reads are uncached. No position detector, background rule job, Telegram, notification, map, or alert-event table is included in this stage.
 
+## Stage 6A.2 — local city geofence classification
+
+Completed: pure deterministic city-scale Polygon classification with hole and boundary handling; boundary policy `BOUNDARY -> CITY`; `null -> UNCONFIGURED/UNKNOWN`; and safe internal Polygon management for a future authenticated UI. `ApplicationSettings.cityGeofenceGeoJson` stays the PostgreSQL business setting and is reread without a runtime cache. The compiled local importer requires explicit dry-run or apply and accepts raw Polygon JSON only. No actual Vinnytsia geometry, network loading, PostGIS, speed detector, event persistence, scheduler rule, Telegram, UI, or HTTP write endpoint is included.
+
 ### Stage 5A — sync scheduler (completed)
 
 ### Stage 5B.1 — scheduler status UI

@@ -4,6 +4,12 @@
 
 Stage 6A.1 exposes read-only `GET /api/system/alert-settings`. Its business rules are stored in the PostgreSQL `ApplicationSettings` singleton, not in `.env`: `50/90/10/2/300/60` for city/outside limits, tolerance, confirmation updates, inactivity distance, and inactivity duration. Effective speed thresholds are calculated on every read (defaults: `60/100`), and settings are not cached so a later UI update needs no restart. The nullable GeoJSON Polygon city geofence is currently unconfigured; there is no detector, Telegram integration, or edit endpoint yet. See [`docs/alert-rule-settings.md`](../../docs/alert-rule-settings.md).
 
+## City geofence
+
+Stage 6A.2 adds read-only `GET /api/system/city-geofence` and a pure local GeoJSON Polygon classifier. Positions are `[longitude, latitude]`; holes and boundaries are supported. Boundary is deliberately the conservative `CITY` speed zone, while null geometry and invalid GPS points are `UNKNOWN`, never outside-city. The planar algorithm is a city-scale MVP tradeoff; runtime uses no geofence network service or PostGIS. A future authenticated UI will use the internal management service; there is no HTTP write endpoint now.
+
+Use `npm run city-geofence:import -- --file <path> --dry-run` to validate a local raw Polygon without database initialization. Only explicit `--apply` can write, and `--clear --apply` clears it. No real Vinnytsia Polygon, source, license, or checksum has been added. Run `npm run city-geofence:smoke` separately for the compiled read-only runtime smoke.
+
 ## Scheduler
 
 The in-memory scheduler is disabled by default. When enabled, fleet runs every 60 seconds and daily runs every 300 seconds, with no immediate execution or retry. The read-only `GET /api/system/sync-status` endpoint is intended only for localhost or a closed network; multi-replica deployments need a distributed lock or queue.
