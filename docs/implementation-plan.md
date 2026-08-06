@@ -16,6 +16,10 @@ Dashboard renders read-only scheduler status through a Next BFF, including disab
 
 A separate compiled, manual live smoke requires explicit authorization for both real eQuGPS requests and database writes. It temporarily enables the scheduler with 60/60-second intervals in its own process, verifies the first automatic fleet and runs cycles plus the cached dashboard, blocks unexpected outbound origins, and closes before another runs cycle. It never changes persistent `.env`, and is excluded from tests, builds, normal safe smokes, and default CI.
 
+### Stage 5B.2B — local runtime observer
+
+A separate read-only observer connects only to a running local Next BFF, validates scheduler and dashboard contracts, and compares initial and final in-memory counters across automatic fleet and runs cycles. Persistent local enablement remains a manual, uncommitted `.env` operation; the observer never enables or starts synchronization.
+
 ## Этап 3C: read-only Dashboard API
 
 Цель: локальный список машин с фильтрами, freshness позиции и дневной статистикой. Результат: `GET /api/dashboard/vehicles` читает только PostgreSQL-кэш. Критерии готовности: no external requests, нет записей в БД, missing daily stat не считается нулевым пробегом, ответ не раскрывает координаты или external device IDs. На этапе не реализуются frontend, auth и scheduler.

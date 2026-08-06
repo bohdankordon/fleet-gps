@@ -4,6 +4,8 @@
 
 The scheduler status UI is implemented at `/`: it reads the read-only `/api/system/sync-status` BFF route. “Обновить состояние” only rereads state and never starts synchronization. A disabled scheduler is a normal state; failed status loading does not prevent the dashboard from rendering.
 
+For a manually enabled local scheduler, `npm run scheduler:observe` observes only the fixed Next BFF routes and never starts a sync. See [local scheduler operation](../../docs/local-scheduler-operation.md).
+
 For local development use `npm run web:dev`; for production validation use `npm run web:build`. `npm run web:dashboard-smoke` starts temporary local API and web processes and shuts them down.
 
 The dashboard reads only the local PostgreSQL cache. Authentication, map, reports and Telegram are not implemented yet; until authentication exists, access is limited to localhost or a closed network.

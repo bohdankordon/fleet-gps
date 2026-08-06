@@ -5,3 +5,5 @@ Dashboard shows the read-only scheduler state through the fixed Next.js BFF rout
 The status card is informational only. “Обновить состояние” rereads the status; it does not start synchronization. A disabled scheduler is displayed as disabled, not as an error. If status cannot be read, the vehicle dashboard remains available and the card shows a generic safe error.
 
 Scheduler counters and timestamps are in-memory backend state and reset after a backend restart. Until authentication is added, the endpoint must be available only locally or on a closed network.
+
+`npm run scheduler:observe` is a separate read-only local observer for an already running Next dashboard. It uses only fixed Next BFF routes and is excluded from normal tests, builds, CI, smokes, and startup. See [local scheduler operation](local-scheduler-operation.md).
