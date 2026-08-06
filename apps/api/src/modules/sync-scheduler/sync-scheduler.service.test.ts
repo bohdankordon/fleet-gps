@@ -86,6 +86,7 @@ test("disabled bootstrap registers no timers and enabled bootstrap registers exa
   assert.equal(enabled.timer.intervals.get(runsName)?.milliseconds, 300_000);
   assert.equal(enabled.fleetCalls(), 0);
   assert.equal(enabled.runsCalls(), 0);
+  assert.notEqual(enabled.status.snapshot(schedulerConfig, new Date()).startedAt, null);
 });
 
 test("partial timer registration rolls back fleet timer", () => {
@@ -95,6 +96,9 @@ test("partial timer registration rolls back fleet timer", () => {
   assert.equal(subject.timer.hasInterval(fleetName), false);
   assert.equal(subject.timer.hasInterval(runsName), false);
   assert.deepEqual(subject.timer.deleteCalls, [fleetName]);
+  assert.equal(subject.status.snapshot(schedulerConfig, new Date()).startedAt, null);
+  assert.equal(subject.fleetCalls(), 0);
+  assert.equal(subject.runsCalls(), 0);
 });
 
 test("callbacks run only their matching job and update success or safe failure status", async () => {

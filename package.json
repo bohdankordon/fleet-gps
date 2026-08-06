@@ -26,6 +26,7 @@
     "api:test": "npm --workspace @taxi-gps/api run test",
     "api:health-smoke": "npm --workspace @taxi-gps/api run health:smoke",
     "api:config-preflight": "npm --workspace @taxi-gps/api run api:config-preflight",
+    "sync-scheduler:smoke": "npm --workspace @taxi-gps/api run sync-scheduler:smoke",
     "db:config": "docker compose config --quiet",
     "db:up": "docker compose up -d postgres",
     "db:ps": "docker compose ps",

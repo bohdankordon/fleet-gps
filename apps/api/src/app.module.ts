@@ -5,8 +5,9 @@ import { DatabaseModule } from "./modules/database/database.module";
 import { HealthModule } from "./modules/health/health.module";
 import { FleetModule } from "./modules/fleet/fleet.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
+import { SyncSchedulerModule } from "./modules/sync-scheduler/sync-scheduler.module";
 
 @Module({
-  imports: [ApiConfigModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, DashboardModule],
+  imports: [ApiConfigModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, DashboardModule, SyncSchedulerModule],
 })
 export class AppModule {}

@@ -1,5 +1,13 @@
 # План реализации
 
+### Stage 5A — sync scheduler (completed)
+
+- Scheduler is disabled by default. Fleet and runs intervals default to 60 and 300 seconds respectively; each job first runs only after its full interval.
+- There is no immediate retry. Overlapping executions of the same job are skipped, while fleet and runs have independent locks.
+- Shutdown is bounded to 50 seconds by default.
+- Read-only `GET /api/system/sync-status` reports in-memory-only scheduler status. Run a single active backend replica.
+- The disabled-scheduler smoke test confirms zero external requests.
+
 ## Этап 3C: read-only Dashboard API
 
 Цель: локальный список машин с фильтрами, freshness позиции и дневной статистикой. Результат: `GET /api/dashboard/vehicles` читает только PostgreSQL-кэш. Критерии готовности: no external requests, нет записей в БД, missing daily stat не считается нулевым пробегом, ответ не раскрывает координаты или external device IDs. На этапе не реализуются frontend, auth и scheduler.

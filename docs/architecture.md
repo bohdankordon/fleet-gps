@@ -1,5 +1,9 @@
 # Архитектура первой версии
 
+## Sync scheduler
+
+The scheduler is disabled by default and runs fleet/runs only after their full 60/300-second intervals. It keeps independent in-memory locks and status, uses bounded shutdown, and provides read-only status only on localhost or a closed network. MVP requires one active backend replica; multiple replicas need a distributed lock or queue.
+
 ## Read-only Dashboard API
 
 На этапе 3C `DashboardModule` публикует локальный read-only список машин. Controller и query service читают только PostgreSQL-кэш и не вызывают eQuGPS или синхронизацию. Список не выдаёт координаты и внешний device ID. До реализации auth endpoint разрешён только локально либо в закрытой сети.

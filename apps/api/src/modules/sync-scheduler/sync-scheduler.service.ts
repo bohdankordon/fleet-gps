@@ -1,11 +1,11 @@
-import { Inject, Injectable, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
+import { Inject, Injectable, Optional, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
 import type { ApiConfig } from "../../config/api-config";
 import { API_CONFIG } from "../../config/api-config.tokens";
 import { DailyRunsSyncService } from "../dashboard/daily-runs-sync.service";
 import { FleetSyncService } from "../fleet/fleet-sync.service";
 import { classifySyncFailure } from "./sync-failure-classifier";
 import type { Clock } from "./sync-scheduler-clock";
-import { SCHEDULER_TIMER_ADAPTER, SYNC_SCHEDULER_CLOCK } from "./sync-scheduler.tokens";
+import { SCHEDULER_TIMER_ADAPTER, SYNC_SCHEDULER_CLOCK, SYNC_SCHEDULER_TIMEOUT_FACTORY } from "./sync-scheduler.tokens";
 import { SyncSchedulerStatusService } from "./sync-scheduler-status.service";
 import type { SchedulerTimerAdapter } from "./scheduler-timer.adapter";
 import type { SyncJobName } from "./sync-scheduler.types";
@@ -18,9 +18,9 @@ type ShutdownTimeout = Readonly<{
   clear(): void;
 }>;
 
-type ShutdownTimeoutFactory = (milliseconds: number) => ShutdownTimeout;
+export type ShutdownTimeoutFactory = (milliseconds: number) => ShutdownTimeout;
 
-function createShutdownTimeout(milliseconds: number): ShutdownTimeout {
+export function createShutdownTimeout(milliseconds: number): ShutdownTimeout {
   let resolveTimeout: () => void = () => undefined;
   const promise = new Promise<void>((resolve) => {
     resolveTimeout = resolve;
@@ -50,7 +50,7 @@ export class SyncSchedulerService implements OnApplicationBootstrap, OnModuleDes
     private readonly statusService: SyncSchedulerStatusService,
     @Inject(SYNC_SCHEDULER_CLOCK) private readonly clock: Clock,
     @Inject(SCHEDULER_TIMER_ADAPTER) private readonly timerAdapter: SchedulerTimerAdapter,
-    private readonly shutdownTimeoutFactory: ShutdownTimeoutFactory = createShutdownTimeout,
+    @Optional() @Inject(SYNC_SCHEDULER_TIMEOUT_FACTORY) private readonly shutdownTimeoutFactory: ShutdownTimeoutFactory = createShutdownTimeout,
   ) {}
 
   public onApplicationBootstrap(): void {
@@ -59,12 +59,11 @@ export class SyncSchedulerService implements OnApplicationBootstrap, OnModuleDes
 
     const startedAt = this.safeNow();
     if (startedAt === undefined) return;
-    this.statusService.markSchedulerStarted(startedAt);
-
     try {
       this.timerAdapter.addInterval(FLEET_INTERVAL_NAME, this.fleetCallback, this.config.syncScheduler.fleetIntervalSeconds * 1_000);
       try {
         this.timerAdapter.addInterval(RUNS_INTERVAL_NAME, this.runsCallback, this.config.syncScheduler.runsIntervalSeconds * 1_000);
+        this.statusService.markSchedulerStarted(startedAt);
       } catch {
         this.deleteIntervalSafely(FLEET_INTERVAL_NAME);
       }
