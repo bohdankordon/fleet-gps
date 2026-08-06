@@ -2,6 +2,7 @@ import { DashboardClient } from "@/components/dashboard-client";
 import { InitialDashboardError } from "@/components/initial-dashboard-error";
 import { fetchDashboardVehicles } from "@/lib/dashboard/dashboard-client";
 import { parseDashboardQuery } from "@/lib/dashboard/dashboard-query";
+import { fetchSchedulerStatus } from "@/lib/scheduler/scheduler-client";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -9,8 +10,9 @@ export default async function Home({ searchParams }: Readonly<{ searchParams: Pr
   const raw = await searchParams; const params = new URLSearchParams(); for (const [key, value] of Object.entries(raw)) if (typeof value === "string") params.set(key, value);
   let query;
   try { query = parseDashboardQuery(params); } catch { return <InitialDashboardError />; }
-  let initialData;
-  try { initialData = await fetchDashboardVehicles(query); } catch { initialData = null; }
+  const [dashboardResult, schedulerResult] = await Promise.allSettled([fetchDashboardVehicles(query), fetchSchedulerStatus()]);
+  const initialData = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
+  const initialSchedulerStatus = schedulerResult.status === "fulfilled" ? schedulerResult.value : null;
   if (!initialData) return <InitialDashboardError />;
-  return <main><DashboardClient initialData={initialData} initialQuery={query} /></main>;
+  return <main><DashboardClient initialData={initialData} initialQuery={query} initialSchedulerStatus={initialSchedulerStatus} /></main>;
 }

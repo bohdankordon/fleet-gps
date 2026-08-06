@@ -10,6 +10,8 @@ The scheduler is disabled by default and runs fleet/runs only after their full 6
 
 ## Web dashboard
 
+Scheduler state follows the same boundary: Next BFF owns the fixed read-only `/api/system/sync-status` route, validates the backend contract, and emits only safe errors. Browser code has no internal backend URL. Scheduler state remains in-memory and reset-on-restart; access is local/closed-network until auth is introduced.
+
 Next.js frontend из `apps/web` является единственной browser-границей. Browser обращается к ограниченному BFF route Next.js; только Next server вызывает Nest API по server-only internal URL. Внешний API eQuGPS не доступен frontend и не вызывается пользовательским HTTP-запросом dashboard.
 
 ## Интеграционная граница eQuGPS

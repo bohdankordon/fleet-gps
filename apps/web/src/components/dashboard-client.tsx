@@ -5,12 +5,14 @@ import type { DashboardVehiclesResponse } from "@/lib/dashboard/dashboard-contra
 import { formatDistance, formatGeneratedAt, formatSpeed, formatTimestamp, freshnessLabel, qualityLabel, sourceLabel, statusLabel } from "@/lib/dashboard/dashboard-formatters";
 import { dashboardHistoryPath, shouldUpdateDashboardHistory, type DashboardNavigationReason } from "@/lib/dashboard/dashboard-navigation";
 import { parseDashboardQuery, serializeDashboardQuery, type DashboardActivity, type DashboardQuery, type DashboardStatus } from "@/lib/dashboard/dashboard-query";
+import { SchedulerStatus } from "@/components/scheduler-status";
+import type { SchedulerStatusResponse } from "@/lib/scheduler/scheduler-contract";
 
-type Props = Readonly<{ initialData: DashboardVehiclesResponse; initialQuery: DashboardQuery }>;
+type Props = Readonly<{ initialData: DashboardVehiclesResponse; initialQuery: DashboardQuery; initialSchedulerStatus: SchedulerStatusResponse | null }>;
 function statusTone(status: string): string { return status === "online" ? "badge badge-online" : status === "offline" ? "badge badge-offline" : "badge badge-unknown"; }
 function freshnessTone(value: string): string { return value === "fresh" ? "badge badge-fresh" : value === "missing" ? "badge badge-missing" : "badge badge-stale"; }
 
-export function DashboardClient({ initialData, initialQuery }: Props) {
+export function DashboardClient({ initialData, initialQuery, initialSchedulerStatus }: Props) {
   const [data, setData] = useState(initialData); const [query, setQuery] = useState<DashboardQuery>(initialQuery); const [loading, setLoading] = useState(false); const [error, setError] = useState(false); const first = useRef(true); const controller = useRef<AbortController | null>(null);
   const request = useCallback(async (next: DashboardQuery, reason: DashboardNavigationReason) => {
     controller.current?.abort(); const abort = new AbortController(); controller.current = abort; setLoading(true); setError(false);
@@ -25,6 +27,7 @@ export function DashboardClient({ initialData, initialQuery }: Props) {
   const retry = () => void request(query, error ? "retry" : "refresh");
   return <>
     <Header data={data} />
+    <SchedulerStatus initialStatus={initialSchedulerStatus} timezone={data.timezone || "Europe/Kyiv"} />
     <section className="filters" aria-label="Фильтры автопарка">
       <label>Поиск по названию<input value={query.search ?? ""} onChange={(event) => set("search", event.target.value || undefined)} placeholder="Название машины" /></label>
       <label>Статус<select value={query.status ?? ""} onChange={(event) => set("status", (event.target.value || undefined) as DashboardStatus | undefined)}><option value="">Все</option><option value="online">Онлайн</option><option value="offline">Офлайн</option><option value="unknown">Неизвестно</option></select></label>

@@ -2,6 +2,10 @@
 
 ### Stage 5A — sync scheduler (completed)
 
+### Stage 5B.1 — scheduler status UI
+
+Dashboard renders read-only scheduler status through a Next BFF, including disabled, running and safe failure states. Refresh rereads only status and never starts synchronization. No browser-to-Nest access or scheduler lifecycle change is introduced.
+
 - Scheduler is disabled by default. Fleet and runs intervals default to 60 and 300 seconds respectively; each job first runs only after its full interval.
 - There is no immediate retry. Overlapping executions of the same job are skipped, while fleet and runs have independent locks.
 - Shutdown is bounded to 50 seconds by default.
