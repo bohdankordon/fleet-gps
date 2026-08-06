@@ -22,6 +22,7 @@
     "database:readiness-smoke": "node scripts/require-database-url.cjs && npm run build && node --env-file=../../.env scripts/database-readiness-smoke.cjs",
     "api:config-preflight": "npm run build && node scripts/require-api-config.cjs",
     "sync-scheduler:smoke": "npm run build && node scripts/require-database-url.cjs && node scripts/require-api-config.cjs && node scripts/sync-scheduler-smoke.cjs",
+    "sync-scheduler:live-smoke": "npm run build && node scripts/sync-scheduler-live-smoke.cjs",
     "fleet:sync-smoke": "npm run build && node scripts/require-api-config.cjs && node scripts/fleet-sync-smoke.cjs",
     "dashboard:runs-sync-smoke": "npm run build && node scripts/require-database-url.cjs && node scripts/require-api-config.cjs && node scripts/daily-runs-sync-smoke.cjs",
     "dashboard:http-smoke": "npm run build && node scripts/require-database-url.cjs && node scripts/require-api-config.cjs && node scripts/dashboard-http-smoke.cjs"

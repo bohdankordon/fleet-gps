@@ -4,6 +4,8 @@
 
 The in-memory scheduler is disabled by default. When enabled, fleet runs every 60 seconds and daily runs every 300 seconds, with no immediate execution or retry. The read-only `GET /api/system/sync-status` endpoint is intended only for localhost or a closed network; multi-replica deployments need a distributed lock or queue.
 
+For a manual, opt-in production-credential verification of the compiled scheduler, see [`docs/sync-scheduler-live-verification.md`](../../docs/sync-scheduler-live-verification.md). It is not part of tests, builds, or safe smokes.
+
 ## Read-only Dashboard API
 
 Этап 3C добавляет `GET /api/dashboard/vehicles`. Endpoint читает только локальный PostgreSQL-кэш, не запускает синхронизацию и не обращается к eQuGPS. До появления пользовательской авторизации он предназначен только для локальной или закрытой сети.

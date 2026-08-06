@@ -12,6 +12,10 @@ Dashboard renders read-only scheduler status through a Next BFF, including disab
 - Read-only `GET /api/system/sync-status` reports in-memory-only scheduler status. Run a single active backend replica.
 - The disabled-scheduler smoke test confirms zero external requests.
 
+### Stage 5B.2A — controlled live scheduler smoke
+
+A separate compiled, manual live smoke requires explicit authorization for both real eQuGPS requests and database writes. It temporarily enables the scheduler with 60/60-second intervals in its own process, verifies the first automatic fleet and runs cycles plus the cached dashboard, blocks unexpected outbound origins, and closes before another runs cycle. It never changes persistent `.env`, and is excluded from tests, builds, normal safe smokes, and default CI.
+
 ## Этап 3C: read-only Dashboard API
 
 Цель: локальный список машин с фильтрами, freshness позиции и дневной статистикой. Результат: `GET /api/dashboard/vehicles` читает только PostgreSQL-кэш. Критерии готовности: no external requests, нет записей в БД, missing daily stat не считается нулевым пробегом, ответ не раскрывает координаты или external device IDs. На этапе не реализуются frontend, auth и scheduler.
