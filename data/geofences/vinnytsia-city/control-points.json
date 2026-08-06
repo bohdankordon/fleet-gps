@@ -1,0 +1,71 @@
+{
+  "inside": [
+    {
+      "id": "maidan-nezalezhnosti",
+      "longitude": 28.4687,
+      "latitude": 49.2341,
+      "expectedClassification": "INSIDE",
+      "reason": "Public central square reference point."
+    },
+    {
+      "id": "vinnytsia-railway-station",
+      "longitude": 28.5038,
+      "latitude": 49.2338,
+      "expectedClassification": "INSIDE",
+      "reason": "Public railway-station reference point."
+    },
+    {
+      "id": "pyrohov-national-museum-estate",
+      "longitude": 28.448,
+      "latitude": 49.2258,
+      "expectedClassification": "INSIDE",
+      "reason": "Public national museum-estate reference point."
+    }
+  ],
+  "outside": [
+    {
+      "id": "vinnytski-khutory-centre",
+      "longitude": 28.55072,
+      "latitude": 49.20467,
+      "expectedClassification": "OUTSIDE",
+      "reason": "Nominatim identifies this as Вінницькі Хутори in the Vinnytsia urban hromada; it is outside relation 361818."
+    },
+    {
+      "id": "desna-centre",
+      "longitude": 28.5403345,
+      "latitude": 49.2861806,
+      "expectedClassification": "OUTSIDE",
+      "reason": "Nominatim identifies this as Десна in the Vinnytsia urban hromada; it is outside relation 361818."
+    },
+    {
+      "id": "regional-north-east-reference",
+      "longitude": 28.65,
+      "latitude": 49.35,
+      "expectedClassification": "OUTSIDE",
+      "reason": "Deliberately remote non-residential reference point beyond the city candidate bounding box."
+    }
+  ],
+  "boundary": [
+    {
+      "id": "outer-ring-west",
+      "longitude": 28.3679759,
+      "latitude": 49.2239529,
+      "expectedClassification": "BOUNDARY",
+      "reason": "Exact outer-ring vertex at the western part of the candidate."
+    },
+    {
+      "id": "outer-ring-south-east",
+      "longitude": 28.5570219,
+      "latitude": 49.2218213,
+      "expectedClassification": "BOUNDARY",
+      "reason": "Exact outer-ring vertex at the south-eastern part of the candidate."
+    },
+    {
+      "id": "outer-ring-north",
+      "longitude": 28.452266,
+      "latitude": 49.2865952,
+      "expectedClassification": "BOUNDARY",
+      "reason": "Exact outer-ring vertex at the northern part of the candidate."
+    }
+  ]
+}

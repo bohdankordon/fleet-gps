@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const REPOSITORY_ROOT = path.resolve(__dirname, "../../..");
 
 function usageError() { return new Error("invalid arguments"); }
 
@@ -60,7 +61,7 @@ async function run(argv, dependencies = {}) {
     let polygon = null;
     if (!options.clear) {
       const fileSystem = dependencies.fs ?? fs;
-      const filePath = path.resolve(options.file);
+      const filePath = path.resolve(REPOSITORY_ROOT, options.file);
       const metadata = fileSystem.statSync(filePath);
       if (!metadata.isFile() || metadata.size > MAX_FILE_BYTES) throw new Error("invalid polygon input");
       let input;

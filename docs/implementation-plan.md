@@ -126,3 +126,7 @@ A separate read-only observer connects only to a running local Next BFF, validat
 ### Этап 3B — ручной provisional пробег
 
 Результат: `DashboardModule` сохраняет текущий день `/runs` в `DailyVehicleStat`. Критерии готовности: timezone берётся из settings, missing run не создаёт ноль, EXACT защищён, а startup не запускает web API. Scheduler и публичный dashboard остаются вне этапа.
+
+## Stage 6A.2B — Vinnytsia city boundary candidate
+
+Completed: a separately reviewable, offline OSM Polygon dataset for Vinnytsia city relation 361818, with metadata, ODbL attribution, checksum, production-validator verification, and public control points. The rejected hromada relation is 12411968; it is wider and unsuitable for city speed policy. The candidate is not a runtime fetch and has not been imported, so ApplicationSettings.cityGeofenceGeoJson remains null. A future apply needs separate review; any OSM re-retrieval needs a new checksum and control-point review.

@@ -1,5 +1,11 @@
 # City geofence (Stage 6A.2)
 
+## Offline Vinnytsia city candidate (Stage 6A.2B)
+
+The reviewable dataset is data/geofences/vinnytsia-city/vinnytsia-city.geojson. It is raw, unsimplified Polygon geometry from OpenStreetMap relation 361818, retrieved through Nominatim at 2026-08-06T12:51:43.279Z. Its SHA-256 is c4fdffa2367c055bc985db9bf38178533c6047a21a7e1088da950fbf5d42c88f. This is the city relation (administrative, admin_level=9), not the wider Vinnytsia urban hromada relation 12411968 (admin_level=7).
+
+Run npm run vinnytsia-boundary:verify after building the API for an offline production-validator, checksum, and control-point check. It uses no network, Nest, Prisma, or database. The DB setting remains null, and import apply needs separate review. OSM quality can change, so re-retrieval requires a new checksum and review. Licence and attribution are ODbL-1.0 and © OpenStreetMap contributors; see docs/data-licenses.md.
+
 `ApplicationSettings.cityGeofenceGeoJson` is the local PostgreSQL business setting for one city boundary. It accepts only a raw GeoJSON `Polygon` whose positions use `[longitude, latitude]`; `Feature`, `FeatureCollection`, `MultiPolygon`, network sources, and filenames in production APIs are not accepted.
 
 The pure classifier uses a deterministic planar point-in-polygon algorithm. It supports a closed outer linear ring, holes, concave polygons, horizontal and vertical segments. This is an MVP tradeoff appropriate to one city boundary: it does not perform spherical/geodesic calculations or use PostGIS. A tiny fixed algorithm epsilon is used only for floating-point point-on-segment stability and is not a speed tolerance or UI setting.
@@ -16,4 +22,4 @@ The read-only diagnostic endpoint is `GET /api/system/city-geofence`. It returns
 
 The compiled smoke compares a before/after safe fingerprint of the `ApplicationSettings` row (`updatedAt` plus whether geofence JSON is null), so its `database writes: 0` confirms this read-only workflow did not alter settings. It also blocks any non-localhost fetch before it can leave the process.
 
-The runtime never queries OpenStreetMap, Overpass, Nominatim, or any other external geofence service. No real Vinnytsia polygon is included in this stage. Its source, licence, checksum, and separately controlled import remain a later step.
+The runtime never queries OpenStreetMap, Overpass, Nominatim, or any other external geofence service. The separately controlled Vinnytsia candidate, source, licence, and checksum are documented below; it is still not imported.

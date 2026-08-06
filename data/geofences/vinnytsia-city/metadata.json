@@ -1,0 +1,19 @@
+{
+  "datasetId": "vinnytsia-city-boundary",
+  "placeName": "Вінниця",
+  "scope": "city",
+  "country": "Ukraine",
+  "source": "OpenStreetMap",
+  "sourceObjectType": "relation",
+  "sourceObjectId": "361818",
+  "sourceBoundary": "administrative",
+  "sourceAdminLevel": "9",
+  "retrievedAt": "2026-08-06T12:51:43.279Z",
+  "retrievalMethod": "Nominatim polygon_geojson",
+  "geometryType": "Polygon",
+  "license": "ODbL-1.0",
+  "attribution": "© OpenStreetMap contributors",
+  "sha256": "c4fdffa2367c055bc985db9bf38178533c6047a21a7e1088da950fbf5d42c88f",
+  "ringCount": 1,
+  "positionCount": 653
+}

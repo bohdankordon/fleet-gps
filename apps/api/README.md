@@ -8,7 +8,7 @@ Stage 6A.1 exposes read-only `GET /api/system/alert-settings`. Its business rule
 
 Stage 6A.2 adds read-only `GET /api/system/city-geofence` and a pure local GeoJSON Polygon classifier. Positions are `[longitude, latitude]`; holes and boundaries are supported. Boundary is deliberately the conservative `CITY` speed zone, while null geometry and invalid GPS points are `UNKNOWN`, never outside-city. The planar algorithm is a city-scale MVP tradeoff; runtime uses no geofence network service or PostGIS. A future authenticated UI will use the internal management service; there is no HTTP write endpoint now.
 
-Use `npm run city-geofence:import -- --file <path> --dry-run` to validate a local raw Polygon without database initialization. Only explicit `--apply` can write, and `--clear --apply` clears it. No real Vinnytsia Polygon, source, license, or checksum has been added. Run `npm run city-geofence:smoke` separately for the compiled read-only runtime smoke.
+Use `npm run city-geofence:import -- --file <path> --dry-run` to validate a local raw Polygon without database initialization. Only explicit `--apply` can write, and `--clear --apply` clears it. The offline Vinnytsia candidate Polygon, source metadata, ODbL license, checksum, and control points are present in data/geofences/vinnytsia-city; the runtime does not automatically read that dataset. It has not been imported into PostgreSQL, ApplicationSettings.cityGeofenceGeoJson remains null, and --apply has not been run. Run `npm run city-geofence:smoke` separately for the compiled read-only runtime smoke.
 
 ## Scheduler
 
@@ -34,3 +34,7 @@ For a manual, opt-in production-credential verification of the compiled schedule
 `DashboardModule` вручную синхронизирует текущий дневной пробег из web API `/runs` в PROVISIONAL `DailyVehicleStat`. Отсутствие run не создаёт нулевую статистику, а EXACT-записи не перезаписываются.
 
 Для `/runs` composition root задаёт отдельный timeout 45 секунд через `EQUGPS_RUNS_TIMEOUT_MS`; общий timeout других eQuGPS endpoint остаётся 15 секунд. Timeout не вызывает retry и не меняет текущий дневной кэш.
+
+## Offline Vinnytsia city boundary candidate
+
+Stage 6A.2B adds the offline candidate at data/geofences/vinnytsia-city: OSM city relation 361818, rather than the wider hromada relation 12411968. Its retrieval timestamp, checksum, ODbL attribution, validation and public control points are documented beside the dataset. Run npm run vinnytsia-boundary:verify after API build; it is entirely offline and does not initialize Nest, Prisma, or a database. The current DB geofence remains null, apply still requires a separate review, and re-retrieval needs a new checksum and review because OSM quality can change.

@@ -4,7 +4,7 @@
 
 `AlertSettingsModule` is a read-only PostgreSQL boundary around the `ApplicationSettings` singleton. It validates database values as untrusted, returns an immutable snapshot, and does not query on application bootstrap. `GET /api/system/alert-settings` is the future UI read contract; it neither writes, starts a detector, nor calls eQuGPS. Rule defaults `50/90/10/2/300/60` live in the database migration, while effective speed thresholds are calculated at read time. The optional city geofence is a validated GeoJSON Polygon JSON value without PostGIS and is currently `null`; detector cycles will later read one snapshot per batch.
 
-`CityGeofenceModule` adds an isolated pure planar Polygon classifier and a separate speed-zone policy. It uses GeoJSON `[longitude, latitude]`, supports holes and boundaries, and maps a boundary to `CITY`; `null` means `UNCONFIGURED`, never outside city. Geometry has no NestJS, Prisma, I/O, eQuGPS, or environment dependency. The runtime rereads the immutable settings snapshot per call, while the internal management service shares alert-settings validation for a future authenticated UI. Its only HTTP surface today is read-only `GET /api/system/city-geofence`; controlled local import requires explicit apply and does no network lookup. No real Vinnytsia polygon, source/license/checksum, detector, event, or notification is present.
+`CityGeofenceModule` adds an isolated pure planar Polygon classifier and a separate speed-zone policy. It uses GeoJSON `[longitude, latitude]`, supports holes and boundaries, and maps a boundary to `CITY`; `null` means `UNCONFIGURED`, never outside city. Geometry has no NestJS, Prisma, I/O, eQuGPS, or environment dependency. The runtime rereads the immutable settings snapshot per call, while the internal management service shares alert-settings validation for a future authenticated UI. Its only HTTP surface today is read-only `GET /api/system/city-geofence`; controlled local import requires explicit apply and does no network lookup. The offline Vinnytsia candidate Polygon, source/license/checksum, and control points are present in the repository, but are not automatically read at runtime or imported; ApplicationSettings.cityGeofenceGeoJson remains null and --apply has not been run. No detector, event, or notification is present.
 
 ## Sync scheduler
 
@@ -95,3 +95,7 @@ Backend хранит локальный кэш устройств и тольк�
 ## Daily dashboard statistics
 
 `DashboardModule` изолирует ручную синхронизацию `/runs`. Она пишет только текущий календарный день configured timezone, не затрагивает Fleet state и применяет precedence `EXACT > PROVISIONAL > ESTIMATED`.
+
+## Offline Vinnytsia city-boundary candidate
+
+The data/geofences/vinnytsia-city dataset is a reviewed operational candidate: OpenStreetMap relation 361818 is a city administrative boundary, deliberately distinct from hromada relation 12411968. Metadata, ODbL attribution, checksum, and public control points are stored with the raw unsimplified Polygon. The verifier is offline and reuses production geometry and policy functions without initializing Nest, Prisma, or a database. This dataset is not loaded in runtime and has not been applied, so the database geofence remains null and no network dependency is introduced.
