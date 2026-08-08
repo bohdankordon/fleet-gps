@@ -125,10 +125,10 @@ async function assertFullInvalidSpeed(speedKph: number): Promise<void> {
   assert.equal(lifecycleCalls.length, 0); assert.equal(speedingDetector.stateCount(), 0); assert.equal(inactivityDetector.stateCount(), 0);
 }
 
-test("1-6. evaluates one immutable observation in exact detector/persistence order", async () => {
+test("1-6. evaluates one immutable observation in shared detection then persistence order", async () => {
   const { service, order, received } = setup();
   const result = await service.evaluateObservation(OBSERVATION);
-  assert.deepEqual(order, ["speeding detector", "speeding processor", "inactivity detector", "inactivity processor"]);
+  assert.deepEqual(order, ["speeding detector", "inactivity detector", "speeding processor", "inactivity processor"]);
   assert.equal(received.speeding.length, 1); assert.equal(received.inactivity.length, 1);
   assert.equal(received.speeding[0], OBSERVATION); assert.equal(received.inactivity[0], OBSERVATION);
   assert.equal(result.vehicleId, VEHICLE_ID); assert.equal(result.observedAt, OBSERVED_AT);
@@ -139,7 +139,7 @@ test("7-8. speeding PENDING and inactivity COLLECTING both process as NONE", asy
   const { service, order } = setup({ speedingDetection: speed, inactivityDetection: idle });
   const result = await service.evaluateObservation(OBSERVATION);
   assert.equal(result.speeding.processing.action, "NONE"); assert.equal(result.inactivity.processing.action, "NONE");
-  assert.deepEqual(order, ["speeding detector", "speeding processor", "inactivity detector", "inactivity processor"]);
+  assert.deepEqual(order, ["speeding detector", "inactivity detector", "speeding processor", "inactivity processor"]);
 });
 
 test("9-10. both CONFIRMED preserve production OPEN/CREATED outcomes", async () => {
@@ -274,19 +274,19 @@ test("14. duplicate/out-of-order observation is IGNORED by both with zero lifecy
 test("15. UNKNOWN speed zone never short-circuits inactivity", async () => {
   const { service, order } = setup({ speedingDetection: speeding({ status: "IGNORED", reason: "UNKNOWN_ZONE", zone: "UNKNOWN", thresholdKph: null }) });
   assert.equal((await service.evaluateObservation(OBSERVATION)).speeding.processing.action, "NONE");
-  assert.deepEqual(order.slice(2), ["inactivity detector", "inactivity processor"]);
+  assert.deepEqual(order, ["speeding detector", "inactivity detector", "speeding processor", "inactivity processor"]);
 });
 
 test("16. disabled speed rule never short-circuits inactivity", async () => {
   const { service, order } = setup({ speedingDetection: speeding({ status: "IGNORED", reason: "RULE_DISABLED" }) });
   await service.evaluateObservation(OBSERVATION);
-  assert.deepEqual(order.slice(2), ["inactivity detector", "inactivity processor"]);
+  assert.deepEqual(order, ["speeding detector", "inactivity detector", "speeding processor", "inactivity processor"]);
 });
 
 test("17. disabled inactivity rule does not affect the preceding speeding pipeline", async () => {
   const { service, order } = setup({ inactivityDetection: inactivity({ status: "IGNORED", reason: "RULE_DISABLED" }) });
   await service.evaluateObservation(OBSERVATION);
-  assert.deepEqual(order, ["speeding detector", "speeding processor", "inactivity detector", "inactivity processor"]);
+  assert.deepEqual(order, ["speeding detector", "inactivity detector", "speeding processor", "inactivity processor"]);
 });
 
 test("18. speeding detector exception propagates and stops all later operations", async () => {
@@ -295,22 +295,22 @@ test("18. speeding detector exception propagates and stops all later operations"
   assert.deepEqual(order, ["speeding detector"]);
 });
 
-test("19. speeding processor exception propagates and stops inactivity", async () => {
+test("19. speeding processor exception propagates after the shared detection path", async () => {
   const failure = new Error("speed persistence failed"); const { service, order } = setup({ speedingProcessorError: failure });
   await assert.rejects(service.evaluateObservation(OBSERVATION), (error) => error === failure);
-  assert.deepEqual(order, ["speeding detector", "speeding processor"]);
+  assert.deepEqual(order, ["speeding detector", "inactivity detector", "speeding processor"]);
 });
 
-test("20. inactivity detector exception propagates after the speeding pipeline", async () => {
+test("20. inactivity detector exception propagates before either processor", async () => {
   const failure = new Error("inactivity detector failed"); const { service, order } = setup({ inactivityDetectorError: failure });
   await assert.rejects(service.evaluateObservation(OBSERVATION), (error) => error === failure);
-  assert.deepEqual(order, ["speeding detector", "speeding processor", "inactivity detector"]);
+  assert.deepEqual(order, ["speeding detector", "inactivity detector"]);
 });
 
 test("21. inactivity processor exception propagates unchanged", async () => {
   const failure = new Error("inactivity persistence failed"); const { service, order } = setup({ inactivityProcessorError: failure });
   await assert.rejects(service.evaluateObservation(OBSERVATION), (error) => error === failure);
-  assert.deepEqual(order, ["speeding detector", "speeding processor", "inactivity detector", "inactivity processor"]);
+  assert.deepEqual(order, ["speeding detector", "inactivity detector", "speeding processor", "inactivity processor"]);
 });
 
 test("22. aggregate result contains no coordinates, Polygon, settings snapshot, history, or rows", async () => {
@@ -361,5 +361,13 @@ test("26. persistence failure leaves advanced detector state and replay may be O
   await assert.rejects(service.evaluateObservation(OBSERVATION), /database failed/);
   const replay = await service.evaluateObservation(OBSERVATION);
   assert.equal(replay.speeding.detection.status, "IGNORED"); assert.equal(replay.speeding.detection.reason, "OUT_OF_ORDER");
-  assert.equal(inactivityCalls, 1);
+  assert.equal(inactivityCalls, 2);
+});
+
+test("27. primeObservation uses production detectors with zero processor or lifecycle calls", async () => {
+  const { service, order } = setup();
+  const result = await service.primeObservation(OBSERVATION);
+  assert.deepEqual(order, ["speeding detector", "inactivity detector"]);
+  assert.equal(result.speeding.status, "PENDING"); assert.equal(result.inactivity.status, "COLLECTING");
+  assert.deepEqual(Object.keys(result).sort(), ["inactivity", "observedAt", "speeding", "vehicleId"]);
 });

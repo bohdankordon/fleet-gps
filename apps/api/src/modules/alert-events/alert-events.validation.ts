@@ -1,6 +1,5 @@
 import type { OpenAlertEventCommand, ResolveAlertEventCommand, UpdateAlertEventCommand } from "./alert-events.types";
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { normalizeUuid } from "../../common/uuid.validation";
 
 export class AlertEventValidationError extends Error {
   public constructor(public readonly field: string) {
@@ -10,8 +9,9 @@ export class AlertEventValidationError extends Error {
 }
 
 function vehicleId(value: string): string {
-  if (typeof value !== "string" || !UUID_PATTERN.test(value)) throw new AlertEventValidationError("vehicleId");
-  return value.toLowerCase();
+  const normalized = normalizeUuid(value);
+  if (normalized === null) throw new AlertEventValidationError("vehicleId");
+  return normalized;
 }
 
 function observedAt(value: Date): Date {

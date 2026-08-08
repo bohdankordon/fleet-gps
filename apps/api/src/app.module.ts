@@ -12,8 +12,9 @@ import { SpeedingDetectorModule } from "./modules/speeding-detector/speeding-det
 import { InactivityDetectorModule } from "./modules/inactivity-detector/inactivity-detector.module";
 import { AlertEventsModule } from "./modules/alert-events/alert-events.module";
 import { AlertEvaluationModule } from "./modules/alert-evaluation/alert-evaluation.module";
+import { AlertIngestionModule } from "./modules/alert-ingestion/alert-ingestion.module";
 
 @Module({
-  imports: [ApiConfigModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule, AlertEventsModule, AlertEvaluationModule],
+  imports: [ApiConfigModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule, AlertEventsModule, AlertEvaluationModule, AlertIngestionModule],
 })
 export class AppModule {}

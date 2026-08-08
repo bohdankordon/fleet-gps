@@ -43,17 +43,36 @@ enum AlertEventSpeedZone {
 }
 
 model Vehicle {
-  id               String               @id @default(uuid()) @map("id") @db.Uuid
-  externalDeviceId Int                  @unique @map("external_device_id")
-  name             String               @map("name") @db.VarChar(255)
-  disabled         Boolean              @default(false) @map("disabled")
-  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  currentState     VehicleCurrentState?
-  dailyStats       DailyVehicleStat[]
-  alertEvents      AlertEvent[]
+  id                          String                       @id @default(uuid()) @map("id") @db.Uuid
+  externalDeviceId            Int                          @unique @map("external_device_id")
+  name                        String                       @map("name") @db.VarChar(255)
+  disabled                    Boolean                      @default(false) @map("disabled")
+  createdAt                   DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  currentState                VehicleCurrentState?
+  dailyStats                  DailyVehicleStat[]
+  alertEvents                 AlertEvent[]
+  alertEvaluationObservations AlertEvaluationObservation[]
 
   @@map("vehicles")
+}
+
+model AlertEvaluationObservation {
+  id          String    @id @default(uuid()) @map("id") @db.Uuid
+  vehicleId   String    @map("vehicle_id") @db.Uuid
+  observedAt  DateTime  @map("observed_at") @db.Timestamptz(6)
+  latitude    Float     @map("latitude")
+  longitude   Float     @map("longitude")
+  speedKph    Float     @map("speed_kph")
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+  replayEligible Boolean? @map("replay_eligible")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
+  @@unique([vehicleId, observedAt])
+  @@index([vehicleId, processedAt, observedAt])
+  @@index([vehicleId, replayEligible, observedAt])
+  @@map("alert_evaluation_observations")
 }
 
 model AlertEvent {

@@ -1,19 +1,15 @@
 import { Injectable } from "@nestjs/common";
 import { AlertEventProcessorService } from "../alert-events";
+import type { AlertRulesSettings } from "../alert-settings";
 import { InactivityDetectorService } from "../inactivity-detector";
 import { SpeedingDetectorService } from "../speeding-detector";
-import type { AlertEvaluationObservation, AlertEvaluationResult } from "./alert-evaluation.types";
+import type { AlertEvaluationDetectionResult, AlertEvaluationObservation, AlertEvaluationResult } from "./alert-evaluation.types";
 
 /**
  * Runs both stateful alert pipelines for one normalized vehicle observation.
  *
- * A future caller must submit observations for the same vehicle sequentially.
- * This service intentionally owns neither a per-vehicle queue nor timestamp state.
- *
- * Detector state advances before persistence. If persistence throws after a state
- * transition, replaying the same observation may be rejected as OUT_OF_ORDER.
- * Recovery/reconciliation belongs to the future ingestion layer; detector state
- * is not rolled back here.
+ * Callers that need reliable retry semantics must use the durable ingestion layer,
+ * which serializes each vehicle and resets/replays detector state after failures.
  */
 @Injectable()
 export class AlertEvaluationService {
@@ -24,21 +20,44 @@ export class AlertEvaluationService {
   ) {}
 
   public async evaluateObservation(observation: AlertEvaluationObservation): Promise<AlertEvaluationResult> {
-    const speedingDetection = await this.speedingDetector.detect(observation);
-    const speedingProcessing = await this.alertEventProcessor.processSpeedingResult(speedingDetection);
+    const detection = await this.detectObservation(observation);
+    const speedingProcessing = await this.alertEventProcessor.processSpeedingResult(detection.speeding);
+    const inactivityProcessing = await this.alertEventProcessor.processInactivityResult(detection.inactivity);
+
+    return Object.freeze({
+      vehicleId: detection.vehicleId,
+      observedAt: detection.observedAt,
+      speeding: Object.freeze({ detection: detection.speeding, processing: speedingProcessing }),
+      inactivity: Object.freeze({ detection: detection.inactivity, processing: inactivityProcessing }),
+    });
+  }
+
+  /**
+   * Replays an already-processed journal observation through detectors only.
+   * This method must never invoke AlertEvent processors or lifecycle persistence.
+   */
+  public primeObservation(observation: AlertEvaluationObservation, settingsSnapshot?: AlertRulesSettings): Promise<AlertEvaluationDetectionResult> {
+    return this.detectObservation(observation, settingsSnapshot);
+  }
+
+  private async detectObservation(observation: AlertEvaluationObservation, settingsSnapshot?: AlertRulesSettings): Promise<AlertEvaluationDetectionResult> {
+    const speedingDetection = settingsSnapshot === undefined
+      ? await this.speedingDetector.detect(observation)
+      : this.speedingDetector.detectWithSettings(observation, settingsSnapshot);
     // Speeding validation is authoritative for the complete trust-boundary
     // observation because it validates every shared field, including speedKph.
     // Do not let an invalid full observation advance inactivity timestamp/history.
     const inactivityDetection = speedingDetection.status === "IGNORED" && speedingDetection.reason === "INVALID_OBSERVATION"
       ? this.inactivityDetector.invalidResult(observation)
-      : await this.inactivityDetector.detect(observation);
-    const inactivityProcessing = await this.alertEventProcessor.processInactivityResult(inactivityDetection);
+      : settingsSnapshot === undefined
+        ? await this.inactivityDetector.detect(observation)
+        : this.inactivityDetector.detectWithSettings(observation, settingsSnapshot);
 
     return Object.freeze({
       vehicleId: speedingDetection.vehicleId,
       observedAt: speedingDetection.observedAt,
-      speeding: Object.freeze({ detection: speedingDetection, processing: speedingProcessing }),
-      inactivity: Object.freeze({ detection: inactivityDetection, processing: inactivityProcessing }),
+      speeding: speedingDetection,
+      inactivity: inactivityDetection,
     });
   }
 

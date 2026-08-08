@@ -1,0 +1,156 @@
+import { Injectable } from "@nestjs/common";
+import { Prisma } from "../../generated/prisma/client";
+import { DatabaseService } from "../database";
+import type { AlertEvaluationJournalObservation, CreateOrFindAlertObservationResult, DurableAlertObservation } from "./alert-ingestion.types";
+import { AlertObservationIdentityConflictError, AlertObservationPersistenceStateError } from "./alert-ingestion.types";
+
+const journalSelect = {
+  id: true,
+  vehicleId: true,
+  observedAt: true,
+  latitude: true,
+  longitude: true,
+  speedKph: true,
+  processedAt: true,
+  replayEligible: true,
+  createdAt: true,
+} satisfies Prisma.AlertEvaluationObservationSelect;
+
+function conflictTargets(error: Prisma.PrismaClientKnownRequestError): string[] {
+  const target = error.meta?.target;
+  if (typeof target === "string") return [target];
+  if (Array.isArray(target)) return target.filter((value): value is string => typeof value === "string");
+  const driverAdapterError = error.meta?.driverAdapterError;
+  if (typeof driverAdapterError !== "object" || driverAdapterError === null) return [];
+  const cause = (driverAdapterError as { cause?: unknown }).cause;
+  if (typeof cause !== "object" || cause === null) return [];
+  const constraint = (cause as { constraint?: unknown }).constraint;
+  if (typeof constraint !== "object" || constraint === null) return [];
+  const fields = (constraint as { fields?: unknown }).fields;
+  return Array.isArray(fields) ? fields.filter((value): value is string => typeof value === "string") : [];
+}
+
+function isObservationIdentityConflict(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") return false;
+  const targets = conflictTargets(error);
+  return targets.includes("alert_evaluation_observations_vehicle_id_observed_at_key")
+    || (targets.some((target) => target === "vehicleId" || target === "vehicle_id")
+      && targets.some((target) => target === "observedAt" || target === "observed_at"));
+}
+
+function sameImmutablePayload(row: AlertEvaluationJournalObservation, observation: DurableAlertObservation): boolean {
+  return row.vehicleId === observation.vehicleId
+    && row.observedAt.getTime() === observation.observedAtMs
+    && row.latitude === observation.latitude
+    && row.longitude === observation.longitude
+    && row.speedKph === observation.speedKph;
+}
+
+@Injectable()
+export class AlertObservationRepository {
+  public constructor(private readonly database: DatabaseService) {}
+
+  public async createOrFindObservation(observation: DurableAlertObservation): Promise<CreateOrFindAlertObservationResult> {
+    const client = this.database.getClient();
+    const identity = { vehicleId: observation.vehicleId, observedAt: new Date(observation.observedAtMs) };
+    const existingBeforeCreate = await client.alertEvaluationObservation.findUnique({
+      where: { vehicleId_observedAt: identity },
+      select: journalSelect,
+    });
+    if (existingBeforeCreate !== null) {
+      if (!sameImmutablePayload(existingBeforeCreate, observation)) {
+        throw new AlertObservationIdentityConflictError(observation.vehicleId, observation.observedAt);
+      }
+      return Object.freeze({ outcome: "EXISTING", observation: Object.freeze(existingBeforeCreate) });
+    }
+    try {
+      const created = await client.alertEvaluationObservation.create({
+        data: {
+          ...identity,
+          latitude: observation.latitude,
+          longitude: observation.longitude,
+          speedKph: observation.speedKph,
+        },
+        select: journalSelect,
+      });
+      return Object.freeze({ outcome: "CREATED", observation: Object.freeze(created) });
+    } catch (error) {
+      if (!isObservationIdentityConflict(error)) throw error;
+      const existing = await client.alertEvaluationObservation.findUnique({
+        where: { vehicleId_observedAt: identity },
+        select: journalSelect,
+      });
+      if (existing === null) throw new AlertObservationPersistenceStateError("Observation identity conflict row was not found");
+      if (!sameImmutablePayload(existing, observation)) {
+        throw new AlertObservationIdentityConflictError(observation.vehicleId, observation.observedAt, { cause: error });
+      }
+      return Object.freeze({ outcome: "EXISTING", observation: Object.freeze(existing) });
+    }
+  }
+
+  public async findPendingThrough(vehicleId: string, targetObservedAt: Date): Promise<readonly AlertEvaluationJournalObservation[]> {
+    const rows = await this.database.getClient().alertEvaluationObservation.findMany({
+      where: { vehicleId, processedAt: null, observedAt: { lte: targetObservedAt } },
+      orderBy: { observedAt: "asc" },
+      select: journalSelect,
+    });
+    return Object.freeze(rows.map((row) => Object.freeze(row)));
+  }
+
+  public async findLatestReplayEligibleObservation(vehicleId: string): Promise<AlertEvaluationJournalObservation | null> {
+    const row = await this.database.getClient().alertEvaluationObservation.findFirst({
+      where: { vehicleId, processedAt: { not: null }, replayEligible: true },
+      orderBy: { observedAt: "desc" },
+      select: journalSelect,
+    });
+    return row === null ? null : Object.freeze(row);
+  }
+
+  public async findReplayState(vehicleId: string, cutoff: Date, throughObservedAt: Date, speedingHistoryCount: number): Promise<readonly AlertEvaluationJournalObservation[]> {
+    const client = this.database.getClient();
+    const replayable = { vehicleId, processedAt: { not: null } as const, replayEligible: true } as const;
+    const [anchor, recent, speedingHistory] = await Promise.all([
+      client.alertEvaluationObservation.findFirst({
+        where: { ...replayable, observedAt: { lt: cutoff } },
+        orderBy: { observedAt: "desc" },
+        select: journalSelect,
+      }),
+      client.alertEvaluationObservation.findMany({
+        where: { ...replayable, observedAt: { gte: cutoff, lte: throughObservedAt } },
+        orderBy: { observedAt: "asc" },
+        select: journalSelect,
+      }),
+      client.alertEvaluationObservation.findMany({
+        where: { ...replayable, observedAt: { lte: throughObservedAt } },
+        orderBy: { observedAt: "desc" },
+        take: speedingHistoryCount,
+        select: journalSelect,
+      }),
+    ]);
+    const union = new Map<string, AlertEvaluationJournalObservation>();
+    if (anchor !== null) union.set(anchor.id, anchor);
+    for (const row of recent) union.set(row.id, row);
+    for (const row of speedingHistory) union.set(row.id, row);
+    return Object.freeze([...union.values()]
+      .sort((left, right) => left.observedAt.getTime() - right.observedAt.getTime())
+      .map((row) => Object.freeze(row)));
+  }
+
+  public async markProcessed(id: string, replayEligible: boolean): Promise<void> {
+    const client = this.database.getClient();
+    const updated = await client.$executeRaw`
+      UPDATE "alert_evaluation_observations"
+      SET "processed_at" = clock_timestamp(), "replay_eligible" = ${replayEligible}
+      WHERE "id" = ${id}::uuid AND "processed_at" IS NULL AND "replay_eligible" IS NULL
+    `;
+    if (updated === 1) return;
+    const existing = await client.alertEvaluationObservation.findUnique({ where: { id }, select: { processedAt: true, replayEligible: true } });
+    if (existing?.processedAt !== null && existing?.processedAt !== undefined && typeof existing.replayEligible === "boolean") {
+      if (existing.replayEligible === replayEligible) return;
+      throw new AlertObservationPersistenceStateError("Processed alert evaluation observation has contradictory replay eligibility");
+    }
+    throw new AlertObservationPersistenceStateError("Pending alert evaluation observation could not be marked processed");
+  }
+}
+
+export const alertObservationRepositoryInternals = Object.freeze({ isObservationIdentityConflict, sameImmutablePayload });

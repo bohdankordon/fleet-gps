@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { AlertSettingsService } from "../alert-settings";
+import { AlertSettingsService, type AlertRulesSettings } from "../alert-settings";
 import { CityGeofenceService } from "../city-geofence";
 import type { SpeedingDetectionResult, SpeedingObservationInput, SpeedingRuleContext } from "./speeding-detector.types";
 import { normalizeSpeedingObservation } from "./speeding-detector.validation";
@@ -13,6 +13,17 @@ export class SpeedingDetectorService {
     const observation = normalizeSpeedingObservation(input);
     if (observation === null) return this.stateMachine.invalidResult(input);
     const settings = await this.alertSettings.getSettings();
+    return this.detectValidated(input, observation, settings);
+  }
+
+  /** Uses an explicit current snapshot for deterministic detector-only replay. */
+  public detectWithSettings(input: SpeedingObservationInput, settings: AlertRulesSettings): SpeedingDetectionResult {
+    const observation = normalizeSpeedingObservation(input);
+    if (observation === null) return this.stateMachine.invalidResult(input);
+    return this.detectValidated(input, observation, settings);
+  }
+
+  private detectValidated(input: SpeedingObservationInput, observation: NonNullable<ReturnType<typeof normalizeSpeedingObservation>>, settings: AlertRulesSettings): SpeedingDetectionResult {
     const geofence = this.cityGeofence.classifyPointWithSettings({ latitude: observation.latitude, longitude: observation.longitude }, settings);
     const context: SpeedingRuleContext = Object.freeze({
       ruleEnabled: settings.speedRuleEnabled,

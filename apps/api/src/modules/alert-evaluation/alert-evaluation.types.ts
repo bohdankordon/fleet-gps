@@ -8,6 +8,13 @@ import type { SpeedingDetectionResult, SpeedingObservationInput } from "../speed
  */
 export type AlertEvaluationObservation = SpeedingObservationInput;
 
+export type AlertEvaluationDetectionResult = Readonly<{
+  vehicleId: string;
+  observedAt: string | null;
+  speeding: SpeedingDetectionResult;
+  inactivity: InactivityDetectionResult;
+}>;
+
 export type AlertEvaluationResult = Readonly<{
   vehicleId: string;
   observedAt: string | null;
