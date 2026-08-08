@@ -65,7 +65,7 @@
     "web:typecheck": "npm --workspace @taxi-gps/web run typecheck",
     "web:lint": "npm --workspace @taxi-gps/web run lint",
     "web:test": "npm --workspace @taxi-gps/web run test",
-    "web:dashboard-smoke": "npm --workspace @taxi-gps/web run dashboard:smoke",
+    "web:dashboard-smoke": "npm run api:build && npm --workspace @taxi-gps/web run dashboard:smoke",
     "api:equgps-package-smoke:built": "npm run equgps:build && npm run build && node dist/scripts/equgps-package-smoke.js",
     "api:equgps-web-details-smoke:built": "npm run equgps:build && npm run build && node dist/scripts/equgps-web-details-smoke.js",
     "equgps:build": "npm --workspace @taxi-gps/equgps run build",

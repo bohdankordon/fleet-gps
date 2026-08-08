@@ -1,0 +1,2 @@
+"use client";
+export function InitialEventsError() { return <main><header className="hero"><p className="eyebrow">Уведомления автопарка</p><h1>События</h1><p>История автоматических нарушений и доставки уведомлений.</p></header><section className="empty" role="alert"><h2>Не удалось загрузить события</h2><p>Повторите попытку позже.</p><button type="button" onClick={() => window.location.reload()}>Повторить</button></section></main>; }

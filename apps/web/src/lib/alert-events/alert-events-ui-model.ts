@@ -1,0 +1,4 @@
+import type { AlertEventsListResponse } from "./alert-events-contract";
+export function appendAlertEventsPage(current: AlertEventsListResponse, page: AlertEventsListResponse): AlertEventsListResponse { const known = new Set(current.items.map((item) => item.id)); return { items: [...current.items, ...page.items.filter((item) => !known.has(item.id))], nextCursor: page.nextCursor }; }
+export function replaceAlertEventsPage(page: AlertEventsListResponse): AlertEventsListResponse { return { items: [...page.items], nextCursor: page.nextCursor }; }
+export function emptyAlertEventsMessage(hasFilters: boolean): Readonly<{ heading: string; text: string }> { return hasFilters ? { heading: "По выбранным фильтрам событий нет.", text: "Измените фильтры, чтобы увидеть другие события." } : { heading: "Событий пока нет", text: "Нарушения появятся здесь автоматически." }; }
