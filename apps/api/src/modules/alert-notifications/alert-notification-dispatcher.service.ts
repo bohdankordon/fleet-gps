@@ -30,7 +30,7 @@ export class AlertNotificationDispatcherService {
     @Inject(API_CONFIG) private readonly config: ApiConfig,
   ) {}
 
-  public async dispatchBatch(limit: number): Promise<AlertNotificationDispatchBatchResult> {
+  public async dispatchBatch(limit: number, signal?: AbortSignal): Promise<AlertNotificationDispatchBatchResult> {
     const boundedLimit = validateAlertNotificationBatchLimit(limit);
     if (!this.config.telegramNotifications.enabled) return result();
     let claimed = 0;
@@ -40,6 +40,7 @@ export class AlertNotificationDispatcherService {
     let lostLease = 0;
 
     while (claimed < boundedLimit) {
+      if (signal?.aborted === true) break;
       const claimedRows = await this.repository.claimNextBatch(1, randomUUID());
       if (claimedRows.length === 0) break;
       if (claimedRows.length !== 1) throw new AlertNotificationOutboxStateError("Single notification claim returned multiple rows");

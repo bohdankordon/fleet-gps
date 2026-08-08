@@ -33,6 +33,7 @@
     "alert-events:smoke": "npm --workspace @taxi-gps/api run alert-events:smoke",
     "alert-notification-outbox:smoke": "npm --workspace @taxi-gps/api run alert-notification-outbox:smoke",
     "alert-notification-dispatcher:smoke": "npm --workspace @taxi-gps/api run alert-notification-dispatcher:smoke",
+    "alert-notification-scheduler:smoke": "npm --workspace @taxi-gps/api run alert-notification-scheduler:smoke",
     "alert-event-processing:smoke": "npm --workspace @taxi-gps/api run alert-event-processing:smoke",
     "alert-evaluation:smoke": "npm --workspace @taxi-gps/api run alert-evaluation:smoke",
     "alert-ingestion:smoke": "npm --workspace @taxi-gps/api run alert-ingestion:smoke",

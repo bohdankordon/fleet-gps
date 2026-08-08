@@ -6,7 +6,7 @@ import { TelegramTransportError } from "./telegram-notification.transport";
 
 const token = "test-token-never-log";
 const chatId = "test-chat-never-log";
-const config: TelegramNotificationsConfig = Object.freeze({ enabled: true, botToken: token, chatId });
+const config: TelegramNotificationsConfig = Object.freeze({ enabled: true, botToken: token, chatId, dispatchIntervalMs: 60_000, batchSize: 20 });
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), { status, headers: { "content-type": "application/json" } });
@@ -107,7 +107,7 @@ test("malformed success JSON is a retryable invalid response without body leakag
 
 test("disabled or incomplete transport fails before fetch", async () => {
   let calls = 0;
-  const transport = new TelegramBotNotificationTransport({ enabled: false, botToken: null, chatId: null }, async () => { calls += 1; return jsonResponse({ ok: true }); });
+  const transport = new TelegramBotNotificationTransport({ enabled: false, botToken: null, chatId: null, dispatchIntervalMs: 60_000, batchSize: 20 }, async () => { calls += 1; return jsonResponse({ ok: true }); });
   await assert.rejects(transport.sendAlertConfirmed("safe"), TelegramTransportError);
   assert.equal(calls, 0);
 });

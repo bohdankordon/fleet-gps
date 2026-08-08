@@ -32,7 +32,7 @@ test("API config applies safe defaults, freezes config, and preserves the input 
     shutdownTimeoutMs: 50_000,
   });
   assert.deepEqual(config.alertIngestion, { enabled: false });
-  assert.deepEqual(config.telegramNotifications, { enabled: false, botToken: null, chatId: null });
+  assert.deepEqual(config.telegramNotifications, { enabled: false, botToken: null, chatId: null, dispatchIntervalMs: 60_000, batchSize: 20 });
   assert.deepEqual(env, before);
   assert.equal(Object.isFrozen(config), true);
   assert.equal(Object.isFrozen(config.syncScheduler), true);
@@ -95,13 +95,41 @@ test("Telegram notifications are opt-in and credentials are required only when e
     TELEGRAM_BOT_TOKEN: " secret-token ",
     TELEGRAM_CHAT_ID: " private-chat ",
   });
-  assert.deepEqual(enabled.telegramNotifications, { enabled: true, botToken: "secret-token", chatId: "private-chat" });
+  assert.deepEqual(enabled.telegramNotifications, { enabled: true, botToken: "secret-token", chatId: "private-chat", dispatchIntervalMs: 60_000, batchSize: 20 });
 
   for (const missing of ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] as const) {
     const env = { ...valid(), TELEGRAM_NOTIFICATIONS_ENABLED: "true", TELEGRAM_BOT_TOKEN: "token", TELEGRAM_CHAT_ID: "chat", [missing]: "" };
     assert.throws(() => parseApiConfig(env), (error: unknown) => {
       assert.ok(error instanceof ApiConfigurationError);
       assert.deepEqual(error.issues, [missing]);
+      return true;
+    });
+  }
+});
+
+test("Telegram notification scheduler accepts interval bounds and dispatcher batch bounds", () => {
+  const lower = parseApiConfig({ ...valid(), TELEGRAM_NOTIFICATION_DISPATCH_INTERVAL_MS: "1000", TELEGRAM_NOTIFICATION_BATCH_SIZE: "1" });
+  const upper = parseApiConfig({ ...valid(), TELEGRAM_NOTIFICATION_DISPATCH_INTERVAL_MS: "3600000", TELEGRAM_NOTIFICATION_BATCH_SIZE: "100" });
+  assert.equal(lower.telegramNotifications.dispatchIntervalMs, 1_000);
+  assert.equal(lower.telegramNotifications.batchSize, 1);
+  assert.equal(upper.telegramNotifications.dispatchIntervalMs, 3_600_000);
+  assert.equal(upper.telegramNotifications.batchSize, 100);
+});
+
+test("Telegram notification scheduler rejects invalid interval and batch with safe field names", () => {
+  const cases: readonly [string, string][] = [
+    ["TELEGRAM_NOTIFICATION_DISPATCH_INTERVAL_MS", "999"],
+    ["TELEGRAM_NOTIFICATION_DISPATCH_INTERVAL_MS", "3600001"],
+    ["TELEGRAM_NOTIFICATION_DISPATCH_INTERVAL_MS", "1.5"],
+    ["TELEGRAM_NOTIFICATION_BATCH_SIZE", "0"],
+    ["TELEGRAM_NOTIFICATION_BATCH_SIZE", "101"],
+    ["TELEGRAM_NOTIFICATION_BATCH_SIZE", "1.5"],
+  ];
+  for (const [field, value] of cases) {
+    assert.throws(() => parseApiConfig({ ...valid(), [field]: value }), (error: unknown) => {
+      assert.ok(error instanceof ApiConfigurationError);
+      assert.deepEqual(error.issues, [field]);
+      assert.equal(JSON.stringify(error).includes(value), false);
       return true;
     });
   }

@@ -43,6 +43,13 @@ function dispatcher(repository: Partial<AlertNotificationOutboxRepository>, tran
   return new AlertNotificationDispatcherService(repository as AlertNotificationOutboxRepository, new AlertNotificationMessageFormatter(), transport, config(enabled));
 }
 
+type Deferred = { promise: Promise<void>; resolve(): void };
+function deferred(): Deferred {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((resolvePromise) => { resolve = resolvePromise; });
+  return { promise, resolve };
+}
+
 test("disabled dispatcher returns a safe zero result with zero claims and zero network", async () => {
   let claims = 0;
   let sends = 0;
@@ -59,6 +66,80 @@ test("dispatchBatch validates its logical limit before any DB or network operati
   for (const limit of [0, -1, 1.5, 101, Number.NaN]) await assert.rejects(service.dispatchBatch(limit), RangeError);
   assert.equal(claims, 0);
   assert.equal(sends, 0);
+});
+
+test("an already-aborted signal stops before the first claim but never bypasses limit validation", async () => {
+  let claims = 0;
+  let sends = 0;
+  const controller = new AbortController();
+  controller.abort();
+  const service = dispatcher(
+    { claimNextBatch: async () => { claims += 1; return []; } },
+    { sendAlertConfirmed: async () => { sends += 1; } },
+  );
+
+  assert.deepEqual(await service.dispatchBatch(20, controller.signal), { claimed: 0, sent: 0, retryScheduled: 0, failedPermanent: 0, lostLease: 0 });
+  await assert.rejects(service.dispatchBatch(0, controller.signal), RangeError);
+  assert.equal(claims, 0);
+  assert.equal(sends, 0);
+});
+
+test("abort during the current send completes markSent and prevents the next claim", async () => {
+  const controller = new AbortController();
+  const sendStarted = deferred();
+  const finishSend = deferred();
+  let claims = 0;
+  let sentTransitions = 0;
+  const service = dispatcher({
+    claimNextBatch: async (_limit: number, lockToken: string) => {
+      claims += 1;
+      return [notification(claims, lockToken)];
+    },
+    markSent: async () => { sentTransitions += 1; },
+  }, { sendAlertConfirmed: async () => { sendStarted.resolve(); await finishSend.promise; } });
+
+  const running = service.dispatchBatch(20, controller.signal);
+  await sendStarted.promise;
+  controller.abort();
+  finishSend.resolve();
+
+  assert.deepEqual(await running, { claimed: 1, sent: 1, retryScheduled: 0, failedPermanent: 0, lostLease: 0 });
+  assert.equal(claims, 1);
+  assert.equal(sentTransitions, 1);
+});
+
+test("abort during a failing current send durably schedules retry or marks permanent failure before stopping", async () => {
+  for (const expected of [
+    { error: new TelegramTransportError("HTTP_5XX", true), transition: "retry", result: { claimed: 1, sent: 0, retryScheduled: 1, failedPermanent: 0, lostLease: 0 } },
+    { error: new TelegramTransportError("HTTP_4XX", false), transition: "failed", result: { claimed: 1, sent: 0, retryScheduled: 0, failedPermanent: 1, lostLease: 0 } },
+  ] as const) {
+    const controller = new AbortController();
+    const sendStarted = deferred();
+    const finishSend = deferred();
+    const transitions: string[] = [];
+    let claims = 0;
+    const service = dispatcher({
+      claimNextBatch: async (_limit: number, lockToken: string) => {
+        claims += 1;
+        return [notification(claims, lockToken)];
+      },
+      releaseForRetry: async () => { transitions.push("retry"); },
+      markFailed: async () => { transitions.push("failed"); },
+    }, { sendAlertConfirmed: async () => {
+      sendStarted.resolve();
+      await finishSend.promise;
+      throw expected.error;
+    } });
+
+    const running = service.dispatchBatch(20, controller.signal);
+    await sendStarted.promise;
+    controller.abort();
+    finishSend.resolve();
+
+    assert.deepEqual(await running, expected.result);
+    assert.equal(claims, 1);
+    assert.deepEqual(transitions, [expected.transition]);
+  }
 });
 
 test("dispatchBatch leases each row just in time after the previous row is fully SENT", async () => {
