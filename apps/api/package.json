@@ -19,6 +19,7 @@
     "inactivity-detector:smoke": "npm run build && node scripts/inactivity-detector-smoke.cjs",
     "alert-events:smoke": "npm run build && node scripts/require-database-url.cjs && node --env-file=../../.env scripts/alert-events-smoke.cjs",
     "alert-notification-outbox:smoke": "npm run build && node scripts/require-database-url.cjs && node --env-file=../../.env scripts/alert-notification-outbox-smoke.cjs",
+    "alert-notification-dispatcher:smoke": "npm run build && node scripts/require-database-url.cjs && node --env-file=../../.env scripts/alert-notification-dispatcher-smoke.cjs",
     "alert-event-processing:smoke": "npm run build && node scripts/require-database-url.cjs && node --env-file=../../.env scripts/alert-event-processing-smoke.cjs",
     "alert-evaluation:smoke": "npm run build && node scripts/require-database-url.cjs && node --env-file=../../.env scripts/alert-evaluation-smoke.cjs",
     "alert-ingestion:smoke": "npm run build && node scripts/require-database-url.cjs && node --env-file=../../.env scripts/alert-ingestion-smoke.cjs",

@@ -48,7 +48,9 @@ enum AlertNotificationKind {
 
 enum AlertNotificationStatus {
   PENDING
+  SENDING
   SENT
+  FAILED
 }
 
 model Vehicle {
@@ -122,13 +124,17 @@ model AlertNotificationOutbox {
   kind          AlertNotificationKind   @map("kind")
   status        AlertNotificationStatus @default(PENDING) @map("status")
   createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  availableAt   DateTime                @default(now()) @map("available_at") @db.Timestamptz(6)
+  lockedAt      DateTime?               @map("locked_at") @db.Timestamptz(6)
+  lockToken     String?                 @map("lock_token") @db.Uuid
   sentAt        DateTime?               @map("sent_at") @db.Timestamptz(6)
   attemptCount  Int                     @default(0) @map("attempt_count")
   lastAttemptAt DateTime?               @map("last_attempt_at") @db.Timestamptz(6)
+  lastErrorCode String?                 @map("last_error_code") @db.VarChar(32)
   alertEvent    AlertEvent              @relation(fields: [alertEventId], references: [id], onDelete: Restrict)
 
   @@unique([alertEventId, kind])
-  @@index([status, createdAt, id])
+  @@index([status, availableAt, createdAt, id])
   @@map("alert_notification_outbox")
 }
 

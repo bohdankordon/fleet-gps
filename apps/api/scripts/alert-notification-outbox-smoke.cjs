@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const { randomInt, randomUUID } = require("node:crypto");
 
-const MIGRATION_NAME = "20260808220000_add_alert_notification_outbox";
+const MIGRATION_NAME = "20260808230000_add_alert_notification_dispatcher_state";
 
 class RollbackSignal extends Error {}
 

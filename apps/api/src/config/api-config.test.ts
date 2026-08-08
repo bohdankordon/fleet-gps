@@ -32,10 +32,12 @@ test("API config applies safe defaults, freezes config, and preserves the input 
     shutdownTimeoutMs: 50_000,
   });
   assert.deepEqual(config.alertIngestion, { enabled: false });
+  assert.deepEqual(config.telegramNotifications, { enabled: false, botToken: null, chatId: null });
   assert.deepEqual(env, before);
   assert.equal(Object.isFrozen(config), true);
   assert.equal(Object.isFrozen(config.syncScheduler), true);
   assert.equal(Object.isFrozen(config.alertIngestion), true);
+  assert.equal(Object.isFrozen(config.telegramNotifications), true);
   assert.equal(Object.isFrozen(config.database), true);
   assert.equal(Object.isFrozen(config.equGps), true);
 });
@@ -84,6 +86,40 @@ test("API config accepts custom eQuGPS timeouts", () => {
 test("API config accepts an explicit alert-ingestion opt-in", () => {
   const config = parseApiConfig({ ...valid(), ALERT_INGESTION_ENABLED: "true" });
   assert.deepEqual(config.alertIngestion, { enabled: true });
+});
+
+test("Telegram notifications are opt-in and credentials are required only when enabled", () => {
+  const enabled = parseApiConfig({
+    ...valid(),
+    TELEGRAM_NOTIFICATIONS_ENABLED: "true",
+    TELEGRAM_BOT_TOKEN: " secret-token ",
+    TELEGRAM_CHAT_ID: " private-chat ",
+  });
+  assert.deepEqual(enabled.telegramNotifications, { enabled: true, botToken: "secret-token", chatId: "private-chat" });
+
+  for (const missing of ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] as const) {
+    const env = { ...valid(), TELEGRAM_NOTIFICATIONS_ENABLED: "true", TELEGRAM_BOT_TOKEN: "token", TELEGRAM_CHAT_ID: "chat", [missing]: "" };
+    assert.throws(() => parseApiConfig(env), (error: unknown) => {
+      assert.ok(error instanceof ApiConfigurationError);
+      assert.deepEqual(error.issues, [missing]);
+      return true;
+    });
+  }
+});
+
+test("Telegram configuration errors expose field names without credential values", () => {
+  const token = "private-telegram-token";
+  const chatId = "private-telegram-chat";
+  try {
+    parseApiConfig({ ...valid(), TELEGRAM_NOTIFICATIONS_ENABLED: "TRUE", TELEGRAM_BOT_TOKEN: token, TELEGRAM_CHAT_ID: chatId });
+    assert.fail("expected configuration error");
+  } catch (error) {
+    assert.ok(error instanceof ApiConfigurationError);
+    assert.deepEqual(error.issues, ["TELEGRAM_NOTIFICATIONS_ENABLED"]);
+    const serialized = `${error.message} ${JSON.stringify(error)}`;
+    assert.equal(serialized.includes(token), false);
+    assert.equal(serialized.includes(chatId), false);
+  }
 });
 
 test("API config rejects unsafe alert-ingestion boolean values", () => {
