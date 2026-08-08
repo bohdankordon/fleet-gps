@@ -25,3 +25,13 @@ test("orchestration does not read settings for invalid input and has no persiste
   const result = await service.detect({ ...observation(0), latitude: Number.NaN });
   assert.equal(result.status, "IGNORED"); assert.equal(result.reason, "INVALID_OBSERVATION"); assert.equal(reads, 0);
 });
+
+test("invalidResult returns the canonical INVALID result without advancing state or reading settings", async () => {
+  let reads = 0;
+  const service = new InactivityDetectorService({ getSettings: async () => { reads += 1; return settings(); } } as unknown as AlertSettingsService, new InactivityDetectorStateMachine());
+  assert.equal((await service.detect(observation(0))).status, "COLLECTING");
+  assert.equal((await service.detect(observation(59 + 59 / 60))).status, "COLLECTING");
+  const invalid = service.invalidResult(observation(60));
+  assert.equal(invalid.status, "IGNORED"); assert.equal(invalid.reason, "INVALID_OBSERVATION"); assert.equal(service.stateCount(), 1); assert.equal(reads, 2);
+  assert.equal((await service.detect(observation(60))).status, "CONFIRMED");
+});

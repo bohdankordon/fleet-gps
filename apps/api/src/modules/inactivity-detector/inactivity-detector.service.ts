@@ -19,6 +19,8 @@ export class InactivityDetectorService {
     return this.stateMachine.detect(input, context);
   }
 
+  /** Returns the detector's canonical invalid result without accepting state. */
+  public invalidResult(input: InactivityObservationInput): InactivityDetectionResult { return this.stateMachine.invalidResult(input); }
   public resetVehicle(vehicleId: string): void { this.stateMachine.resetVehicle(vehicleId); }
   public clearAll(): void { this.stateMachine.clearAll(); }
   public stateCount(): number { return this.stateMachine.stateCount(); }
