@@ -1,6 +1,6 @@
 const { randomInt, randomUUID } = require("node:crypto");
 
-const MIGRATION_NAME = "20260808120000_add_alert_events";
+const MIGRATION_NAME = "20260808220000_add_alert_notification_outbox";
 
 class RollbackSignal extends Error {}
 
@@ -35,7 +35,11 @@ async function main() {
 
   try {
     const applied = await prisma.$queryRaw`SELECT 1 FROM "_prisma_migrations" WHERE migration_name = ${MIGRATION_NAME} AND finished_at IS NOT NULL LIMIT 1`;
-    if (!Array.isArray(applied) || applied.length !== 1) throw new Error("required alert event migration is not applied");
+    if (!Array.isArray(applied) || applied.length !== 1) {
+      console.log(`alert event processing smoke: migration required (${MIGRATION_NAME})`);
+      process.exitCode = 1;
+      return;
+    }
 
     try {
       await prisma.$transaction(async (transaction) => {

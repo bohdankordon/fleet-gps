@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
 const { randomInt, randomUUID } = require("node:crypto");
 
-const MIGRATION_NAME = "20260808180000_add_alert_evaluation_observations";
+const MIGRATION_NAME = "20260808220000_add_alert_notification_outbox";
 class RollbackSignal extends Error {}
 
 function observation(vehicleId, observedAtMs, point, speedKph) {
@@ -19,7 +19,7 @@ async function main() {
   try {
     const applied = await prisma.$queryRaw`SELECT 1 FROM "_prisma_migrations" WHERE migration_name = ${MIGRATION_NAME} AND finished_at IS NOT NULL LIMIT 1`;
     if (!Array.isArray(applied) || applied.length !== 1) {
-      console.log(`alert ingestion smoke: migration required (${MIGRATION_NAME})`); return;
+      console.log(`alert ingestion smoke: migration required (${MIGRATION_NAME})`); process.exitCode = 1; return;
     }
     if (typeof nativeFetch === "function") globalThis.fetch = async () => { externalRequests += 1; throw new Error("Unexpected external request"); };
     const { AlertSettingsRepository } = require("../dist/modules/alert-settings/alert-settings.repository");

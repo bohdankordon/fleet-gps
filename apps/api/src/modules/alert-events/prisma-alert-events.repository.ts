@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { AlertEventSpeedZone, AlertEventStatus, AlertEventType, Prisma } from "../../generated/prisma/client";
+import { AlertEventSpeedZone, AlertEventStatus, AlertEventType, AlertNotificationKind, Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database";
 import type { AlertEventRecord, AlertEventType as DomainAlertEventType, InactivityAlertEventRecord, OpenAlertEventCommand, SpeedingAlertEventRecord, UpdateAlertEventCommand } from "./alert-events.types";
 import { AlertEventPersistenceStateError, AlertEventUniqueConflictError, type AlertEventsRepository, type ConditionalAlertEventMutation, type RegisterAlertEventConfirmationInput, type RegisterAlertEventConfirmationResult } from "./alert-events.repository";
@@ -31,7 +31,7 @@ const alertEventSelect = {
 } satisfies Prisma.AlertEventSelect;
 
 type StoredAlertEvent = Prisma.AlertEventGetPayload<{ select: typeof alertEventSelect }>;
-type PersistenceClient = Pick<Prisma.TransactionClient, "alertEvent" | "alertEventConfirmation">;
+type PersistenceClient = Pick<Prisma.TransactionClient, "alertEvent" | "alertEventConfirmation" | "alertNotificationOutbox">;
 
 function requireNumber(value: number | null, field: string): number {
   if (value === null || !Number.isFinite(value)) throw new AlertEventPersistenceStateError(`Invalid persisted ${field}`);
@@ -55,7 +55,15 @@ function conflictTarget(error: Prisma.PrismaClientKnownRequestError): string[] {
   const target = error.meta?.target;
   if (typeof target === "string") return [target];
   if (Array.isArray(target)) return target.filter((value): value is string => typeof value === "string");
-  return [];
+  const driverAdapterError = error.meta?.driverAdapterError;
+  if (typeof driverAdapterError !== "object" || driverAdapterError === null) return [];
+  const cause = (driverAdapterError as { cause?: unknown }).cause;
+  if (typeof cause !== "object" || cause === null) return [];
+  const constraint = (cause as { constraint?: unknown }).constraint;
+  if (typeof constraint !== "object" || constraint === null) return [];
+  const fields = (constraint as { fields?: unknown }).fields;
+  if (!Array.isArray(fields)) return [];
+  return fields.filter((value): value is string => typeof value === "string");
 }
 
 function mapUniqueConflict(error: unknown): AlertEventUniqueConflictError | null {
@@ -122,6 +130,7 @@ export class PrismaAlertEventsRepository implements AlertEventsRepository {
 
     const created = await this.createOpenWithClient(transaction, input);
     await transaction.alertEventConfirmation.create({ data: { dedupeKey: input.dedupeKey, eventId: created.id, observedAt: input.command.observedAt } });
+    await transaction.alertNotificationOutbox.create({ data: { alertEventId: created.id, kind: AlertNotificationKind.ALERT_CONFIRMED } });
     return Object.freeze({ outcome: "CREATED", event: created });
   }
 

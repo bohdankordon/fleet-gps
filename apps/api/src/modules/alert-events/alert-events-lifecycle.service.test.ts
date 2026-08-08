@@ -11,6 +11,7 @@ const at = (minute: number): Date => new Date(Date.UTC(2026, 7, 8, 10, minute));
 class MemoryAlertEventsRepository implements AlertEventsRepository {
   public events: AlertEventRecord[] = [];
   public receipts = new Map<string, string>();
+  public notifications = new Map<string, "ALERT_CONFIRMED">();
   private sequence = 0;
 
   public async findOpenByVehicleAndType(vehicleId: string, type: AlertEventType): Promise<AlertEventRecord | null> {
@@ -35,6 +36,7 @@ class MemoryAlertEventsRepository implements AlertEventsRepository {
       : { ...base, type: "INACTIVITY", confirmationTraveledDistanceMeters: input.command.traveledDistanceMeters, lastTraveledDistanceMeters: input.command.traveledDistanceMeters, minimumTraveledDistanceMeters: input.command.traveledDistanceMeters, distanceThresholdMeters: input.command.distanceThresholdMeters, durationThresholdMinutes: input.command.durationThresholdMinutes };
     this.events.push(event);
     this.receipts.set(input.dedupeKey, event.id);
+    this.notifications.set(event.id, "ALERT_CONFIRMED");
     return { outcome: "CREATED", event };
   }
 
@@ -83,13 +85,14 @@ test("exact duplicate confirmation creates one event and returns ALREADY_EXISTS"
   assert.equal((await service.openSpeedingEvent(speeding(at(0)))).outcome, "ALREADY_EXISTS");
   assert.equal(repository.events.length, 1);
   assert.equal(repository.receipts.size, 1);
+  assert.equal(repository.notifications.size, 1);
 });
 
 test("concurrent exact confirmation creates one durable receipt and one OPEN event", async () => {
   const { service, repository } = setup();
   const results = await Promise.all([service.openSpeedingEvent(speeding(at(0))), service.openSpeedingEvent(speeding(at(0)))]);
   assert.deepEqual(new Set(results.map((result) => result.outcome)), new Set(["CREATED", "ALREADY_EXISTS"]));
-  assert.equal(repository.events.length, 1); assert.equal(repository.receipts.size, 1);
+  assert.equal(repository.events.length, 1); assert.equal(repository.receipts.size, 1); assert.equal(repository.notifications.size, 1);
 });
 
 test("exact replay after RESOLVED neither reopens nor creates", async () => {
@@ -100,6 +103,7 @@ test("exact replay after RESOLVED neither reopens nor creates", async () => {
   assert.equal((await service.openSpeedingEvent(command)).outcome, "ALREADY_EXISTS");
   assert.equal(repository.events.length, 1);
   assert.equal(repository.events[0]!.status, "RESOLVED");
+  assert.equal(repository.notifications.size, 1);
 });
 
 test("coalesced SPEEDING confirmation replay after RESOLVED remains ALREADY_EXISTS", async () => {
@@ -109,7 +113,7 @@ test("coalesced SPEEDING confirmation replay after RESOLVED remains ALREADY_EXIS
   assert.deepEqual(await service.openSpeedingEvent(coalesced), { outcome: "ALREADY_OPEN", eventId: "event-1", updated: true });
   assert.equal((await service.resolveSpeedingEvent({ type: "SPEEDING", vehicleId: VEHICLE_A, observedAt: at(10), speedKph: 40 })).outcome, "RESOLVED");
   assert.deepEqual(await service.openSpeedingEvent(coalesced), { outcome: "ALREADY_EXISTS", eventId: "event-1" });
-  assert.equal(repository.events.length, 1); assert.equal(repository.events[0]!.status, "RESOLVED"); assert.equal(repository.events.filter((event) => event.status === "OPEN").length, 0); assert.equal(repository.receipts.size, 2);
+  assert.equal(repository.events.length, 1); assert.equal(repository.events[0]!.status, "RESOLVED"); assert.equal(repository.events.filter((event) => event.status === "OPEN").length, 0); assert.equal(repository.receipts.size, 2); assert.equal(repository.notifications.size, 1);
 });
 
 test("coalesced INACTIVITY confirmation replay after RESOLVED remains ALREADY_EXISTS", async () => {
@@ -119,7 +123,7 @@ test("coalesced INACTIVITY confirmation replay after RESOLVED remains ALREADY_EX
   assert.equal((await service.openInactivityEvent(coalesced)).outcome, "ALREADY_OPEN");
   await service.resolveInactivityEvent({ type: "INACTIVITY", vehicleId: VEHICLE_A, observedAt: at(10), traveledDistanceMeters: 400 });
   assert.equal((await service.openInactivityEvent(coalesced)).outcome, "ALREADY_EXISTS");
-  assert.equal(repository.events.length, 1); assert.equal(repository.receipts.size, 2);
+  assert.equal(repository.events.length, 1); assert.equal(repository.receipts.size, 2); assert.equal(repository.notifications.size, 1);
 });
 
 test("stale distinct confirmation is receipted and cannot reopen after resolve", async () => {
@@ -148,6 +152,7 @@ test("concurrent confirmations preserve one OPEN per vehicle and type", async ()
   assert.deepEqual(new Set(results.map((result) => result.outcome)), new Set(["CREATED", "ALREADY_OPEN"]));
   assert.equal(repository.events.filter((event) => event.status === "OPEN" && event.type === "SPEEDING").length, 1);
   assert.equal(repository.receipts.size, 2);
+  assert.equal(repository.notifications.size, 1);
   assert.equal((repository.events[0] as SpeedingAlertEventRecord).lastSpeedKph, 80);
 });
 
@@ -157,6 +162,31 @@ test("one vehicle may hold OPEN SPEEDING and OPEN INACTIVITY simultaneously", as
   await service.openInactivityEvent(inactivity(at(0)));
   assert.equal(repository.events.filter((event) => event.status === "OPEN").length, 2);
   assert.deepEqual(new Set(repository.events.map((event) => event.type)), new Set(["SPEEDING", "INACTIVITY"]));
+  assert.equal(repository.notifications.size, 2);
+  assert.deepEqual(new Set(repository.notifications.values()), new Set(["ALERT_CONFIRMED"]));
+});
+
+test("CREATED-only notification semantics exclude ALREADY_OPEN, UPDATED, RESOLVED, and NOOP", async () => {
+  const { service, repository } = setup();
+  assert.equal((await service.openSpeedingEvent(speeding(at(0), 70))).outcome, "CREATED");
+  assert.equal(repository.notifications.size, 1);
+  assert.equal((await service.openSpeedingEvent(speeding(at(1), 80))).outcome, "ALREADY_OPEN");
+  assert.equal((await service.updateSpeedingEvent({ type: "SPEEDING", vehicleId: VEHICLE_A, observedAt: at(2), speedKph: 75 })).outcome, "UPDATED");
+  assert.equal((await service.resolveSpeedingEvent({ type: "SPEEDING", vehicleId: VEHICLE_A, observedAt: at(3), speedKph: 40 })).outcome, "RESOLVED");
+  assert.equal((await service.updateSpeedingEvent({ type: "SPEEDING", vehicleId: VEHICLE_A, observedAt: at(4), speedKph: 75 })).outcome, "NOOP");
+  assert.equal(repository.notifications.size, 1);
+});
+
+test("a new episode after RESOLVED creates a second event and second notification", async () => {
+  const { service, repository } = setup();
+  const first = await service.openSpeedingEvent(speeding(at(0), 70));
+  assert.equal(first.outcome, "CREATED");
+  await service.resolveSpeedingEvent({ type: "SPEEDING", vehicleId: VEHICLE_A, observedAt: at(5), speedKph: 40 });
+  const second = await service.openSpeedingEvent(speeding(at(10), 80));
+  assert.equal(second.outcome, "CREATED");
+  assert.equal(repository.events.length, 2);
+  assert.equal(repository.notifications.size, 2);
+  assert.notEqual("eventId" in first ? first.eventId : null, "eventId" in second ? second.eventId : null);
 });
 
 test("vehicles have independent OPEN events", async () => {

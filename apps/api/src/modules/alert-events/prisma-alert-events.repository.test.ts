@@ -12,20 +12,27 @@ function knownError(target: string[], code = "P2002", modelName?: string): Prism
   return new Prisma.PrismaClientKnownRequestError("safe", { code, clientVersion: "7.9.1", meta: { target, ...(modelName === undefined ? {} : { modelName }) } });
 }
 
+function adapterKnownError(fields: string[]): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("safe", { code: "P2002", clientVersion: "7.9.1", meta: { driverAdapterError: { cause: { constraint: { fields } } } } });
+}
+
 function storedSpeeding(overrides: Record<string, unknown> = {}) {
   return { id: "event-1", vehicleId: VEHICLE_ID, type: "SPEEDING", status: "OPEN", confirmedAt: AT, lastObservedAt: AT, resolvedAt: null, dedupeKey: "d".repeat(64), activeKey: "a".repeat(64), speedZone: "CITY", confirmationSpeedKph: 70, lastSpeedKph: 70, peakSpeedKph: 70, speedThresholdKph: 60, confirmationTraveledDistanceMeters: null, lastTraveledDistanceMeters: null, minimumTraveledDistanceMeters: null, distanceThresholdMeters: null, durationThresholdMinutes: null, ...overrides };
 }
 
 test("first confirmation creates event and receipt in the same transaction callback", async () => {
-  const receiptCreates: unknown[] = []; let transactions = 0;
+  const receiptCreates: unknown[] = []; const notificationCreates: unknown[] = []; const order: string[] = []; let transactions = 0;
   const transaction = {
-    alertEventConfirmation: { findUnique: async () => null, create: async (value: unknown) => { receiptCreates.push(value); return {}; } },
-    alertEvent: { findFirst: async () => null, create: async () => storedSpeeding() },
+    alertEventConfirmation: { findUnique: async () => null, create: async (value: unknown) => { order.push("receipt"); receiptCreates.push(value); return {}; } },
+    alertEvent: { findFirst: async () => null, create: async () => { order.push("event"); return storedSpeeding(); } },
+    alertNotificationOutbox: { create: async (value: unknown) => { order.push("notification"); notificationCreates.push(value); return {}; } },
   };
   const client = { $transaction: async (callback: (tx: typeof transaction) => Promise<unknown>, options: unknown) => { transactions += 1; assert.deepEqual(options, { timeout: 30_000 }); return callback(transaction); } } as unknown as PrismaClient;
   const result = await new PrismaAlertEventsRepository({ getClient: () => client } as DatabaseService).registerConfirmation(input);
-  assert.equal(result.outcome, "CREATED"); assert.equal(transactions, 1); assert.equal(receiptCreates.length, 1);
+  assert.equal(result.outcome, "CREATED"); assert.equal(transactions, 1); assert.equal(receiptCreates.length, 1); assert.equal(notificationCreates.length, 1);
   assert.deepEqual(receiptCreates[0], { data: { dedupeKey: input.dedupeKey, eventId: "event-1", observedAt: AT } });
+  assert.deepEqual(notificationCreates[0], { data: { alertEventId: "event-1", kind: "ALERT_CONFIRMED" } });
+  assert.deepEqual(order, ["event", "receipt", "notification"]);
 });
 
 test("existing stale OPEN still receives a durable receipt without metric update", async () => {
@@ -33,11 +40,46 @@ test("existing stale OPEN still receives a durable receipt without metric update
   const transaction = {
     alertEventConfirmation: { findUnique: async () => null, create: async (value: unknown) => { receiptCreates.push(value); return {}; } },
     alertEvent: { findFirst: async () => storedSpeeding({ lastObservedAt: new Date(AT.getTime() + 10_000) }), updateMany: async () => { updates += 1; return { count: 1 }; } },
+    alertNotificationOutbox: { create: async () => { throw new Error("must not create notification"); } },
   };
   const client = { $transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction) } as unknown as PrismaClient;
   const result = await new PrismaAlertEventsRepository({ getClient: () => client } as DatabaseService).registerConfirmation(input);
   assert.equal(result.outcome, "ALREADY_OPEN"); if (result.outcome === "ALREADY_OPEN") assert.equal(result.updated, false);
   assert.equal(receiptCreates.length, 1); assert.equal(updates, 0);
+});
+
+test("first INACTIVITY confirmation creates exactly one ALERT_CONFIRMED notification", async () => {
+  const notificationCreates: unknown[] = [];
+  const inactivityInput = { command: { type: "INACTIVITY" as const, vehicleId: VEHICLE_ID, observedAt: AT, traveledDistanceMeters: 10, distanceThresholdMeters: 300, durationThresholdMinutes: 60 }, dedupeKey: "e".repeat(64), activeKey: "b".repeat(64) };
+  const client = {
+    alertEventConfirmation: { findUnique: async () => null, create: async () => ({}) },
+    alertEvent: { findFirst: async () => null, create: async () => ({ id: "event-idle", vehicleId: VEHICLE_ID, type: "INACTIVITY", status: "OPEN", confirmedAt: AT, lastObservedAt: AT, resolvedAt: null, dedupeKey: inactivityInput.dedupeKey, activeKey: inactivityInput.activeKey, speedZone: null, confirmationSpeedKph: null, lastSpeedKph: null, peakSpeedKph: null, speedThresholdKph: null, confirmationTraveledDistanceMeters: 10, lastTraveledDistanceMeters: 10, minimumTraveledDistanceMeters: 10, distanceThresholdMeters: 300, durationThresholdMinutes: 60 }) },
+    alertNotificationOutbox: { create: async (value: unknown) => { notificationCreates.push(value); return {}; } },
+  } as unknown as PrismaClient;
+  const result = await new PrismaAlertEventsRepository({ getClient: () => client } as DatabaseService).registerConfirmation(inactivityInput);
+  assert.equal(result.outcome, "CREATED");
+  assert.deepEqual(notificationCreates, [{ data: { alertEventId: "event-idle", kind: "ALERT_CONFIRMED" } }]);
+});
+
+test("outbox insertion failure rolls back the staged event and confirmation receipt and propagates", async () => {
+  const committed = { events: [] as unknown[], receipts: [] as unknown[], notifications: [] as unknown[] };
+  const failure = new Error("outbox insert failed");
+  const client = {
+    $transaction: async (callback: (transaction: unknown) => Promise<unknown>) => {
+      const staged = { events: [] as unknown[], receipts: [] as unknown[], notifications: [] as unknown[] };
+      const transaction = {
+        alertEventConfirmation: { findUnique: async () => null, create: async (value: unknown) => { staged.receipts.push(value); return {}; } },
+        alertEvent: { findFirst: async () => null, create: async (value: unknown) => { staged.events.push(value); return storedSpeeding(); } },
+        alertNotificationOutbox: { create: async (value: unknown) => { staged.notifications.push(value); throw failure; } },
+      };
+      const result = await callback(transaction);
+      committed.events.push(...staged.events); committed.receipts.push(...staged.receipts); committed.notifications.push(...staged.notifications);
+      return result;
+    },
+  } as unknown as PrismaClient;
+  const repository = new PrismaAlertEventsRepository({ getClient: () => client } as DatabaseService);
+  await assert.rejects(repository.registerConfirmation(input), (error) => error === failure);
+  assert.deepEqual(committed, { events: [], receipts: [], notifications: [] });
 });
 
 test("exact replay becomes ALREADY_EXISTS even when race surfaced as active-key conflict", async () => {
@@ -54,6 +96,20 @@ test("exact replay becomes ALREADY_EXISTS even when race surfaced as active-key 
 test("exact replay becomes ALREADY_EXISTS for a receipt constraint race", async () => {
   const client = { $transaction: async () => { throw knownError(["alert_event_confirmations_pkey"], "P2002", "AlertEventConfirmation"); }, alertEventConfirmation: { findUnique: async () => ({ eventId: "event-1" }) } } as unknown as PrismaClient;
   assert.deepEqual(await new PrismaAlertEventsRepository({ getClient: () => client } as DatabaseService).registerConfirmation(input), { outcome: "ALREADY_EXISTS", eventId: "event-1" });
+});
+
+test("Prisma 7 adapter-pg nested unique metadata preserves exact replay semantics", async () => {
+  const client = {
+    $transaction: async () => { throw adapterKnownError(["active_key"]); },
+    alertEventConfirmation: { findUnique: async () => ({ eventId: "event-1" }) },
+  } as unknown as PrismaClient;
+  assert.deepEqual(await new PrismaAlertEventsRepository({ getClient: () => client } as DatabaseService).registerConfirmation(input), { outcome: "ALREADY_EXISTS", eventId: "event-1" });
+});
+
+test("outbox unique P2002 is unrelated and is never swallowed as event idempotency", async () => {
+  const error = knownError(["alert_event_id", "kind"], "P2002", "AlertNotificationOutbox");
+  const client = { $transaction: async () => { throw error; } } as unknown as PrismaClient;
+  await assert.rejects(new PrismaAlertEventsRepository({ getClient: () => client } as DatabaseService).registerConfirmation(input), (actual) => actual === error);
 });
 
 test("does not swallow unrelated Prisma or ordinary errors", async () => {

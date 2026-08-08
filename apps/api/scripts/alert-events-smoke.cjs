@@ -1,6 +1,6 @@
 const { randomInt, randomUUID } = require("node:crypto");
 
-const MIGRATION_NAME = "20260808120000_add_alert_events";
+const MIGRATION_NAME = "20260808220000_add_alert_notification_outbox";
 
 class RollbackSignal extends Error {}
 

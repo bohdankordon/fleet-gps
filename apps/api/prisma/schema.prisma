@@ -42,6 +42,15 @@ enum AlertEventSpeedZone {
   OUTSIDE_CITY
 }
 
+enum AlertNotificationKind {
+  ALERT_CONFIRMED
+}
+
+enum AlertNotificationStatus {
+  PENDING
+  SENT
+}
+
 model Vehicle {
   id                          String                       @id @default(uuid()) @map("id") @db.Uuid
   externalDeviceId            Int                          @unique @map("external_device_id")
@@ -99,11 +108,28 @@ model AlertEvent {
   updatedAt                          DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
   vehicle                            Vehicle                  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   confirmations                      AlertEventConfirmation[]
+  notificationOutbox                 AlertNotificationOutbox[]
 
   @@index([vehicleId, type, status])
   @@index([status, confirmedAt])
   @@index([type, confirmedAt])
   @@map("alert_events")
+}
+
+model AlertNotificationOutbox {
+  id            String                  @id @default(uuid()) @map("id") @db.Uuid
+  alertEventId  String                  @map("alert_event_id") @db.Uuid
+  kind          AlertNotificationKind   @map("kind")
+  status        AlertNotificationStatus @default(PENDING) @map("status")
+  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  sentAt        DateTime?               @map("sent_at") @db.Timestamptz(6)
+  attemptCount  Int                     @default(0) @map("attempt_count")
+  lastAttemptAt DateTime?               @map("last_attempt_at") @db.Timestamptz(6)
+  alertEvent    AlertEvent              @relation(fields: [alertEventId], references: [id], onDelete: Restrict)
+
+  @@unique([alertEventId, kind])
+  @@index([status, createdAt, id])
+  @@map("alert_notification_outbox")
 }
 
 model AlertEventConfirmation {
