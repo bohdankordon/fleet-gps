@@ -1,0 +1,37 @@
+import type { AlertEventSpeedZone, AlertEventStatus, AlertEventType, AlertNotificationStatus } from "../../generated/prisma/client";
+import type { AlertEventsQueryParams } from "./alert-events-query-params";
+
+export type StoredAlertEventReadRow = Readonly<{
+  id: string;
+  type: AlertEventType;
+  status: AlertEventStatus;
+  confirmedAt: Date;
+  resolvedAt: Date | null;
+  speedZone: AlertEventSpeedZone | null;
+  confirmationSpeedKph: number | null;
+  lastSpeedKph: number | null;
+  peakSpeedKph: number | null;
+  speedThresholdKph: number | null;
+  confirmationTraveledDistanceMeters: number | null;
+  lastTraveledDistanceMeters: number | null;
+  minimumTraveledDistanceMeters: number | null;
+  distanceThresholdMeters: number | null;
+  durationThresholdMinutes: number | null;
+  vehicle: Readonly<{ id: string; name: string }>;
+  notificationOutbox: readonly Readonly<{ status: AlertNotificationStatus }>[];
+}>;
+
+export type StoredAlertEventsPage = Readonly<{
+  rows: readonly StoredAlertEventReadRow[];
+  hasMore: boolean;
+}>;
+
+export type StoredOpenAlertEventsSummary = Readonly<{
+  speeding: number;
+  inactivity: number;
+}>;
+
+export interface AlertEventsQueryRepository {
+  list(params: AlertEventsQueryParams): Promise<StoredAlertEventsPage>;
+  getOpenSummary(): Promise<StoredOpenAlertEventsSummary>;
+}

@@ -31,6 +31,7 @@
     "speeding-detector:smoke": "npm --workspace @taxi-gps/api run speeding-detector:smoke",
     "inactivity-detector:smoke": "npm --workspace @taxi-gps/api run inactivity-detector:smoke",
     "alert-events:smoke": "npm --workspace @taxi-gps/api run alert-events:smoke",
+    "alert-events:http-smoke": "npm --workspace @taxi-gps/api run alert-events:http-smoke",
     "alert-notification-outbox:smoke": "npm --workspace @taxi-gps/api run alert-notification-outbox:smoke",
     "alert-notification-dispatcher:smoke": "npm --workspace @taxi-gps/api run alert-notification-dispatcher:smoke",
     "alert-notification-scheduler:smoke": "npm --workspace @taxi-gps/api run alert-notification-scheduler:smoke",
