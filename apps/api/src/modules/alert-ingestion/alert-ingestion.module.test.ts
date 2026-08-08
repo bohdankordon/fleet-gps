@@ -9,6 +9,7 @@ import { SpeedingDetectorService } from "../speeding-detector";
 import { AlertIngestionModule } from "./alert-ingestion.module";
 import { AlertObservationIngestionService } from "./alert-observation-ingestion.service";
 import { AlertObservationRepository } from "./alert-observation.repository";
+import { FleetModule } from "../fleet/fleet.module";
 
 test("ingestion module has no controller, scheduler, startup hook, or duplicate detector providers", () => {
   assert.deepEqual(Reflect.getMetadata("imports", AlertIngestionModule), [DatabaseModule, AlertSettingsModule, AlertEvaluationModule]);
@@ -20,8 +21,10 @@ test("ingestion module has no controller, scheduler, startup hook, or duplicate 
   assert.equal("onModuleInit" in AlertObservationIngestionService.prototype, false);
 });
 
-test("AppModule integrates ingestion exactly once without replacing existing modules", () => {
+test("FleetModule integrates ingestion while AppModule does not add a duplicate direct import", () => {
   const imports = Reflect.getMetadata("imports", AppModule) as readonly unknown[];
-  assert.equal(imports.filter((value) => value === AlertIngestionModule).length, 1);
+  const fleetImports = Reflect.getMetadata("imports", FleetModule) as readonly unknown[];
+  assert.equal(imports.filter((value) => value === AlertIngestionModule).length, 0);
+  assert.equal(fleetImports.filter((value) => value === AlertIngestionModule).length, 1);
   assert.equal(imports.filter((value) => value === AlertEvaluationModule).length, 1);
 });

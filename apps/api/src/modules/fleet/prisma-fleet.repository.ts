@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { VehicleStatus } from "../../generated/prisma/client";
 import { DatabaseService } from "../database/database.service";
 import type { FleetRepository } from "./fleet.repository";
-import type { FleetPersistenceResult, FleetSnapshot, FleetSnapshotVehicle } from "./fleet.types";
+import type { FleetPersistedVehicleIdentity, FleetPersistenceResult, FleetSnapshot, FleetSnapshotVehicle } from "./fleet.types";
 
 const transactionTimeoutMs = 30_000;
 
@@ -13,12 +13,13 @@ export class PrismaFleetRepository implements FleetRepository {
   public async persistSnapshot(snapshot: FleetSnapshot): Promise<FleetPersistenceResult> {
     const client = this.database.getClient();
     return client.$transaction(async (transaction) => {
-      for (const vehicle of snapshot.vehicles) await this.persistVehicle(transaction, vehicle);
-      return { vehiclesUpserted: snapshot.vehicles.length, currentStatesUpserted: snapshot.vehicles.length };
+      const persistedVehicleIdentities: FleetPersistedVehicleIdentity[] = [];
+      for (const vehicle of snapshot.vehicles) persistedVehicleIdentities.push(await this.persistVehicle(transaction, vehicle));
+      return { vehiclesUpserted: snapshot.vehicles.length, currentStatesUpserted: snapshot.vehicles.length, persistedVehicleIdentities: Object.freeze(persistedVehicleIdentities) };
     }, { timeout: transactionTimeoutMs });
   }
 
-  private async persistVehicle(transaction: Parameters<Parameters<ReturnType<DatabaseService["getClient"]>["$transaction"]>[0]>[0], vehicle: FleetSnapshotVehicle): Promise<void> {
+  private async persistVehicle(transaction: Parameters<Parameters<ReturnType<DatabaseService["getClient"]>["$transaction"]>[0]>[0], vehicle: FleetSnapshotVehicle): Promise<FleetPersistedVehicleIdentity> {
     const persisted = await transaction.vehicle.upsert({
       where: { externalDeviceId: vehicle.externalDeviceId },
       create: { externalDeviceId: vehicle.externalDeviceId, name: vehicle.name, disabled: vehicle.disabled },
@@ -32,12 +33,13 @@ export class PrismaFleetRepository implements FleetRepository {
         create: { vehicleId: persisted.id, ...base, ...vehicle.position },
         update: { ...base, ...vehicle.position },
       });
-      return;
+      return Object.freeze({ externalDeviceId: vehicle.externalDeviceId, vehicleId: persisted.id });
     }
     await transaction.vehicleCurrentState.upsert({
       where: { vehicleId: persisted.id },
       create: { vehicleId: persisted.id, ...base, fixTime: null, latitude: null, longitude: null, speedKph: null, valid: null, outdated: null },
       update: base,
     });
+    return Object.freeze({ externalDeviceId: vehicle.externalDeviceId, vehicleId: persisted.id });
   }
 }

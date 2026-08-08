@@ -12,12 +12,16 @@ export type SyncSchedulerConfig = Readonly<{
   runsIntervalSeconds: number;
   shutdownTimeoutMs: number;
 }>;
+export type AlertIngestionConfig = Readonly<{
+  enabled: boolean;
+}>;
 export type ApiConfig = Readonly<{
   host: string;
   port: number;
   equGps: EquGpsConfig;
   database: DatabaseConfig;
   syncScheduler: SyncSchedulerConfig;
+  alertIngestion: AlertIngestionConfig;
 }>;
 
 export class ApiConfigurationError extends Error {
@@ -65,6 +69,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
   const connectionTimeoutMs = parseInteger(env.DATABASE_CONNECTION_TIMEOUT_MS, 5_000, 100, 120_000);
   const idleTimeoutMs = parseInteger(env.DATABASE_IDLE_TIMEOUT_MS, 30_000, 1_000, 600_000);
   const schedulerEnabled = parseBoolean(env.SYNC_SCHEDULER_ENABLED);
+  const alertIngestionEnabled = parseBoolean(env.ALERT_INGESTION_ENABLED);
   const fleetIntervalSeconds = parseInteger(env.FLEET_SYNC_INTERVAL_SECONDS, 60, 15, 3_600);
   const runsIntervalSeconds = parseInteger(env.RUNS_SYNC_INTERVAL_SECONDS, 300, 60, 3_600);
   const shutdownTimeoutMs = parseInteger(env.SYNC_SCHEDULER_SHUTDOWN_TIMEOUT_MS, 50_000, 1_000, 120_000);
@@ -77,6 +82,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
   if (connectionTimeoutMs === undefined) issues.push("DATABASE_CONNECTION_TIMEOUT_MS");
   if (idleTimeoutMs === undefined) issues.push("DATABASE_IDLE_TIMEOUT_MS");
   if (schedulerEnabled === undefined) issues.push("SYNC_SCHEDULER_ENABLED");
+  if (alertIngestionEnabled === undefined) issues.push("ALERT_INGESTION_ENABLED");
   if (fleetIntervalSeconds === undefined) issues.push("FLEET_SYNC_INTERVAL_SECONDS");
   if (runsIntervalSeconds === undefined) issues.push("RUNS_SYNC_INTERVAL_SECONDS");
   if (shutdownTimeoutMs === undefined) issues.push("SYNC_SCHEDULER_SHUTDOWN_TIMEOUT_MS");
@@ -89,6 +95,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
     connectionTimeoutMs === undefined ||
     idleTimeoutMs === undefined ||
     schedulerEnabled === undefined ||
+    alertIngestionEnabled === undefined ||
     fleetIntervalSeconds === undefined ||
     runsIntervalSeconds === undefined ||
     shutdownTimeoutMs === undefined
@@ -102,6 +109,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
       port,
       database: Object.freeze({ url: databaseUrl, poolMax, connectionTimeoutMs, idleTimeoutMs }),
       syncScheduler: Object.freeze({ enabled: schedulerEnabled, fleetIntervalSeconds, runsIntervalSeconds, shutdownTimeoutMs }),
+      alertIngestion: Object.freeze({ enabled: alertIngestionEnabled }),
       equGps: Object.freeze(parseEquGpsConfig({
         officialBaseUrl: env.EQUGPS_BASE_URL ?? "",
         webBaseUrl: env.EQUGPS_WEB_BASE_URL ?? "",

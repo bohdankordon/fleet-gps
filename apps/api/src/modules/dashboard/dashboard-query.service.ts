@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { isBeyondAllowedPositionFutureSkew } from "../../common/position-time.policy";
 import { DailyStatSource, DataQuality, VehicleStatus } from "../../generated/prisma/client";
 import type { DashboardQueryRepository, DashboardStoredVehicle } from "./dashboard-query.repository";
 import { DASHBOARD_CLOCK, DASHBOARD_QUERY_REPOSITORY } from "./dashboard.tokens";
@@ -12,7 +13,7 @@ function normalizeStatus(value: VehicleStatus): DashboardVehicleStatus { if (val
 function normalizeSource(value: DailyStatSource): DashboardDailyStatSource { if (value === DailyStatSource.RUNS) return "runs"; if (value === DailyStatSource.MODE1) return "mode1"; if (value === DailyStatSource.HISTORICAL_POSITIONS) return "historical_positions"; throw new DashboardQueryInternalError(); }
 function normalizeQuality(value: DataQuality): DashboardDataQuality { if (value === DataQuality.EXACT) return "exact"; if (value === DataQuality.PROVISIONAL) return "provisional"; if (value === DataQuality.ESTIMATED) return "estimated"; throw new DashboardQueryInternalError(); }
 function decimalToNumber(value: unknown): number { const numberValue = typeof value === "number" ? value : typeof value === "object" && value !== null && "toNumber" in value && typeof value.toNumber === "function" ? value.toNumber() : Number.NaN; if (!Number.isFinite(numberValue)) throw new DashboardQueryInternalError(); return numberValue; }
-function freshness(fixTime: Date | null, outdated: boolean | null, now: Date, thresholdSeconds: number): DashboardPositionFreshness { if (!fixTime) return "missing"; const delta = fixTime.getTime() - now.getTime(); if (delta > 60_000) return "future"; if (delta > 0 || outdated === true || -delta > thresholdSeconds * 1_000) return "stale"; return "fresh"; }
+function freshness(fixTime: Date | null, outdated: boolean | null, now: Date, thresholdSeconds: number): DashboardPositionFreshness { if (!fixTime) return "missing"; const delta = fixTime.getTime() - now.getTime(); if (isBeyondAllowedPositionFutureSkew(fixTime, now)) return "future"; if (delta > 0 || outdated === true || -delta > thresholdSeconds * 1_000) return "stale"; return "fresh"; }
 
 function toModel(vehicle: DashboardStoredVehicle, now: Date, minimum: number, threshold: number): DashboardVehicleReadModel {
   const state = vehicle.currentState;

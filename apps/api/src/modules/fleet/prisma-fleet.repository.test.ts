@@ -14,7 +14,8 @@ test("persists a snapshot in one bounded transaction without deleting or touchin
   const client = { $transaction: async (callback: (tx: typeof transaction) => Promise<unknown>, options: { timeout: number }) => { transactions += 1; timeout = options.timeout; return callback(transaction); } } as unknown as PrismaClient;
   const database = { getClient: () => client } as unknown as DatabaseService;
   const result = await new PrismaFleetRepository(database).persistSnapshot(snapshot);
-  assert.deepEqual(result, { vehiclesUpserted: 2, currentStatesUpserted: 2 });
+  assert.deepEqual(result, { vehiclesUpserted: 2, currentStatesUpserted: 2, persistedVehicleIdentities: [{ externalDeviceId: 1, vehicleId: "id-1" }, { externalDeviceId: 2, vehicleId: "id-2" }] });
+  assert.equal(Object.isFrozen(result.persistedVehicleIdentities), true);
   assert.equal(transactions, 1); assert.equal(timeout, 30_000); assert.equal(vehicleUpserts.length, 2); assert.equal(stateUpserts.length, 2);
   assert.deepEqual((stateUpserts[0] as { update: object }).update, { status: VehicleStatus.ONLINE, externalLastUpdateAt: null, fetchedAt });
   assert.equal("fixTime" in ((stateUpserts[0] as { update: object }).update), false);

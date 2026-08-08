@@ -23,9 +23,22 @@ export type FleetSnapshotVehicle = Readonly<{
 
 export type FleetSnapshot = Readonly<{ vehicles: readonly FleetSnapshotVehicle[] }>;
 
+export type FleetPersistedVehicleIdentity = Readonly<{
+  externalDeviceId: number;
+  vehicleId: string;
+}>;
+
 export type FleetPersistenceResult = Readonly<{
   vehiclesUpserted: number;
   currentStatesUpserted: number;
+  persistedVehicleIdentities: readonly FleetPersistedVehicleIdentity[];
+}>;
+
+export type FleetAlertIngestionResult = Readonly<{
+  alertCandidates: number;
+  alertProcessed: number;
+  alertAlreadyProcessed: number;
+  alertSkipped: number;
 }>;
 
 export type FleetSyncResult = Readonly<{
@@ -38,5 +51,9 @@ export type FleetSyncResult = Readonly<{
   duplicatePositions: number;
   invalidDeviceLastUpdateDates: number;
   invalidPositionFixDates: number;
+  alertCandidates: number;
+  alertProcessed: number;
+  alertAlreadyProcessed: number;
+  alertSkipped: number;
   fetchedAt: string;
 }>;

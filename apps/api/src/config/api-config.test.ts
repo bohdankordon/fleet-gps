@@ -31,9 +31,11 @@ test("API config applies safe defaults, freezes config, and preserves the input 
     runsIntervalSeconds: 300,
     shutdownTimeoutMs: 50_000,
   });
+  assert.deepEqual(config.alertIngestion, { enabled: false });
   assert.deepEqual(env, before);
   assert.equal(Object.isFrozen(config), true);
   assert.equal(Object.isFrozen(config.syncScheduler), true);
+  assert.equal(Object.isFrozen(config.alertIngestion), true);
   assert.equal(Object.isFrozen(config.database), true);
   assert.equal(Object.isFrozen(config.equGps), true);
 });
@@ -77,6 +79,22 @@ test("API config accepts custom eQuGPS timeouts", () => {
 
   assert.equal(config.equGps.requestTimeoutMs, 16_000);
   assert.equal(config.equGps.runsRequestTimeoutMs, 46_000);
+});
+
+test("API config accepts an explicit alert-ingestion opt-in", () => {
+  const config = parseApiConfig({ ...valid(), ALERT_INGESTION_ENABLED: "true" });
+  assert.deepEqual(config.alertIngestion, { enabled: true });
+});
+
+test("API config rejects unsafe alert-ingestion boolean values", () => {
+  for (const value of ["TRUE", "yes", "1", "   "]) {
+    assert.throws(() => parseApiConfig({ ...valid(), ALERT_INGESTION_ENABLED: value }), (error: unknown) => {
+      assert.ok(error instanceof ApiConfigurationError);
+      assert.deepEqual(error.issues, ["ALERT_INGESTION_ENABLED"]);
+      assert.equal(JSON.stringify(error).includes(value), false);
+      return true;
+    });
+  }
 });
 
 test("API config rejects scheduler values with safe field names only", () => {

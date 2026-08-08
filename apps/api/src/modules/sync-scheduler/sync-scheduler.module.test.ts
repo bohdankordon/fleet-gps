@@ -7,6 +7,7 @@ import type { ApiConfig } from "../../config/api-config";
 import { API_CONFIG } from "../../config/api-config.tokens";
 import { AppModule } from "../../app.module";
 import { DailyRunsSyncService } from "../dashboard/daily-runs-sync.service";
+import { AlertObservationIngestionService } from "../alert-ingestion";
 import { EQU_GPS_TRANSPORT } from "../equgps/equgps.tokens";
 import { FleetSyncService } from "../fleet/fleet-sync.service";
 import { DATABASE_CLIENT_FACTORY } from "../database/database.tokens";
@@ -22,6 +23,7 @@ const disabledConfig: ApiConfig = Object.freeze({
   port: 3_000,
   database: Object.freeze({ url: "postgresql://unused:unused@127.0.0.1:1/unused", poolMax: 1, connectionTimeoutMs: 100, idleTimeoutMs: 1_000 }),
   syncScheduler: Object.freeze({ enabled: false, fleetIntervalSeconds: 60, runsIntervalSeconds: 300, shutdownTimeoutMs: 50_000 }),
+  alertIngestion: Object.freeze({ enabled: false }),
   equGps: Object.freeze({
     officialBaseUrl: "https://unused.invalid",
     webBaseUrl: "https://unused.invalid",
@@ -32,7 +34,7 @@ const disabledConfig: ApiConfig = Object.freeze({
   }),
 });
 
-type SafetyCounters = { fleetSyncCalls: number; runsSyncCalls: number; externalRequests: number; sqlCalls: number };
+type SafetyCounters = { fleetSyncCalls: number; runsSyncCalls: number; alertIngestionCalls: number; externalRequests: number; sqlCalls: number };
 
 function createBuilder(imports: Array<Type<unknown> | DynamicModule>, counters: SafetyCounters): TestingModuleBuilder {
   const databaseClient = {
@@ -50,17 +52,19 @@ function createBuilder(imports: Array<Type<unknown> | DynamicModule>, counters: 
   };
   const fleetSync = { syncLatestSnapshot: async (): Promise<void> => { counters.fleetSyncCalls += 1; } };
   const runsSync = { syncCurrentDayRuns: async (): Promise<void> => { counters.runsSyncCalls += 1; } };
+  const alertIngestion = { ingestObservation: async (): Promise<void> => { counters.alertIngestionCalls += 1; } };
 
   return Test.createTestingModule({ imports })
     .overrideProvider(API_CONFIG).useValue(disabledConfig)
     .overrideProvider(DATABASE_CLIENT_FACTORY).useValue(() => databaseClient)
     .overrideProvider(EQU_GPS_TRANSPORT).useValue(transport)
     .overrideProvider(FleetSyncService).useValue(fleetSync)
-    .overrideProvider(DailyRunsSyncService).useValue(runsSync);
+    .overrideProvider(DailyRunsSyncService).useValue(runsSync)
+    .overrideProvider(AlertObservationIngestionService).useValue(alertIngestion);
 }
 
 function freshCounters(): SafetyCounters {
-  return { fleetSyncCalls: 0, runsSyncCalls: 0, externalRequests: 0, sqlCalls: 0 };
+  return { fleetSyncCalls: 0, runsSyncCalls: 0, alertIngestionCalls: 0, externalRequests: 0, sqlCalls: 0 };
 }
 
 @Module({ imports: [SyncSchedulerModule] })
@@ -82,7 +86,7 @@ test("SyncSchedulerModule compiles as a real Nest module and preserves its inter
     assert.equal(module.get(SCHEDULER_TIMER_ADAPTER), module.get(SchedulerRegistryTimerAdapter));
 
     await module.init();
-    assert.deepEqual(counters, { fleetSyncCalls: 0, runsSyncCalls: 0, externalRequests: 0, sqlCalls: 0 });
+    assert.deepEqual(counters, { fleetSyncCalls: 0, runsSyncCalls: 0, alertIngestionCalls: 0, externalRequests: 0, sqlCalls: 0 });
     assert.equal(module.get(SchedulerRegistryTimerAdapter).hasInterval("taxi-gps:sync:fleet"), false);
     assert.equal(module.get(SchedulerRegistryTimerAdapter).hasInterval("taxi-gps:sync:runs"), false);
   } finally {
@@ -109,7 +113,7 @@ test("AppModule initializes with the scheduler disabled without sync, eQuGPS, or
   const module = await createBuilder([AppModule], counters).compile();
   try {
     await module.init();
-    assert.deepEqual(counters, { fleetSyncCalls: 0, runsSyncCalls: 0, externalRequests: 0, sqlCalls: 0 });
+    assert.deepEqual(counters, { fleetSyncCalls: 0, runsSyncCalls: 0, alertIngestionCalls: 0, externalRequests: 0, sqlCalls: 0 });
 
     const modules = [...(module as unknown as { container: { getModules(): Map<unknown, { metatype: unknown }> } }).container.getModules().values()];
     assert.equal(modules.filter((candidate) => candidate.metatype === ScheduleModule).length, 1);
