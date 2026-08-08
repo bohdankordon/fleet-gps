@@ -27,6 +27,21 @@ enum DataQuality {
   ESTIMATED
 }
 
+enum AlertEventType {
+  SPEEDING
+  INACTIVITY
+}
+
+enum AlertEventStatus {
+  OPEN
+  RESOLVED
+}
+
+enum AlertEventSpeedZone {
+  CITY
+  OUTSIDE_CITY
+}
+
 model Vehicle {
   id               String               @id @default(uuid()) @map("id") @db.Uuid
   externalDeviceId Int                  @unique @map("external_device_id")
@@ -36,8 +51,51 @@ model Vehicle {
   updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
   currentState     VehicleCurrentState?
   dailyStats       DailyVehicleStat[]
+  alertEvents      AlertEvent[]
 
   @@map("vehicles")
+}
+
+model AlertEvent {
+  id                                 String                   @id @default(uuid()) @map("id") @db.Uuid
+  vehicleId                          String                   @map("vehicle_id") @db.Uuid
+  type                               AlertEventType           @map("type")
+  status                             AlertEventStatus         @map("status")
+  confirmedAt                        DateTime                 @map("confirmed_at") @db.Timestamptz(6)
+  lastObservedAt                     DateTime                 @map("last_observed_at") @db.Timestamptz(6)
+  resolvedAt                         DateTime?                @map("resolved_at") @db.Timestamptz(6)
+  dedupeKey                          String                   @unique @map("dedupe_key") @db.VarChar(64)
+  activeKey                          String?                  @unique @map("active_key") @db.VarChar(64)
+  speedZone                          AlertEventSpeedZone?     @map("speed_zone")
+  confirmationSpeedKph               Float?                   @map("confirmation_speed_kph")
+  lastSpeedKph                       Float?                   @map("last_speed_kph")
+  peakSpeedKph                       Float?                   @map("peak_speed_kph")
+  speedThresholdKph                  Float?                   @map("speed_threshold_kph")
+  confirmationTraveledDistanceMeters Float?                   @map("confirmation_traveled_distance_meters")
+  lastTraveledDistanceMeters         Float?                   @map("last_traveled_distance_meters")
+  minimumTraveledDistanceMeters      Float?                   @map("minimum_traveled_distance_meters")
+  distanceThresholdMeters            Float?                   @map("distance_threshold_meters")
+  durationThresholdMinutes           Int?                     @map("duration_threshold_minutes")
+  createdAt                          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                          DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  vehicle                            Vehicle                  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  confirmations                      AlertEventConfirmation[]
+
+  @@index([vehicleId, type, status])
+  @@index([status, confirmedAt])
+  @@index([type, confirmedAt])
+  @@map("alert_events")
+}
+
+model AlertEventConfirmation {
+  dedupeKey  String     @id @map("dedupe_key") @db.VarChar(64)
+  eventId    String     @map("event_id") @db.Uuid
+  observedAt DateTime   @map("observed_at") @db.Timestamptz(6)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  event      AlertEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@index([eventId])
+  @@map("alert_event_confirmations")
 }
 
 model VehicleCurrentState {
@@ -79,23 +137,23 @@ model DailyVehicleStat {
 }
 
 model ApplicationSettings {
-  id                           Int      @id @default(1) @map("id")
-  timezone                     String   @default("Europe/Kyiv") @map("timezone") @db.VarChar(64)
-  minimumDailyDistanceMeters   Int      @default(500) @map("minimum_daily_distance_meters")
-  citySpeedLimitKph            Int      @default(50) @map("city_speed_limit_kph")
-  outsideCitySpeedLimitKph     Int      @default(90) @map("outside_speed_limit_kph")
-  speedToleranceKph            Int      @default(10) @map("speed_tolerance_kph")
-  speedRuleEnabled             Boolean  @default(true) @map("speed_rule_enabled")
-  inactivityRuleEnabled        Boolean  @default(true) @map("inactivity_rule_enabled")
-  speedingConfirmationUpdates  Int      @default(2) @map("speeding_confirmation_updates")
-  inactivityDistanceMeters     Int      @default(300) @map("inactivity_distance_meters")
-  inactivityDurationMinutes    Int      @default(60) @map("inactivity_duration_minutes")
-  cityGeofenceGeoJson          Json?    @map("city_geofence_geo_json")
-  positionFreshnessSeconds     Int      @default(300) @map("position_freshness_seconds")
-  telegramChatId               String?  @map("telegram_chat_id") @db.VarChar(128)
-  dailyReportMinuteOfDay       Int      @default(10) @map("daily_report_minute_of_day")
-  createdAt                    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                          Int      @id @default(1) @map("id")
+  timezone                    String   @default("Europe/Kyiv") @map("timezone") @db.VarChar(64)
+  minimumDailyDistanceMeters  Int      @default(500) @map("minimum_daily_distance_meters")
+  citySpeedLimitKph           Int      @default(50) @map("city_speed_limit_kph")
+  outsideCitySpeedLimitKph    Int      @default(90) @map("outside_speed_limit_kph")
+  speedToleranceKph           Int      @default(10) @map("speed_tolerance_kph")
+  speedRuleEnabled            Boolean  @default(true) @map("speed_rule_enabled")
+  inactivityRuleEnabled       Boolean  @default(true) @map("inactivity_rule_enabled")
+  speedingConfirmationUpdates Int      @default(2) @map("speeding_confirmation_updates")
+  inactivityDistanceMeters    Int      @default(300) @map("inactivity_distance_meters")
+  inactivityDurationMinutes   Int      @default(60) @map("inactivity_duration_minutes")
+  cityGeofenceGeoJson         Json?    @map("city_geofence_geo_json")
+  positionFreshnessSeconds    Int      @default(300) @map("position_freshness_seconds")
+  telegramChatId              String?  @map("telegram_chat_id") @db.VarChar(128)
+  dailyReportMinuteOfDay      Int      @default(10) @map("daily_report_minute_of_day")
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("application_settings")
 }
