@@ -29,6 +29,7 @@
     "city-geofence:import": "npm --workspace @taxi-gps/api run city-geofence:import --",
     "city-geofence:smoke": "npm --workspace @taxi-gps/api run city-geofence:smoke",
     "speeding-detector:smoke": "npm --workspace @taxi-gps/api run speeding-detector:smoke",
+    "inactivity-detector:smoke": "npm --workspace @taxi-gps/api run inactivity-detector:smoke",
     "vinnytsia-boundary:verify": "npm --workspace @taxi-gps/api run vinnytsia-boundary:verify",
     "api:config-preflight": "npm --workspace @taxi-gps/api run api:config-preflight",
     "sync-scheduler:smoke": "npm --workspace @taxi-gps/api run sync-scheduler:smoke",

@@ -9,8 +9,9 @@ import { SyncSchedulerModule } from "./modules/sync-scheduler/sync-scheduler.mod
 import { AlertSettingsModule } from "./modules/alert-settings/alert-settings.module";
 import { CityGeofenceModule } from "./modules/city-geofence/city-geofence.module";
 import { SpeedingDetectorModule } from "./modules/speeding-detector/speeding-detector.module";
+import { InactivityDetectorModule } from "./modules/inactivity-detector/inactivity-detector.module";
 
 @Module({
-  imports: [ApiConfigModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule],
+  imports: [ApiConfigModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule],
 })
 export class AppModule {}
