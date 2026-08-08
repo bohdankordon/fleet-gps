@@ -31,6 +31,7 @@
     "speeding-detector:smoke": "npm --workspace @taxi-gps/api run speeding-detector:smoke",
     "inactivity-detector:smoke": "npm --workspace @taxi-gps/api run inactivity-detector:smoke",
     "alert-events:smoke": "npm --workspace @taxi-gps/api run alert-events:smoke",
+    "alert-event-processing:smoke": "npm --workspace @taxi-gps/api run alert-event-processing:smoke",
     "vinnytsia-boundary:verify": "npm --workspace @taxi-gps/api run vinnytsia-boundary:verify",
     "api:config-preflight": "npm --workspace @taxi-gps/api run api:config-preflight",
     "sync-scheduler:smoke": "npm --workspace @taxi-gps/api run sync-scheduler:smoke",
