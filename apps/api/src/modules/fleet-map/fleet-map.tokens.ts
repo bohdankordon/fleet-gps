@@ -1,0 +1,2 @@
+export const FLEET_MAP_CLOCK = Symbol("FLEET_MAP_CLOCK");
+export const FLEET_MAP_QUERY_REPOSITORY = Symbol("FLEET_MAP_QUERY_REPOSITORY");

@@ -2,6 +2,8 @@
 
 ## Web dashboard
 
+The backend fleet-map read contract is documented in [`docs/fleet-map-api.md`](docs/fleet-map-api.md). Stage 9A adds only the PostgreSQL-backed API; it does not add a frontend map.
+
 `apps/web` содержит Next.js dashboard. Браузер вызывает только локальный Next.js BFF, а Next server — Nest API через server-only `API_INTERNAL_BASE_URL`. Команды: `npm run web:dev`, `npm run web:build`, `npm run web:dashboard-smoke`. Dashboard не вызывает eQuGPS и не запускает sync; authentication пока отсутствует, поэтому доступ только локальный или из закрытой сети.
 
 ## Этап 2A: локальная БД

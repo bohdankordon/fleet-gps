@@ -1,0 +1,14 @@
+import { Controller, Get, HttpException } from "@nestjs/common";
+import type { FleetMapResponse } from "./fleet-map-read-models";
+import { FleetMapQueryService } from "./fleet-map-query.service";
+
+@Controller("fleet")
+export class FleetMapController {
+  public constructor(private readonly query: FleetMapQueryService) {}
+
+  @Get("map")
+  public async getSnapshot(): Promise<FleetMapResponse> {
+    try { return await this.query.getSnapshot(); }
+    catch { throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500); }
+  }
+}
