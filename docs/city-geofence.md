@@ -16,6 +16,10 @@ The result is `INSIDE`, `OUTSIDE`, `BOUNDARY`, `UNCONFIGURED`, or `INVALID_POINT
 
 The read-only diagnostic endpoint is `GET /api/system/city-geofence`. It returns configuration availability, the `CITY` boundary policy, and the settings update time only.
 
+The read-only map projection is `GET /api/system/city-geofence/map`; the browser reaches it through the Next BFF at `GET /api/city-geofence/map`. Its strict public response is `{ generatedAt, configured, geometry }`, where geometry is the canonical GeoJSON `Polygon` in `[longitude, latitude]` order. When no boundary is configured, `configured=false` and `geometry=null` are a normal state. Invalid persisted geometry fails safely and is never repaired or serialized by GET.
+
+The map geofence is a read projection of the same canonical geofence used by `CITY`/`OUTSIDE_CITY` classification. Both paths read `AlertSettingsService`, whose validation produces the immutable `cityGeofence` snapshot from `ApplicationSettings.cityGeofenceGeoJson`; there is no frontend polygon copy or second persisted geometry. The web map loads this configuration once per page load into a separate MapLibre GeoJSON fill/outline source below vehicle markers. It does not poll the boundary, classify vehicles in the browser, or alter FRESH/STALE marker semantics.
+
 ## Controlled local import
 
 `npm run city-geofence:import -- --file <path> --dry-run` validates a local strict-UTF-8 JSON file (maximum 5 MB, checked after reading) without loading `.env`, initializing Nest/Prisma, or touching the database. Its `geofence configured after operation` output is always `false`: dry-run does not change state. `--apply` is explicit and required for a write; it loads root `.env`, forces the scheduler off for an isolated `CityGeofenceModule` application context, then restores the prior scheduler environment. `--clear --apply` clears the setting. File and clear are mutually exclusive, duplicate/unknown flags are rejected, and apply is never performed by default. Output contains only mode and safe aggregate counts, never coordinates, raw JSON, path, database details, or errors.

@@ -1,0 +1,1 @@
+export const CITY_GEOFENCE_CLOCK = Symbol("CITY_GEOFENCE_CLOCK");

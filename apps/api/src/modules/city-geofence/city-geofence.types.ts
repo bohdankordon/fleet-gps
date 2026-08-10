@@ -21,4 +21,12 @@ export type CityGeofenceDiagnostic = Readonly<{
   updatedAt: string;
 }>;
 
+export type CityGeofenceMapResponse = Readonly<{
+  generatedAt: string;
+  configured: boolean;
+  geometry: GeoJsonPolygon | null;
+}>;
+
+export type CityGeofenceClock = Readonly<{ now(): Date }>;
+
 export type CityGeofencePolygon = GeoJsonPolygon;
