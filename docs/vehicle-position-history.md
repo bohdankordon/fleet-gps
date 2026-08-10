@@ -81,3 +81,7 @@ Historical rows use `HISTORICAL_BACKFILL`, the same knot-to-km/h mapping, absolu
 The backfill Nest module imports only the database and official provider gateway. It cannot update `VehicleCurrentState`, run fleet sync, evaluate alerts, enqueue notifications, send Telegram, or call map/routing providers. Its CLI network guard permits historical `/positions` only.
 
 Retention deletion remains disabled. The discovery supports a future capacity discussion using at least 90 observed provider days and highly variable density, but it does not establish a 30-day local deletion policy. A fleet-wide historical population and any cleanup scheduler remain separate operator/product decisions.
+
+## Bounded track reads (Stage 11C)
+
+The backend-only bounded read contract is documented in [vehicle-track-api.md](vehicle-track-api.md). It reads the shared authoritative observation table without provider, current-state, alert, or aggregate fallback.
