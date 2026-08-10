@@ -1,5 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { APP_NAVIGATION, isActiveAppNavigationPath } from "@/lib/app-navigation";
 
 export function AppNavigation() {
-  return <nav className="app-nav" aria-label="Основная навигация"><div><Link href="/">Автопарк</Link><Link href="/events">События</Link></div></nav>;
+  const pathname = usePathname();
+  return <nav className="app-nav" aria-label="Основная навигация"><div>{APP_NAVIGATION.map((item) => <Link href={item.href} aria-current={isActiveAppNavigationPath(item.href, pathname) ? "page" : undefined} key={item.href}>{item.label}</Link>)}</div></nav>;
 }
