@@ -15,8 +15,9 @@ import { AlertEvaluationModule } from "./modules/alert-evaluation/alert-evaluati
 import { AlertNotificationsModule } from "./modules/alert-notifications/alert-notifications.module";
 import { AlertNotificationSchedulerModule } from "./modules/alert-notification-scheduler/alert-notification-scheduler.module";
 import { FleetMapModule } from "./modules/fleet-map";
+import { VehicleDetailsModule } from "./modules/vehicle-details";
 
 @Module({
-  imports: [ApiConfigModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, FleetMapModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule, AlertEventsModule, AlertEvaluationModule, AlertNotificationsModule, AlertNotificationSchedulerModule],
+  imports: [ApiConfigModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, FleetMapModule, VehicleDetailsModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule, AlertEventsModule, AlertEvaluationModule, AlertNotificationsModule, AlertNotificationSchedulerModule],
 })
 export class AppModule {}

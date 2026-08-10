@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { AlertEventSpeedZone, AlertEventType, AlertNotificationStatus } from "../../generated/prisma/client";
-import type { AlertEventReadModel, AlertEventsListResponse, AlertEventsSummaryResponse, AlertNotificationDeliveryStatus, OpenAlertMapAlert, OpenAlertMapResponse, OpenAlertMapVehicle } from "./alert-events-read-models";
+import { AlertEventType } from "../../generated/prisma/client";
+import { projectOpenAlert, projectScopedAlertEvent } from "./alert-event-read.projection";
+import type { AlertEventReadModel, AlertEventsListResponse, AlertEventsSummaryResponse, OpenAlertMapAlert, OpenAlertMapResponse, OpenAlertMapVehicle } from "./alert-events-read-models";
 import { encodeAlertEventsCursor, type AlertEventsQueryParams } from "./alert-events-query-params";
 import type { AlertEventsQueryRepository, StoredAlertEventReadRow, StoredOpenAlertMapRow } from "./alert-events-query.repository";
 import { ALERT_EVENTS_QUERY_CLOCK, ALERT_EVENTS_QUERY_REPOSITORY } from "./alert-events.tokens";
@@ -15,47 +16,18 @@ export class AlertEventsQueryStateError extends Error {
   }
 }
 
-function finite(value: number | null): number {
-  if (value === null || !Number.isFinite(value)) throw new AlertEventsQueryStateError();
-  return value;
-}
-
-function positiveInteger(value: number | null): number {
-  if (value === null || !Number.isInteger(value) || value <= 0) throw new AlertEventsQueryStateError();
-  return value;
-}
-
-function deliveryStatus(row: StoredAlertEventReadRow): AlertNotificationDeliveryStatus {
-  const status = row.notificationOutbox[0]?.status;
-  if (status === undefined) return "NONE";
-  if (status === AlertNotificationStatus.PENDING || status === AlertNotificationStatus.SENDING) return "PENDING";
-  if (status === AlertNotificationStatus.SENT) return "SENT";
-  if (status === AlertNotificationStatus.FAILED) return "FAILED";
-  throw new AlertEventsQueryStateError();
-}
-
-function iso(value: Date): string {
-  if (!Number.isFinite(value.getTime())) throw new AlertEventsQueryStateError();
-  return value.toISOString();
-}
-
 function toReadModel(row: StoredAlertEventReadRow): AlertEventReadModel {
-  const common = {
-    id: row.id,
+  const scoped = projectScopedAlertEvent(row);
+  return Object.freeze({
+    id: scoped.id,
     vehicle: Object.freeze({ id: row.vehicle.id, name: row.vehicle.name }),
-    status: row.status,
-    openedAt: iso(row.confirmedAt),
-    resolvedAt: row.resolvedAt === null ? null : iso(row.resolvedAt),
-    notificationDeliveryStatus: deliveryStatus(row),
-  } as const;
-  if (row.type === AlertEventType.SPEEDING) {
-    if (row.speedZone !== AlertEventSpeedZone.CITY && row.speedZone !== AlertEventSpeedZone.OUTSIDE_CITY) throw new AlertEventsQueryStateError();
-    return Object.freeze({ ...common, type: "SPEEDING", details: Object.freeze({ zone: row.speedZone, confirmationSpeedKph: finite(row.confirmationSpeedKph), lastSpeedKph: finite(row.lastSpeedKph), peakSpeedKph: finite(row.peakSpeedKph), thresholdKph: finite(row.speedThresholdKph) }) });
-  }
-  if (row.type === AlertEventType.INACTIVITY) {
-    return Object.freeze({ ...common, type: "INACTIVITY", details: Object.freeze({ confirmationDistanceMeters: finite(row.confirmationTraveledDistanceMeters), lastDistanceMeters: finite(row.lastTraveledDistanceMeters), minimumDistanceMeters: finite(row.minimumTraveledDistanceMeters), distanceThresholdMeters: finite(row.distanceThresholdMeters), durationThresholdMinutes: positiveInteger(row.durationThresholdMinutes) }) });
-  }
-  throw new AlertEventsQueryStateError();
+    type: scoped.type,
+    status: scoped.status,
+    openedAt: scoped.openedAt,
+    resolvedAt: scoped.resolvedAt,
+    notificationDeliveryStatus: scoped.notificationDeliveryStatus,
+    details: scoped.details,
+  } as AlertEventReadModel);
 }
 
 @Injectable()
@@ -88,8 +60,8 @@ export class AlertEventsQueryService {
     let speeding = 0;
     let inactivity = 0;
     for (const row of ordered) {
-      const type = openMapType(row);
-      const alert = Object.freeze({ type, openedAt: iso(row.confirmedAt) }) satisfies OpenAlertMapAlert;
+      const alert = projectOpenAlert(row.type, row.confirmedAt);
+      const type = alert.type;
       const current = vehicles.at(-1);
       if (current?.vehicle.id === row.vehicle.id) {
         if (current.alerts.some((item) => item.type === type)) throw new AlertEventsQueryStateError();
@@ -124,4 +96,4 @@ function compareOpenMapRows(left: StoredOpenAlertMapRow, right: StoredOpenAlertM
     || left.confirmedAt.getTime() - right.confirmedAt.getTime();
 }
 
-export const alertEventsQueryServiceInternals = Object.freeze({ deliveryStatus, toReadModel });
+export const alertEventsQueryServiceInternals = Object.freeze({ toReadModel });

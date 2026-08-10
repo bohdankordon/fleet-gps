@@ -1,16 +1,11 @@
+import type { FleetMapStoredCurrentState } from "./fleet-map-current-state.projection";
+
 export const MAX_FLEET_MAP_VEHICLES = 1_000;
 
 export type FleetMapStoredVehicle = Readonly<{
   id: string;
   name: string;
-  currentState: Readonly<{
-    fixTime: Date | null;
-    latitude: number | null;
-    longitude: number | null;
-    speedKph: number | null;
-    valid: boolean | null;
-    outdated: boolean | null;
-  }> | null;
+  currentState: FleetMapStoredCurrentState | null;
 }>;
 
 export type FleetMapStoredSnapshot = Readonly<{

@@ -60,6 +60,7 @@
     "fleet:sync-smoke": "npm --workspace @taxi-gps/api run fleet:sync-smoke",
     "dashboard:runs-sync-smoke": "npm --workspace @taxi-gps/api run dashboard:runs-sync-smoke",
     "dashboard:http-smoke": "npm --workspace @taxi-gps/api run dashboard:http-smoke",
+    "vehicle-details:http-smoke": "npm --workspace @taxi-gps/api run vehicle-details:http-smoke",
     "web:dev": "npm --workspace @taxi-gps/web run dev",
     "web:build": "npm --workspace @taxi-gps/web run build",
     "web:typecheck": "npm --workspace @taxi-gps/web run typecheck",
