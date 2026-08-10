@@ -7,6 +7,7 @@ import type { PrismaClient } from "../../generated/prisma/client";
 import { AppModule } from "../../app.module";
 import { DatabaseModule } from "../database";
 import { DATABASE_CLIENT_FACTORY } from "../database/database.tokens";
+import { VehicleTrackOverviewController } from "./vehicle-track-overview.controller";
 import { VehicleTrackController } from "./vehicle-track.controller";
 import { VehicleTrackModule } from "./vehicle-track.module";
 
@@ -18,6 +19,7 @@ test("VehicleTrackModule compiles lazily with DatabaseModule only and performs n
   const module = await Test.createTestingModule({ imports: [VehicleTrackModule] }).overrideProvider(API_CONFIG).useValue(config).overrideProvider(DATABASE_CLIENT_FACTORY).useValue(() => client).compile();
   try {
     assert.ok(module.get(VehicleTrackController));
+    assert.ok(module.get(VehicleTrackOverviewController));
     assert.deepEqual(Reflect.getMetadata("imports", VehicleTrackModule), [DatabaseModule]);
     assert.equal(databaseCalls, 0);
   } finally { await module.close(); }

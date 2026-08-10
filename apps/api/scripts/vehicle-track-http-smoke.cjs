@@ -66,6 +66,26 @@ function assertTrackResponse(result, expectedCountKind) {
   for (const point of body.points) if (Object.keys(point).sort().join(",") !== ["latitude", "longitude", "observedAt", "outdated", "speedKph", "valid"].sort().join(",")) throw new Error("Vehicle-track HTTP smoke exposed an unsafe point field");
 }
 
+function assertOverviewResponse(result, expectedCountKind) {
+  const body = result.body;
+  const summary = body?.summary;
+  if (result.status !== 200 || !Array.isArray(body?.segments) || summary?.sampled !== true
+    || !Number.isInteger(summary.rawPointCount) || !Number.isInteger(summary.returnedPointCount)
+    || summary.returnedPointCount > 2_000 || summary.segmentCount !== body.segments.length
+    || summary.gapCount !== Math.max(0, summary.segmentCount - 1)
+    || !Number.isInteger(summary.qualityWarningCount) || summary.qualityWarningCount > summary.rawPointCount) throw new Error("Vehicle-track overview HTTP smoke received an invalid 200 contract");
+  const points = body.segments.flatMap((segment) => segment.points);
+  if (points.length !== summary.returnedPointCount || body.segments.reduce((count, segment) => count + segment.rawPointCount, 0) !== summary.rawPointCount) throw new Error("Vehicle-track overview HTTP smoke received inconsistent counts");
+  if (expectedCountKind === "non-empty" && points.length < 1) throw new Error("Vehicle-track overview HTTP smoke expected persisted points");
+  if (expectedCountKind === "empty" && (points.length !== 0 || summary.firstObservedAt !== null || summary.lastObservedAt !== null)) throw new Error("Vehicle-track overview HTTP smoke expected an empty track");
+  for (const segment of body.segments) {
+    if (!Array.isArray(segment.points) || segment.points.length < 1 || segment.rawPointCount < segment.points.length) throw new Error("Vehicle-track overview HTTP smoke received an invalid segment");
+    for (let index = 1; index < segment.points.length; index += 1) if (segment.points[index - 1].observedAt > segment.points[index].observedAt) throw new Error("Vehicle-track overview HTTP smoke received unordered points");
+    for (const point of segment.points) if (Object.keys(point).sort().join(",") !== ["latitude", "longitude", "observedAt", "outdated", "speedKph", "valid"].sort().join(",")) throw new Error("Vehicle-track overview HTTP smoke exposed an unsafe point field");
+  }
+  if (points.length > 0 && (summary.firstObservedAt !== points[0].observedAt || summary.lastObservedAt !== points.at(-1).observedAt)) throw new Error("Vehicle-track overview HTTP smoke did not preserve global endpoints");
+}
+
 async function main() {
   const { NestFactory } = require("@nestjs/core");
   const { AppModule } = require("../dist/app.module");
@@ -76,6 +96,8 @@ async function main() {
     const client = app.get(DatabaseService).getClient();
     const observation = await client.vehiclePositionObservation.findFirst({ orderBy: [{ observedAt: "asc" }, { fixFingerprint: "asc" }], select: { vehicleId: true, observedAt: true } });
     if (!observation) throw new Error("Vehicle-track HTTP smoke requires permanent history");
+    const overviewTarget = (await client.$queryRaw`SELECT vehicle_id AS "vehicleId", max(observed_at) AS "to" FROM vehicle_position_observations GROUP BY vehicle_id ORDER BY count(*) DESC, vehicle_id LIMIT 1`)[0];
+    if (!overviewTarget) throw new Error("Vehicle-track overview HTTP smoke requires permanent history");
     const before = await databaseSnapshot(client);
     await app.listen(0, "127.0.0.1");
     const address = app.getHttpServer().address();
@@ -91,6 +113,18 @@ async function main() {
     const unknown = await getJson(address.port, `/api/vehicles/00000000-0000-4000-8000-ffffffffffff/track?${encodedRange}`);
     const malformed = await getJson(address.port, `/api/vehicles/not-a-uuid/track?${encodedRange}`);
     if (unknown.status !== 404 || malformed.status !== 400) throw new Error("Vehicle-track HTTP smoke expected safe 404 and 400");
+
+    const overviewTo = overviewTarget.to.toISOString();
+    const overviewFrom = new Date(overviewTarget.to.getTime() - 7 * 24 * 60 * 60 * 1_000).toISOString();
+    const overviewRange = `from=${encodeURIComponent(overviewFrom)}&to=${encodeURIComponent(overviewTo)}`;
+    const overview = await getJson(address.port, `/api/vehicles/${overviewTarget.vehicleId}/track/overview?${overviewRange}`);
+    assertOverviewResponse(overview, "non-empty");
+    if (overview.body.range.from !== overviewFrom || overview.body.range.to !== overviewTo) throw new Error("Vehicle-track overview HTTP smoke range echo differs");
+    const emptyOverview = await getJson(address.port, `/api/vehicles/${overviewTarget.vehicleId}/track/overview?from=2100-01-01T00%3A00%3A00Z&to=2100-01-08T00%3A00%3A00Z`);
+    assertOverviewResponse(emptyOverview, "empty");
+    const unknownOverview = await getJson(address.port, `/api/vehicles/00000000-0000-4000-8000-ffffffffffff/track/overview?${overviewRange}`);
+    const malformedOverview = await getJson(address.port, `/api/vehicles/not-a-uuid/track/overview?${overviewRange}`);
+    if (unknownOverview.status !== 404 || malformedOverview.status !== 400) throw new Error("Vehicle-track overview HTTP smoke expected safe 404 and 400");
     const after = await databaseSnapshot(client);
     if (JSON.stringify(before.counts) !== JSON.stringify(after.counts) || before.digest !== after.digest) throw new Error("Vehicle-track GET changed database state");
     if (Object.values(network).some((value) => value !== 0)) throw new Error("Vehicle-track HTTP smoke observed an external request");
@@ -99,6 +133,10 @@ async function main() {
       empty: { httpStatus: empty.status, pointCount: empty.body.summary.pointCount },
       unknownStatus: unknown.status,
       malformedStatus: malformed.status,
+      overview: { httpStatus: overview.status, rawPointCount: overview.body.summary.rawPointCount, returnedPointCount: overview.body.summary.returnedPointCount, segmentCount: overview.body.summary.segmentCount, gapCount: overview.body.summary.gapCount, sampled: overview.body.summary.sampled, chronological: true, summaryValid: true, rangeEchoed: true },
+      emptyOverview: { httpStatus: emptyOverview.status, rawPointCount: emptyOverview.body.summary.rawPointCount, returnedPointCount: emptyOverview.body.summary.returnedPointCount },
+      unknownOverviewStatus: unknownOverview.status,
+      malformedOverviewStatus: malformedOverview.status,
       databaseBefore: before.counts,
       databaseAfter: after.counts,
       databaseDigestsUnchanged: true,
