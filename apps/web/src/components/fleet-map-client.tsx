@@ -228,6 +228,6 @@ function SelectedVehicle({ vehicle, alerts, generatedAt }: Readonly<{ vehicle: F
   return <section className="map-details" aria-live="polite">
     <h2>{vehicle.vehicle.name}</h2>
     <dl><div><dt>Состояние</dt><dd>{freshnessLabel(vehicle.freshness)}</dd></div><div><dt>Скорость</dt><dd>{formatSpeed(vehicle.speedKph)}</dd></div><div><dt>Время позиции</dt><dd>{formatFleetMapTimestamp(vehicle.position.observedAt)}</dd></div><div><dt>Возраст</dt><dd>{formatFleetMapAge(vehicle.position.observedAt, generatedAt)}</dd></div></dl>
-    <div className="map-active-alerts"><h3>Активные события</h3>{active.length === 0 ? <p>Нет</p> : <ul>{active.map((alert) => <li key={alert.type}><strong>{alert.label}</strong><span>Открыто: {formatFleetMapTimestamp(alert.openedAt)}</span></li>)}</ul>}<Link href="/events?status=OPEN">Открыть события</Link></div>
+    <div className="map-active-alerts"><h3>Активные события</h3>{active.length === 0 ? <p>Нет</p> : <ul>{active.map((alert) => <li key={alert.type}><strong>{alert.label}</strong><span>Открыто: {formatFleetMapTimestamp(alert.openedAt)}</span></li>)}</ul>}<div className="map-details-links"><Link href={`/vehicles/${vehicle.vehicle.id}`}>Открыть карточку</Link><Link href="/events?status=OPEN">Открыть события</Link></div></div>
   </section>;
 }

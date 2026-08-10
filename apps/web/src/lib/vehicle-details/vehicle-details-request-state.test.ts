@@ -1,0 +1,6 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { VEHICLE_DETAILS_FIXTURE } from "./vehicle-details-fixture";
+import { parseVehicleDetailsResponse } from "./vehicle-details-contract";
+import { beginVehicleDetailsRefresh, failVehicleDetailsRefresh, initialVehicleDetailsRequestState, succeedVehicleDetailsRefresh } from "./vehicle-details-request-state";
+test("refresh state prevents overlap, preserves data on failure, clears error on retry and rejects stale generation", () => { const details = parseVehicleDetailsResponse(VEHICLE_DETAILS_FIXTURE); const initial = initialVehicleDetailsRequestState(details); const begun = beginVehicleDetailsRefresh(initial); assert.equal(beginVehicleDetailsRefresh(begun), begun); const failed = failVehicleDetailsRefresh(begun, begun.generation); assert.equal(failed.data, initial.data); assert.equal(failed.refreshError, true); const retry = beginVehicleDetailsRefresh(failed); const succeeded = succeedVehicleDetailsRefresh(retry, retry.generation, parseVehicleDetailsResponse({ ...VEHICLE_DETAILS_FIXTURE, vehicle: { ...VEHICLE_DETAILS_FIXTURE.vehicle, name: "New" } })); assert.equal(succeeded.refreshError, false); assert.equal(succeeded.data.vehicle.name, "New"); assert.equal(succeedVehicleDetailsRefresh(succeeded, 1, details), succeeded); });
