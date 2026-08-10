@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AlertEventSpeedZone, AlertEventStatus, AlertEventType, AlertNotificationStatus } from "../../generated/prisma/client";
 import type { AlertEventsQueryParams } from "./alert-events-query-params";
-import type { AlertEventsQueryRepository, StoredAlertEventReadRow } from "./alert-events-query.repository";
+import type { AlertEventsQueryRepository, StoredAlertEventReadRow, StoredOpenAlertMapRow } from "./alert-events-query.repository";
 import { AlertEventsQueryService } from "./alert-events-query.service";
 
 const VEHICLE_ID = "00000000-0000-4000-8000-000000000001";
@@ -19,19 +19,20 @@ function row(overrides: Partial<StoredAlertEventReadRow> = {}): StoredAlertEvent
   };
 }
 
-function service(rows: readonly StoredAlertEventReadRow[], hasMore = false, summary = { speeding: 0, inactivity: 0 }): { subject: AlertEventsQueryService; calls: { lists: number; summaries: number } } {
-  const calls = { lists: 0, summaries: 0 };
+function service(rows: readonly StoredAlertEventReadRow[], hasMore = false, summary = { speeding: 0, inactivity: 0 }, mapRows: readonly StoredOpenAlertMapRow[] = [], exceededLimit = false): { subject: AlertEventsQueryService; calls: { lists: number; summaries: number; maps: number } } {
+  const calls = { lists: 0, summaries: 0, maps: 0 };
   const repository: AlertEventsQueryRepository = {
     list: async () => { calls.lists += 1; return { rows, hasMore }; },
     getOpenSummary: async () => { calls.summaries += 1; return summary; },
+    getOpenMapSnapshot: async () => { calls.maps += 1; return { rows: mapRows, exceededLimit }; },
   };
-  return { subject: new AlertEventsQueryService(repository), calls };
+  return { subject: new AlertEventsQueryService(repository, { now: () => new Date("2026-08-10T12:00:00.000Z") }), calls };
 }
 
 test("returns the valid empty alert-events page", async () => {
   const { subject, calls } = service([]);
   assert.deepEqual(await subject.list(params), { items: [], nextCursor: null });
-  assert.deepEqual(calls, { lists: 1, summaries: 0 });
+  assert.deepEqual(calls, { lists: 1, summaries: 0, maps: 0 });
 });
 
 test("maps persisted SPEEDING and INACTIVITY snapshots without current settings", async () => {
@@ -81,5 +82,50 @@ test("returns zero and mixed OPEN summary counts", async () => {
   assert.deepEqual(await service([]).subject.getSummary(), { open: { total: 0, speeding: 0, inactivity: 0 } });
   const mixed = service([], false, { speeding: 3, inactivity: 2 });
   assert.deepEqual(await mixed.subject.getSummary(), { open: { total: 5, speeding: 3, inactivity: 2 } });
-  assert.deepEqual(mixed.calls, { lists: 0, summaries: 1 });
+  assert.deepEqual(mixed.calls, { lists: 0, summaries: 1, maps: 0 });
+});
+
+test("returns an empty bounded OPEN map projection", async () => {
+  const result = service([]);
+  assert.deepEqual(await result.subject.getOpenMap(), {
+    generatedAt: "2026-08-10T12:00:00.000Z",
+    summary: { totalOpenAlerts: 0, vehiclesWithOpenAlerts: 0, speeding: 0, inactivity: 0 },
+    vehicles: [],
+  });
+  assert.deepEqual(result.calls, { lists: 0, summaries: 0, maps: 1 });
+});
+
+test("groups SPEEDING and INACTIVITY per vehicle with deterministic vehicle and alert ordering", async () => {
+  const vehicleA = { id: "00000000-0000-4000-8000-000000000010", name: "Alpha" };
+  const vehicleB = { id: "00000000-0000-4000-8000-000000000020", name: "Beta" };
+  const result = await service([], false, { speeding: 0, inactivity: 0 }, [
+    { type: AlertEventType.SPEEDING, confirmedAt: new Date("2026-08-10T11:02:00.000Z"), vehicle: vehicleB },
+    { type: AlertEventType.INACTIVITY, confirmedAt: new Date("2026-08-10T11:01:00.000Z"), vehicle: vehicleA },
+    { type: AlertEventType.SPEEDING, confirmedAt: new Date("2026-08-10T11:00:00.000Z"), vehicle: vehicleA },
+  ]).subject.getOpenMap();
+  assert.deepEqual(result, {
+    generatedAt: "2026-08-10T12:00:00.000Z",
+    summary: { totalOpenAlerts: 3, vehiclesWithOpenAlerts: 2, speeding: 2, inactivity: 1 },
+    vehicles: [
+      { vehicle: vehicleA, alerts: [{ type: "SPEEDING", openedAt: "2026-08-10T11:00:00.000Z" }, { type: "INACTIVITY", openedAt: "2026-08-10T11:01:00.000Z" }] },
+      { vehicle: vehicleB, alerts: [{ type: "SPEEDING", openedAt: "2026-08-10T11:02:00.000Z" }] },
+    ],
+  });
+});
+
+test("OPEN map projection exposes only vehicle identity, type, and openedAt", async () => {
+  const map = await service([], false, { speeding: 0, inactivity: 0 }, [{ type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Taxi 7" } }]).subject.getOpenMap();
+  assert.deepEqual(Object.keys(map), ["generatedAt", "summary", "vehicles"]);
+  assert.deepEqual(Object.keys(map.vehicles[0] ?? {}), ["vehicle", "alerts"]);
+  const json = JSON.stringify(map);
+  for (const forbidden of ["coordinates", "latitude", "longitude", "activeKey", "dedupeKey", "outbox", "telegram", "journal", "provider", "currentState", "eventId"]) assert.equal(json.includes(forbidden), false, forbidden);
+});
+
+test("rejects over-limit, duplicate same-type OPEN state, invalid persisted timestamps, and invalid clock", async () => {
+  const duplicate = { type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Taxi 7" } };
+  await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [], true).subject.getOpenMap());
+  await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [duplicate, duplicate]).subject.getOpenMap());
+  await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [{ ...duplicate, confirmedAt: new Date(Number.NaN) }]).subject.getOpenMap());
+  const repository = { list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }) };
+  await assert.rejects(new AlertEventsQueryService(repository, { now: () => new Date(Number.NaN) }).getOpenMap());
 });

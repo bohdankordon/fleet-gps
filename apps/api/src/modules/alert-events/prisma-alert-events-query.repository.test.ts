@@ -3,6 +3,7 @@ import test from "node:test";
 import { AlertEventSpeedZone, AlertEventStatus, AlertEventType, AlertNotificationStatus, type PrismaClient } from "../../generated/prisma/client";
 import type { DatabaseService } from "../database";
 import type { AlertEventsQueryParams } from "./alert-events-query-params";
+import { MAX_OPEN_ALERT_MAP_EVENTS } from "./alert-events-query.repository";
 import { alertEventsReadSelectForTests, PrismaAlertEventsQueryRepository } from "./prisma-alert-events-query.repository";
 
 const VEHICLE_ID = "00000000-0000-4000-8000-000000000001";
@@ -66,4 +67,35 @@ test("summary performs one read-only OPEN groupBy and maps zero or mixed groups"
     { by: ["type"], where: { status: "OPEN" }, _count: { _all: true } },
     { by: ["type"], where: { status: "OPEN" }, _count: { _all: true } },
   ]);
+});
+
+test("OPEN map uses one bounded deterministic read with an explicit coordinate-free select", async () => {
+  let args: unknown;
+  let reads = 0;
+  let writes = 0;
+  const mapRow = { type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Vehicle" } };
+  const rows = Array.from({ length: MAX_OPEN_ALERT_MAP_EVENTS + 1 }, () => mapRow);
+  const client = { alertEvent: {
+    findMany: async (value: unknown) => { reads += 1; args = value; return rows; },
+    create: async () => { writes += 1; }, update: async () => { writes += 1; }, updateMany: async () => { writes += 1; }, delete: async () => { writes += 1; },
+  } } as unknown as PrismaClient;
+  const result = await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getOpenMapSnapshot();
+  assert.equal(reads, 1);
+  assert.equal(writes, 0);
+  assert.equal(result.rows.length, MAX_OPEN_ALERT_MAP_EVENTS);
+  assert.equal(result.exceededLimit, true);
+  assert.deepEqual(args, {
+    where: { status: AlertEventStatus.OPEN },
+    orderBy: [{ vehicle: { name: "asc" } }, { vehicleId: "asc" }, { type: "asc" }, { confirmedAt: "asc" }, { id: "asc" }],
+    take: MAX_OPEN_ALERT_MAP_EVENTS + 1,
+    select: { type: true, confirmedAt: true, vehicle: { select: { id: true, name: true } } },
+  });
+  const serialized = JSON.stringify(args);
+  for (const forbidden of ["currentState", "latitude", "longitude", "activeKey", "dedupeKey", "notificationOutbox", "confirmations", "createdAt", "updatedAt"]) assert.equal(serialized.includes(forbidden), false, forbidden);
+});
+
+test("OPEN map includes alerts regardless of whether the related vehicle has CurrentState", async () => {
+  const row = { type: AlertEventType.INACTIVITY, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "No position" } };
+  const client = { alertEvent: { findMany: async () => [row] } } as unknown as PrismaClient;
+  assert.deepEqual(await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getOpenMapSnapshot(), { rows: [row], exceededLimit: false });
 });

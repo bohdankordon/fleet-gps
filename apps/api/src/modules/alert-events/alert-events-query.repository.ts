@@ -31,7 +31,21 @@ export type StoredOpenAlertEventsSummary = Readonly<{
   inactivity: number;
 }>;
 
+export const MAX_OPEN_ALERT_MAP_EVENTS = 1_000;
+
+export type StoredOpenAlertMapRow = Readonly<{
+  type: AlertEventType;
+  confirmedAt: Date;
+  vehicle: Readonly<{ id: string; name: string }>;
+}>;
+
+export type StoredOpenAlertMapSnapshot = Readonly<{
+  rows: readonly StoredOpenAlertMapRow[];
+  exceededLimit: boolean;
+}>;
+
 export interface AlertEventsQueryRepository {
   list(params: AlertEventsQueryParams): Promise<StoredAlertEventsPage>;
   getOpenSummary(): Promise<StoredOpenAlertEventsSummary>;
+  getOpenMapSnapshot(): Promise<StoredOpenAlertMapSnapshot>;
 }

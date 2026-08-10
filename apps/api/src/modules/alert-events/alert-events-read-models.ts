@@ -41,3 +41,24 @@ export type AlertEventsSummaryResponse = Readonly<{
     inactivity: number;
   }>;
 }>;
+
+export type OpenAlertMapAlert = Readonly<{
+  type: "SPEEDING" | "INACTIVITY";
+  openedAt: string;
+}>;
+
+export type OpenAlertMapVehicle = Readonly<{
+  vehicle: Readonly<{ id: string; name: string }>;
+  alerts: readonly OpenAlertMapAlert[];
+}>;
+
+export type OpenAlertMapResponse = Readonly<{
+  generatedAt: string;
+  summary: Readonly<{
+    totalOpenAlerts: number;
+    vehiclesWithOpenAlerts: number;
+    speeding: number;
+    inactivity: number;
+  }>;
+  vehicles: readonly OpenAlertMapVehicle[];
+}>;

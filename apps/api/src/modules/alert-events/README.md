@@ -8,4 +8,8 @@ The public event contains only its UUID, public vehicle UUID/name, type, status,
 
 `GET /api/alert-events/summary` returns only OPEN total, SPEEDING, and INACTIVITY counts through one aggregate database query.
 
+`GET /api/alert-events/map` is the dedicated bounded OPEN-state projection for the fleet map. It does not reuse the paginated event list. One explicit read selects only alert type, `confirmedAt` (published as `openedAt`), and public vehicle ID/name, ordered deterministically and guarded at 1,000 OPEN rows. The response groups at most one OPEN `SPEEDING` and one OPEN `INACTIVITY` per vehicle, matching the lifecycle `activeKey(type, vehicleId)` invariant. Its summary distinguishes total OPEN alerts from vehicles with alerts.
+
+The alert-map response deliberately contains no coordinates. The web client joins it to `GET /api/fleet/map` by public vehicle ID and renders an alert indicator at the vehicle's current persisted position. That indicator is not an assertion about where the alert originated. An alert whose vehicle has no valid current map position remains in the OPEN totals and is reported by the UI as not visible on the map.
+
 The query explicitly selects safe columns. It does not expose external device IDs, coordinates, evaluation observations, dedupe/active keys, confirmation receipts, Telegram settings or transport data, provider payloads, outbox leases/retry fields, raw errors, or full Prisma models.

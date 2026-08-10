@@ -1,6 +1,6 @@
 import { Controller, Get, HttpException, Query } from "@nestjs/common";
 import { AlertEventsQueryParamsError, parseAlertEventsQueryParams } from "./alert-events-query-params";
-import type { AlertEventsListResponse, AlertEventsSummaryResponse } from "./alert-events-read-models";
+import type { AlertEventsListResponse, AlertEventsSummaryResponse, OpenAlertMapResponse } from "./alert-events-read-models";
 import { AlertEventsQueryService } from "./alert-events-query.service";
 
 @Controller("alert-events")
@@ -11,6 +11,15 @@ export class AlertEventsController {
   public async getSummary(): Promise<AlertEventsSummaryResponse> {
     try {
       return await this.query.getSummary();
+    } catch {
+      throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500);
+    }
+  }
+
+  @Get("map")
+  public async getOpenMap(): Promise<OpenAlertMapResponse> {
+    try {
+      return await this.query.getOpenMap();
     } catch {
       throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500);
     }

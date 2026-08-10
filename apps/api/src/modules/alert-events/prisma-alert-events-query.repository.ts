@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { AlertEventStatus, AlertEventType, AlertNotificationKind, Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database";
 import type { AlertEventsQueryParams } from "./alert-events-query-params";
-import type { AlertEventsQueryRepository, StoredAlertEventReadRow, StoredAlertEventsPage, StoredOpenAlertEventsSummary } from "./alert-events-query.repository";
+import { MAX_OPEN_ALERT_MAP_EVENTS, type AlertEventsQueryRepository, type StoredAlertEventReadRow, type StoredAlertEventsPage, type StoredOpenAlertEventsSummary, type StoredOpenAlertMapSnapshot } from "./alert-events-query.repository";
 
 const alertEventReadSelect = {
   id: true,
@@ -65,6 +65,23 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
       else if (group.type === AlertEventType.INACTIVITY) inactivity = group._count._all;
     }
     return Object.freeze({ speeding, inactivity });
+  }
+
+  public async getOpenMapSnapshot(): Promise<StoredOpenAlertMapSnapshot> {
+    const rows = await this.database.getClient().alertEvent.findMany({
+      where: { status: AlertEventStatus.OPEN },
+      orderBy: [{ vehicle: { name: "asc" } }, { vehicleId: "asc" }, { type: "asc" }, { confirmedAt: "asc" }, { id: "asc" }],
+      take: MAX_OPEN_ALERT_MAP_EVENTS + 1,
+      select: {
+        type: true,
+        confirmedAt: true,
+        vehicle: { select: { id: true, name: true } },
+      },
+    });
+    return Object.freeze({
+      rows: Object.freeze(rows.slice(0, MAX_OPEN_ALERT_MAP_EVENTS)),
+      exceededLimit: rows.length > MAX_OPEN_ALERT_MAP_EVENTS,
+    });
   }
 }
 
