@@ -4,7 +4,7 @@ import type { HttpTransport } from "../contracts/http";
 import { EquGpsResponseValidationError } from "../errors/equgps-errors";
 import { createBasicAuthorization } from "../internal/basic-auth";
 import { buildOfficialUrl } from "../internal/url-builder";
-import { devicesResponseSchema, positionsResponseSchema, sessionResponseSchema } from "../transport/schemas";
+import { devicesResponseSchema, historicalPositionsResponseSchema, positionsResponseSchema, sessionResponseSchema } from "../transport/schemas";
 
 function nullable<T>(value: T | null | undefined): T | null { return value ?? null; }
 const zonedIsoDateTime = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -48,7 +48,8 @@ export class DefaultOfficialEquGpsClient implements OfficialEquGpsClient {
   }
   private async getPositions(operation: "getLatestPositions" | "getHistoricalPositions", query?: Readonly<Record<string, string>>): Promise<readonly EquGpsPosition[]> {
     const response = await this.transport.execute({ operation, method: "GET", url: buildOfficialUrl(this.config.officialBaseUrl, "positions", query), headers: this.basicHeaders(), timeoutMs: this.config.requestTimeoutMs });
-    const result = positionsResponseSchema.safeParse(response.body);
+    const schema = operation === "getHistoricalPositions" ? historicalPositionsResponseSchema : positionsResponseSchema;
+    const result = schema.safeParse(response.body);
     if (!result.success) throw new EquGpsResponseValidationError(operation);
     return result.data.map((position) => ({ deviceId: position.deviceId, fixTime: nullable(position.fixTime), valid: nullable(position.valid), outdated: nullable(position.outdated), speedKnots: nullable(position.speed), latitude: nullable(position.latitude), longitude: nullable(position.longitude) }));
   }

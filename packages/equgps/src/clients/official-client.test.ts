@@ -58,6 +58,26 @@ test("invalid token response, speed, coordinates and schemas fail safely", async
   }
 });
 
+test("historical positions preserve ordering and tolerate row-level quality for application normalization", async () => {
+  const body = [
+    { id: 9001, deviceId: 7, fixTime: "2026-01-01T00:00:01.000Z", speed: -1, latitude: 91, longitude: 28, valid: false, outdated: true },
+    { id: 9002, deviceId: 7, fixTime: null, speed: null, latitude: null, longitude: null },
+  ];
+  const client = new DefaultOfficialEquGpsClient(config, new FakeHttpTransport(async () => ({ status: 200, headers: {}, body })));
+  assert.deepEqual(await client.getHistoricalPositions({ deviceId: 7, from: "2026-01-01T00:00:00Z", to: "2026-01-01T01:00:00Z" }), [
+    { deviceId: 7, fixTime: "2026-01-01T00:00:01.000Z", speedKnots: -1, latitude: 91, longitude: 28, valid: false, outdated: true },
+    { deviceId: 7, fixTime: null, speedKnots: null, latitude: null, longitude: null, valid: null, outdated: null },
+  ]);
+  await assert.rejects(() => client.getLatestPositions(), EquGpsResponseValidationError);
+});
+
+test("historical malformed response still fails as one safe provider contract error", async () => {
+  for (const body of [{ rows: [] }, [{ fixTime: "2026-01-01T00:00:00Z" }], [{ deviceId: 7, latitude: Number.NaN }]]) {
+    const client = new DefaultOfficialEquGpsClient(config, new FakeHttpTransport(async () => ({ status: 200, headers: {}, body })));
+    await assert.rejects(() => client.getHistoricalPositions({ deviceId: 7, from: "2026-01-01T00:00:00Z", to: "2026-01-01T01:00:00Z" }), EquGpsResponseValidationError);
+  }
+});
+
 test("device identifiers must be positive", async () => {
   for (const id of [0, -1]) {
     const client = new DefaultOfficialEquGpsClient(config, new FakeHttpTransport(async () => ({ status: 200, headers: {}, body: [{ id }] })));

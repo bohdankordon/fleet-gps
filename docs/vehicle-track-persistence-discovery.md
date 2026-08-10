@@ -76,6 +76,8 @@ Recommended invariants and indexes:
 
 Persist each normalized latest observation independently of alert enablement to build forward history. Add historical backfill as an explicit, rate-limited, resumable process using internal provider IDs; do not run it from a migration, application bootstrap, or GET request. Provider retention and duplicate behavior must be measured before enabling it. Existing alert journal rows may be treated only as known sparse observations, not as proof of complete history.
 
+Stage 11B.1 implemented the authoritative `VehiclePositionObservation` forward dataset. Stage 11B.2 subsequently measured official historical `/positions` and implemented the explicit checkpointed backfill described in [vehicle-position-history.md](./vehicle-position-history.md); the alert journal remains excluded.
+
 ## Initial retention and API-bound proposal
 
 Start with a configurable 30-day hot retention window and measure actual row size and sustained points per vehicle/day before extending it. The previously observed 3,796 points/day example implies about 6.6 million rows for 58 vehicles over 30 days at that density, before indexes.

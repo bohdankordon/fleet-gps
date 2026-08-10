@@ -11,16 +11,23 @@ export const devicesResponseSchema = z.array(z.object({
   disabled: z.boolean().nullable().optional(),
   lastUpdate: optionalDate,
 }));
-export const positionsResponseSchema = z.array(z.object({
+const positionResponseSchema = z.object({
   deviceId: z.number().int().positive(),
   fixTime: optionalDate,
   valid: z.boolean().nullable().optional(),
   outdated: z.boolean().nullable().optional(),
+  speed: optionalFiniteNumber,
+  latitude: optionalFiniteNumber,
+  longitude: optionalFiniteNumber,
+  network: z.union([z.string(), z.object({})]).nullable().optional(),
+  attributes: z.unknown().optional(),
+});
+
+export const historicalPositionsResponseSchema = z.array(positionResponseSchema);
+export const positionsResponseSchema = z.array(positionResponseSchema.extend({
   speed: optionalFiniteNumber.refine((value) => value === undefined || value === null || value >= 0),
   latitude: optionalFiniteNumber.refine((value) => value === undefined || value === null || (value >= -90 && value <= 90)),
   longitude: optionalFiniteNumber.refine((value) => value === undefined || value === null || (value >= -180 && value <= 180)),
-  network: z.union([z.string(), z.object({})]).nullable().optional(),
-  attributes: z.unknown().optional(),
 }));
 export const runsResponseSchema = z.array(z.object({
   id: z.number().int().positive(),

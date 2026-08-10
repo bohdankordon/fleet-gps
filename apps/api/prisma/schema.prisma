@@ -32,6 +32,12 @@ enum PositionIngestionSource {
   HISTORICAL_BACKFILL
 }
 
+enum PositionBackfillStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+}
+
 enum AlertEventType {
   SPEEDING
   INACTIVITY
@@ -68,6 +74,7 @@ model Vehicle {
   currentState                VehicleCurrentState?
   dailyStats                  DailyVehicleStat[]
   positionObservations        VehiclePositionObservation[]
+  positionBackfillCheckpoints VehiclePositionBackfillCheckpoint[]
   alertEvents                 AlertEvent[]
   alertEvaluationObservations AlertEvaluationObservation[]
 
@@ -93,6 +100,22 @@ model VehiclePositionObservation {
   @@index([vehicleId, observedAt, fixFingerprint], map: "vehicle_position_observations_vehicle_time_idx")
   @@index([observedAt])
   @@map("vehicle_position_observations")
+}
+
+model VehiclePositionBackfillCheckpoint {
+  id        String                 @id @default(uuid()) @map("id") @db.Uuid
+  vehicleId String                 @map("vehicle_id") @db.Uuid
+  rangeFrom DateTime               @map("range_from") @db.Timestamptz(6)
+  rangeTo   DateTime               @map("range_to") @db.Timestamptz(6)
+  nextFrom  DateTime               @map("next_from") @db.Timestamptz(6)
+  status    PositionBackfillStatus @default(PENDING) @map("status")
+  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  vehicle   Vehicle                @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
+  @@unique([vehicleId, rangeFrom, rangeTo], map: "position_backfill_checkpoint_target_key")
+  @@index([status, updatedAt], map: "position_backfill_checkpoint_status_idx")
+  @@map("vehicle_position_backfill_checkpoints")
 }
 
 model AlertEvaluationObservation {

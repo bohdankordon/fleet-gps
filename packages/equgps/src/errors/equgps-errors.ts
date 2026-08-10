@@ -51,7 +51,7 @@ export class EquGpsForbiddenError extends EquGpsError {
 }
 
 export class EquGpsRateLimitError extends EquGpsError {
-  public constructor(operation?: EquGpsSafeOperation) {
+  public constructor(operation?: EquGpsSafeOperation, public readonly retryAfterMs: number | null = null) {
     super("eQuGPS rate limit reached.", operation, 429);
   }
 }

@@ -14,14 +14,23 @@ function isJsonContentType(contentType: string | null): boolean {
   return contentType !== null && /(?:^|\/)json(?:;|$)|\+json(?:;|$)/i.test(contentType);
 }
 
-function httpError(status: number, operation: HttpRequest["operation"]): Error {
+function parseRetryAfterMs(value: string | null, now: number): number | null {
+  if (value === null) return null;
+  if (/^[0-9]+(?:\.[0-9]+)?$/.test(value.trim())) return Math.max(0, Math.ceil(Number(value) * 1_000));
+  const at = Date.parse(value);
+  return Number.isFinite(at) ? Math.max(0, at - now) : null;
+}
+
+function httpError(status: number, operation: HttpRequest["operation"], headers: Headers, now: number): Error {
   if (status === 401) return new EquGpsUnauthorizedError(operation);
   if (status === 403) return new EquGpsForbiddenError(operation);
-  if (status === 429) return new EquGpsRateLimitError(operation);
+  if (status === 429) return new EquGpsRateLimitError(operation, parseRetryAfterMs(headers.get("retry-after"), now));
   return new EquGpsHttpError(status, operation);
 }
 
 export class FetchHttpTransport implements HttpTransport {
+  public constructor(private readonly now: () => number = Date.now) {}
+
   public async execute(request: HttpRequest): Promise<HttpResponse> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), request.timeoutMs);
@@ -41,7 +50,7 @@ export class FetchHttpTransport implements HttpTransport {
         throw new EquGpsNetworkError(request.operation);
       }
 
-      if (!response.ok) throw httpError(response.status, request.operation);
+      if (!response.ok) throw httpError(response.status, request.operation, response.headers, this.now());
       let text: string;
       try {
         text = await response.text();

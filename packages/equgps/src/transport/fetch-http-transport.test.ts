@@ -92,3 +92,13 @@ test("transport errors do not serialize URLs, forms, or credentials", async () =
     );
   });
 });
+
+test("429 captures bounded retry timing metadata without response bodies", async () => {
+  const now = Date.parse("2026-08-10T12:00:00Z");
+  const transport = new FetchHttpTransport(() => now);
+  for (const [header, expected] of [["1.5", 1_500], ["Sun, 10 Aug 2026 12:00:02 GMT", 2_000], ["invalid", null]] as const) {
+    await withFetch((async () => new Response("secret body", { status: 429, headers: { "Retry-After": header } })) as typeof fetch, async () => {
+      await assert.rejects(() => transport.execute(request()), (error: Error) => error instanceof EquGpsRateLimitError && error.retryAfterMs === expected && !JSON.stringify(error).includes("secret body"));
+    });
+  }
+});
