@@ -75,7 +75,7 @@ async function main() {
     const apiPort = await freePort(); const webPort = await freePort(); trap = await startTrap(() => { externalRequests += 1; });
     const apiEnv = { ...process.env, HOST: "127.0.0.1", PORT: String(apiPort), SYNC_SCHEDULER_ENABLED: "false", ALERT_INGESTION_ENABLED: "false", TELEGRAM_NOTIFICATIONS_ENABLED: "false", EQUGPS_BASE_URL: `https://127.0.0.1:${trap.port}/api`, EQUGPS_WEB_BASE_URL: `https://127.0.0.1:${trap.port}` };
     api = spawn(process.execPath, [path.resolve(__dirname, "../../api/dist/main.js")], { env: apiEnv, stdio: "ignore" }); await waitFor(`http://127.0.0.1:${apiPort}/api/health`);
-    web = spawn(process.execPath, [require.resolve("next/dist/bin/next"), "start", "-p", String(webPort), "-H", "127.0.0.1"], { cwd: path.resolve(__dirname, ".."), env: { ...process.env, API_INTERNAL_BASE_URL: `http://127.0.0.1:${apiPort}` }, stdio: "ignore" }); await waitFor(`http://127.0.0.1:${webPort}/`);
+    web = spawn(process.execPath, [path.resolve(__dirname, "start-standalone.cjs")], { cwd: path.resolve(__dirname, ".."), env: { ...process.env, HOSTNAME: "127.0.0.1", PORT: String(webPort), API_INTERNAL_BASE_URL: `http://127.0.0.1:${apiPort}` }, stdio: "ignore" }); await waitFor(`http://127.0.0.1:${webPort}/`);
     const nest = await fetch(`http://127.0.0.1:${apiPort}/api/alert-events/map`); nestStatus = nest.status; const nestBody = await nest.json();
     const bff = await fetch(`http://127.0.0.1:${webPort}/api/alert-events/map`); bffStatus = bff.status; const bffBody = await bff.json();
     const fleet = await (await fetch(`http://127.0.0.1:${webPort}/api/fleet/map`)).json();

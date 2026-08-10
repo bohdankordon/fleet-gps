@@ -68,6 +68,8 @@
     "vehicle-track:http-smoke": "npm --workspace @taxi-gps/api run vehicle-track:http-smoke",
     "web:dev": "npm --workspace @taxi-gps/web run dev",
     "web:build": "npm --workspace @taxi-gps/web run build",
+    "web:standalone:build": "npm --workspace @taxi-gps/web run standalone:build",
+    "web:standalone:start": "npm --workspace @taxi-gps/web run standalone:start",
     "web:typecheck": "npm --workspace @taxi-gps/web run typecheck",
     "web:lint": "npm --workspace @taxi-gps/web run lint",
     "web:test": "npm --workspace @taxi-gps/web run test",
