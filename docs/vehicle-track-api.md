@@ -17,3 +17,5 @@ Successful responses contain:
 Provider quality fields are preserved as stored: `valid=false` does not imply structurally unusable coordinates, while `null` means the provider supplied no value. Persistence provenance, fingerprints, fetch/create timestamps, provider identifiers, raw payload, observation IDs, and ingestion source are never public.
 
 A known vehicle with no observations in range returns HTTP 200 with an empty array, zero count, and null first/last timestamps. An invalid UUID/range returns 400; an unknown valid UUID returns 404; an over-limit track returns 422; unexpected stored-data or database failure returns a generic 500. Structurally corrupt coordinates, time, speed, or quality values fail safely rather than being repaired or serialized.
+
+The Stage 11D dispatcher presentation and its conservative five-minute line-break policy are documented in [vehicle-track-map-ui.md](vehicle-track-map-ui.md).

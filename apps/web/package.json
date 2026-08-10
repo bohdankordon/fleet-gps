@@ -15,6 +15,7 @@
     "test": "node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node scripts/run-tests.cjs",
     "dashboard:smoke": "npm run build && node scripts/dashboard-ui-smoke.cjs",
     "open-alert-map:smoke": "npm run build && node scripts/open-alert-map-ui-smoke.cjs",
+    "vehicle-track:smoke": "npm run build && node scripts/vehicle-track-ui-smoke.cjs",
     "scheduler:observe": "node scripts/scheduler-runtime-observer.cjs",
     "scheduler:observe:test": "node --test scripts/scheduler-runtime-observer.test.cjs"
   },
