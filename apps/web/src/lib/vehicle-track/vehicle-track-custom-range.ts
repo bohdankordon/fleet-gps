@@ -44,6 +44,6 @@ export function vehicleTrackCustomRangeErrorCopy(error: VehicleTrackCustomRangeE
   if (error === "NONEXISTENT") return "Такого местного времени нет из-за перехода на летнее время.";
   if (error === "AMBIGUOUS") return "Это местное время встречается дважды из-за перевода часов. Выберите другое время.";
   if (error === "ORDER") return "Время «С» должно быть раньше времени «До».";
-  if (error === "TOO_LONG") return "Максимальный период — 24 часа.";
+  if (error === "TOO_LONG") return "Максимальный период — 7 дней.";
   return null;
 }

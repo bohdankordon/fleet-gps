@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { ensureCityGeofenceLayers } from "../city-geofence/city-geofence-map";
-import { trackFixture, trackPoint } from "./vehicle-track-fixture";
+import { overviewSegment, overviewTrackFixture, trackFixture, trackPoint } from "./vehicle-track-fixture";
 import { ensureVehicleTrackLayers, updateVehicleTrackMapData, VEHICLE_TRACK_LAYER_ORDER, VEHICLE_TRACK_LINE_SOURCE_ID, VEHICLE_TRACK_POINT_SOURCE_ID } from "./vehicle-track-layers";
+import { buildVehicleTrackOverviewPresentation } from "./vehicle-track-overview-presentation";
 import { buildVehicleTrackPresentation } from "./vehicle-track-presentation";
 
 test("creates sources/layers once below labels and above geofence, then refreshes via setData", () => {
@@ -14,7 +15,8 @@ test("creates sources/layers once below labels and above geofence, then refreshe
     getStyle: () => ({ layers }), setFilter: () => { filterCalls += 1; },
   } as unknown as MapLibreMap;
   const model = buildVehicleTrackPresentation(trackFixture([trackPoint(), trackPoint("2026-08-10T10:00:01Z")]));
-  ensureCityGeofenceLayers(map, null); ensureVehicleTrackLayers(map, model, null); ensureVehicleTrackLayers(map, model, null); updateVehicleTrackMapData(map, model, "1");
+  const overviewModel = buildVehicleTrackOverviewPresentation(overviewTrackFixture([overviewSegment([trackPoint("2026-08-01T00:00:00Z"), trackPoint("2026-08-01T00:20:00Z")], 500)]));
+  ensureCityGeofenceLayers(map, null); ensureVehicleTrackLayers(map, model, null); ensureVehicleTrackLayers(map, overviewModel, null); updateVehicleTrackMapData(map, model, "1"); updateVehicleTrackMapData(map, overviewModel, null);
   assert.deepEqual(layers.map((layer) => layer.id), ["city-geofence-fill", "city-geofence-outline", ...VEHICLE_TRACK_LAYER_ORDER, "basemap-labels"]);
-  assert.equal(sources.has(VEHICLE_TRACK_LINE_SOURCE_ID), true); assert.equal(sources.has(VEHICLE_TRACK_POINT_SOURCE_ID), true); assert.equal(sources.size, 3); assert.equal(setDataCalls, 2); assert.equal(filterCalls, 1);
+  assert.equal(sources.has(VEHICLE_TRACK_LINE_SOURCE_ID), true); assert.equal(sources.has(VEHICLE_TRACK_POINT_SOURCE_ID), true); assert.equal(sources.size, 3); assert.equal(setDataCalls, 4); assert.equal(filterCalls, 2);
 });

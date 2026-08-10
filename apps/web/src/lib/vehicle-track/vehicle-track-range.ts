@@ -1,8 +1,17 @@
 export const VEHICLE_TRACK_DEFAULT_HOURS = 6;
-export const VEHICLE_TRACK_MAX_RANGE_MS = 24 * 60 * 60 * 1_000;
-export const VEHICLE_TRACK_PRESETS = Object.freeze([{ hours: 1, label: "Последний час" }, { hours: 6, label: "6 часов" }, { hours: 24, label: "24 часа" }] as const);
+export const VEHICLE_TRACK_EXACT_MAX_RANGE_MS = 24 * 60 * 60 * 1_000;
+export const VEHICLE_TRACK_MAX_RANGE_MS = 7 * 24 * 60 * 60 * 1_000;
+export const VEHICLE_TRACK_PRESETS = Object.freeze([
+  { hours: 1, label: "Последний час" },
+  { hours: 6, label: "6 часов" },
+  { hours: 24, label: "24 часа" },
+  { hours: 72, label: "3 дня" },
+  { hours: 168, label: "7 дней" },
+] as const);
 
 export type VehicleTrackRange = Readonly<{ from: string; to: string }>;
+export type VehicleTrackMode = "EXACT" | "OVERVIEW";
+export type VehicleTrackPresetHours = 1 | 6 | 24 | 72 | 168;
 export type InitialVehicleTrackRange = Readonly<{ range: VehicleTrackRange | null; defaulted: boolean }>;
 
 const absoluteTimestampPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|([+-])(\d{2}):(\d{2}))$/;
@@ -33,7 +42,20 @@ export function parseVehicleTrackRange(fromValue: unknown, toValue: unknown): Ve
   return duration > 0 && duration <= VEHICLE_TRACK_MAX_RANGE_MS ? Object.freeze({ from: from.toISOString(), to: to.toISOString() }) : null;
 }
 
-export function createVehicleTrackPresetRange(hours: 1 | 6 | 24, now: Date): VehicleTrackRange | null {
+export function vehicleTrackModeForRange(range: VehicleTrackRange): VehicleTrackMode | null {
+  const from = parseVehicleTrackTimestamp(range.from); const to = parseVehicleTrackTimestamp(range.to);
+  if (!from || !to) return null;
+  const duration = to.getTime() - from.getTime();
+  if (duration <= 0 || duration > VEHICLE_TRACK_MAX_RANGE_MS) return null;
+  return duration <= VEHICLE_TRACK_EXACT_MAX_RANGE_MS ? "EXACT" : "OVERVIEW";
+}
+
+export function parseExactVehicleTrackRange(fromValue: unknown, toValue: unknown): VehicleTrackRange | null {
+  const range = parseVehicleTrackRange(fromValue, toValue);
+  return range && vehicleTrackModeForRange(range) === "EXACT" ? range : null;
+}
+
+export function createVehicleTrackPresetRange(hours: VehicleTrackPresetHours, now: Date): VehicleTrackRange | null {
   if (!(now instanceof Date) || !Number.isFinite(now.getTime())) return null;
   return Object.freeze({ from: new Date(now.getTime() - hours * 60 * 60 * 1_000).toISOString(), to: now.toISOString() });
 }

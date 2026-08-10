@@ -17,4 +17,5 @@ test("BFF maps 400/404/422/502/503 safely without leaking raw bodies", async () 
   for (const [error, status] of errors) { const response = await createVehicleTrackRouteHandler(async () => { throw error; })(new Request(url), context()); const body = await response.text(); assert.equal(response.status, status); assert.equal(body.includes("secret"), false); }
   const invalid = await createVehicleTrackRouteHandler(async () => trackFixture() as VehicleTrackResponse)(new Request("http://web.test/api?from=x&to=y"), context("bad")); assert.equal(invalid.status, 400);
   const unknownQuery = await createVehicleTrackRouteHandler(async () => trackFixture())(new Request(`${url}&providerId=secret`), context()); assert.equal(unknownQuery.status, 400);
+  const overviewRange = await createVehicleTrackRouteHandler(async () => trackFixture())(new Request(`http://web.test/api/vehicles/${TRACK_VEHICLE_ID}/track?from=2026-08-01T00%3A00%3A00Z&to=2026-08-04T00%3A00%3A00Z`), context()); assert.equal(overviewRange.status, 400);
 });

@@ -24,8 +24,10 @@ test("rejects invalid, nonexistent, and ambiguous Kyiv local timestamps", () => 
 test("enforces non-empty absolute elapsed ranges through custom inputs", () => {
   assert.deepEqual(parseVehicleTrackCustomRange({ from: "2026-08-10T08:00", to: "2026-08-11T08:00" }).range, { from: "2026-08-10T05:00:00.000Z", to: "2026-08-11T05:00:00.000Z" });
   assert.ok(parseVehicleTrackCustomRange({ from: "2026-03-29T01:00", to: "2026-03-30T01:00" }).range, "23 absolute hours across spring DST is allowed");
-  assert.equal(parseVehicleTrackCustomRange({ from: "2026-10-25T01:00", to: "2026-10-26T01:00" }).error, "TOO_LONG", "25 absolute hours across fall DST is rejected");
+  assert.ok(parseVehicleTrackCustomRange({ from: "2026-10-25T01:00", to: "2026-10-26T01:00" }).range, "25 absolute hours across fall DST is an overview");
+  assert.ok(parseVehicleTrackCustomRange({ from: "2026-08-01T08:00", to: "2026-08-08T08:00" }).range, "exactly seven absolute days is allowed");
+  assert.equal(parseVehicleTrackCustomRange({ from: "2026-08-01T08:00", to: "2026-08-08T08:01" }).error, "TOO_LONG");
   assert.equal(parseVehicleTrackCustomRange({ from: "2026-08-10T08:00", to: "2026-08-10T08:00" }).error, "ORDER");
   assert.equal(parseVehicleTrackCustomRange({ from: "2026-08-10T09:00", to: "2026-08-10T08:00" }).error, "ORDER");
-  assert.equal(vehicleTrackCustomRangeErrorCopy("TOO_LONG"), "Максимальный период — 24 часа.");
+  assert.equal(vehicleTrackCustomRangeErrorCopy("TOO_LONG"), "Максимальный период — 7 дней.");
 });
