@@ -14,6 +14,7 @@ import { vehicleTrackCamera, shouldFitVehicleTrackCamera } from "@/lib/vehicle-t
 import { formatVehicleTrackSpeed, formatVehicleTrackTimestamp, vehicleTrackQualityLabels } from "@/lib/vehicle-track/vehicle-track-formatters";
 import { ensureVehicleTrackLayers, updateVehicleTrackMapData, VEHICLE_TRACK_ENDPOINT_LAYER_ID, VEHICLE_TRACK_NORMAL_POINT_LAYER_ID, VEHICLE_TRACK_WARNING_POINT_LAYER_ID } from "@/lib/vehicle-track/vehicle-track-layers";
 import { buildVehicleTrackPresentation, EMPTY_VEHICLE_TRACK_PRESENTATION, VehicleTrackPresentationError, type VehicleTrackPresentationModel } from "@/lib/vehicle-track/vehicle-track-presentation";
+import { parseVehicleTrackCustomRange, vehicleTrackCustomRangeErrorCopy, vehicleTrackRangeToKyivDraft, type VehicleTrackDraftRange } from "@/lib/vehicle-track/vehicle-track-custom-range";
 import { createVehicleTrackPresetRange, VEHICLE_TRACK_PRESETS, vehicleTrackRangeKey, type VehicleTrackRange } from "@/lib/vehicle-track/vehicle-track-range";
 import { abortVehicleTrackRequest, beginVehicleTrackRequest, failVehicleTrackRequest, initialVehicleTrackRequestState, succeedVehicleTrackRequest, type VehicleTrackLoadError } from "@/lib/vehicle-track/vehicle-track-request-state";
 import { reconcileVehicleTrackSelection, selectedVehicleTrackPoint } from "@/lib/vehicle-track/vehicle-track-selection";
@@ -42,6 +43,8 @@ function responseError(response: Response): Exclude<VehicleTrackLoadError, null>
 export function VehicleTrackClient({ vehicleId, initialData, initialRange, initialError, initialGeofence, initialGeofenceUnavailable }: Props) {
   const [state, setState] = useState(() => initialVehicleTrackRequestState(initialData, initialRange, initialError));
   const [selectedKey, setSelectedKey] = useState<string | null>(null); const [styleError, setStyleError] = useState(false);
+  const [draft, setDraft] = useState<VehicleTrackDraftRange>(() => vehicleTrackRangeToKyivDraft(initialData?.range ?? initialRange));
+  const [formError, setFormError] = useState<string | null>(null);
   const stateRef = useRef(state); const selectedRef = useRef(selectedKey); const containerRef = useRef<HTMLDivElement | null>(null); const mapRef = useRef<MapLibreMap | null>(null);
   const activeRef = useRef(false); const controllerRef = useRef<AbortController | null>(null); const generationRef = useRef(0); const initialCameraAppliedRef = useRef(false); const fitOnNextDataRef = useRef(false);
   const basemapStateRef = useRef(initialFleetMapBasemapState());
@@ -63,7 +66,7 @@ export function VehicleTrackClient({ vehicleId, initialData, initialRange, initi
       if (controller.signal.aborted || generation !== generationRef.current) return;
       const previousModel = modelRef.current; const sameRange = current.data !== null && vehicleTrackRangeKey(current.data.range) === vehicleTrackRangeKey(data.range);
       setSelectedKey((key) => reconcileVehicleTrackSelection(previousModel, nextModel, key, sameRange));
-      fitOnNextDataRef.current = rangeChanged; const next = succeedVehicleTrackRequest(stateRef.current, generation, data); stateRef.current = next; setState(next);
+      fitOnNextDataRef.current = rangeChanged; const next = succeedVehicleTrackRequest(stateRef.current, generation, data); stateRef.current = next; setState(next); setDraft(vehicleTrackRangeToKyivDraft(data.range)); setFormError(null);
       window.history.replaceState(null, "", `/vehicles/${vehicleId}/track?${query.toString()}`);
     } catch (error) {
       if (!controller.signal.aborted && generation === generationRef.current) {
@@ -91,9 +94,10 @@ export function VehicleTrackClient({ vehicleId, initialData, initialRange, initi
 
   const selected = selectedVehicleTrackPoint(model, selectedKey); const error = errorCopy(state.error, state.data !== null);
   const choosePreset = (hours: 1 | 6 | 24) => { const range = createVehicleTrackPresetRange(hours, new Date()); if (range) void load(range, true); };
+  const submitCustomRange = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const result = parseVehicleTrackCustomRange(draft); const copy = vehicleTrackCustomRangeErrorCopy(result.error); if (!result.range) { setFormError(copy); return; } setFormError(null); void load(result.range, true); };
   return <>
     <header className="hero track-hero"><p className="eyebrow">История движения</p><h1>{state.data?.vehicle.name ?? "Трек автомобиля"}</h1><p>Реальные сохранённые GPS-наблюдения за ограниченный период.</p><div className="metadata"><Link href={`/vehicles/${vehicleId}`}>Назад к карточке</Link><Link href="/map">Открыть текущую карту</Link></div></header>
-    <section className="track-controls" aria-label="Выбор периода"><div className="track-presets">{VEHICLE_TRACK_PRESETS.map((preset) => <button type="button" onClick={() => choosePreset(preset.hours)} disabled={state.loading} key={preset.hours}>{preset.label}</button>)}</div><button type="button" className="track-refresh" onClick={() => state.range && void load(state.range, false)} disabled={state.loading || !state.range}>{state.loading ? "Загрузка…" : "Обновить текущий период"}</button><div className="track-range"><span>От: <strong>{formatVehicleTrackTimestamp(state.range?.from ?? null)}</strong></span><span>До: <strong>{formatVehicleTrackTimestamp(state.range?.to ?? null)}</strong></span></div></section>
+    <section className="track-controls" aria-label="Выбор периода"><div><span className="track-control-label">Быстрый период</span><div className="track-presets">{VEHICLE_TRACK_PRESETS.map((preset) => <button type="button" onClick={() => choosePreset(preset.hours)} disabled={state.loading} key={preset.hours}>{preset.label}</button>)}</div></div><button type="button" className="track-refresh" onClick={() => state.range && void load(state.range, false)} disabled={state.loading || !state.range}>{state.loading ? "Загрузка…" : "Обновить текущий период"}</button><form className="track-custom-range" onSubmit={submitCustomRange}><fieldset disabled={state.loading}><legend>Произвольный период</legend><p className="track-timezone">Время: Europe/Kyiv</p><label htmlFor="track-from">С<input id="track-from" name="from" type="datetime-local" value={draft.from} onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))} step="60" required /></label><label htmlFor="track-to">До<input id="track-to" name="to" type="datetime-local" value={draft.to} onChange={(event) => setDraft((current) => ({ ...current, to: event.target.value }))} step="60" required /></label><button type="submit">Показать период</button></fieldset>{formError && <p className="track-form-error" role="alert">{formError}</p>}</form><div className="track-range"><span>От: <strong>{formatVehicleTrackTimestamp(state.range?.from ?? null)}</strong></span><span>До: <strong>{formatVehicleTrackTimestamp(state.range?.to ?? null)}</strong></span></div></section>
     {state.loading && <p className="refresh" aria-live="polite">Загрузка исторического трека…</p>}
     {error && <section className="notice" role="alert"><span>⚠</span><div><strong>{error[0]}</strong><span>{error[1]}</span></div></section>}
     {initialGeofenceUnavailable && <p className="map-geofence-status" role="alert">Граница города недоступна; трек продолжает работать.</p>}
