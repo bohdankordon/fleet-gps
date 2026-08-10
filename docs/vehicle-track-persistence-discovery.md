@@ -85,3 +85,5 @@ After production persistence has accumulated representative data, choose the rea
 ## Stage 11A change boundary
 
 This stage adds this architecture note only. Prisma schema and migrations remain unchanged; no track route, provider ingestion, production writes, or frontend work is included.
+
+Stage 11B.1 implements the forward-only direction in [vehicle position history](vehicle-position-history.md). The discovery evidence remains the reason the alert journal is not migrated into the authoritative table.

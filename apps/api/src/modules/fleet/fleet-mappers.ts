@@ -1,6 +1,6 @@
 import type { EquGpsDevice, EquGpsPosition } from "@taxi-gps/equgps";
 import { VehicleStatus } from "../../generated/prisma/client";
-import type { FleetCurrentPosition, FleetSnapshotVehicle } from "./fleet.types";
+import type { FleetCurrentPosition, FleetPositionObservation, FleetSnapshotVehicle } from "./fleet.types";
 
 type DateParseResult = Readonly<{ value: Date | null; invalid: boolean }>;
 
@@ -65,7 +65,7 @@ export function selectLatestPositions(positions: readonly EquGpsPosition[]): Rea
   return { selected, duplicatePositions, invalidPositionFixDates };
 }
 
-export function mapFleetSnapshot(devices: readonly EquGpsDevice[], positions: readonly EquGpsPosition[], fetchedAt: Date): Readonly<{ vehicles: readonly FleetSnapshotVehicle[]; devicesWithoutPosition: number; unmatchedPositions: number; duplicatePositions: number; invalidDeviceLastUpdateDates: number; invalidPositionFixDates: number }> {
+export function mapFleetSnapshot(devices: readonly EquGpsDevice[], positions: readonly EquGpsPosition[], fetchedAt: Date): Readonly<{ vehicles: readonly FleetSnapshotVehicle[]; positionObservations: readonly FleetPositionObservation[]; devicesWithoutPosition: number; unmatchedPositions: number; duplicatePositions: number; invalidDeviceLastUpdateDates: number; invalidPositionFixDates: number }> {
   const selectedPositions = selectLatestPositions(positions);
   const deviceIds = new Set(devices.map((device) => device.id));
   let unmatchedPositions = 0;
@@ -87,5 +87,21 @@ export function mapFleetSnapshot(devices: readonly EquGpsDevice[], positions: re
       position: selected ? toPosition(selected.position, selected.fixTime) : null,
     };
   });
-  return { vehicles, devicesWithoutPosition, unmatchedPositions, duplicatePositions: selectedPositions.duplicatePositions, invalidDeviceLastUpdateDates, invalidPositionFixDates: selectedPositions.invalidPositionFixDates };
+  const positionObservations: FleetPositionObservation[] = [];
+  for (const position of positions) {
+    if (!deviceIds.has(position.deviceId)) continue;
+    const parsed = parseExplicitTimezoneDate(position.fixTime);
+    const normalized = toPosition(position, parsed.value);
+    positionObservations.push(Object.freeze({
+      externalDeviceId: position.deviceId,
+      observedAt: normalized.fixTime,
+      latitude: normalized.latitude,
+      longitude: normalized.longitude,
+      speedKph: normalized.speedKph,
+      valid: normalized.valid,
+      outdated: normalized.outdated,
+      fetchedAt,
+    }));
+  }
+  return { vehicles, positionObservations: Object.freeze(positionObservations), devicesWithoutPosition, unmatchedPositions, duplicatePositions: selectedPositions.duplicatePositions, invalidDeviceLastUpdateDates, invalidPositionFixDates: selectedPositions.invalidPositionFixDates };
 }

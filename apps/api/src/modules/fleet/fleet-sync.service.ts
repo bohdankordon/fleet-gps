@@ -20,8 +20,8 @@ export class FleetSyncService {
     const positions = await this.gateway.getLatestPositions();
     const fetchedAt = this.clock.now();
     const mapped = mapFleetSnapshot(devices, positions, fetchedAt);
-    const persisted = await this.repository.persistSnapshot({ vehicles: mapped.vehicles });
+    const persisted = await this.repository.persistSnapshot({ vehicles: mapped.vehicles, positionObservations: mapped.positionObservations });
     const alerts = await this.alertIngestion.ingestSnapshot(mapped.vehicles, persisted.persistedVehicleIdentities);
-    return Object.freeze({ devicesReceived: devices.length, positionsReceived: positions.length, vehiclesUpserted: persisted.vehiclesUpserted, currentStatesUpserted: persisted.currentStatesUpserted, devicesWithoutPosition: mapped.devicesWithoutPosition, unmatchedPositions: mapped.unmatchedPositions, duplicatePositions: mapped.duplicatePositions, invalidDeviceLastUpdateDates: mapped.invalidDeviceLastUpdateDates, invalidPositionFixDates: mapped.invalidPositionFixDates, ...alerts, fetchedAt: fetchedAt.toISOString() });
+    return Object.freeze({ devicesReceived: devices.length, positionsReceived: positions.length, vehiclesUpserted: persisted.vehiclesUpserted, currentStatesUpserted: persisted.currentStatesUpserted, historyCandidates: persisted.historyCandidates, historyInserted: persisted.historyInserted, historyDuplicates: persisted.historyDuplicates, historySkippedInvalid: persisted.historySkippedInvalid, devicesWithoutPosition: mapped.devicesWithoutPosition, unmatchedPositions: mapped.unmatchedPositions, duplicatePositions: mapped.duplicatePositions, invalidDeviceLastUpdateDates: mapped.invalidDeviceLastUpdateDates, invalidPositionFixDates: mapped.invalidPositionFixDates, ...alerts, fetchedAt: fetchedAt.toISOString() });
   }
 }

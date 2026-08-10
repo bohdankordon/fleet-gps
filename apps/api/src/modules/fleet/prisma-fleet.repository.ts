@@ -1,10 +1,18 @@
 import { Injectable } from "@nestjs/common";
-import { VehicleStatus } from "../../generated/prisma/client";
+import { PositionIngestionSource, VehicleStatus, type Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database/database.service";
+import { normalizePositionHistoryCandidate } from "../position-history";
 import type { FleetRepository } from "./fleet.repository";
 import type { FleetPersistedVehicleIdentity, FleetPersistenceResult, FleetSnapshot, FleetSnapshotVehicle } from "./fleet.types";
 
 const transactionTimeoutMs = 30_000;
+
+export class FleetPositionIdentityResolutionError extends Error {
+  public constructor() {
+    super("Persisted vehicle identity is missing for a fleet position observation.");
+    this.name = "FleetPositionIdentityResolutionError";
+  }
+}
 
 @Injectable()
 export class PrismaFleetRepository implements FleetRepository {
@@ -15,7 +23,31 @@ export class PrismaFleetRepository implements FleetRepository {
     return client.$transaction(async (transaction) => {
       const persistedVehicleIdentities: FleetPersistedVehicleIdentity[] = [];
       for (const vehicle of snapshot.vehicles) persistedVehicleIdentities.push(await this.persistVehicle(transaction, vehicle));
-      return { vehiclesUpserted: snapshot.vehicles.length, currentStatesUpserted: snapshot.vehicles.length, persistedVehicleIdentities: Object.freeze(persistedVehicleIdentities) };
+      const vehicleIdByExternalDeviceId = new Map(persistedVehicleIdentities.map((identity) => [identity.externalDeviceId, identity.vehicleId]));
+      const historyRows: Prisma.VehiclePositionObservationCreateManyInput[] = [];
+      let historySkippedInvalid = 0;
+      for (const observation of snapshot.positionObservations) {
+        const vehicleId = vehicleIdByExternalDeviceId.get(observation.externalDeviceId);
+        if (vehicleId === undefined) throw new FleetPositionIdentityResolutionError();
+        const candidate = normalizePositionHistoryCandidate({ ...observation, ingestionSource: PositionIngestionSource.FLEET_SYNC });
+        if (candidate === null) {
+          historySkippedInvalid += 1;
+          continue;
+        }
+        historyRows.push({ vehicleId, ...candidate });
+      }
+      const historyInserted = historyRows.length === 0
+        ? 0
+        : (await transaction.vehiclePositionObservation.createMany({ data: historyRows, skipDuplicates: true })).count;
+      return {
+        vehiclesUpserted: snapshot.vehicles.length,
+        currentStatesUpserted: snapshot.vehicles.length,
+        historyCandidates: historyRows.length,
+        historyInserted,
+        historyDuplicates: historyRows.length - historyInserted,
+        historySkippedInvalid,
+        persistedVehicleIdentities: Object.freeze(persistedVehicleIdentities),
+      };
     }, { timeout: transactionTimeoutMs });
   }
 

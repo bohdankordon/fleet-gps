@@ -16,6 +16,10 @@ function persisted(snapshot: FleetSnapshot) {
   return {
     vehiclesUpserted: snapshot.vehicles.length,
     currentStatesUpserted: snapshot.vehicles.length,
+    historyCandidates: 0,
+    historyInserted: 0,
+    historyDuplicates: 0,
+    historySkippedInvalid: snapshot.positionObservations.length,
     persistedVehicleIdentities: snapshot.vehicles.map((vehicle) => ({ externalDeviceId: vehicle.externalDeviceId, vehicleId })),
   };
 }
@@ -33,7 +37,7 @@ test("syncs devices before positions, persists one complete snapshot and returns
   const result = await service.syncLatestSnapshot();
   assert.deepEqual(calls, ["devices", "positions", "repository", "alerts"]);
   assert.equal(stored?.vehicles.length, 1);
-  assert.deepEqual(result, { devicesReceived: 1, positionsReceived: 1, vehiclesUpserted: 1, currentStatesUpserted: 1, devicesWithoutPosition: 0, unmatchedPositions: 0, duplicatePositions: 0, invalidDeviceLastUpdateDates: 0, invalidPositionFixDates: 0, ...zeroAlerts, fetchedAt: "2026-08-05T12:00:00.000Z" });
+  assert.deepEqual(result, { devicesReceived: 1, positionsReceived: 1, vehiclesUpserted: 1, currentStatesUpserted: 1, historyCandidates: 0, historyInserted: 0, historyDuplicates: 0, historySkippedInvalid: 1, devicesWithoutPosition: 0, unmatchedPositions: 0, duplicatePositions: 0, invalidDeviceLastUpdateDates: 0, invalidPositionFixDates: 0, ...zeroAlerts, fetchedAt: "2026-08-05T12:00:00.000Z" });
   for (const unsafe of ["vehicleId", "externalDeviceId", "latitude", "longitude", "journal", "evaluation"]) assert.equal(unsafe in result, false);
 });
 
@@ -45,6 +49,27 @@ test("does no work in the constructor and treats syncs as separate operations", 
   assert.equal(gatewayCalls, 0); assert.equal(alertCalls, 0);
   await service.syncLatestSnapshot(); await service.syncLatestSnapshot();
   assert.equal(gatewayCalls, 2); assert.equal(alertCalls, 2);
+});
+
+test("persists history independently when alert ingestion returns its disabled result", async () => {
+  const validPositions: readonly EquGpsPosition[] = [{ deviceId: 1, fixTime: "2026-08-05T11:59:00Z", valid: false, outdated: true, speedKnots: 10, latitude: 49.2, longitude: 28.4 }];
+  let historyInputs = 0;
+  const repository: FleetRepository = {
+    persistSnapshot: async (snapshot) => {
+      historyInputs = snapshot.positionObservations.length;
+      return { vehiclesUpserted: 1, currentStatesUpserted: 1, historyCandidates: 1, historyInserted: 1, historyDuplicates: 0, historySkippedInvalid: 0, persistedVehicleIdentities: [{ externalDeviceId: 1, vehicleId }] };
+    },
+  };
+  const service = new FleetSyncService(
+    { getDevices: async () => devices, getLatestPositions: async () => validPositions } as unknown as EquGpsGatewayService,
+    repository,
+    { now: () => new Date("2026-08-05T12:00:00.000Z") },
+    bridge(),
+  );
+  const result = await service.syncLatestSnapshot();
+  assert.equal(historyInputs, 1);
+  assert.equal(result.historyInserted, 1);
+  assert.deepEqual({ alertCandidates: result.alertCandidates, alertProcessed: result.alertProcessed, alertAlreadyProcessed: result.alertAlreadyProcessed, alertSkipped: result.alertSkipped }, zeroAlerts);
 });
 
 test("starts alert ingestion only after snapshot persistence has completed", async () => {
@@ -60,7 +85,7 @@ test("starts alert ingestion only after snapshot persistence has completed", asy
   const syncing = service.syncLatestSnapshot();
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   assert.equal(alertCalls, 0);
-  resolvePersistence({ vehiclesUpserted: 1, currentStatesUpserted: 1, persistedVehicleIdentities: [{ externalDeviceId: 1, vehicleId }] });
+  resolvePersistence({ vehiclesUpserted: 1, currentStatesUpserted: 1, historyCandidates: 0, historyInserted: 0, historyDuplicates: 0, historySkippedInvalid: 0, persistedVehicleIdentities: [{ externalDeviceId: 1, vehicleId }] });
   await syncing;
   assert.equal(alertCalls, 1);
 });

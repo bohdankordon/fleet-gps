@@ -38,6 +38,7 @@
     "alert-event-processing:smoke": "npm --workspace @taxi-gps/api run alert-event-processing:smoke",
     "alert-evaluation:smoke": "npm --workspace @taxi-gps/api run alert-evaluation:smoke",
     "alert-ingestion:smoke": "npm --workspace @taxi-gps/api run alert-ingestion:smoke",
+    "position-history:smoke": "npm --workspace @taxi-gps/api run position-history:smoke",
     "vinnytsia-boundary:verify": "npm --workspace @taxi-gps/api run vinnytsia-boundary:verify",
     "api:config-preflight": "npm --workspace @taxi-gps/api run api:config-preflight",
     "sync-scheduler:smoke": "npm --workspace @taxi-gps/api run sync-scheduler:smoke",

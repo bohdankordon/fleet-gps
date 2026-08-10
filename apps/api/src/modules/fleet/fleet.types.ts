@@ -21,7 +21,21 @@ export type FleetSnapshotVehicle = Readonly<{
   position: FleetCurrentPosition | null;
 }>;
 
-export type FleetSnapshot = Readonly<{ vehicles: readonly FleetSnapshotVehicle[] }>;
+export type FleetPositionObservation = Readonly<{
+  externalDeviceId: number;
+  observedAt: Date | null;
+  latitude: number | null;
+  longitude: number | null;
+  speedKph: number | null;
+  valid: boolean | null;
+  outdated: boolean | null;
+  fetchedAt: Date;
+}>;
+
+export type FleetSnapshot = Readonly<{
+  vehicles: readonly FleetSnapshotVehicle[];
+  positionObservations: readonly FleetPositionObservation[];
+}>;
 
 export type FleetPersistedVehicleIdentity = Readonly<{
   externalDeviceId: number;
@@ -31,6 +45,10 @@ export type FleetPersistedVehicleIdentity = Readonly<{
 export type FleetPersistenceResult = Readonly<{
   vehiclesUpserted: number;
   currentStatesUpserted: number;
+  historyCandidates: number;
+  historyInserted: number;
+  historyDuplicates: number;
+  historySkippedInvalid: number;
   persistedVehicleIdentities: readonly FleetPersistedVehicleIdentity[];
 }>;
 
@@ -51,6 +69,10 @@ export type FleetSyncResult = Readonly<{
   duplicatePositions: number;
   invalidDeviceLastUpdateDates: number;
   invalidPositionFixDates: number;
+  historyCandidates: number;
+  historyInserted: number;
+  historyDuplicates: number;
+  historySkippedInvalid: number;
   alertCandidates: number;
   alertProcessed: number;
   alertAlreadyProcessed: number;

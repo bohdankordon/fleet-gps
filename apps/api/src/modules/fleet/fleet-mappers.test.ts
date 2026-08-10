@@ -59,3 +59,23 @@ test("counts every unmatched position row while retaining duplicate selection be
   assert.equal(mapped.vehicles.length, 1);
   assert.equal(mapped.vehicles[0]?.position, null);
 });
+
+test("preserves every matched provider row for history while current state keeps one deterministic latest fix", () => {
+  const first = position({ fixTime: "2026-08-05T10:00:00+0000", latitude: 49.2, speedKnots: 10 });
+  const sameTimeDistinct = position({ fixTime: "2026-08-05T10:00:00+0000", latitude: 49.3, speedKnots: 20, valid: false, outdated: true });
+  const malformed = position({ fixTime: null, latitude: Number.NaN, longitude: 28.4, speedKnots: Number.POSITIVE_INFINITY });
+  const unmatched = position({ deviceId: 99 });
+  const mapped = mapFleetSnapshot([device()], [first, sameTimeDistinct, malformed, unmatched], fetchedAt);
+
+  assert.equal(mapped.vehicles[0]?.position?.latitude, 49.2);
+  assert.equal(mapped.positionObservations.length, 3);
+  assert.deepEqual(mapped.positionObservations.map((value) => value.externalDeviceId), [1, 1, 1]);
+  assert.equal(mapped.positionObservations[1]?.latitude, 49.3);
+  assert.equal(mapped.positionObservations[1]?.valid, false);
+  assert.equal(mapped.positionObservations[1]?.outdated, true);
+  assert.equal(mapped.positionObservations[2]?.observedAt, null);
+  assert.equal(mapped.positionObservations[2]?.latitude, null);
+  assert.equal(mapped.positionObservations[2]?.longitude, null);
+  assert.equal(mapped.positionObservations[2]?.speedKph, null);
+  assert.equal(mapped.unmatchedPositions, 1);
+});
