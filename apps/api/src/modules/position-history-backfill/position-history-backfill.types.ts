@@ -72,6 +72,7 @@ export type PositionHistoryFleetBackfillCheckpoint = Readonly<{
 export type PositionHistoryFleetBackfillVehicle = Readonly<{
   vehicleId: string;
   externalDeviceId: number | null;
+  providerDisabled: boolean;
   checkpoint: PositionHistoryFleetBackfillCheckpoint | null;
 }>;
 
@@ -83,11 +84,13 @@ export type PositionHistoryFleetBackfillRunOptions = Readonly<{
   maxVehicles?: number;
   maxWindows?: number;
   plan?: boolean;
+  excludeProviderDisabled?: boolean;
 }>;
 
 export type PositionHistoryFleetBackfillResult = Readonly<{
   plan: boolean;
   vehiclesTotal: number;
+  providerDisabledExcluded: number;
   vehiclesConsidered: number;
   vehiclesStarted: number;
   vehiclesCompleted: number;

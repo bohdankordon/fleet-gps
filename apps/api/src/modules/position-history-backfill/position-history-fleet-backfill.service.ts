@@ -61,9 +61,11 @@ export class PositionHistoryFleetBackfillService {
   ) {}
 
   public async run(target: PositionHistoryFleetBackfillTarget, options: PositionHistoryFleetBackfillRunOptions = {}): Promise<PositionHistoryFleetBackfillResult> {
-    if (!validTarget(target) || !positiveInteger(options.maxVehicles) || !positiveInteger(options.maxWindows) || (options.plan !== undefined && typeof options.plan !== "boolean")) throw new PositionHistoryBackfillTargetError();
+    if (!validTarget(target) || !positiveInteger(options.maxVehicles) || !positiveInteger(options.maxWindows) || (options.plan !== undefined && typeof options.plan !== "boolean") || (options.excludeProviderDisabled !== undefined && typeof options.excludeProviderDisabled !== "boolean")) throw new PositionHistoryBackfillTargetError();
     const fleet = await this.repository.inspect(target);
-    const considered = fleet.slice(0, options.maxVehicles ?? fleet.length);
+    const providerDisabledExcluded = options.excludeProviderDisabled === true ? fleet.filter((vehicle) => vehicle.providerDisabled).length : 0;
+    const eligibleFleet = options.excludeProviderDisabled === true ? fleet.filter((vehicle) => !vehicle.providerDisabled) : fleet;
+    const considered = eligibleFleet.slice(0, options.maxVehicles ?? eligibleFleet.length);
     const vehiclesAlreadyCompleted = considered.filter(isCompleted).length;
     const pendingVehicles = considered.filter((vehicle) => !isCompleted(vehicle) && (vehicle.checkpoint === null || vehicle.checkpoint.nextFrom.getTime() <= target.from.getTime())).length;
     const partialVehicles = considered.filter((vehicle) => !isCompleted(vehicle) && vehicle.checkpoint !== null && vehicle.checkpoint.nextFrom.getTime() > target.from.getTime()).length;
@@ -74,6 +76,7 @@ export class PositionHistoryFleetBackfillService {
     const base = {
       plan: options.plan === true,
       vehiclesTotal: fleet.length,
+      providerDisabledExcluded,
       vehiclesConsidered: considered.length,
       vehiclesAlreadyCompleted,
       pendingVehicles,
@@ -84,7 +87,7 @@ export class PositionHistoryFleetBackfillService {
 
     if (options.plan === true) {
       const maxWindowsLimits = options.maxWindows !== undefined && options.maxWindows < estimatedRemainingWindows;
-      const maxVehiclesLimits = considered.length < fleet.length && fleet.slice(considered.length).some((vehicle) => !isCompleted(vehicle));
+      const maxVehiclesLimits = considered.length < eligibleFleet.length && eligibleFleet.slice(considered.length).some((vehicle) => !isCompleted(vehicle));
       return Object.freeze({ ...base, vehiclesStarted: 0, vehiclesCompleted: 0, vehiclesRemaining: initialRemainingVehicles, ...aggregate, stoppedByBudget: maxWindowsLimits || maxVehiclesLimits });
     }
 
@@ -110,7 +113,7 @@ export class PositionHistoryFleetBackfillService {
       if (result.completed) vehiclesCompleted += 1;
       else { stoppedByBudget = true; break; }
     }
-    if (!stoppedByBudget && considered.length < fleet.length && fleet.slice(considered.length).some((vehicle) => !isCompleted(vehicle))) stoppedByBudget = true;
+    if (!stoppedByBudget && considered.length < eligibleFleet.length && eligibleFleet.slice(considered.length).some((vehicle) => !isCompleted(vehicle))) stoppedByBudget = true;
     return Object.freeze({
       ...base,
       vehiclesStarted,

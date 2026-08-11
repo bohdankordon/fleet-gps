@@ -14,8 +14,8 @@ test("inspects exact target checkpoints in stable public UUID order using one re
       findMany: async (input: unknown) => {
         query = input;
         return [
-          { id: "00000000-0000-4000-8000-000000000001", externalDeviceId: 7, positionBackfillCheckpoints: [] },
-          { id: "00000000-0000-4000-8000-000000000002", externalDeviceId: 8, positionBackfillCheckpoints: [{ nextFrom: to, status: PositionBackfillStatus.COMPLETED }] },
+          { id: "00000000-0000-4000-8000-000000000001", externalDeviceId: 7, disabled: false, positionBackfillCheckpoints: [] },
+          { id: "00000000-0000-4000-8000-000000000002", externalDeviceId: 8, disabled: true, positionBackfillCheckpoints: [{ nextFrom: to, status: PositionBackfillStatus.COMPLETED }] },
         ];
       },
       update: async () => { writes += 1; },
@@ -27,8 +27,11 @@ test("inspects exact target checkpoints in stable public UUID order using one re
   assert.deepEqual(rows.map((row) => row.vehicleId), ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"]);
   assert.equal(rows[0]?.checkpoint, null);
   assert.equal(rows[1]?.checkpoint?.status, PositionBackfillStatus.COMPLETED);
-  const args = query as { orderBy: unknown; select: { positionBackfillCheckpoints: { where: unknown; take: number } } };
+  assert.equal(rows[0]?.providerDisabled, false);
+  assert.equal(rows[1]?.providerDisabled, true);
+  const args = query as { orderBy: unknown; select: { disabled: boolean; positionBackfillCheckpoints: { where: unknown; take: number } } };
   assert.deepEqual(args.orderBy, { id: "asc" });
+  assert.equal(args.select.disabled, true);
   assert.deepEqual(args.select.positionBackfillCheckpoints.where, { rangeFrom: from, rangeTo: to });
   assert.equal(args.select.positionBackfillCheckpoints.take, 1);
   assert.equal(writes, 0);

@@ -4,6 +4,7 @@ import { PositionBackfillStatus, PositionIngestionSource } from "../../generated
 import { EquGpsGatewayService } from "../equgps/equgps-gateway.service";
 import { mapEquGpsPositionToHistoryInput, normalizePositionHistoryCandidate, type PositionHistoryCandidate } from "../position-history";
 import { PositionHistoryBackfillProviderContractError, PositionHistoryBackfillTargetError } from "./position-history-backfill.errors";
+import { classifyPositionHistoryBackfillProviderFailure, recordPositionHistoryBackfillProviderFailure } from "./position-history-backfill-failure-diagnostics";
 import { POSITION_HISTORY_BACKFILL_CLOCK, POSITION_HISTORY_BACKFILL_REPOSITORY, POSITION_HISTORY_BACKFILL_SLEEPER } from "./position-history-backfill.tokens";
 import type { PositionHistoryBackfillClock, PositionHistoryBackfillRepository, PositionHistoryBackfillResult, PositionHistoryBackfillRunOptions, PositionHistoryBackfillSleeper, PositionHistoryBackfillTarget } from "./position-history-backfill.types";
 
@@ -88,10 +89,16 @@ export class PositionHistoryBackfillService {
         return Object.freeze({ positions, fetchedAt: new Date(fetchedAt.getTime()) });
       } catch (error) {
         if (error instanceof EquGpsRateLimitError) aggregate.rateLimitResponses += 1;
-        if (!transient(error) || attempt === POSITION_HISTORY_BACKFILL_MAX_ATTEMPTS) throw error;
+        if (!transient(error) || attempt === POSITION_HISTORY_BACKFILL_MAX_ATTEMPTS) {
+          recordPositionHistoryBackfillProviderFailure(error, classifyPositionHistoryBackfillProviderFailure(error, { retryable: false, maxRetryAfterMs: POSITION_HISTORY_BACKFILL_MAX_RETRY_AFTER_MS }));
+          throw error;
+        }
         const retryAfter = error instanceof EquGpsRateLimitError ? error.retryAfterMs : null;
         const delay = retryAfter ?? 1_000 * 2 ** (attempt - 1);
-        if (delay > POSITION_HISTORY_BACKFILL_MAX_RETRY_AFTER_MS) throw error;
+        if (delay > POSITION_HISTORY_BACKFILL_MAX_RETRY_AFTER_MS) {
+          recordPositionHistoryBackfillProviderFailure(error, classifyPositionHistoryBackfillProviderFailure(error, { retryable: false, maxRetryAfterMs: POSITION_HISTORY_BACKFILL_MAX_RETRY_AFTER_MS }));
+          throw error;
+        }
         aggregate.retries += 1;
         await this.sleeper.sleep(delay);
       }

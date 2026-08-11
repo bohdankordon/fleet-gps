@@ -1,4 +1,5 @@
 const { classifyRequest, isAllowedHistoricalRequest, parseTimestamp } = require("./position-history-backfill.cjs");
+const providerFailureDiagnostics = require("../dist/modules/position-history-backfill/position-history-backfill-failure-diagnostics");
 
 const maxTargetMs = 7 * 24 * 60 * 60 * 1_000;
 
@@ -14,11 +15,17 @@ function parsePositiveInteger(value) {
 function parseArguments(argv) {
   const values = new Map();
   let plan = false;
+  let excludeProviderDisabled = false;
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--plan") {
       if (plan) throw usageError();
       plan = true;
+      continue;
+    }
+    if (argument === "--exclude-provider-disabled") {
+      if (excludeProviderDisabled) throw usageError();
+      excludeProviderDisabled = true;
       continue;
     }
     if (!["--from", "--to", "--max-vehicles", "--max-windows"].includes(argument) || values.has(argument) || index + 1 >= argv.length || argv[index + 1].startsWith("--")) throw usageError();
@@ -37,16 +44,22 @@ function parseArguments(argv) {
       ...(maxVehicles === undefined ? {} : { maxVehicles }),
       ...(maxWindows === undefined ? {} : { maxWindows }),
       ...(plan ? { plan: true } : {}),
+      ...(excludeProviderDisabled ? { excludeProviderDisabled: true } : {}),
     }),
   });
 }
 
 function safeErrorType(error) {
   if (error?.name === "PositionHistoryBackfillTargetError") return "invalid_target";
-  if (typeof error?.name === "string" && error.name.startsWith("EquGps")) return "provider";
+  if ((typeof error?.name === "string" && error.name.startsWith("EquGps")) || error?.name === "PositionHistoryBackfillProviderContractError") return "provider";
   if (typeof error?.name === "string" && error.name.startsWith("Prisma")) return "database";
   if (error?.message === "invalid arguments") return "invalid_arguments";
   return "unknown";
+}
+
+function safeProviderDiagnostic(error) {
+  const recorded = providerFailureDiagnostics.recordedPositionHistoryBackfillProviderFailure(error);
+  return recorded ?? providerFailureDiagnostics.classifyPositionHistoryBackfillProviderFailure(error, { maxRetryAfterMs: 60_000 });
 }
 
 function outputLines(state) {
@@ -56,6 +69,7 @@ function outputLines(state) {
     `fleet backfill success: ${state.success}`,
     `plan: ${value("plan")}`,
     `vehicles total: ${value("vehiclesTotal")}`,
+    `provider-disabled excluded: ${value("providerDisabledExcluded")}`,
     `vehicles considered: ${value("vehiclesConsidered")}`,
     `vehicles started: ${value("vehiclesStarted")}`,
     `vehicles completed: ${value("vehiclesCompleted")}`,
@@ -84,12 +98,19 @@ function outputLines(state) {
     `unexpected external requests: ${state.network.unexpected}`,
     `application closed: ${state.applicationClosed}`,
     `error type: ${state.errorType ?? "none"}`,
+    ...(state.providerDiagnostic === undefined ? [] : [
+      `provider category: ${state.providerDiagnostic.category}`,
+      ...(state.providerDiagnostic.status === undefined ? [] : [`provider HTTP status: ${state.providerDiagnostic.status}`]),
+      ...(state.providerDiagnostic.retryable === undefined ? [] : [`provider retryable: ${state.providerDiagnostic.retryable}`]),
+      ...(state.providerDiagnostic.retryAfterPolicy === undefined ? [] : [`provider retry-after policy: ${state.providerDiagnostic.retryAfterPolicy}`]),
+      ...(state.providerDiagnostic.diagnosticCode === undefined ? [] : [`provider diagnostic code: ${state.providerDiagnostic.diagnosticCode}`]),
+    ]),
   ];
 }
 
 async function run(argv, dependencies = {}) {
   const output = dependencies.output ?? ((line) => console.log(line));
-  const state = { success: false, result: undefined, errorType: undefined, applicationClosed: true, network: { devices: 0, latestPositions: 0, historicalPositions: 0, routesNew: 0, telegram: 0, openFreeMap: 0, unexpected: 0 } };
+  const state = { success: false, result: undefined, errorType: undefined, providerDiagnostic: undefined, applicationClosed: true, network: { devices: 0, latestPositions: 0, historicalPositions: 0, routesNew: 0, telegram: 0, openFreeMap: 0, unexpected: 0 } };
   let app;
   let nativeFetch;
   try {
@@ -118,6 +139,7 @@ async function run(argv, dependencies = {}) {
     return 0;
   } catch (error) {
     state.errorType = safeErrorType(error);
+    if (state.errorType === "provider") state.providerDiagnostic = safeProviderDiagnostic(error);
     return 1;
   } finally {
     if (app !== undefined) {
@@ -131,4 +153,4 @@ async function run(argv, dependencies = {}) {
 
 if (require.main === module) void run(process.argv.slice(2)).then((code) => { process.exitCode = code; });
 
-module.exports = { outputLines, parseArguments, parsePositiveInteger, run };
+module.exports = { outputLines, parseArguments, parsePositiveInteger, run, safeProviderDiagnostic };

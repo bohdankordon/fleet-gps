@@ -12,6 +12,7 @@ export class PrismaPositionHistoryFleetBackfillRepository implements PositionHis
       select: {
         id: true,
         externalDeviceId: true,
+        disabled: true,
         positionBackfillCheckpoints: {
           where: { rangeFrom: target.from, rangeTo: target.to },
           take: 1,
@@ -22,6 +23,7 @@ export class PrismaPositionHistoryFleetBackfillRepository implements PositionHis
     return Object.freeze(vehicles.map((vehicle) => Object.freeze({
       vehicleId: vehicle.id,
       externalDeviceId: vehicle.externalDeviceId,
+      providerDisabled: vehicle.disabled === true,
       checkpoint: vehicle.positionBackfillCheckpoints[0] ?? null,
     })));
   }

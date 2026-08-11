@@ -6,6 +6,7 @@ function aggregate(overrides = {}) {
   return {
     plan: false,
     vehiclesTotal: 2,
+    providerDisabledExcluded: 0,
     vehiclesConsidered: 2,
     vehiclesStarted: 2,
     vehiclesCompleted: 2,
@@ -73,6 +74,14 @@ test("parses exact seven-day fleet target and global budgets", () => {
   assert.deepEqual(parsed.options, { maxVehicles: 2, maxWindows: 169, plan: true });
 });
 
+test("parses provider-disabled exclusion as an explicit boolean opt-in", () => {
+  const defaultOptions = cli.parseArguments(["--from", "2026-08-01T00:00:00Z", "--to", "2026-08-02T00:00:00Z"]);
+  const excluded = cli.parseArguments(["--from", "2026-08-01T00:00:00Z", "--to", "2026-08-02T00:00:00Z", "--exclude-provider-disabled"]);
+  assert.deepEqual(defaultOptions.options, {});
+  assert.deepEqual(excluded.options, { excludeProviderDisabled: true });
+  assert.throws(() => cli.parseArguments(["--from", "2026-08-01T00:00:00Z", "--to", "2026-08-02T00:00:00Z", "--exclude-provider-disabled", "--exclude-provider-disabled"]));
+});
+
 test("delegates once to fleet service and emits only safe aggregate identity-free output", async () => {
   const lines = [];
   let received;
@@ -87,6 +96,7 @@ test("delegates once to fleet service and emits only safe aggregate identity-fre
   assert.ok(lines.includes("history duplicates: 3"));
   assert.ok(lines.includes("provider requests: 0"));
   assert.ok(lines.includes("history inserted: 0"));
+  assert.ok(lines.includes("provider-disabled excluded: 0"));
   assert.ok(lines.includes("stopped by budget: false"));
   assert.equal(lines.some((line) => line.endsWith(": n/a")), false);
   const output = lines.join("\n");
@@ -103,6 +113,17 @@ test("plan mode reports zero network and forwards read-only intent", async () =>
   assert.ok(lines.includes("plan: true"));
   assert.ok(lines.includes("eQuGPS historical positions requests: 0"));
   assert.ok(lines.includes("unexpected external requests: 0"));
+});
+
+test("plan forwards provider-disabled exclusion and reports its aggregate", async () => {
+  const lines = [];
+  let options;
+  class Service {}
+  const app = { get: () => ({ run: async (_target, value) => { options = value; return aggregate({ plan: true, providerDisabledExcluded: 3, vehiclesStarted: 0, vehiclesCompleted: 0, windowsRequested: 0 }); } }), close: async () => undefined };
+  assert.equal(await cli.run(["--from", "2026-08-01T00:00:00Z", "--to", "2026-08-02T00:00:00Z", "--plan", "--exclude-provider-disabled"], { loadRootEnv: () => undefined, Module: class {}, Service, createApplicationContext: async () => app, output: (line) => lines.push(line) }), 0);
+  assert.deepEqual(options, { plan: true, excludeProviderDisabled: true });
+  assert.ok(lines.includes("provider-disabled excluded: 3"));
+  assert.ok(lines.includes("eQuGPS historical positions requests: 0"));
 });
 
 test("post-result network assertion failure reports overall failure while preserving factual aggregate values", async () => {
@@ -177,6 +198,7 @@ test("later provider failure reports unavailable aggregates instead of false zer
   for (const label of [
     "plan",
     "vehicles total",
+    "provider-disabled excluded",
     "vehicles considered",
     "vehicles started",
     "vehicles completed",
@@ -202,4 +224,28 @@ test("later provider failure reports unavailable aggregates instead of false zer
   assert.ok(lines.includes("unexpected external requests: 0"));
   assert.ok(lines.includes("application closed: true"));
   assert.ok(lines.includes("error type: provider"));
+});
+
+test("provider failure diagnostics are typed, safe, and do not replace unavailable aggregates", async () => {
+  const { EquGpsHttpError, EquGpsNetworkError, EquGpsRateLimitError, EquGpsResponseValidationError, EquGpsTimeoutError } = require("@taxi-gps/equgps");
+  const { PositionHistoryBackfillProviderContractError } = require("../dist/modules/position-history-backfill/position-history-backfill.errors");
+  assert.deepEqual(cli.safeProviderDiagnostic(new EquGpsNetworkError("getHistoricalPositions")), { category: "network" });
+  assert.deepEqual(cli.safeProviderDiagnostic(new EquGpsTimeoutError("getHistoricalPositions")), { category: "timeout" });
+  assert.deepEqual(cli.safeProviderDiagnostic(new EquGpsRateLimitError("getHistoricalPositions", 61_000)), { category: "rate_limit", status: 429, retryable: false, retryAfterPolicy: "exceeds_limit" });
+  assert.deepEqual(cli.safeProviderDiagnostic(new EquGpsHttpError(503, "getHistoricalPositions")), { category: "http", status: 503 });
+  assert.deepEqual(cli.safeProviderDiagnostic(new EquGpsHttpError(400, "getHistoricalPositions")), { category: "permanent_http", status: 400, retryable: false });
+  assert.deepEqual(cli.safeProviderDiagnostic(new EquGpsResponseValidationError("getHistoricalPositions", "invalid_json")), { category: "contract", retryable: false, diagnosticCode: "invalid_json" });
+  assert.deepEqual(cli.safeProviderDiagnostic(new PositionHistoryBackfillProviderContractError()), { category: "contract", retryable: false });
+  assert.deepEqual(cli.safeProviderDiagnostic(Object.assign(new Error("token=secret&deviceId=7"), { name: "EquGpsUnknownError" })), { category: "unknown" });
+  const lines = [];
+  class Service {}
+  const app = { get: () => ({ run: async () => { throw new EquGpsHttpError(400, "getHistoricalPositions"); } }), close: async () => undefined };
+  assert.equal(await cli.run(["--from", "2026-08-01T00:00:00Z", "--to", "2026-08-01T01:00:00Z"], { loadRootEnv: () => undefined, Module: class {}, Service, createApplicationContext: async () => app, output: (line) => lines.push(line) }), 1);
+  assert.ok(lines.includes("fleet backfill success: false"));
+  assert.ok(lines.includes("provider category: permanent_http"));
+  assert.ok(lines.includes("provider HTTP status: 400"));
+  assert.ok(lines.includes("provider retryable: false"));
+  assert.ok(lines.includes("provider requests: n/a"));
+  const output = lines.join("\n");
+  for (const forbidden of ["token", "deviceId", "getHistoricalPositions", "password", "Authorization"]) assert.equal(output.includes(forbidden), false, forbidden);
 });

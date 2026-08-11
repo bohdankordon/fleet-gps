@@ -12,10 +12,11 @@ const ids = [
   "00000000-0000-4000-8000-000000000001",
   "00000000-0000-4000-8000-000000000002",
   "00000000-0000-4000-8000-000000000003",
+  "00000000-0000-4000-8000-000000000004",
 ];
 
 function vehicle(index: number, overrides: Partial<PositionHistoryFleetBackfillVehicle> = {}): PositionHistoryFleetBackfillVehicle {
-  return { vehicleId: ids[index]!, externalDeviceId: index + 1, checkpoint: null, ...overrides };
+  return { vehicleId: ids[index]!, externalDeviceId: index + 1, providerDisabled: false, checkpoint: null, ...overrides };
 }
 
 function result(overrides: Partial<PositionHistoryBackfillResult> = {}): PositionHistoryBackfillResult {
@@ -54,7 +55,7 @@ function harness(fleet: readonly PositionHistoryFleetBackfillVehicle[], response
 test("delegates all pending vehicles to the single-vehicle engine in persisted order with cross-vehicle pacing", async () => {
   const item = harness([vehicle(0), vehicle(1), vehicle(2)]);
   const aggregate = await item.service.run(target);
-  assert.deepEqual(item.calls.map((call) => call.target.vehicleId), ids);
+  assert.deepEqual(item.calls.map((call) => call.target.vehicleId), ids.slice(0, 3));
   assert.deepEqual(item.calls.map((call) => call.options), [{}, { paceBeforeFirstWindow: true }, { paceBeforeFirstWindow: true }]);
   assert.equal(aggregate.vehiclesStarted, 3);
   assert.equal(aggregate.vehiclesCompleted, 3);
@@ -102,6 +103,52 @@ test("max-vehicle budget selects a deterministic prefix and stops between vehicl
   assert.equal(aggregate.vehiclesConsidered, 1);
   assert.equal(aggregate.vehiclesRemaining, 2);
   assert.equal(aggregate.stoppedByBudget, true);
+});
+
+test("default mode keeps provider-disabled vehicles in the deterministic max-vehicle prefix", async () => {
+  const item = harness([vehicle(0), vehicle(1, { providerDisabled: true }), vehicle(2)]);
+  const aggregate = await item.service.run(target, { maxVehicles: 2 });
+  assert.deepEqual(item.calls.map((call) => call.target.vehicleId), [ids[0], ids[1]]);
+  assert.equal(aggregate.providerDisabledExcluded, 0);
+  assert.equal(aggregate.vehiclesConsidered, 2);
+});
+
+test("opt-in provider-disabled exclusion preserves fleet-wide remaining history while applying max-vehicles after exclusion", async () => {
+  const pending = { nextFrom: from, status: PositionBackfillStatus.PENDING };
+  const item = harness([vehicle(0, { checkpoint: pending }), vehicle(1, { providerDisabled: true, checkpoint: pending }), vehicle(2, { checkpoint: pending }), vehicle(3, { checkpoint: pending })]);
+  const aggregate = await item.service.run(target, { excludeProviderDisabled: true, maxVehicles: 2 });
+  assert.deepEqual(item.calls.map((call) => call.target.vehicleId), [ids[0], ids[2]]);
+  assert.equal(aggregate.providerDisabledExcluded, 1);
+  assert.equal(aggregate.vehiclesConsidered, 2);
+  assert.equal(aggregate.vehiclesCompleted, 2);
+  assert.equal(aggregate.vehiclesRemaining, 2);
+  assert.equal(aggregate.stoppedByBudget, true);
+});
+
+test("opt-in provider-disabled exclusion leaves existing checkpoints untouched and plan stays read-only", async () => {
+  const pending = { nextFrom: from, status: PositionBackfillStatus.PENDING };
+  const disabled = vehicle(0, { providerDisabled: true, checkpoint: pending });
+  const item = harness([disabled, vehicle(1, { providerDisabled: true }), vehicle(2)]);
+  const aggregate = await item.service.run(target, { excludeProviderDisabled: true, plan: true, maxVehicles: 2 });
+  assert.equal(item.calls.length, 0);
+  assert.equal(disabled.checkpoint, pending);
+  assert.equal(aggregate.providerDisabledExcluded, 2);
+  assert.equal(aggregate.vehiclesConsidered, 1);
+  assert.equal(aggregate.pendingVehicles, 1);
+  assert.equal(aggregate.vehiclesRemaining, 3);
+  assert.equal(aggregate.providerRequests, 0);
+  assert.equal(aggregate.stoppedByBudget, false);
+});
+
+test("opt-in provider-disabled exclusion does not delegate or mutate an existing pending checkpoint", async () => {
+  const pending = { nextFrom: from, status: PositionBackfillStatus.PENDING };
+  const disabled = vehicle(0, { providerDisabled: true, checkpoint: pending });
+  const item = harness([disabled, vehicle(1)]);
+  const aggregate = await item.service.run(target, { excludeProviderDisabled: true });
+  assert.deepEqual(item.calls.map((call) => call.target.vehicleId), [ids[1]]);
+  assert.equal(disabled.checkpoint, pending);
+  assert.equal(aggregate.providerDisabledExcluded, 1);
+  assert.equal(aggregate.windowsRequested, 1);
 });
 
 test("provider and database failures propagate and never start the next vehicle", async () => {
@@ -162,6 +209,7 @@ test("rejects invalid target and budget boundaries before repository access", as
     [target, { maxVehicles: 0 }],
     [target, { maxWindows: 0 }],
     [target, { maxWindows: Number.MAX_SAFE_INTEGER + 1 }],
-  ] as const) await assert.rejects(item.service.run(badTarget, options));
+    [target, { excludeProviderDisabled: "true" }],
+  ] as const) await assert.rejects(item.service.run(badTarget, options as never));
   assert.equal(item.inspections(), 0);
 });
