@@ -56,4 +56,55 @@ export type PositionHistoryBackfillResult = Readonly<{
 
 export type PositionHistoryBackfillRunOptions = Readonly<{
   maxWindows?: number;
+  paceBeforeFirstWindow?: boolean;
+}>;
+
+export type PositionHistoryFleetBackfillTarget = Readonly<{
+  from: Date;
+  to: Date;
+}>;
+
+export type PositionHistoryFleetBackfillCheckpoint = Readonly<{
+  nextFrom: Date;
+  status: PositionBackfillStatus;
+}>;
+
+export type PositionHistoryFleetBackfillVehicle = Readonly<{
+  vehicleId: string;
+  externalDeviceId: number | null;
+  checkpoint: PositionHistoryFleetBackfillCheckpoint | null;
+}>;
+
+export interface PositionHistoryFleetBackfillRepository {
+  inspect(target: PositionHistoryFleetBackfillTarget): Promise<readonly PositionHistoryFleetBackfillVehicle[]>;
+}
+
+export type PositionHistoryFleetBackfillRunOptions = Readonly<{
+  maxVehicles?: number;
+  maxWindows?: number;
+  plan?: boolean;
+}>;
+
+export type PositionHistoryFleetBackfillResult = Readonly<{
+  plan: boolean;
+  vehiclesTotal: number;
+  vehiclesConsidered: number;
+  vehiclesStarted: number;
+  vehiclesCompleted: number;
+  vehiclesAlreadyCompleted: number;
+  vehiclesRemaining: number;
+  pendingVehicles: number;
+  partialVehicles: number;
+  unmappedVehicles: number;
+  estimatedRemainingWindows: number;
+  windowsRequested: number;
+  providerRequests: number;
+  providerRows: number;
+  candidates: number;
+  inserted: number;
+  duplicates: number;
+  invalid: number;
+  retries: number;
+  rateLimitResponses: number;
+  stoppedByBudget: boolean;
 }>;

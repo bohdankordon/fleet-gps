@@ -90,6 +90,17 @@ test("clean max-window pause persists progress and a second invocation resumes w
   assert.deepEqual(item.calls.map((call) => call.from), ["2026-08-10T00:00:00.000Z", "2026-08-10T01:00:00.000Z", "2026-08-10T02:00:00.000Z"]);
 });
 
+test("optional fleet handoff pacing remains engine-owned and does not affect completed replay", async () => {
+  const item = harness({ responses: [[]] });
+  await item.service.run(target(), { paceBeforeFirstWindow: true });
+  assert.deepEqual(item.sleeps, [500]);
+
+  const completed = harness({ checkpoint: { status: PositionBackfillStatus.COMPLETED, nextFrom: target().to } });
+  await completed.service.run(target(), { paceBeforeFirstWindow: true });
+  assert.deepEqual(completed.sleeps, []);
+  assert.equal(completed.calls.length, 0);
+});
+
 test("cross-source and overlapping historical fixes use one shared fingerprint identity", async () => {
   const existingFleetFix = normalizePositionHistoryCandidate({ observedAt: new Date("2026-08-10T00:30:00Z"), latitude: 49.2, longitude: 28.4, speedKph: 18.52, valid: false, outdated: true, fetchedAt: new Date("2026-08-10T00:31:00Z"), ingestionSource: PositionIngestionSource.FLEET_SYNC })!;
   const replay = harness({ responses: [[point("2026-08-10T00:30:00Z")]], existingFingerprints: new Set([existingFleetFix.fixFingerprint]) });

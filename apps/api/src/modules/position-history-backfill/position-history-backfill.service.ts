@@ -39,7 +39,9 @@ export class PositionHistoryBackfillService {
   ) {}
 
   public async run(target: PositionHistoryBackfillTarget, options: PositionHistoryBackfillRunOptions = {}): Promise<PositionHistoryBackfillResult> {
-    if (!validTarget(target) || (options.maxWindows !== undefined && (!Number.isInteger(options.maxWindows) || options.maxWindows < 1 || options.maxWindows > 168))) throw new PositionHistoryBackfillTargetError();
+    if (!validTarget(target)
+      || (options.maxWindows !== undefined && (!Number.isInteger(options.maxWindows) || options.maxWindows < 1 || options.maxWindows > 168))
+      || (options.paceBeforeFirstWindow !== undefined && typeof options.paceBeforeFirstWindow !== "boolean")) throw new PositionHistoryBackfillTargetError();
     const checkpoint = await this.repository.prepare(target);
     const alreadyCompleted = checkpoint.status === PositionBackfillStatus.COMPLETED;
     const resumed = checkpoint.nextFrom.getTime() > checkpoint.rangeFrom.getTime();
@@ -47,6 +49,7 @@ export class PositionHistoryBackfillService {
     if (alreadyCompleted) return Object.freeze({ alreadyCompleted: true, resumed: true, ...aggregate, completed: true });
 
     let cursor = new Date(checkpoint.nextFrom.getTime());
+    if (options.paceBeforeFirstWindow === true && cursor.getTime() < checkpoint.rangeTo.getTime()) await this.sleeper.sleep(POSITION_HISTORY_BACKFILL_PACING_MS);
     while (cursor.getTime() < checkpoint.rangeTo.getTime()) {
       const windowTo = new Date(Math.min(cursor.getTime() + POSITION_HISTORY_BACKFILL_WINDOW_MS, checkpoint.rangeTo.getTime()));
       const response = await this.fetchWindow(checkpoint.externalDeviceId, cursor, windowTo, aggregate);

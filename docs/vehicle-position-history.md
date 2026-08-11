@@ -82,6 +82,45 @@ The backfill Nest module imports only the database and official provider gateway
 
 Retention deletion remains disabled. The discovery supports a future capacity discussion using at least 90 observed provider days and highly variable density, but it does not establish a 30-day local deletion policy. A fleet-wide historical population and any cleanup scheduler remain separate operator/product decisions.
 
+## Operator-only full-fleet backfill (Stage 13A)
+
+The full-fleet command is an explicit operator orchestration layer over the same `PositionHistoryBackfillService` described above:
+
+```text
+npm run position-history:backfill-fleet -- \
+  --from 2026-08-01T00:00:00Z \
+  --to 2026-08-08T00:00:00Z \
+  --max-vehicles 2 \
+  --max-windows 2
+```
+
+`from` and `to` are required absolute ISO instants with explicit offsets. One invocation is a non-empty interval whose maximum is exactly seven absolute days. Longer population is performed as repeated, explicit target batches of at most seven days; Stage 13A does not add a 30/60/90-day target.
+
+Vehicles are read from PostgreSQL and processed sequentially in public `Vehicle.id ASC` order, regardless of provider response order or vehicle name. Disabled persisted vehicles remain part of the full fleet. `--max-vehicles N` selects the first N vehicles of that deterministic order. Completed and unmapped vehicles consume a place in this prefix, so a tiny command cannot silently expand to later identities.
+
+`--max-windows N` is one global work budget for the whole invocation, not a per-vehicle reset. It counts successfully committed provider windows. The orchestrator passes only the remaining allowance to the existing single-vehicle engine and stops after a partial vehicle when the allowance is exhausted. Provider retry attempts are reported separately and do not consume additional window-budget units. The option accepts any positive safe integer because a fleet can contain more than the single-vehicle maximum of 168 windows; each delegated vehicle target remains bounded to 168 windows by the existing engine. There is no vehicle fanout or `Promise.all`. The engine owns 500 ms request pacing, including the handoff between two active vehicles.
+
+An exact completed `(vehicleId, rangeFrom, rangeTo)` checkpoint is skipped before delegation and produces zero provider requests. A partial exact checkpoint is delegated to the existing engine, which resumes at its committed inclusive `nextFrom` and does not request committed windows again. No fleet job table is required: the existing per-vehicle exact-target checkpoints are the durable resume state. Re-running an identical completed fleet target therefore performs zero historical provider requests.
+
+Use `--plan` for a strictly read-only persisted-state report:
+
+```text
+npm run position-history:backfill-fleet -- \
+  --from 2026-08-01T00:00:00Z \
+  --to 2026-08-08T00:00:00Z \
+  --max-vehicles 2 \
+  --max-windows 2 \
+  --plan
+```
+
+Plan mode does not call the single-vehicle engine, create checkpoints, write the database, or call the provider. Its safe aggregates include the deterministic vehicles considered, exact targets already completed, pending and partial targets, unmapped vehicles, and estimated remaining one-hour windows at invocation start. Output never includes public vehicle UUIDs, provider numeric IDs, coordinates, provider payloads, credentials, sessions, or tokens.
+
+The only provider mapping is persisted `Vehicle.externalDeviceId`; `/devices` is never used by this command. A mapping is accepted only when it is a positive integer. An unsafe/missing mapping is counted as `unmappedVehicles`, receives no provider request, and remains incomplete; no ID is guessed. This is distinct from a mapped vehicle whose provider request fails. Any provider, provider-contract, or database failure from an active mapped vehicle propagates and stops the entire fleet invocation. Earlier committed vehicles/windows remain committed, the failed database transaction cannot advance its checkpoint, and no later vehicle is processed. There is no catch-and-continue coverage hole and no global rollback.
+
+The aggregate result reports fleet counts, committed windows, provider requests/rows, candidates, inserted rows, duplicates, invalid rows, retry/rate-limit counts, and whether a work budget stopped the invocation. It contains no provider identity or position data.
+
+This command remains outside `AppModule`. It has no scheduler, cron, timer, bootstrap hook, fleet-sync hook, dashboard integration, track/other GET side effect, migration execution, automatic full-fleet run, retention deletion, TTL, startup cleanup, or history replacement. Normal application startup never begins fleet historical backfill.
+
 ## Bounded track reads (Stage 11C)
 
 The backend-only bounded read contract is documented in [vehicle-track-api.md](vehicle-track-api.md). It reads the shared authoritative observation table without provider, current-state, alert, or aggregate fallback.

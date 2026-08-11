@@ -41,6 +41,8 @@
     "position-history:smoke": "npm --workspace @taxi-gps/api run position-history:smoke",
     "position-history:discover": "npm --workspace @taxi-gps/api run position-history:discover --",
     "position-history:backfill": "npm --workspace @taxi-gps/api run position-history:backfill --",
+    "position-history:backfill-fleet": "npm --workspace @taxi-gps/api run position-history:backfill-fleet --",
+    "position-history:backfill-fleet-smoke": "npm --workspace @taxi-gps/api run position-history:backfill-fleet-smoke",
     "position-history:backfill-acceptance": "npm --workspace @taxi-gps/api run position-history:backfill-acceptance",
     "vinnytsia-boundary:verify": "npm --workspace @taxi-gps/api run vinnytsia-boundary:verify",
     "api:config-preflight": "npm --workspace @taxi-gps/api run api:config-preflight",
