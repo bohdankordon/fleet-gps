@@ -60,7 +60,7 @@ export class PositionHistoryFleetBackfillService {
   ) {}
 
   public async run(target: PositionHistoryFleetBackfillTarget, options: PositionHistoryFleetBackfillRunOptions = {}): Promise<PositionHistoryFleetBackfillResult> {
-    if (!validTarget(target) || !positiveInteger(options.maxVehicles) || !positiveInteger(options.maxWindows) || (options.plan !== undefined && typeof options.plan !== "boolean") || (options.excludeProviderDisabled !== undefined && typeof options.excludeProviderDisabled !== "boolean")) throw new PositionHistoryBackfillTargetError();
+    if (!validTarget(target) || !positiveInteger(options.maxVehicles) || !positiveInteger(options.maxWindows) || (options.plan !== undefined && typeof options.plan !== "boolean") || (options.excludeProviderDisabled !== undefined && typeof options.excludeProviderDisabled !== "boolean") || (options.paceBeforeFirstWindow !== undefined && typeof options.paceBeforeFirstWindow !== "boolean")) throw new PositionHistoryBackfillTargetError();
     const fleet = await this.repository.inspect(target);
     const providerDisabledExcluded = options.excludeProviderDisabled === true ? fleet.filter((vehicle) => vehicle.providerDisabled).length : 0;
     const eligibleFleet = options.excludeProviderDisabled === true ? fleet.filter((vehicle) => !vehicle.providerDisabled) : fleet;
@@ -93,7 +93,7 @@ export class PositionHistoryFleetBackfillService {
     let vehiclesStarted = 0;
     let vehiclesCompleted = 0;
     let stoppedByBudget = false;
-    let previousWindowCommitted = false;
+    let previousWindowCommitted = options.paceBeforeFirstWindow === true;
     for (const vehicle of considered) {
       if (isCompleted(vehicle) || !isMapped(vehicle)) continue;
       const globalWindowsRemaining = options.maxWindows === undefined ? undefined : options.maxWindows - aggregate.windowsRequested;

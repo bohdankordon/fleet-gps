@@ -85,6 +85,7 @@ export type PositionHistoryFleetBackfillRunOptions = Readonly<{
   maxWindows?: number;
   plan?: boolean;
   excludeProviderDisabled?: boolean;
+  paceBeforeFirstWindow?: boolean;
 }>;
 
 export type PositionHistoryFleetBackfillResult = Readonly<{

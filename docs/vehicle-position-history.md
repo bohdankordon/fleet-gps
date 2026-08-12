@@ -164,6 +164,29 @@ The planner generates all target rows in one PostgreSQL `VALUES` relation, cross
 
 Planning and execution remain separate. The planner cannot call or spawn backfill, create/resume checkpoints, insert observations, contact the provider, or mutate the database. It has no `--execute`, `--apply`, `--populate`, `--resume`, or automatic mode; it is not connected to `AppModule`, scheduler, controller, public HTTP API, or frontend. The 90-day desired coverage policy does not authorize retention: no row deletion, cleanup command, TTL, archive, scheduler, or partition drop exists in Stage 14B.
 
+## Controlled horizon population (Stage 14C)
+
+After reviewing the separate read-only horizon plan, an operator can explicitly execute bounded population with:
+
+```text
+npm run position-history:horizon-populate -- \
+  --to 2026-08-11T02:00:00.000Z \
+  --max-windows 200 \
+  --exclude-provider-disabled
+```
+
+`--to` and `--max-windows` are both required. The anchor uses the established strict absolute ISO parser; no wall-clock default exists. `max-windows` is a positive safe integer and is one global limit on successfully committed hourly windows across the entire 90-absolute-day invocation. It is not a provider-attempt, row, retry, vehicle, or slice budget, and there is no unlimited mode or horizon-level `--max-vehicles`. The remaining allowance is passed to each existing Stage 13A fleet invocation, so after 168 committed windows from a budget of 200, the next slice can receive at most 32. Retries remain separately counted under the existing backfill policy.
+
+The executor reuses the Stage 14B policy and exact partitioner without changing the planner: `horizon-plan` continues to display oldest to newest, while population deliberately visits the same exact slices newest to oldest so bounded progress favors recent history. The loop has no assumption that the current policy creates 13 slices and will naturally iterate a future 365-or-more-day partition if that policy is separately approved. The active policy remains 90 days.
+
+Each slice is delegated to the existing Stage 13A fleet service, which delegates to the authoritative Stage 11B.2 engine. The executor does not implement provider calls, hourly windows, retry/`Retry-After`, pacing, validation, normalization, fingerprints, dedupe, checkpoint transitions, transactions, or fleet ordering. A small internal fleet option carries the existing engine-owned pre-first-window pacing across active slice boundaries. Durable resume remains solely the exact `VehiclePositionBackfillCheckpoint` identified by `(vehicleId, rangeFrom, rangeTo)`: completed pairs perform zero provider work, partial `PENDING`/`RUNNING` pairs resume at `nextFrom`, and a missing checkpoint is created only if execution actually reaches that vehicle and target. There is no horizon run/checkpoint table or migration.
+
+The optional `--exclude-provider-disabled` forwards the accepted Stage 13B semantics using persisted `Vehicle.disabled`; without it, default fleet behavior is unchanged. It does not call `/devices`, alter checkpoint truth, make disabled state business truth, or imply that disabled state causes any provider HTTP response.
+
+A budget stop is a successful bounded invocation with `stoppedByBudget=true` and `horizonComplete=false`; it starts no later slice. Full success requires all relevant exact slice targets visited by the invocation to be complete. An eligible provider/database failure stops the entire horizon immediately. Completed prior-slice counters remain reportable, while unavailable result-derived counters for the failing current slice are explicitly `n/a`; safe Stage 13B provider diagnostics are reused without identities, URLs, bodies, credentials, or arbitrary error messages. Repeating the same bounded command resumes from the existing exact checkpoints.
+
+This is an operator CLI only. It is not connected to startup, `AppModule`, scheduler, cron, fleet sync, alerts, public HTTP, or frontend, and it does not spawn another command. It performs no automatic rolling maintenance. Population still creates no retention authority: Stage 14C adds no deletion, TTL, cleanup, partition drop, archive, or retention scheduler, and it does not claim that the 90-day horizon is already populated.
+
 ## Bounded track reads (Stage 11C)
 
 The backend-only bounded read contract is documented in [vehicle-track-api.md](vehicle-track-api.md). It reads the shared authoritative observation table without provider, current-state, alert, or aggregate fallback.
