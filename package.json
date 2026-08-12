@@ -24,6 +24,7 @@
     "api:build": "npm --workspace @taxi-gps/api run build",
     "api:typecheck": "npm --workspace @taxi-gps/api run typecheck",
     "api:test": "npm --workspace @taxi-gps/api run test",
+    "fleet-activity-report:test": "npm --workspace @taxi-gps/api run fleet-activity-report:test",
     "api:health-smoke": "npm --workspace @taxi-gps/api run health:smoke",
     "alert-settings:smoke": "npm --workspace @taxi-gps/api run alert-settings:smoke",
     "city-geofence:import": "npm --workspace @taxi-gps/api run city-geofence:import --",

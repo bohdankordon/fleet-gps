@@ -16,6 +16,8 @@ The in-memory scheduler is disabled by default. When enabled, fleet runs every 6
 
 Stage 15B exposes accepted derived position analytics at read-only `GET /api/vehicles/:vehicleId/trip-analysis?from=<absolute-iso>&to=<absolute-iso>`. It accepts at most exactly seven absolute days and returns product-facing trip, meaningful-stop, and separate GPS-gap DTOs. `endClipped` represents an unconfirmed natural ending without extending `endAt` beyond the final persisted fix. The endpoint uses local history only and performs no provider call, history population, write, routing, geocoding, or persistence of derived entities. See [../../docs/trip-stop-analytics.md](../../docs/trip-stop-analytics.md).
 
+Stage 15C exposes `GET /api/reports/fleet-activity?from=<absolute-iso>&to=<absolute-iso>` for one read-only fleet day of at most exactly 25 hours. It uses two set-based reads and the Stage 15A pure analytics core, with no provider access or derived persistence. See [../../docs/fleet-daily-activity-report.md](../../docs/fleet-daily-activity-report.md).
+
 For a manual, opt-in production-credential verification of the compiled scheduler, see [`docs/sync-scheduler-live-verification.md`](../../docs/sync-scheduler-live-verification.md). It is not part of tests, builds, or safe smokes.
 
 ## Read-only Dashboard API

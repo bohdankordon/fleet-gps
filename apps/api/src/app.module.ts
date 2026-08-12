@@ -18,8 +18,9 @@ import { FleetMapModule } from "./modules/fleet-map";
 import { VehicleDetailsModule } from "./modules/vehicle-details";
 import { VehicleTrackModule } from "./modules/vehicle-track";
 import { TripStopAnalyticsModule } from "./modules/trip-stop-analytics";
+import { FleetActivityReportModule } from "./modules/fleet-activity-report";
 
 @Module({
-  imports: [ApiConfigModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, FleetMapModule, VehicleDetailsModule, VehicleTrackModule, TripStopAnalyticsModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule, AlertEventsModule, AlertEvaluationModule, AlertNotificationsModule, AlertNotificationSchedulerModule],
+  imports: [ApiConfigModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, FleetMapModule, VehicleDetailsModule, VehicleTrackModule, TripStopAnalyticsModule, FleetActivityReportModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule, AlertEventsModule, AlertEvaluationModule, AlertNotificationsModule, AlertNotificationSchedulerModule],
 })
 export class AppModule {}

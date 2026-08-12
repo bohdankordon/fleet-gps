@@ -1,0 +1,5 @@
+import { FleetActivityReportClient } from "@/components/fleet-activity-report-client";
+import { fetchFleetActivityReport } from "@/lib/fleet-activity-report/fleet-activity-report-client";
+import { resolveInitialFleetActivityReportDate } from "@/lib/fleet-activity-report/fleet-activity-report-date";
+export const dynamic = "force-dynamic"; export const revalidate = 0;
+export default async function ReportsPage({ searchParams }: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) { const now = new Date(); const resolved = resolveInitialFleetActivityReportDate(await searchParams, now); if (!resolved) throw new Error("Unable to resolve report date"); let initialData = null; let initialError = false; try { initialData = await fetchFleetActivityReport(resolved.range); } catch { initialError = true; } return <main><FleetActivityReportClient initialDate={resolved.date} initialRange={resolved.range} initialData={initialData} initialError={initialError} now={now} /></main>; }
