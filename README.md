@@ -1,5 +1,7 @@
 # eQuGPS API research
 
+Authentication, permissions, sessions, the access matrix, and operator account bootstrap are documented in [`docs/authentication.md`](docs/authentication.md). That document supersedes historical stage notes below that describe the dashboard as unauthenticated.
+
 ## Web dashboard
 
 The backend fleet-map read contract is documented in [`docs/fleet-map-api.md`](docs/fleet-map-api.md). Stage 9A adds only the PostgreSQL-backed API; it does not add a frontend map.

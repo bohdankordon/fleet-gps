@@ -4,8 +4,10 @@ import { parseVehicleTrackOverviewRange } from "./vehicle-track-overview-query-p
 import { VehicleTrackOverviewQueryService } from "./vehicle-track-overview-query.service";
 import type { VehicleTrackOverviewResponse } from "./vehicle-track-overview-read-models";
 import { VehicleTrackOverviewNotFoundError, VehicleTrackOverviewTooFragmentedError } from "./vehicle-track-overview.types";
+import { RequireAnyPermission } from "../auth/auth.decorators";
 
 @Controller("vehicles")
+@RequireAnyPermission("trips.view")
 export class VehicleTrackOverviewController {
   public constructor(private readonly queryService: VehicleTrackOverviewQueryService) {}
 

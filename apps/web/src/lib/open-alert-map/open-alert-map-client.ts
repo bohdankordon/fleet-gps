@@ -3,8 +3,9 @@ import "server-only";
 import { parseWebConfig } from "@/lib/web-config";
 import { OpenAlertMapContractError, parseOpenAlertMapResponse, type OpenAlertMapResponse } from "./open-alert-map-contract";
 import { OpenAlertMapBackendUnavailableError } from "./open-alert-map-errors";
+import { authenticatedApiFetch } from "@/lib/auth/auth-cookie";
 
-export async function fetchOpenAlertMap(fetcher: typeof fetch = fetch): Promise<OpenAlertMapResponse> {
+export async function fetchOpenAlertMap(fetcher: typeof fetch = authenticatedApiFetch): Promise<OpenAlertMapResponse> {
   const config = parseWebConfig(process.env);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);

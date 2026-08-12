@@ -2,8 +2,9 @@ import "server-only";
 import { parseWebConfig } from "../web-config";
 import { parsePositionHistoryStatus, PositionHistoryStatusContractError, type PositionHistoryStatusResponse } from "./position-history-status-contract";
 import { PositionHistoryStatusBadRequestError, PositionHistoryStatusUnavailableError } from "./position-history-status-errors";
+import { authenticatedApiFetch } from "@/lib/auth/auth-cookie";
 
-export async function fetchPositionHistoryStatus(to: string, fetcher: typeof fetch = fetch): Promise<PositionHistoryStatusResponse> {
+export async function fetchPositionHistoryStatus(to: string, fetcher: typeof fetch = authenticatedApiFetch): Promise<PositionHistoryStatusResponse> {
   const config = parseWebConfig(process.env);
   const url = new URL(`${config.apiInternalBaseUrl}/api/system/position-history/horizon-status`);
   url.searchParams.set("to", to);

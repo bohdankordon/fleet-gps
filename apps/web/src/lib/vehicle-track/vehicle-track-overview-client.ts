@@ -3,8 +3,9 @@ import { parseWebConfig } from "@/lib/web-config";
 import { VehicleTrackBackendBadRequestError, VehicleTrackBackendNotFoundError, VehicleTrackBackendTooDenseError, VehicleTrackBackendUnavailableError } from "./vehicle-track-errors";
 import { parseVehicleTrackOverviewResponse, VehicleTrackOverviewContractError, type VehicleTrackOverviewResponse } from "./vehicle-track-overview-contract";
 import type { VehicleTrackRange } from "./vehicle-track-range";
+import { authenticatedApiFetch } from "@/lib/auth/auth-cookie";
 
-export async function fetchVehicleTrackOverview(vehicleId: string, range: VehicleTrackRange, fetcher: typeof fetch = fetch): Promise<VehicleTrackOverviewResponse> {
+export async function fetchVehicleTrackOverview(vehicleId: string, range: VehicleTrackRange, fetcher: typeof fetch = authenticatedApiFetch): Promise<VehicleTrackOverviewResponse> {
   const config = parseWebConfig(process.env); const url = new URL(`${config.apiInternalBaseUrl}/api/vehicles/${vehicleId}/track/overview`);
   url.searchParams.set("from", range.from); url.searchParams.set("to", range.to);
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 10_000);

@@ -3,6 +3,7 @@ import { parseWebConfig } from "@/lib/web-config";
 import { AlertEventsContractError, parseAlertEventsListResponse, parseAlertEventsSummaryResponse, type AlertEventsListResponse, type AlertEventsSummaryResponse } from "./alert-events-contract";
 import { AlertEventsBackendBadRequestError, AlertEventsBackendUnavailableError } from "./alert-events-errors";
 import { serializeAlertEventsRequestQuery, type AlertEventsFilters, type AlertEventsRequestQuery } from "./alert-events-query";
+import { authenticatedApiFetch } from "@/lib/auth/auth-cookie";
 
 async function backendJson(path: string, fetcher: typeof fetch): Promise<unknown> {
   const config = parseWebConfig(process.env); const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -17,6 +18,6 @@ async function backendJson(path: string, fetcher: typeof fetch): Promise<unknown
   } finally { clearTimeout(timeout); }
 }
 
-export async function fetchAlertEvents(query: AlertEventsRequestQuery, fetcher: typeof fetch = fetch): Promise<AlertEventsListResponse> { return parseAlertEventsListResponse(await backendJson(`/api/alert-events?${serializeAlertEventsRequestQuery(query)}`, fetcher)); }
-export async function fetchAlertEventsSummary(fetcher: typeof fetch = fetch): Promise<AlertEventsSummaryResponse> { return parseAlertEventsSummaryResponse(await backendJson("/api/alert-events/summary", fetcher)); }
+export async function fetchAlertEvents(query: AlertEventsRequestQuery, fetcher: typeof fetch = authenticatedApiFetch): Promise<AlertEventsListResponse> { return parseAlertEventsListResponse(await backendJson(`/api/alert-events?${serializeAlertEventsRequestQuery(query)}`, fetcher)); }
+export async function fetchAlertEventsSummary(fetcher: typeof fetch = authenticatedApiFetch): Promise<AlertEventsSummaryResponse> { return parseAlertEventsSummaryResponse(await backendJson("/api/alert-events/summary", fetcher)); }
 export function firstAlertEventsQuery(filters: AlertEventsFilters): AlertEventsRequestQuery { return Object.freeze({ ...filters, limit: 25 }); }

@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import type { AuthService } from "./auth.service";
+import { AUTH_ALLOW_MUST_CHANGE, AUTH_PUBLIC } from "./auth.decorators";
+import { AuthenticationGuard } from "./authentication.guard";
+function context(request: object) { return { getHandler: () => function handler() {}, getClass: () => class Controller {}, switchToHttp: () => ({ getRequest: () => request }) } as never; }
+test("public routes bypass sessions and protected missing sessions are 401", async () => { const auth = { authenticate: async () => { throw new Error("must not read"); } } as unknown as AuthService; const publicReflector = { getAllAndOverride: (key: string) => key === AUTH_PUBLIC } as unknown as Reflector; assert.equal(await new AuthenticationGuard(publicReflector, auth).canActivate(context({ headers: {} })), true); const protectedReflector = { getAllAndOverride: () => false } as unknown as Reflector; await assert.rejects(new AuthenticationGuard(protectedReflector, auth).canActivate(context({ headers: {} })), UnauthorizedException); });
+test("valid principal is attached, while must-change is 403 except allowed auth flows", async () => { const principal = { id: "id", login: "user", role: "USER", permissions: [], mustChangePassword: true, sessionTokenHash: new Uint8Array(32) } as const; const auth = { authenticate: async () => principal } as unknown as AuthService; const request = { headers: { cookie: `taxi_session=${"a".repeat(43)}` }, auth: undefined as unknown }; const denied = { getAllAndOverride: () => false } as unknown as Reflector; await assert.rejects(new AuthenticationGuard(denied, auth).canActivate(context(request)), ForbiddenException); const allowed = { getAllAndOverride: (key: string) => key === AUTH_ALLOW_MUST_CHANGE } as unknown as Reflector; assert.equal(await new AuthenticationGuard(allowed, auth).canActivate(context(request)), true); assert.equal(request.auth, principal); });

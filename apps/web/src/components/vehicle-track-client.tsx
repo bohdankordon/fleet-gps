@@ -22,6 +22,8 @@ import { createVehicleTrackPresetRange, VEHICLE_TRACK_PRESETS, vehicleTrackModeF
 import { abortVehicleTrackRequest, beginVehicleTrackRequest, failVehicleTrackRequest, initialVehicleTrackRequestState, succeedVehicleTrackRequest, type VehicleTrackLoadError } from "@/lib/vehicle-track/vehicle-track-request-state";
 import { reconcileVehicleTrackSelection, selectedVehicleTrackPoint } from "@/lib/vehicle-track/vehicle-track-selection";
 import { vehicleTrackErrorCopy, vehicleTrackResponseError } from "@/lib/vehicle-track/vehicle-track-error-copy";
+import { useAuth } from "@/components/auth-provider";
+import { hasPermission } from "@/lib/auth/auth-contract";
 
 const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 const workerState: FleetMapWorkerBootstrapState = { configured: false };
@@ -34,6 +36,7 @@ function applyCamera(map: MapLibreMap, model: VehicleTrackPresentationModel, geo
 }
 
 export function VehicleTrackClient({ vehicleId, initialData, initialRange, initialError, initialGeofence, initialGeofenceUnavailable }: Props) {
+  const auth = useAuth(); const canOpenMap = auth !== null && hasPermission(auth, "map.view");
   const [state, setState] = useState(() => initialVehicleTrackRequestState(initialData, initialRange, initialError));
   const [selectedKey, setSelectedKey] = useState<string | null>(null); const [styleError, setStyleError] = useState(false);
   const [draft, setDraft] = useState<VehicleTrackDraftRange>(() => vehicleTrackRangeToKyivDraft(initialData ? vehicleTrackLoadedRange(initialData) : initialRange));
@@ -95,7 +98,7 @@ export function VehicleTrackClient({ vehicleId, initialData, initialRange, initi
   const exactResponse = state.data?.mode === "EXACT" ? state.data.response : null;
   const overviewResponse = state.data?.mode === "OVERVIEW" ? state.data.response : null;
   return <>
-    <header className="hero track-hero"><p className="eyebrow">История движения</p><h1>{state.data?.response.vehicle.name ?? "Трек автомобиля"}</h1><p>Сохранённые GPS-наблюдения за выбранный период: точный трек до 24 часов или сэмплированный обзор до 7 дней.</p><div className="metadata"><Link href={`/vehicles/${vehicleId}`}>Назад к карточке</Link><Link href="/map">Открыть текущую карту</Link></div></header>
+    <header className="hero track-hero"><p className="eyebrow">История движения</p><h1>{state.data?.response.vehicle.name ?? "Трек автомобиля"}</h1><p>Сохранённые GPS-наблюдения за выбранный период: точный трек до 24 часов или сэмплированный обзор до 7 дней.</p><div className="metadata"><Link href={`/vehicles/${vehicleId}`}>Назад к карточке</Link>{canOpenMap && <Link href="/map">Открыть текущую карту</Link>}</div></header>
     <section className="track-controls" aria-label="Выбор периода"><div><span className="track-control-label">Быстрый период</span><div className="track-presets">{VEHICLE_TRACK_PRESETS.map((preset) => <button type="button" onClick={() => choosePreset(preset.hours)} disabled={state.loading} key={preset.hours}>{preset.label}</button>)}</div></div><button type="button" className="track-refresh" onClick={() => state.range && void load(state.range, false)} disabled={state.loading || !state.range}>{state.loading ? "Загрузка…" : "Обновить текущий период"}</button><form className="track-custom-range" onSubmit={submitCustomRange}><fieldset disabled={state.loading}><legend>Произвольный период</legend><p className="track-timezone">Время: Europe/Kyiv</p><label htmlFor="track-from">С<input id="track-from" name="from" type="datetime-local" value={draft.from} onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))} step="60" required /></label><label htmlFor="track-to">До<input id="track-to" name="to" type="datetime-local" value={draft.to} onChange={(event) => setDraft((current) => ({ ...current, to: event.target.value }))} step="60" required /></label><button type="submit">Показать период</button></fieldset>{formError && <p className="track-form-error" role="alert">{formError}</p>}</form><div className="track-range"><span>От: <strong>{formatVehicleTrackTimestamp(state.range?.from ?? null)}</strong></span><span>До: <strong>{formatVehicleTrackTimestamp(state.range?.to ?? null)}</strong></span></div></section>
     {state.loading && <p className="refresh" aria-live="polite">Загрузка исторического трека…</p>}
     {error && <section className="notice" role="alert"><span>⚠</span><div><strong>{error[0]}</strong><span>{error[1]}</span></div></section>}

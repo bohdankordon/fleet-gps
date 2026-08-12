@@ -2,12 +2,14 @@ import { Controller, Get, HttpException, Query } from "@nestjs/common";
 import { AlertEventsQueryParamsError, parseAlertEventsQueryParams } from "./alert-events-query-params";
 import type { AlertEventsListResponse, AlertEventsSummaryResponse, OpenAlertMapResponse } from "./alert-events-read-models";
 import { AlertEventsQueryService } from "./alert-events-query.service";
+import { RequireAnyPermission } from "../auth/auth.decorators";
 
 @Controller("alert-events")
 export class AlertEventsController {
   public constructor(private readonly query: AlertEventsQueryService) {}
 
   @Get("summary")
+  @RequireAnyPermission("events.view")
   public async getSummary(): Promise<AlertEventsSummaryResponse> {
     try {
       return await this.query.getSummary();
@@ -17,6 +19,7 @@ export class AlertEventsController {
   }
 
   @Get("map")
+  @RequireAnyPermission("map.view", "events.view")
   public async getOpenMap(): Promise<OpenAlertMapResponse> {
     try {
       return await this.query.getOpenMap();
@@ -26,6 +29,7 @@ export class AlertEventsController {
   }
 
   @Get()
+  @RequireAnyPermission("events.view")
   public async list(@Query() rawQuery: Record<string, unknown>): Promise<AlertEventsListResponse> {
     try {
       return await this.query.list(parseAlertEventsQueryParams(rawQuery));

@@ -2,8 +2,9 @@ import "server-only";
 import { parseWebConfig } from "@/lib/web-config";
 import { SchedulerContractError, parseSchedulerStatusResponse, type SchedulerStatusResponse } from "./scheduler-contract";
 import { SchedulerBackendUnavailableError } from "./scheduler-errors";
+import { authenticatedApiFetch } from "@/lib/auth/auth-cookie";
 
-export async function fetchSchedulerStatus(fetcher: typeof fetch = fetch): Promise<SchedulerStatusResponse> {
+export async function fetchSchedulerStatus(fetcher: typeof fetch = authenticatedApiFetch): Promise<SchedulerStatusResponse> {
   const config = parseWebConfig(process.env);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);

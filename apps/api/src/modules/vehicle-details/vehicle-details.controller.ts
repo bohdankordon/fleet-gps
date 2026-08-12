@@ -3,8 +3,10 @@ import { normalizeUuid } from "../../common/uuid.validation";
 import type { VehicleDetailsResponse } from "./vehicle-details-read-models";
 import { VehicleDetailsQueryService } from "./vehicle-details-query.service";
 import { VehicleDetailsNotFoundError } from "./vehicle-details.types";
+import { RequireAnyPermission } from "../auth/auth.decorators";
 
 @Controller("vehicles")
+@RequireAnyPermission("vehicles.view")
 export class VehicleDetailsController {
   public constructor(private readonly query: VehicleDetailsQueryService) {}
 

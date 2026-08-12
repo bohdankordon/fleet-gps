@@ -1,6 +1,7 @@
 import { Controller, Get, HttpException } from "@nestjs/common";
 import type { CityGeofenceDiagnostic, CityGeofenceMapResponse } from "./city-geofence.types";
 import { CityGeofenceService } from "./city-geofence.service";
+import { RequireAnyPermission } from "../auth/auth.decorators";
 
 @Controller("system")
 export class CityGeofenceController {
@@ -12,6 +13,7 @@ export class CityGeofenceController {
     catch { throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500); }
   }
   @Get("city-geofence/map")
+  @RequireAnyPermission("map.view", "trips.view")
   public async getMapProjection(): Promise<CityGeofenceMapResponse> {
     try { return await this.service.getMapProjection(); }
     catch { throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500); }

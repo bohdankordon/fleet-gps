@@ -5,6 +5,7 @@ import { TRIP_STOP_ANALYTICS_MAX_RANGE_MS } from "./trip-stop-analytics.constant
 import { TripStopAnalyticsTargetError, TripStopAnalyticsVehicleNotFoundError } from "./trip-stop-analytics.errors";
 import { TripStopAnalyticsService } from "./trip-stop-analytics.service";
 import { toTripAnalysisResponse, type TripAnalysisResponse } from "./trip-stop-analysis-read-models";
+import { RequireAnyPermission } from "../auth/auth.decorators";
 
 function parseRange(rawFrom: unknown, rawTo: unknown): Readonly<{ from: Date; to: Date }> | null {
   const from = parseAbsoluteTimestamp(rawFrom); const to = parseAbsoluteTimestamp(rawTo);
@@ -14,6 +15,7 @@ function parseRange(rawFrom: unknown, rawTo: unknown): Readonly<{ from: Date; to
 }
 
 @Controller("vehicles")
+@RequireAnyPermission("trips.view")
 export class TripStopAnalysisController {
   public constructor(private readonly analytics: TripStopAnalyticsService) {}
   @Get(":vehicleId/trip-analysis")
@@ -28,4 +30,3 @@ export class TripStopAnalysisController {
     }
   }
 }
-

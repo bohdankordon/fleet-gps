@@ -2,8 +2,10 @@ import { Controller, Get, HttpException, Query } from "@nestjs/common";
 import { DashboardQueryParamsError, parseDashboardQueryParams } from "./dashboard-query-params";
 import type { DashboardVehiclesResponse } from "./dashboard-read-models";
 import { DashboardQueryService } from "./dashboard-query.service";
+import { RequireAnyPermission } from "../auth/auth.decorators";
 
 @Controller("dashboard")
+@RequireAnyPermission("fleet.view")
 export class DashboardController {
   public constructor(private readonly query: DashboardQueryService) {}
   @Get("vehicles")

@@ -3,8 +3,9 @@ import { parseWebConfig } from "@/lib/web-config";
 import { DashboardContractError, parseDashboardVehiclesResponse, type DashboardVehiclesResponse } from "./dashboard-contract";
 import { DashboardBackendBadRequestError, DashboardBackendUnavailableError } from "./dashboard-errors";
 import { serializeDashboardQuery, type DashboardQuery } from "./dashboard-query";
+import { authenticatedApiFetch } from "@/lib/auth/auth-cookie";
 
-export async function fetchDashboardVehicles(params: DashboardQuery, fetcher: typeof fetch = fetch): Promise<DashboardVehiclesResponse> {
+export async function fetchDashboardVehicles(params: DashboardQuery, fetcher: typeof fetch = authenticatedApiFetch): Promise<DashboardVehiclesResponse> {
   const config = parseWebConfig(process.env);
   const query = serializeDashboardQuery(params);
   const controller = new AbortController();

@@ -4,8 +4,9 @@ import type { VehicleTrackRange } from "../vehicle-track/vehicle-track-range";
 import { parseTripAnalysisResponse, TripAnalysisContractError, type TripAnalysisResponse } from "./trip-analysis-contract";
 import { TripAnalysisBackendBadRequestError, TripAnalysisBackendNotFoundError, TripAnalysisBackendUnavailableError } from "./trip-analysis-errors";
 import { tripAnalysisRequestInit, tripAnalysisRequestUrl } from "./trip-analysis-request";
+import { authenticatedApiFetch } from "@/lib/auth/auth-cookie";
 
-export async function fetchTripAnalysis(vehicleId: string, range: VehicleTrackRange, fetcher: typeof fetch = fetch): Promise<TripAnalysisResponse> {
+export async function fetchTripAnalysis(vehicleId: string, range: VehicleTrackRange, fetcher: typeof fetch = authenticatedApiFetch): Promise<TripAnalysisResponse> {
   const config = parseWebConfig(process.env); const url = tripAnalysisRequestUrl(config.apiInternalBaseUrl, vehicleId, range);
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 10_000);
   try {

@@ -4,8 +4,10 @@ import type { VehicleTrackResponse } from "./vehicle-track-read-models";
 import { parseVehicleTrackRange } from "./vehicle-track-query-params";
 import { VehicleTrackQueryService } from "./vehicle-track-query.service";
 import { VehicleTrackNotFoundError, VehicleTrackTooDenseError } from "./vehicle-track.types";
+import { RequireAnyPermission } from "../auth/auth.decorators";
 
 @Controller("vehicles")
+@RequireAnyPermission("trips.view")
 export class VehicleTrackController {
   public constructor(private readonly queryService: VehicleTrackQueryService) {}
 

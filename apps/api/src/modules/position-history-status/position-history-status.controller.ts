@@ -3,8 +3,10 @@ import { parseAbsoluteTimestamp } from "../vehicle-track/vehicle-track-query-par
 import { toPositionHistoryHorizonStatusResponse } from "./position-history-status.read-model";
 import { PositionHistoryStatusService } from "./position-history-status.service";
 import type { PositionHistoryHorizonStatusResponse } from "./position-history-status.types";
+import { RequireAnyPermission } from "../auth/auth.decorators";
 
 @Controller("system/position-history")
+@RequireAnyPermission("historyAdmin.view")
 export class PositionHistoryStatusController {
   public constructor(private readonly status: PositionHistoryStatusService) {}
 

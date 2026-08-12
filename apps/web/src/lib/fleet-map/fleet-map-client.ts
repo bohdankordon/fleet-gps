@@ -2,8 +2,9 @@ import "server-only";
 import { parseWebConfig } from "@/lib/web-config";
 import { FleetMapContractError, parseFleetMapResponse, type FleetMapResponse } from "./fleet-map-contract";
 import { FleetMapBackendUnavailableError } from "./fleet-map-errors";
+import { authenticatedApiFetch } from "@/lib/auth/auth-cookie";
 
-export async function fetchFleetMapSnapshot(fetcher: typeof fetch = fetch): Promise<FleetMapResponse> {
+export async function fetchFleetMapSnapshot(fetcher: typeof fetch = authenticatedApiFetch): Promise<FleetMapResponse> {
   const config = parseWebConfig(process.env); const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
     const response = await fetcher(`${config.apiInternalBaseUrl}/api/fleet/map`, { cache: "no-store", signal: controller.signal, headers: { Accept: "application/json" } });

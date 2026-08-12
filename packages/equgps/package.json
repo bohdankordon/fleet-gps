@@ -16,7 +16,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=24.0.0 <25"
+    "node": ">=24.7.0 <25"
   },
   "scripts": {
     "build": "node scripts/clean-output.cjs dist && tsc -p tsconfig.build.json",

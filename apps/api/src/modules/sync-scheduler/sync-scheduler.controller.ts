@@ -1,6 +1,7 @@
 import { Controller, Get, Res } from "@nestjs/common";
 import { SyncSchedulerStatusQueryService } from "./sync-scheduler-status-query.service";
 import type { SyncSchedulerStatus } from "./sync-scheduler.types";
+import { RequireAnyPermission } from "../auth/auth.decorators";
 
 type HttpResponse = { status(code: number): { json(body: unknown): void } };
 
@@ -9,6 +10,7 @@ export class SyncSchedulerController {
   public constructor(private readonly queryService: SyncSchedulerStatusQueryService) {}
 
   @Get("sync-status")
+  @RequireAnyPermission("fleet.view")
   public getStatus(@Res() response: HttpResponse): void {
     try {
       response.status(200).json(this.queryService.getStatus());
