@@ -15,7 +15,7 @@ export function VehicleDetailsClient({ initialData }: Readonly<{ initialData: Ve
   useEffect(() => { const timer = window.setInterval(() => void refresh(), 30_000); return () => { window.clearInterval(timer); controller.current?.abort(); active.current = false; }; }, [refresh]);
   const { data } = state;
   return <>
-    <header className="hero vehicle-details-hero"><p className="eyebrow">Карточка автомобиля</p><h1>{data.vehicle.name}</h1><div className="metadata"><span>Данные сформированы: <strong>{formatVehicleTimestamp(data.generatedAt)}</strong></span><Link href="/map">Открыть на карте</Link><Link href={`/vehicles/${data.vehicle.id}/track`}>История движения</Link></div></header>
+    <header className="hero vehicle-details-hero"><p className="eyebrow">Карточка автомобиля</p><h1>{data.vehicle.name}</h1><div className="metadata"><span>Данные сформированы: <strong>{formatVehicleTimestamp(data.generatedAt)}</strong></span><Link href="/map">Открыть на карте</Link><Link href={`/vehicles/${data.vehicle.id}/trips`}>Поездки</Link><Link href={`/vehicles/${data.vehicle.id}/track`}>История движения</Link></div></header>
     <div className="vehicle-details-actions"><button type="button" onClick={() => void refresh()} disabled={state.loading}>{state.loading ? "Обновление…" : "Обновить"}</button>{state.loading && <span aria-live="polite">Обновление данных…</span>}</div>
     {state.refreshError && <section className="notice" role="alert"><span>⚠</span><div><strong>Не удалось обновить карточку</strong><span>Показаны последние успешно полученные данные.</span></div></section>}
     <div className="vehicle-details-grid">

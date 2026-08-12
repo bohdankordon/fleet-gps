@@ -60,4 +60,26 @@ Each trip reports `startAt`, `endAt`, elapsed `durationSeconds`, `observedDistan
 
 The summary reports vehicle identity, requested inclusive range, raw observation count, continuity segment count, trip/stop/gap counts, total GPS-observed trip distance, and nullable first/last observation timestamps. It does not claim coverage percentage, completeness, GPS SLA, addresses, route names, fare/passenger/driver facts, fuel, or inferred purpose.
 
-Stage 15B will separately decide and implement approved public API and product UI exposure. Stage 15A changes no public Nest controller, Next BFF, vehicle/track page, map, dashboard, events UI, Prisma schema, migration, scheduler, or persistence model.
+Stage 15A itself changed no public Nest controller, Next BFF, vehicle/track page, map, dashboard, events UI, Prisma schema, migration, scheduler, or persistence model. The separately layered Stage 15B exposure is described below and does not alter the Stage 15A policy core.
+
+## Public API and vehicle Trips UI (Stage 15B)
+
+Stage 15B exposes the accepted policy through one read-only endpoint:
+
+```text
+GET /api/vehicles/:vehicleId/trip-analysis?from=<absolute-iso>&to=<absolute-iso>
+```
+
+The public UUID and both strict absolute timestamps are required. The interval is inclusive, non-empty, and no longer than exactly seven absolute days. The endpoint calls the existing Stage 15A service over persisted `VehiclePositionObservation`; it does not populate missing history, create checkpoints, write PostgreSQL, or call eQuGPS, Telegram, routing, geocoding, or another external service. A known vehicle with no observations returns an empty `200` result; an unknown vehicle returns `404`.
+
+The product DTO returns `vehicleId`, requested `from`/`to`, summary, trips, stops, and separate gaps. Public distance fields are `observedDistanceMeters` and `totalObservedDistanceMeters`, explicitly GPS-observed. Internal start/range-boundary fields are not exposed. Public `endClipped` is true only for `RANGE_END`: no confirmed natural ending was established inside the analysis range. It does not imply that `endAt` equals requested `to`; `endAt` remains the final persisted observation used by the event, so no unobserved tail duration is fabricated.
+
+The browser reaches this endpoint only through the same-origin Next BFF at `/api/vehicles/:vehicleId/trip-analysis`. Both upstream and browser requests use uncached/no-store reads so newly populated local history is visible. The BFF validates the strict product contract and preserves safe `400`/`404` behavior without exposing backend details.
+
+The vehicle card links to a dedicated `Поездки` section rather than adding global navigation. It defaults to Europe/Kyiv calendar `Сегодня` and also offers `Вчера`, rolling absolute `Последние 24 часа`, rolling absolute `Последние 7 дней`, and the existing DST-strict Europe/Kyiv custom date-time inputs. Every backend request carries explicit absolute instants.
+
+The section shows trip count, meaningful-stop count, GPS-observed distance, and GPS-gap count, followed by one oldest-to-newest activity timeline. Gaps are neutral `Разрыв GPS` items, never stops. No-observation and no-confirmed-event states avoid claiming that the vehicle was inactive. Trips and stops are selectable, nothing is auto-selected, and changing the analysis range clears selection.
+
+A selected trip requests its exact analytical `startAt`/`endAt` through the existing exact track BFF for durations up to and including 24 absolute hours, or the existing overview BFF for longer durations through seven days. Exact `422` does not silently fall back to overview. Exact rendering retains the raw `>300s` line break, while overview rendering uses backend `segments[]` as the sole continuity authority. Track failure leaves analytics summary and timeline intact.
+
+A selected stop makes no track request and displays only its actual persisted start/end boundary fixes using the existing MapLibre layers, OpenFreeMap style selection, camera helpers, and same-origin worker. It derives no centroid, representative parking point, address, route, or geocode. Stage 15B adds no Trip/Stop persistence, cache, migration, scheduler, history population, filtering, routing, or new map provider.

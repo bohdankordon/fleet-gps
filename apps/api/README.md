@@ -14,6 +14,8 @@ Use `npm run city-geofence:import -- --file <path> --dry-run` to validate a loca
 
 The in-memory scheduler is disabled by default. When enabled, fleet runs every 60 seconds and daily runs every 300 seconds, with no immediate execution or retry. The read-only `GET /api/system/sync-status` endpoint is intended only for localhost or a closed network; multi-replica deployments need a distributed lock or queue.
 
+Stage 15B exposes accepted derived position analytics at read-only `GET /api/vehicles/:vehicleId/trip-analysis?from=<absolute-iso>&to=<absolute-iso>`. It accepts at most exactly seven absolute days and returns product-facing trip, meaningful-stop, and separate GPS-gap DTOs. `endClipped` represents an unconfirmed natural ending without extending `endAt` beyond the final persisted fix. The endpoint uses local history only and performs no provider call, history population, write, routing, geocoding, or persistence of derived entities. See [../../docs/trip-stop-analytics.md](../../docs/trip-stop-analytics.md).
+
 For a manual, opt-in production-credential verification of the compiled scheduler, see [`docs/sync-scheduler-live-verification.md`](../../docs/sync-scheduler-live-verification.md). It is not part of tests, builds, or safe smokes.
 
 ## Read-only Dashboard API
