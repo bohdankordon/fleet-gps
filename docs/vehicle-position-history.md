@@ -190,3 +190,7 @@ This is an operator CLI only. It is not connected to startup, `AppModule`, sched
 ## Bounded track reads (Stage 11C)
 
 The backend-only bounded read contract is documented in [vehicle-track-api.md](vehicle-track-api.md). It reads the shared authoritative observation table without provider, current-state, alert, or aggregate fallback.
+
+## Derived trip/stop analytics (Stage 15A)
+
+The operator-only, read-only analytical policy is documented in [trip-stop-analytics.md](trip-stop-analytics.md). It deterministically derives non-persisted trips, meaningful stops, and separate unknown data gaps for one vehicle and an explicit range from the same authoritative observation table. It uses persisted provider speed rather than coordinate displacement, does not route or call a provider, and is not yet exposed through the public API or frontend.

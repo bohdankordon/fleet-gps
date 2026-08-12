@@ -50,6 +50,8 @@
     "position-history:horizon-plan-test": "npm --workspace @taxi-gps/api run position-history:horizon-plan-test",
     "position-history:horizon-populate": "npm --workspace @taxi-gps/api run position-history:horizon-populate --",
     "position-history:horizon-populate-test": "npm --workspace @taxi-gps/api run position-history:horizon-populate-test",
+    "position-history:trip-analysis": "npm --workspace @taxi-gps/api run position-history:trip-analysis --",
+    "position-history:trip-analysis-test": "npm --workspace @taxi-gps/api run position-history:trip-analysis-test",
     "vinnytsia-boundary:verify": "npm --workspace @taxi-gps/api run vinnytsia-boundary:verify",
     "api:config-preflight": "npm --workspace @taxi-gps/api run api:config-preflight",
     "sync-scheduler:smoke": "npm --workspace @taxi-gps/api run sync-scheduler:smoke",

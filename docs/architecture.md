@@ -10,6 +10,8 @@
 
 The scheduler is disabled by default and runs fleet/runs only after their full 60/300-second intervals. It keeps independent in-memory locks and status, uses bounded shutdown, and provides read-only status only on localhost or a closed network. MVP requires one active backend replica; multiple replicas need a distributed lock or queue.
 
+Stage 15A adds an operator-only trip/stop analytics path: CLI → database-only analytics service → read-only position repository → pure deterministic state machine. It derives results on demand for one public vehicle UUID and an explicit range of at most seven absolute days. Provider speed supplies movement/stopped evidence; raw gaps remain unknown, and Haversine distance is explicitly GPS-observed. The module is outside `AppModule`, provider modules, schedulers, public HTTP, and frontend, and creates no persisted analytical entity or database write. See [trip-stop-analytics.md](trip-stop-analytics.md).
+
 ## Read-only Dashboard API
 
 На этапе 3C `DashboardModule` публикует локальный read-only список машин. Controller и query service читают только PostgreSQL-кэш и не вызывают eQuGPS или синхронизацию. Список не выдаёт координаты и внешний device ID. До реализации auth endpoint разрешён только локально либо в закрытой сети.

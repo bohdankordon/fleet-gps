@@ -1,0 +1,6 @@
+export const MOVEMENT_THRESHOLD_KPH = 5;
+export const MOVEMENT_CONFIRMATION_SECONDS = 60;
+export const STOP_CONFIRMATION_SECONDS = 300;
+export const DATA_GAP_SECONDS = 300;
+export const TRIP_STOP_ANALYTICS_MAX_RANGE_MS = 7 * 24 * 60 * 60 * 1_000;
+
