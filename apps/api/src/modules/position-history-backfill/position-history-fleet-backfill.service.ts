@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { PositionBackfillStatus } from "../../generated/prisma/client";
 import { PositionHistoryBackfillTargetError } from "./position-history-backfill.errors";
 import { POSITION_HISTORY_FLEET_BACKFILL_REPOSITORY } from "./position-history-backfill.tokens";
+import { estimatePositionHistoryBackfillRemainingWindows } from "./position-history-backfill-planning";
 import { POSITION_HISTORY_BACKFILL_MAX_TARGET_MS, POSITION_HISTORY_BACKFILL_WINDOW_MS, PositionHistoryBackfillService } from "./position-history-backfill.service";
 import type { PositionHistoryBackfillResult, PositionHistoryFleetBackfillRepository, PositionHistoryFleetBackfillResult, PositionHistoryFleetBackfillRunOptions, PositionHistoryFleetBackfillTarget, PositionHistoryFleetBackfillVehicle } from "./position-history-backfill.types";
 
@@ -24,9 +25,7 @@ function isCompleted(vehicle: PositionHistoryFleetBackfillVehicle): boolean {
 }
 
 function remainingWindows(vehicle: PositionHistoryFleetBackfillVehicle, target: PositionHistoryFleetBackfillTarget): number {
-  if (isCompleted(vehicle)) return 0;
-  const cursor = vehicle.checkpoint?.nextFrom ?? target.from;
-  return Math.max(0, Math.ceil((target.to.getTime() - cursor.getTime()) / POSITION_HISTORY_BACKFILL_WINDOW_MS));
+  return estimatePositionHistoryBackfillRemainingWindows({ rangeFrom: target.from, rangeTo: target.to, status: vehicle.checkpoint?.status ?? null, nextFrom: vehicle.checkpoint?.nextFrom ?? null });
 }
 
 function addResult(aggregate: MutableAggregate, result: PositionHistoryBackfillResult): void {

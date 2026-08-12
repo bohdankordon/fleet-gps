@@ -143,6 +143,27 @@ Persisted provider-disabled count is a third, orthogonal dimension. It reads onl
 
 The command is aggregate-only and exposes no provider identity, coordinates, fingerprints, observation IDs, or raw positions. Its dedicated Nest module imports only the database module. One set-based PostgreSQL statement groups observations by vehicle and joins the persisted fleet to the exact checkpoint target and those aggregates; there is no query per vehicle. The statement is read-only. The command performs no database writes, history population, checkpoint creation/resume, retention/deletion, scheduler work, application startup integration, frontend work, or network request.
 
+## Rolling history horizon planning (Stage 14B)
+
+The current v1 desired raw GPS history coverage horizon is a policy value of **90 absolute days**. It is represented in application planning code, not in the database schema, checkpoint identity, `ApplicationSettings`, environment, provider protocol, or fleet model. The partitioning algorithm accepts a policy duration and is intentionally suitable for a future 365-or-more-day policy without redesign; 365 days is not the active policy in this stage.
+
+The read-only operator planner requires an explicit absolute end anchor and never substitutes the wall clock:
+
+```text
+npm run position-history:horizon-plan -- \
+  --to 2026-08-11T02:00:00.000Z
+```
+
+`--to` uses the established strict absolute ISO parser and requires `Z` or an explicit numeric offset. There is no public `--days` override. The planner subtracts 90 elapsed 24-hour durations from the normalized instant, partitions backward from `horizonTo` into exact targets no longer than seven absolute days, and presents them chronologically oldest to newest. This preserves recent boundaries if the policy later grows. The current 90-day plan consists of one oldest six-day remainder followed by twelve seven-day targets. Slices are contiguous, non-overlapping, gap-free, and independent of local calendars or DST. Provider-window boundary overlap inside execution of one target is unchanged and unrelated to these non-overlapping target slices.
+
+For every generated slice, only a persisted checkpoint with exactly equal `(vehicleId, rangeFrom, rangeTo)` contributes. Wider, narrower, containing, or overlapping checkpoints do not. Existing `PENDING`, `RUNNING`, and `COMPLETED` meanings and the persisted inclusive cursor remain unchanged. A completed pair has zero remaining hourly windows, a missing pair starts with the full slice estimate, and a partial pair uses its exact persisted `nextFrom` with the same hourly-window calculation as the Stage 13A fleet planner. Observation rows and density are not queried or used to infer checkpoint completion.
+
+Persisted `Vehicle.disabled` remains orthogonal to checkpoint truth. Whole-fleet completed/incomplete pair totals retain disabled vehicles. Separate provider-eligible planning facts show the work that remains after the already accepted opt-in `--exclude-provider-disabled` selection; no checkpoint is reclassified or excluded from whole-fleet facts.
+
+The planner generates all target rows in one PostgreSQL `VALUES` relation, cross joins the persisted fleet, and exact-left-joins checkpoints in one deterministic read query. This remains one database statement for both the current 13 slices and a future roughly 53-slice 365-day horizon, rather than a slice-by-vehicle query pattern. Output is aggregate plus chronological per-slice facts and contains no provider IDs, coordinates, fingerprints, observations, credentials, or tokens.
+
+Planning and execution remain separate. The planner cannot call or spawn backfill, create/resume checkpoints, insert observations, contact the provider, or mutate the database. It has no `--execute`, `--apply`, `--populate`, `--resume`, or automatic mode; it is not connected to `AppModule`, scheduler, controller, public HTTP API, or frontend. The 90-day desired coverage policy does not authorize retention: no row deletion, cleanup command, TTL, archive, scheduler, or partition drop exists in Stage 14B.
+
 ## Bounded track reads (Stage 11C)
 
 The backend-only bounded read contract is documented in [vehicle-track-api.md](vehicle-track-api.md). It reads the shared authoritative observation table without provider, current-state, alert, or aggregate fallback.
