@@ -121,6 +121,28 @@ The aggregate result reports fleet counts, committed windows, provider requests/
 
 This command remains outside `AppModule`. It has no scheduler, cron, timer, bootstrap hook, fleet-sync hook, dashboard integration, track/other GET side effect, migration execution, automatic full-fleet run, retention deletion, TTL, startup cleanup, or history replacement. Normal application startup never begins fleet historical backfill.
 
+Stage 13B also adds the opt-in `--exclude-provider-disabled` flag to this fleet backfill command. It removes vehicles whose persisted `Vehicle.disabled` value is `true` from that invocation's eligible fleet and reports the excluded count. The flag is an operator selection mechanism only: it does not change checkpoint status, does not make `disabled` application business truth, and does not establish any causal relationship between disabled state and a provider HTTP response. Without the flag, provider-disabled vehicles remain eligible as before. The command does not call `/devices` to determine this state.
+
+## Historical coverage audit (Stage 14A)
+
+The operator coverage audit reports what local PostgreSQL history facts exist for one explicit absolute range:
+
+```text
+npm run position-history:coverage -- \
+  --from 2026-08-10T02:00:00.000Z \
+  --to 2026-08-11T02:00:00.000Z
+```
+
+Both arguments are required strict absolute ISO timestamps with an explicit `Z` or numeric offset. The interval must be non-empty and may span at most exactly seven absolute days. There is no environment-variable range and no 30/60/90-day audit mode. Observation boundaries are inclusive (`observedAt >= from` and `observedAt <= to`).
+
+Checkpoint coverage and observation presence are deliberately independent report sections. Checkpoint coverage considers only the checkpoint whose persisted `rangeFrom` and `rangeTo` equal the normalized requested instants exactly. It reports `COMPLETED`, `RUNNING`, `PENDING`, and no-exact-checkpoint vehicle counts. Wider, narrower, or merely overlapping checkpoints do not contribute, so an unrelated older target cannot affect the requested target. A completed checkpoint records successful processing of that exact provider target; it does not promise that the provider returned a point in every hour or any point at all.
+
+Observation presence independently reports total local rows, vehicles with and without rows, `FLEET_SYNC` and `HISTORICAL_BACKFILL` source counts, and nullable first/last `observedAt`. A vehicle can have observations without an exact checkpoint. The neutral checkpoint-by-observation cross-summary makes both combinations visible. It is not a completeness, health, or GPS-quality classification, and the audit defines no sampling-frequency expectation, density threshold, missing-interval inference, interpolation, score, or provider SLA.
+
+Persisted provider-disabled count is a third, orthogonal dimension. It reads only `Vehicle.disabled` and does not reclassify any checkpoint. The audit never calls `/devices` or any other provider endpoint.
+
+The command is aggregate-only and exposes no provider identity, coordinates, fingerprints, observation IDs, or raw positions. Its dedicated Nest module imports only the database module. One set-based PostgreSQL statement groups observations by vehicle and joins the persisted fleet to the exact checkpoint target and those aggregates; there is no query per vehicle. The statement is read-only. The command performs no database writes, history population, checkpoint creation/resume, retention/deletion, scheduler work, application startup integration, frontend work, or network request.
+
 ## Bounded track reads (Stage 11C)
 
 The backend-only bounded read contract is documented in [vehicle-track-api.md](vehicle-track-api.md). It reads the shared authoritative observation table without provider, current-state, alert, or aggregate fallback.

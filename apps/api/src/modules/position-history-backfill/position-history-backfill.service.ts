@@ -3,13 +3,14 @@ import { EquGpsHttpError, EquGpsNetworkError, EquGpsRateLimitError, EquGpsTimeou
 import { PositionBackfillStatus, PositionIngestionSource } from "../../generated/prisma/client";
 import { EquGpsGatewayService } from "../equgps/equgps-gateway.service";
 import { mapEquGpsPositionToHistoryInput, normalizePositionHistoryCandidate, type PositionHistoryCandidate } from "../position-history";
+import { POSITION_HISTORY_BACKFILL_MAX_TARGET_MS } from "./position-history-backfill.constants";
 import { PositionHistoryBackfillProviderContractError, PositionHistoryBackfillTargetError } from "./position-history-backfill.errors";
 import { classifyPositionHistoryBackfillProviderFailure, recordPositionHistoryBackfillProviderFailure } from "./position-history-backfill-failure-diagnostics";
 import { POSITION_HISTORY_BACKFILL_CLOCK, POSITION_HISTORY_BACKFILL_REPOSITORY, POSITION_HISTORY_BACKFILL_SLEEPER } from "./position-history-backfill.tokens";
 import type { PositionHistoryBackfillClock, PositionHistoryBackfillRepository, PositionHistoryBackfillResult, PositionHistoryBackfillRunOptions, PositionHistoryBackfillSleeper, PositionHistoryBackfillTarget } from "./position-history-backfill.types";
 
 export const POSITION_HISTORY_BACKFILL_WINDOW_MS = 60 * 60 * 1_000;
-export const POSITION_HISTORY_BACKFILL_MAX_TARGET_MS = 7 * 24 * 60 * 60 * 1_000;
+export { POSITION_HISTORY_BACKFILL_MAX_TARGET_MS } from "./position-history-backfill.constants";
 export const POSITION_HISTORY_BACKFILL_MAX_ROWS_PER_WINDOW = 10_000;
 export const POSITION_HISTORY_BACKFILL_PACING_MS = 500;
 export const POSITION_HISTORY_BACKFILL_MAX_ATTEMPTS = 3;

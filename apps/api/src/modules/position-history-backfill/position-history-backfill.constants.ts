@@ -1,0 +1,1 @@
+export const POSITION_HISTORY_BACKFILL_MAX_TARGET_MS = 7 * 24 * 60 * 60 * 1_000;
