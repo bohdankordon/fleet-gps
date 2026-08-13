@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { AuthUser, Prisma } from "../../generated/prisma/client";
 import { AuthRole } from "../../generated/prisma/enums";
 import { DatabaseService } from "../database/database.service";
+import { AuditEventRepository, buildOwnPasswordChangedAuditEvent, buildUserActor } from "../audit";
 import { INVALID_CREDENTIALS_MESSAGE } from "./auth.constants";
 import type { AuthenticatedPrincipal, SafeAuthUser } from "./auth.types";
 import { normalizeLogin } from "./login";
@@ -32,7 +33,7 @@ function safeUser(user: UserWithPermissions): SafeAuthUser {
 
 @Injectable()
 export class AuthService {
-  public constructor(private readonly database: DatabaseService) {}
+  public constructor(private readonly database: DatabaseService, private readonly audit: AuditEventRepository) {}
 
   public async login(login: unknown, password: unknown, now = new Date()): Promise<Readonly<{ user: SafeAuthUser; token: string }>> {
     const normalized = typeof login === "string" ? normalizeLogin(login) : null;
@@ -90,6 +91,7 @@ export class AuthService {
       if (changed.count !== 1) throw new InvalidCredentialsError();
       await transaction.authSession.deleteMany({ where: { userId: current.id } });
       await transaction.authSession.create({ data: { userId: current.id, tokenHash, createdAt: now, expiresAt: sessionExpiresAt(now) } });
+      await this.audit.append(transaction, buildOwnPasswordChangedAuditEvent(buildUserActor(principal.id, principal.login)));
       return transaction.authUser.findUniqueOrThrow({ where: { id: current.id }, include: { permissions: true } });
     });
     return Object.freeze({ user: safeUser(updated), token });

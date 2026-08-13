@@ -1,13 +1,22 @@
-import type { PositionHistoryPopulationRun, PositionHistoryPopulationRunInitiatorType } from "../../generated/prisma/client";
+import { PositionHistoryPopulationRunInitiatorType, type PositionHistoryPopulationRun } from "../../generated/prisma/client";
 
-export type CreatePositionHistoryPopulationRunInput = Readonly<{
-  initiatorType: PositionHistoryPopulationRunInitiatorType;
-  requestedByUserId?: string;
-  requestedByLoginSnapshot?: string;
+type CreatePositionHistoryPopulationRunFacts = Readonly<{
   to: Date;
   excludeProviderDisabled: boolean;
   windowBudget: number;
 }>;
+
+export type CreatePositionHistoryPopulationRunInput =
+  | (CreatePositionHistoryPopulationRunFacts & Readonly<{
+      initiatorType: typeof PositionHistoryPopulationRunInitiatorType.USER;
+      requestedByUserId: string;
+      requestedByLoginSnapshot: string;
+    }>)
+  | (CreatePositionHistoryPopulationRunFacts & Readonly<{
+      initiatorType: typeof PositionHistoryPopulationRunInitiatorType.SYSTEM;
+      requestedByUserId?: never;
+      requestedByLoginSnapshot?: never;
+    }>);
 
 export type PositionHistoryPopulationRunWorkerResult = Readonly<{
   outcome: "NO_WORK" | "LOCK_UNAVAILABLE" | "SUCCEEDED" | "FAILED" | "STALE";

@@ -80,11 +80,36 @@ test("no-work and rejected manual retention paths write zero audit", async () =>
   assert.equal(stale.auditEvents.length, 0);
 });
 
-test("automatic Stage 19C execution writes zero audit even when deletions occur", async () => {
+test("automatic Stage 19C deletion writes one factual SYSTEM audit and never the manual event", async () => {
   const state = fixture({ fullyObsolete: 2, candidates: 3 });
   const result = await state.service.executeAutomaticRetention();
   assert.equal(result.deletedCheckpoints + result.deletedObservations > 0, true);
-  assert.equal(state.auditEvents.length, 0);
+  assert.deepEqual(state.auditEvents, [{
+    eventType: "AUTOMATIC_RETENTION_EXECUTED",
+    actor: { actorType: "SYSTEM", actorUserId: null, actorLoginSnapshot: null },
+    targetType: "POSITION_HISTORY_RETENTION",
+    targetId: null,
+    details: {
+      canonicalAnchor: result.canonicalAnchor,
+      policyCutoff: result.policyCutoff,
+      deletedCheckpoints: result.deletedCheckpoints,
+      deletedObservations: result.deletedObservations,
+      remainingFullyObsoleteCheckpoints: result.remainingFullyObsoleteCheckpoints,
+      remainingExecutableObservationCandidates: result.remainingExecutableObservationCandidates,
+      stoppedByBudget: result.stoppedByBudget,
+    },
+  }]);
+});
+
+test("automatic no-work writes zero audit and final audit failure preserves committed deletion", async () => {
+  const noWork = fixture();
+  await noWork.service.executeAutomaticRetention();
+  assert.equal(noWork.auditEvents.length, 0);
+
+  const failedAudit = fixture({ fullyObsolete: 2, candidates: 3 }, { appendWithDatabase: async () => { throw new Error("automatic audit failure"); } });
+  await assert.rejects(failedAudit.service.executeAutomaticRetention(), /automatic audit failure/);
+  assert.equal(failedAudit.events.filter((event) => event.startsWith("delete-cp")).length, 1);
+  assert.equal(failedAudit.events.filter((event) => event.startsWith("delete-obs")).length, 1);
 });
 
 test("partial destructive failure does not fabricate a success audit", async () => {

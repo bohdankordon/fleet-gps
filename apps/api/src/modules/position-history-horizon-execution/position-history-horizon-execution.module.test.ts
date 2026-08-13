@@ -6,7 +6,7 @@ import { POSITION_HISTORY_HORIZON_EXECUTION_LOCK_KEY } from "./position-history-
 import { PositionHistoryHorizonExecutionModule } from "./position-history-horizon-execution.module";
 
 test("execution module composes Stage 14C with the shared lock module and one dedicated pg Client factory", () => {
-  assert.deepEqual((Reflect.getMetadata("imports", PositionHistoryHorizonExecutionModule) as Array<{ name: string }>).map((value) => value.name), ["PositionHistoryHorizonExecutionLockModule", "PositionHistoryHorizonPopulationModule"]);
+  assert.deepEqual((Reflect.getMetadata("imports", PositionHistoryHorizonExecutionModule) as Array<{ name: string }>).map((value) => value.name), ["PositionHistoryHorizonExecutionLockModule", "PositionHistoryHorizonPopulationModule", "AuditModule"]);
   assert.deepEqual(Reflect.getMetadata("controllers", PositionHistoryHorizonExecutionModule), [PositionHistoryHorizonExecutionController]);
   const moduleSource = readFileSync("src/modules/position-history-horizon-execution/position-history-horizon-execution-lock.module.ts", "utf8");
   const lockSource = readFileSync("src/modules/position-history-horizon-execution/position-history-horizon-execution-lock.service.ts", "utf8");

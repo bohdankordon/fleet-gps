@@ -64,9 +64,17 @@ test("audit failure rolls back the USER durable run and creates zero audit", asy
   assert.equal(item.auditEvents.length, 0);
 });
 
-test("SYSTEM foundation writes zero Stage 20A audit rows", async () => {
+test("SYSTEM creation commits run and exact SYSTEM_POPULATION_CREATED audit together", async () => {
   const item = service();
-  await item.creation.createRun({ initiatorType: PositionHistoryPopulationRunInitiatorType.SYSTEM, to, excludeProviderDisabled: false, windowBudget: 500 });
+  const run = await item.creation.createRun({ initiatorType: PositionHistoryPopulationRunInitiatorType.SYSTEM, to, excludeProviderDisabled: false, windowBudget: 500 });
+  assert.deepEqual(item.auditEvents, [{ eventType: "SYSTEM_POPULATION_CREATED", actor: { actorType: "SYSTEM", actorUserId: null, actorLoginSnapshot: null }, targetType: "POSITION_HISTORY_POPULATION_RUN", targetId: run.id, details: { to: to.toISOString(), windowBudget: 500, excludeProviderDisabled: false } }]);
+  assert.equal(item.runCreated(), true);
+});
+
+test("audit failure rolls back the SYSTEM durable run", async () => {
+  const item = service({ append: async () => { throw new Error("audit failure"); } });
+  await assert.rejects(item.creation.createRun({ initiatorType: PositionHistoryPopulationRunInitiatorType.SYSTEM, to, excludeProviderDisabled: true, windowBudget: 5_000 }), /audit failure/);
+  assert.equal(item.runCreated(), false);
   assert.equal(item.auditEvents.length, 0);
 });
 

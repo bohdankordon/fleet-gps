@@ -2,10 +2,10 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { AuthUser, Prisma } from "../../generated/prisma/client";
 import { AuthRole } from "../../generated/prisma/enums";
 import { DatabaseService } from "../database/database.service";
-import { AuditEventRepository, buildUserActor, buildUserDisabledAuditEvent, type AuditUserActor } from "../audit";
+import { AuditEventRepository, buildUserAccessChangedAuditEvent, buildUserCreatedAuditEvent, buildUserDisabledAuditEvent, buildUserEnabledAuditEvent, buildUserPasswordResetAuditEvent, type AuditUserActor } from "../audit";
 import { normalizeLogin } from "./login";
 import { hashPassword, type PasswordMaterial } from "./password";
-import { isPermission, resolvePermissions, type Permission } from "./permissions";
+import { isPermission, PERMISSIONS, resolvePermissions, type Permission } from "./permissions";
 import { generateTemporaryPassword } from "./temporary-password";
 import type { OneTimePasswordResult, SafeAdminUser } from "./admin-users.types";
 
@@ -37,6 +37,14 @@ function safeUser(user: UserWithPermissions): SafeAdminUser {
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   });
+}
+
+function effectivePermissions(user: Pick<UserWithPermissions, "role" | "permissions">): readonly Permission[] {
+  return user.role === AuthRole.ADMIN ? PERMISSIONS : resolvePermissions(user.permissions.map(({ key }) => key));
+}
+
+function samePermissions(left: readonly Permission[], right: readonly Permission[]): boolean {
+  return left.length === right.length && left.every((key, index) => key === right[index]);
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -82,7 +90,7 @@ export class AdminUsersService {
     return safeUser(user);
   }
 
-  public async create(input: unknown): Promise<OneTimePasswordResult> {
+  public async create(actor: AuditUserActor, input: unknown): Promise<OneTimePasswordResult> {
     const value = record(input); exactKeys(value, ["login", "role", "permissions"]);
     const normalizedLogin = typeof value.login === "string" ? normalizeLogin(value.login) : null;
     if (!normalizedLogin) throw new AdminUsersError("INVALID_INPUT");
@@ -96,7 +104,13 @@ export class AdminUsersService {
         if (nextRole === AuthRole.ADMIN) await lockAdminCardinality(transaction);
         const created = await transaction.authUser.create({ data: { login: value.login as string, normalizedLogin, role: nextRole, disabled: false, mustChangePassword: true, passwordHashVersion: material.version, passwordSalt: new Uint8Array(material.salt), passwordHash: new Uint8Array(material.hash) } });
         if (nextRole === AuthRole.USER && nextPermissions.length > 0) await transaction.authUserPermission.createMany({ data: nextPermissions.map((key) => ({ userId: created.id, key })) });
-        return transaction.authUser.findUniqueOrThrow({ where: { id: created.id }, include: { permissions: true } });
+        const persisted = await transaction.authUser.findUniqueOrThrow({ where: { id: created.id }, include: { permissions: true } });
+        await this.audit.append(transaction, buildUserCreatedAuditEvent(actor, persisted.id, {
+          targetLoginSnapshot: persisted.login,
+          role: persisted.role,
+          permissions: effectivePermissions(persisted),
+        }));
+        return persisted;
       });
       return Object.freeze({ user: safeUser(user), temporaryPassword });
     } catch (error) {
@@ -105,7 +119,7 @@ export class AdminUsersService {
     }
   }
 
-  public async updateAccess(actorId: string, userId: string, input: unknown): Promise<SafeAdminUser> {
+  public async updateAccess(actor: AuditUserActor, userId: string, input: unknown): Promise<SafeAdminUser> {
     const value = record(input); exactKeys(value, ["role", "permissions"]);
     const nextRole = role(value.role);
     const nextPermissions = permissions(value.permissions, nextRole === AuthRole.USER);
@@ -114,15 +128,27 @@ export class AdminUsersService {
       await lockAdminCardinality(transaction);
       const current = await transaction.authUser.findUnique({ where: { id: userId }, include: { permissions: true } });
       if (!current) throw new AdminUsersError("NOT_FOUND");
-      if (actorId === userId && current.role === AuthRole.ADMIN && nextRole === AuthRole.USER) throw new AdminUsersError("SELF_PROTECTED");
+      if (actor.actorUserId === userId && current.role === AuthRole.ADMIN && nextRole === AuthRole.USER) throw new AdminUsersError("SELF_PROTECTED");
       if (current.role === AuthRole.ADMIN && !current.disabled && nextRole === AuthRole.USER) {
         const enabledAdmins = await transaction.authUser.count({ where: { role: AuthRole.ADMIN, disabled: false } });
         if (enabledAdmins <= 1) throw new AdminUsersError("LAST_ENABLED_ADMIN");
       }
+      const previousPermissions = effectivePermissions(current);
+      const requestedEffectivePermissions = nextRole === AuthRole.ADMIN ? PERMISSIONS : nextPermissions;
+      if (current.role === nextRole && samePermissions(previousPermissions, requestedEffectivePermissions)) return safeUser(current);
+
       await transaction.authUserPermission.deleteMany({ where: { userId } });
       await transaction.authUser.update({ where: { id: userId }, data: { role: nextRole } });
       if (nextRole === AuthRole.USER && nextPermissions.length > 0) await transaction.authUserPermission.createMany({ data: nextPermissions.map((key) => ({ userId, key })) });
-      return safeUser(await transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: { permissions: true } }));
+      const persisted = await transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: { permissions: true } });
+      await this.audit.append(transaction, buildUserAccessChangedAuditEvent(actor, persisted.id, {
+        targetLoginSnapshot: persisted.login,
+        previousRole: current.role,
+        role: persisted.role,
+        previousPermissions,
+        permissions: effectivePermissions(persisted),
+      }));
+      return safeUser(persisted);
     });
   }
 
@@ -139,7 +165,7 @@ export class AdminUsersService {
       if (!current.disabled) {
         await transaction.authUser.update({ where: { id: userId }, data: { disabled: true } });
         await transaction.authSession.deleteMany({ where: { userId } });
-        await this.audit.append(transaction, buildUserDisabledAuditEvent(buildUserActor(actor.actorUserId, actor.actorLoginSnapshot), userId, current.login));
+        await this.audit.append(transaction, buildUserDisabledAuditEvent(actor, userId, current.login));
       } else {
         await transaction.authSession.deleteMany({ where: { userId } });
       }
@@ -147,18 +173,21 @@ export class AdminUsersService {
     });
   }
 
-  public async enable(userId: string): Promise<SafeAdminUser> {
+  public async enable(actor: AuditUserActor, userId: string): Promise<SafeAdminUser> {
     return this.database.getClient().$transaction(async (transaction: Prisma.TransactionClient) => {
       await lockAdminCardinality(transaction);
       const current = await transaction.authUser.findUnique({ where: { id: userId }, include: { permissions: true } });
       if (!current) throw new AdminUsersError("NOT_FOUND");
-      if (current.disabled) await transaction.authUser.update({ where: { id: userId }, data: { disabled: false } });
+      if (current.disabled) {
+        await transaction.authUser.update({ where: { id: userId }, data: { disabled: false } });
+        await this.audit.append(transaction, buildUserEnabledAuditEvent(actor, userId, current.login));
+      }
       return safeUser(await transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: { permissions: true } }));
     });
   }
 
-  public async resetPassword(actorId: string, userId: string): Promise<OneTimePasswordResult> {
-    if (actorId === userId) throw new AdminUsersError("SELF_PROTECTED");
+  public async resetPassword(actor: AuditUserActor, userId: string): Promise<OneTimePasswordResult> {
+    if (actor.actorUserId === userId) throw new AdminUsersError("SELF_PROTECTED");
     const temporaryPassword = this.security.generatePassword();
     const material = await this.security.hashPassword(temporaryPassword);
     const user = await this.database.getClient().$transaction(async (transaction: Prisma.TransactionClient) => {
@@ -166,6 +195,7 @@ export class AdminUsersService {
       if (!current) throw new AdminUsersError("NOT_FOUND");
       await transaction.authUser.update({ where: { id: userId }, data: { passwordHashVersion: material.version, passwordSalt: new Uint8Array(material.salt), passwordHash: new Uint8Array(material.hash), passwordChangedAt: new Date(), mustChangePassword: true } });
       await transaction.authSession.deleteMany({ where: { userId } });
+      await this.audit.append(transaction, buildUserPasswordResetAuditEvent(actor, userId, current.login));
       return transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: { permissions: true } });
     });
     return Object.freeze({ user: safeUser(user), temporaryPassword });

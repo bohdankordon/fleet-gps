@@ -1,9 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { canonicalPositionHistoryMaintenanceAnchor } from "../position-history-population-runs/position-history-maintenance-anchor";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
-import { AuditEventRepository, buildRetentionExecutedAuditEvent, type AuditUserActor } from "../audit";
+import { AuditEventRepository, buildAutomaticRetentionExecutedAuditEvent, buildRetentionExecutedAuditEvent, type AuditUserActor, type RetentionExecutedAuditDetails } from "../audit";
 import { POSITION_HISTORY_RETENTION_CLOCK, POSITION_HISTORY_RETENTION_REPOSITORY } from "./position-history-retention.tokens";
 import { POSITION_HISTORY_RETENTION_ABSOLUTE_DAY_MS, POSITION_HISTORY_RETENTION_CHECKPOINT_BATCH_SIZE, POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET, POSITION_HISTORY_RETENTION_OBSERVATION_BATCH_SIZE, POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET, POSITION_HISTORY_RETENTION_POLICY_DAYS, PositionHistoryRetentionExecutionError, type PositionHistoryRetentionClock, type PositionHistoryRetentionExecutionRequest, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPlan, type PositionHistoryRetentionRepository } from "./position-history-retention.types";
+
+type RetentionAuditContext = Readonly<{ actorType: "USER"; actor: AuditUserActor }> | Readonly<{ actorType: "SYSTEM" }>;
 
 @Injectable()
 export class PositionHistoryRetentionService {
@@ -44,14 +46,14 @@ export class PositionHistoryRetentionService {
         || request.expectedPolicyCutoff.getTime() !== Date.parse(plan.policyCutoff)) {
         throw new PositionHistoryRetentionExecutionError("STALE_PLAN");
       }
-    }, actor);
+    }, actor === undefined ? undefined : { actorType: "USER", actor });
   }
 
   public async executeAutomaticRetention(): Promise<PositionHistoryRetentionExecutionResult> {
-    return this.executeLocked();
+    return this.executeLocked(undefined, { actorType: "SYSTEM" });
   }
 
-  private async executeLocked(validatePlan?: (plan: PositionHistoryRetentionPlan) => void, actor?: AuditUserActor): Promise<PositionHistoryRetentionExecutionResult> {
+  private async executeLocked(validatePlan?: (plan: PositionHistoryRetentionPlan) => void, auditContext?: RetentionAuditContext): Promise<PositionHistoryRetentionExecutionResult> {
     try {
       return await this.mutationLock.runExclusive(async () => {
         if (await this.repository.countActiveDurableRuns() > 0) throw new PositionHistoryRetentionExecutionError("ACTIVE_DURABLE_RUN");
@@ -59,16 +61,11 @@ export class PositionHistoryRetentionService {
         const plan = await this.getRetentionPlan(this.clock.now());
         validatePlan?.(plan);
         const result = await this.executeBoundedDestructivePass(plan);
-        if (actor !== undefined && result.deletedCheckpoints + result.deletedObservations > 0) {
-          await this.audit.appendWithDatabase(buildRetentionExecutedAuditEvent(actor, {
-            canonicalAnchor: result.canonicalAnchor,
-            policyCutoff: result.policyCutoff,
-            deletedCheckpoints: result.deletedCheckpoints,
-            deletedObservations: result.deletedObservations,
-            remainingFullyObsoleteCheckpoints: result.remainingFullyObsoleteCheckpoints,
-            remainingExecutableObservationCandidates: result.remainingExecutableObservationCandidates,
-            stoppedByBudget: result.stoppedByBudget,
-          }));
+        if (auditContext !== undefined && result.deletedCheckpoints + result.deletedObservations > 0) {
+          const details = retentionAuditDetails(result);
+          await this.audit.appendWithDatabase(auditContext.actorType === "USER"
+            ? buildRetentionExecutedAuditEvent(auditContext.actor, details)
+            : buildAutomaticRetentionExecutedAuditEvent(details));
         }
         return result;
       });
@@ -116,4 +113,16 @@ export class PositionHistoryRetentionService {
       noWork: deletedCheckpoints === 0 && deletedObservations === 0 && remainingFullyObsoleteCheckpoints === 0 && remainingExecutableObservationCandidates === 0,
     });
   }
+}
+
+export function retentionAuditDetails(result: PositionHistoryRetentionExecutionResult): RetentionExecutedAuditDetails {
+  return Object.freeze({
+    canonicalAnchor: result.canonicalAnchor,
+    policyCutoff: result.policyCutoff,
+    deletedCheckpoints: result.deletedCheckpoints,
+    deletedObservations: result.deletedObservations,
+    remainingFullyObsoleteCheckpoints: result.remainingFullyObsoleteCheckpoints,
+    remainingExecutableObservationCandidates: result.remainingExecutableObservationCandidates,
+    stoppedByBudget: result.stoppedByBudget,
+  });
 }

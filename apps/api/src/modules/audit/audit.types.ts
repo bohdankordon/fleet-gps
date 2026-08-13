@@ -1,4 +1,5 @@
-import { AuditActorType, AuditEventType, AuditTargetType } from "../../generated/prisma/enums";
+import { AuditActorType, AuditEventType, AuditTargetType, AuthRole } from "../../generated/prisma/enums";
+import type { Permission } from "../auth/permissions";
 
 export type AuditUserActor = Readonly<{
   actorType: typeof AuditActorType.USER;
@@ -18,6 +19,20 @@ export type UserDisabledAuditDetails = Readonly<{
   targetLoginSnapshot: string;
 }>;
 
+export type UserCreatedAuditDetails = Readonly<{
+  targetLoginSnapshot: string;
+  role: AuthRole;
+  permissions: readonly Permission[];
+}>;
+
+export type UserAccessChangedAuditDetails = Readonly<{
+  targetLoginSnapshot: string;
+  previousRole: AuthRole;
+  role: AuthRole;
+  previousPermissions: readonly Permission[];
+  permissions: readonly Permission[];
+}>;
+
 export type DurablePopulationCreatedAuditDetails = Readonly<{
   to: string;
   windowBudget: number;
@@ -34,13 +49,55 @@ export type RetentionExecutedAuditDetails = Readonly<{
   stoppedByBudget: boolean;
 }>;
 
+export type ShortPopulationExecutedAuditDetails = Readonly<{
+  to: string;
+  windowBudget: number;
+  excludeProviderDisabled: boolean;
+  committedWindows: number;
+}>;
+
 export type AuditEventSpec =
+  | Readonly<{
+      eventType: typeof AuditEventType.USER_CREATED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.USER;
+      targetId: string;
+      details: UserCreatedAuditDetails;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.USER_ACCESS_CHANGED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.USER;
+      targetId: string;
+      details: UserAccessChangedAuditDetails;
+    }>
   | Readonly<{
       eventType: typeof AuditEventType.USER_DISABLED;
       actor: AuditUserActor;
       targetType: typeof AuditTargetType.USER;
       targetId: string;
       details: UserDisabledAuditDetails;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.USER_ENABLED | typeof AuditEventType.USER_PASSWORD_RESET;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.USER;
+      targetId: string;
+      details: UserDisabledAuditDetails;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.OWN_PASSWORD_CHANGED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.USER;
+      targetId: string;
+      details: Readonly<Record<string, never>>;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.SHORT_POPULATION_EXECUTED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.POSITION_HISTORY;
+      targetId: null;
+      details: ShortPopulationExecutedAuditDetails;
     }>
   | Readonly<{
       eventType: typeof AuditEventType.DURABLE_POPULATION_CREATED;
@@ -50,8 +107,22 @@ export type AuditEventSpec =
       details: DurablePopulationCreatedAuditDetails;
     }>
   | Readonly<{
+      eventType: typeof AuditEventType.SYSTEM_POPULATION_CREATED;
+      actor: AuditSystemActor;
+      targetType: typeof AuditTargetType.POSITION_HISTORY_POPULATION_RUN;
+      targetId: string;
+      details: DurablePopulationCreatedAuditDetails;
+    }>
+  | Readonly<{
       eventType: typeof AuditEventType.RETENTION_EXECUTED;
       actor: AuditUserActor;
+      targetType: typeof AuditTargetType.POSITION_HISTORY_RETENTION;
+      targetId: null;
+      details: RetentionExecutedAuditDetails;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.AUTOMATIC_RETENTION_EXECUTED;
+      actor: AuditSystemActor;
       targetType: typeof AuditTargetType.POSITION_HISTORY_RETENTION;
       targetId: null;
       details: RetentionExecutedAuditDetails;

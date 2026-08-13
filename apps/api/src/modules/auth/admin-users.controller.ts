@@ -33,26 +33,26 @@ export class AdminUsersController {
   public list(): Promise<readonly SafeAdminUser[]> { return this.users.list(); }
 
   @Post()
-  public async create(@Body() body: unknown, @Res({ passthrough: true }) response: HttpResponse): Promise<OneTimePasswordResult> {
+  public async create(@Req() request: AuthenticatedRequest, @Body() body: unknown, @Res({ passthrough: true }) response: HttpResponse): Promise<OneTimePasswordResult> {
     response.setHeader("Cache-Control", "no-store");
-    try { return await this.users.create(body); } catch (error) { return adminError(error); }
+    try { return await this.users.create(buildUserActor(request.auth!.id, request.auth!.login), body); } catch (error) { return adminError(error); }
   }
 
   @Get(":userId")
   public async detail(@Param("userId") userId: string): Promise<SafeAdminUser> { try { return await this.users.detail(targetId(userId)); } catch (error) { return adminError(error); } }
 
   @Patch(":userId/access")
-  public async access(@Req() request: AuthenticatedRequest, @Param("userId") userId: string, @Body() body: unknown): Promise<SafeAdminUser> { try { return await this.users.updateAccess(request.auth!.id, targetId(userId), body); } catch (error) { return adminError(error); } }
+  public async access(@Req() request: AuthenticatedRequest, @Param("userId") userId: string, @Body() body: unknown): Promise<SafeAdminUser> { try { return await this.users.updateAccess(buildUserActor(request.auth!.id, request.auth!.login), targetId(userId), body); } catch (error) { return adminError(error); } }
 
   @Post(":userId/disable")
   public async disable(@Req() request: AuthenticatedRequest, @Param("userId") userId: string, @Body() body: unknown): Promise<SafeAdminUser> { try { requireEmptyBody(body); return await this.users.disable(buildUserActor(request.auth!.id, request.auth!.login), targetId(userId)); } catch (error) { return adminError(error); } }
 
   @Post(":userId/enable")
-  public async enable(@Param("userId") userId: string, @Body() body: unknown): Promise<SafeAdminUser> { try { requireEmptyBody(body); return await this.users.enable(targetId(userId)); } catch (error) { return adminError(error); } }
+  public async enable(@Req() request: AuthenticatedRequest, @Param("userId") userId: string, @Body() body: unknown): Promise<SafeAdminUser> { try { requireEmptyBody(body); return await this.users.enable(buildUserActor(request.auth!.id, request.auth!.login), targetId(userId)); } catch (error) { return adminError(error); } }
 
   @Post(":userId/reset-password")
   public async reset(@Req() request: AuthenticatedRequest, @Param("userId") userId: string, @Body() body: unknown, @Res({ passthrough: true }) response: HttpResponse): Promise<OneTimePasswordResult> {
     response.setHeader("Cache-Control", "no-store");
-    try { requireEmptyBody(body); return await this.users.resetPassword(request.auth!.id, targetId(userId)); } catch (error) { return adminError(error); }
+    try { requireEmptyBody(body); return await this.users.resetPassword(buildUserActor(request.auth!.id, request.auth!.login), targetId(userId)); } catch (error) { return adminError(error); }
   }
 }
