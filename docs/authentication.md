@@ -46,7 +46,9 @@ Public exceptions are `POST /api/auth/login`, `GET /api/health`, and `GET /api/h
 | vehicle track/Trips pages, exact/overview track APIs, trip-analysis API | `trips.view` |
 | `/reports`, fleet activity report API | `reports.view` |
 | `/admin/history`, position history horizon-status API | `historyAdmin.view` |
+| `GET /api/system/position-history/population-runs/active`, `/recent` | `historyAdmin.view` |
 | `POST /api/system/position-history/horizon-populate` | `historyAdmin.populate` |
+| `POST /api/system/position-history/population-runs` | `historyAdmin.populate` |
 | `/admin/users`, `/admin/users/new`, `/admin/users/:id`, all `/api/admin/users` operations | ADMIN role only |
 | alert-settings and city-geofence diagnostic APIs | ADMIN-only |
 | account/no-access/change-password pages and me/logout/change-password APIs | authenticated account flow |
@@ -76,7 +78,7 @@ USER permission updates are complete replace-set operations. Unknown keys reject
 
 An ADMIN cannot disable, demote, or administratively reset themselves; self-service password change remains under **Аккаунт → Сменить пароль**. Disabling or demoting an enabled ADMIN acquires fixed PostgreSQL transaction advisory lock `1706170002`, re-reads the target and enabled ADMIN count inside the transaction, rejects removal of the last enabled ADMIN, then mutates. Access, enable, and ADMIN creation use the same lock where ADMIN cardinality can change, so concurrent reductions cannot commit zero enabled ADMINs. This uses no schema object or migration.
 
-`historyAdmin.populate` exposes the Stage 17C confirmation/action while `historyAdmin.view` alone remains status-only. ADMIN has both through role authority; the Nest POST is permission-protected rather than ADMIN-only. No authentication audit subsystem is introduced.
+`historyAdmin.populate` exposes both the Stage 17C short confirmation/action and the Stage 18B durable-create controls, while `historyAdmin.view` alone can see horizon status and durable active/recent history. ADMIN has both through role authority; both Nest POSTs are permission-protected rather than ADMIN-only. Stage 18B derives USER attribution from the authenticated principal and accepts no browser-supplied identity. No authentication audit subsystem is introduced.
 
 ## Operator bootstrap account creation
 

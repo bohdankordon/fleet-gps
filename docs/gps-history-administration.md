@@ -1,4 +1,4 @@
-# GPS history administration and protected population (Stage 17C)
+# GPS history administration and protected population (Stages 17C–18B)
 
 `/admin/history?to=<absolute-iso>` retains the Stage 16A administrative status view and adds one explicit, protected, bounded Stage 17C population action. The global **Администрирование** navigation item opens this single page; there is no settings hierarchy or unrelated provider configuration.
 
@@ -60,3 +60,9 @@ Failure to acquire returns 409 and **Дозаполнение истории у�
 Stage 14C stops at the first established failure. Because earlier windows commit independently, an HTTP failure is not rolled back and the UI warns that part of the work may have persisted. Success and failure both refresh status for the exact same `to`; neither generates a new anchor or navigates to now.
 
 Stage 17C deliberately remains a bounded synchronous manual action. It adds no job/lease/run table, queue, worker, polling, cancellation, pause/resume, scheduler, cron, startup catch-up, automatic rolling maintenance, retention, deletion, pruning, archive, or cleanup. The 90-day planning policy is not automatic population or retention deletion.
+
+## Separate durable background population (Stage 18B)
+
+The same page now also shows durable active/recent state to `historyAdmin.view`. Operators with effective `historyAdmin.populate` receive a distinct confirmed create flow with exact presets **500 / 1000 / 5000** (default 1000) and provider-disabled exclusion checked by default. The request uses the exact current `to` anchor. It creates a USER run attributed from the authenticated server principal; the browser cannot provide an initiator or user ID. One active PENDING/RUNNING row remains database-enforced and produces safe 409. Terminal history is a newest-first fixed list of ten and has no deletion or resume control.
+
+The server polls existing durable rows every 30 seconds through the Stage 18A worker and shared lock `1706170003`; it never creates work. The page reads active state every five seconds and refreshes the same-anchor planner plus terminal history as progress changes. This polling never executes population, and closing the page does not stop server/database-owned work. Transport ambiguity may cause one active-status GET but never an automatic second create POST. Expired RUNNING rows recover through the existing lease model. This is execution orchestration, not automatic 90-day maintenance: no SYSTEM creation, daily catch-up, retention, cancel/pause/resume/retry, or second population lock is introduced.

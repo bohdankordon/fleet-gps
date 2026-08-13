@@ -1,6 +1,6 @@
-# Durable position-history population runs (Stage 18A)
+# Durable position-history population runs (Stages 18A–18B)
 
-Stage 18A provides an internal, durable execution foundation for large, restart-safe GPS history population. It deliberately adds no public HTTP endpoint, browser UI, worker startup hook, poller, scheduler, automatic `SYSTEM` run, rolling maintenance, cancellation, retry queue, retention, or deletion.
+Stage 18A provides the internal durable execution foundation for large, restart-safe GPS history population. Stage 18B adds protected operator APIs/UI and a server poller for already-existing runs. It does not add automatic policy, `SYSTEM` creation, cancellation, retry queues, retention, or deletion.
 
 `PositionHistoryPopulationRun` persists the exact absolute `to` timestamp, provider-disabled selection, positive window budget, committed-window count, initiator, lifecycle timestamps, lease, and a safe failure code. A run is `PENDING`, `RUNNING`, `SUCCEEDED`, or `FAILED`; its initiator is `USER` or `SYSTEM`. A `USER` run normally references `AuthUser`, and deletion of that user sets the nullable reference to null. `SYSTEM` is foundation for Stage 18C only and creates no work automatically.
 
@@ -18,4 +18,14 @@ After each chunk the worker trusts the persisted counter rather than executor to
 
 If the process dies, no cleanup is assumed: PostgreSQL releases the session lock, the run remains `RUNNING`, its lease expires, and a later callable invocation reclaims the same row. Because checkpoint advancement and durable accounting are atomic, restart cannot under-count already committed work and cannot exceed the database-enforced budget.
 
-Stage 18B may expose large runs in the admin UI. Stage 18C may use the reserved `SYSTEM` initiator for automatic rolling maintenance. Neither behavior exists in Stage 18A.
+## Stage 18B operator and orchestration surface
+
+The existing `/admin/history?to=<absolute-iso>` page keeps the separate Stage 17C synchronous action (exactly 6, 12, or 24 windows, default 24) and adds **Фоновое дозаполнение истории**. Durable browser presets are exactly 500, 1,000, or 5,000 windows, default 1,000; provider-disabled exclusion defaults to true. Confirmation shows and submits the exact already-loaded page anchor—never a newly generated time—and explains provider contact, persistent history writes, long duration, and page-close independence.
+
+Nest exposes `POST /api/system/position-history/population-runs` under `historyAdmin.populate`, and read-only `GET .../active` plus `GET .../recent` under `historyAdmin.view`. POST accepts only `to`, `windowBudget`, and `excludeProviderDisabled`; it always derives `initiatorType=USER` and `requestedByUserId` from the authenticated principal. A database-enforced active conflict becomes safe 409. Active returns at most one PENDING/RUNNING safe DTO; recent returns the newest 10 SUCCEEDED/FAILED rows. DTOs omit user linkage, leases, raw failure details, provider data, checkpoint cursors, coordinates, and fingerprints. Matching no-store Next BFF routes forward only `taxi_session`; create reuses the centralized same-origin check and is never automatically retried.
+
+A fixed 30-second Nest poll invokes the existing Stage 18A `processNextAvailableRun()` only. Multiple application instances may poll: correctness remains with the one-active constraint, lease ownership, and shared PostgreSQL lock `1706170003`. `LOCK_UNAVAILABLE` and `NO_WORK` are normal; unexpected wrapper errors are safely contained. The poller creates no USER or SYSTEM run, reads no horizon policy to decide creation, and adds no second mutex. Expired RUNNING recovery remains the Stage 18A lease path with persisted `committedWindows` truth.
+
+The browser performs read-only active polling every five seconds. It retains prior truth on temporary failures, preserves the same URL anchor, refreshes horizon status during active progress/transition, and refreshes the fixed terminal list after completion. Closing the page stops only browser polling; database/server work continues. UI states are factual PENDING, RUNNING, SUCCEEDED, and FAILED window-budget progress. Failure explains that partial work may persist and offers no retry-same-run action.
+
+There is no cancel, pause, resume, force unlock, run deletion, pruning, retention, notification, automatic rolling-horizon maintenance, or automatic `SYSTEM` run. Stage 18C remains the future policy-automation stage.

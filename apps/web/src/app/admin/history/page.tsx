@@ -5,6 +5,7 @@ import { resolvePositionHistoryAnchor } from "@/lib/position-history-status/posi
 import { AdminSubnavigation } from "@/components/admin-subnavigation";
 import { getAuthUser } from "@/lib/auth/auth-user";
 import { hasPermission } from "@/lib/auth/auth-contract";
+import { fetchActiveDurableRun, fetchRecentDurableRuns } from "@/lib/position-history-durable-runs/position-history-durable-run-client";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,7 +16,8 @@ export default async function AdminHistoryPage({ searchParams }: Readonly<{ sear
   if (!resolved.anchor) return <main><AdminSubnavigation /><PositionHistoryStatusView anchor={resolved.input} data={null} error="INVALID_ANCHOR" /></main>;
   let data = null;
   let error: "UNAVAILABLE" | null = null;
-  try { data = await fetchPositionHistoryStatus(resolved.anchor); }
-  catch { error = "UNAVAILABLE"; }
-  return <main><AdminSubnavigation /><PositionHistoryStatusView anchor={resolved.anchor} data={data} error={error} canPopulate={user !== null && hasPermission(user, "historyAdmin.populate")} /></main>;
+  const [statusResult, activeResult, recentResult] = await Promise.allSettled([fetchPositionHistoryStatus(resolved.anchor), fetchActiveDurableRun(), fetchRecentDurableRuns()]);
+  if (statusResult.status === "fulfilled") data = statusResult.value;
+  else error = "UNAVAILABLE";
+  return <main><AdminSubnavigation /><PositionHistoryStatusView anchor={resolved.anchor} data={data} error={error} canPopulate={user !== null && hasPermission(user, "historyAdmin.populate")} showDurableRuns initialDurableActive={activeResult.status === "fulfilled" ? activeResult.value : null} initialDurableRecent={recentResult.status === "fulfilled" ? recentResult.value : []} /></main>;
 }

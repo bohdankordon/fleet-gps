@@ -1,11 +1,13 @@
 import type { PositionHistoryStatusResponse } from "@/lib/position-history-status/position-history-status-contract";
 import { PositionHistoryPopulation } from "./position-history-population";
+import { PositionHistoryDurableRuns } from "./position-history-durable-runs";
+import type { SafeDurableRun } from "../lib/position-history-durable-runs/position-history-durable-run-contract";
 
-type Props = Readonly<{ anchor: string | null; data: PositionHistoryStatusResponse | null; error: "INVALID_ANCHOR" | "UNAVAILABLE" | null; canPopulate?: boolean }>;
+type Props = Readonly<{ anchor: string | null; data: PositionHistoryStatusResponse | null; error: "INVALID_ANCHOR" | "UNAVAILABLE" | null; canPopulate?: boolean; showDurableRuns?: boolean; initialDurableActive?: SafeDurableRun | null; initialDurableRecent?: readonly SafeDurableRun[] }>;
 function formatInstant(value: string | null): string { return value ?? "Нет наблюдений"; }
 function formatHours(value: number | null): string { return value === null ? "Нет" : `${value} ч`; }
 
-export function PositionHistoryStatusView({ anchor, data, error, canPopulate = false }: Props) {
+export function PositionHistoryStatusView({ anchor, data, error, canPopulate = false, showDurableRuns = false, initialDurableActive = null, initialDurableRecent = [] }: Props) {
   const newestFirst = data ? [...data.sliceStatuses].reverse() : [];
   return <>
     <header className="hero admin-history-hero"><p className="eyebrow">Администрирование</p><h1>История GPS</h1><p>План на контрольную точку: состояние точных целей исторического заполнения, а не полнота GPS-данных.</p></header>
@@ -18,7 +20,8 @@ export function PositionHistoryStatusView({ anchor, data, error, canPopulate = f
       <section className="admin-history-section"><h2>GPS-наблюдения</h2><p className="admin-history-disclaimer">Отдельные факты сохранённых наблюдений в выбранном горизонте. Они не определяют статус чекпоинтов и не образуют процент полноты.</p><div className="admin-history-summary"><article><span>Строк наблюдений</span><strong>{data.observations.rowCount}</strong></article><article><span>Машин с наблюдениями</span><strong>{data.observations.vehiclesWithObservations}</strong></article><article><span>Машин без наблюдений</span><strong>{data.observations.vehiclesWithoutObservations}</strong></article><article><span>Первое наблюдение</span><strong>{formatInstant(data.observations.firstObservationAt)}</strong></article><article><span>Последнее наблюдение</span><strong>{formatInstant(data.observations.lastObservationAt)}</strong></article></div></section>
       <section className="admin-history-section"><h2>Диапазоны заполнения</h2><p className="admin-history-disclaimer">От новых к старым. RUNNING и PENDING остаются незавершёнными; продвижение RUNNING отражено только в оставшихся часовых окнах.</p><div className="admin-history-table-wrap"><table className="admin-history-table"><thead><tr><th>С</th><th>До</th><th>Длительность</th><th>COMPLETED</th><th>RUNNING</th><th>PENDING</th><th>NONE</th><th>Доступных осталось</th><th>Часовых окон осталось</th></tr></thead><tbody>{newestFirst.map((slice) => <tr key={`${slice.from}/${slice.to}`}><td>{slice.from}</td><td>{slice.to}</td><td>{slice.durationHours} ч</td><td>{slice.completed} / {slice.vehiclesTotal}</td><td>{slice.running}</td><td>{slice.pending}</td><td>{slice.none}</td><td>{slice.providerEligibleRemaining}</td><td>{slice.estimatedRemainingHourlyWindows}</td></tr>)}</tbody></table></div></section>
       {anchor && canPopulate && <PositionHistoryPopulation anchor={anchor} />}
-      <aside className="admin-history-help"><strong>Операционный режим</strong><p>Браузерный запуск ограничен 24 часовыми окнами. Для большого контролируемого дозаполнения используется CLI-команда <code>position-history:horizon-populate</code>.</p></aside>
+      <aside className="admin-history-help"><strong>Операционные режимы</strong><p>Короткий синхронный запуск остаётся ограничен 6 / 12 / 24 окнами. Большое дозаполнение выполняется отдельным долговременным запуском 500 / 1000 / 5000 окон, принадлежащим серверу и базе данных.</p></aside>
     </>}
+    {anchor && showDurableRuns && <PositionHistoryDurableRuns key={`${anchor}:${initialDurableActive?.id ?? "none"}:${initialDurableActive?.committedWindows ?? 0}:${initialDurableRecent[0]?.id ?? "none"}`} anchor={anchor} canPopulate={canPopulate} initialActive={initialDurableActive} initialRecent={initialDurableRecent} />}
   </>;
 }
