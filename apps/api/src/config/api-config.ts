@@ -18,6 +18,9 @@ export type AlertIngestionConfig = Readonly<{
 export type PositionHistoryMaintenanceConfig = Readonly<{
   enabled: boolean;
 }>;
+export type PositionHistoryRetentionConfig = Readonly<{
+  enabled: boolean;
+}>;
 export type TelegramNotificationsConfig = Readonly<{
   enabled: boolean;
   botToken: string | null;
@@ -33,6 +36,7 @@ export type ApiConfig = Readonly<{
   syncScheduler: SyncSchedulerConfig;
   alertIngestion: AlertIngestionConfig;
   positionHistoryMaintenance: PositionHistoryMaintenanceConfig;
+  positionHistoryRetention?: PositionHistoryRetentionConfig;
   telegramNotifications: TelegramNotificationsConfig;
 }>;
 
@@ -83,6 +87,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
   const schedulerEnabled = parseBoolean(env.SYNC_SCHEDULER_ENABLED);
   const alertIngestionEnabled = parseBoolean(env.ALERT_INGESTION_ENABLED);
   const positionHistoryMaintenanceEnabled = parseBoolean(env.POSITION_HISTORY_MAINTENANCE_ENABLED);
+  const positionHistoryRetentionEnabled = parseBoolean(env.POSITION_HISTORY_RETENTION_ENABLED);
   const telegramNotificationsEnabled = parseBoolean(env.TELEGRAM_NOTIFICATIONS_ENABLED);
   const telegramBotToken = env.TELEGRAM_BOT_TOKEN?.trim() || null;
   const telegramChatId = env.TELEGRAM_CHAT_ID?.trim() || null;
@@ -102,6 +107,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
   if (schedulerEnabled === undefined) issues.push("SYNC_SCHEDULER_ENABLED");
   if (alertIngestionEnabled === undefined) issues.push("ALERT_INGESTION_ENABLED");
   if (positionHistoryMaintenanceEnabled === undefined) issues.push("POSITION_HISTORY_MAINTENANCE_ENABLED");
+  if (positionHistoryRetentionEnabled === undefined) issues.push("POSITION_HISTORY_RETENTION_ENABLED");
   if (telegramNotificationsEnabled === undefined) issues.push("TELEGRAM_NOTIFICATIONS_ENABLED");
   if (telegramNotificationsEnabled === true && telegramBotToken === null) issues.push("TELEGRAM_BOT_TOKEN");
   if (telegramNotificationsEnabled === true && telegramChatId === null) issues.push("TELEGRAM_CHAT_ID");
@@ -121,6 +127,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
     schedulerEnabled === undefined ||
     alertIngestionEnabled === undefined ||
     positionHistoryMaintenanceEnabled === undefined ||
+    positionHistoryRetentionEnabled === undefined ||
     telegramNotificationsEnabled === undefined ||
     telegramDispatchIntervalMs === undefined ||
     telegramBatchSize === undefined ||
@@ -139,6 +146,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
       syncScheduler: Object.freeze({ enabled: schedulerEnabled, fleetIntervalSeconds, runsIntervalSeconds, shutdownTimeoutMs }),
       alertIngestion: Object.freeze({ enabled: alertIngestionEnabled }),
       positionHistoryMaintenance: Object.freeze({ enabled: positionHistoryMaintenanceEnabled }),
+      positionHistoryRetention: Object.freeze({ enabled: positionHistoryRetentionEnabled }),
       telegramNotifications: Object.freeze({ enabled: telegramNotificationsEnabled, botToken: telegramBotToken, chatId: telegramChatId, dispatchIntervalMs: telegramDispatchIntervalMs, batchSize: telegramBatchSize }),
       equGps: Object.freeze(parseEquGpsConfig({
         officialBaseUrl: env.EQUGPS_BASE_URL ?? "",

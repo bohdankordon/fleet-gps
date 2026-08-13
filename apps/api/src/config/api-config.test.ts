@@ -33,12 +33,14 @@ test("API config applies safe defaults, freezes config, and preserves the input 
   });
   assert.deepEqual(config.alertIngestion, { enabled: false });
   assert.deepEqual(config.positionHistoryMaintenance, { enabled: false });
+  assert.deepEqual(config.positionHistoryRetention, { enabled: false });
   assert.deepEqual(config.telegramNotifications, { enabled: false, botToken: null, chatId: null, dispatchIntervalMs: 60_000, batchSize: 20 });
   assert.deepEqual(env, before);
   assert.equal(Object.isFrozen(config), true);
   assert.equal(Object.isFrozen(config.syncScheduler), true);
   assert.equal(Object.isFrozen(config.alertIngestion), true);
   assert.equal(Object.isFrozen(config.positionHistoryMaintenance), true);
+  assert.equal(Object.isFrozen(config.positionHistoryRetention), true);
   assert.equal(Object.isFrozen(config.telegramNotifications), true);
   assert.equal(Object.isFrozen(config.database), true);
   assert.equal(Object.isFrozen(config.equGps), true);
@@ -101,6 +103,34 @@ test("position-history maintenance is disabled when missing or false and enabled
       assert.equal(JSON.stringify(error).includes(value), false);
       return true;
     });
+  }
+});
+
+test("position-history retention is disabled when missing or false and enabled only by exact true", () => {
+  assert.deepEqual(parseApiConfig(valid()).positionHistoryRetention, { enabled: false });
+  assert.deepEqual(parseApiConfig({ ...valid(), POSITION_HISTORY_RETENTION_ENABLED: "false" }).positionHistoryRetention, { enabled: false });
+  assert.deepEqual(parseApiConfig({ ...valid(), POSITION_HISTORY_RETENTION_ENABLED: "true" }).positionHistoryRetention, { enabled: true });
+  for (const value of ["TRUE", "yes", "1", "   "]) {
+    assert.throws(() => parseApiConfig({ ...valid(), POSITION_HISTORY_RETENTION_ENABLED: value }), (error: unknown) => {
+      assert.ok(error instanceof ApiConfigurationError);
+      assert.deepEqual(error.issues, ["POSITION_HISTORY_RETENTION_ENABLED"]);
+      assert.equal(JSON.stringify(error).includes(value), false);
+      return true;
+    });
+  }
+});
+
+test("population and retention feature flags remain independent in all combinations", () => {
+  for (const population of [false, true]) {
+    for (const retention of [false, true]) {
+      const config = parseApiConfig({
+        ...valid(),
+        POSITION_HISTORY_MAINTENANCE_ENABLED: String(population),
+        POSITION_HISTORY_RETENTION_ENABLED: String(retention),
+      });
+      assert.equal(config.positionHistoryMaintenance.enabled, population);
+      assert.equal(config.positionHistoryRetention?.enabled, retention);
+    }
   }
 });
 

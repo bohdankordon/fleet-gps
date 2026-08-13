@@ -37,44 +37,57 @@ export class PositionHistoryRetentionService {
   }
 
   public async executeRetention(request: PositionHistoryRetentionExecutionRequest): Promise<PositionHistoryRetentionExecutionResult> {
+    return this.executeLocked((plan) => {
+      if (request.expectedCanonicalAnchor.getTime() !== Date.parse(plan.canonicalAnchor)
+        || request.expectedPolicyCutoff.getTime() !== Date.parse(plan.policyCutoff)) {
+        throw new PositionHistoryRetentionExecutionError("STALE_PLAN");
+      }
+    });
+  }
+
+  public async executeAutomaticRetention(): Promise<PositionHistoryRetentionExecutionResult> {
+    return this.executeLocked();
+  }
+
+  private async executeLocked(validatePlan?: (plan: PositionHistoryRetentionPlan) => void): Promise<PositionHistoryRetentionExecutionResult> {
     try {
       return await this.mutationLock.runExclusive(async () => {
         if (await this.repository.countActiveDurableRuns() > 0) throw new PositionHistoryRetentionExecutionError("ACTIVE_DURABLE_RUN");
 
         const plan = await this.getRetentionPlan(this.clock.now());
-        if (request.expectedCanonicalAnchor.getTime() !== Date.parse(plan.canonicalAnchor)
-          || request.expectedPolicyCutoff.getTime() !== Date.parse(plan.policyCutoff)) {
-          throw new PositionHistoryRetentionExecutionError("STALE_PLAN");
-        }
-
-        const policyCutoff = new Date(plan.policyCutoff);
-        let deletedCheckpoints = 0;
-        while (plan.checkpoints.fullyObsolete > 0 && deletedCheckpoints < POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET) {
-          const limit = Math.min(POSITION_HISTORY_RETENTION_CHECKPOINT_BATCH_SIZE, POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET - deletedCheckpoints);
-          const deleted = await this.repository.deleteFullyObsoleteCheckpointBatch(policyCutoff, limit);
-          deletedCheckpoints += deleted;
-          if (deleted < limit) break;
-        }
-
-        const remainingFullyObsoleteCheckpoints = await this.repository.countFullyObsoleteCheckpoints(policyCutoff);
-        if (remainingFullyObsoleteCheckpoints > 0) {
-          return this.result(plan, deletedCheckpoints, 0, remainingFullyObsoleteCheckpoints, await this.repository.countExecutableObservationCandidates(policyCutoff), true);
-        }
-
-        let deletedObservations = 0;
-        while (plan.observations.executableObservationCandidates > 0 && deletedObservations < POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET) {
-          const limit = Math.min(POSITION_HISTORY_RETENTION_OBSERVATION_BATCH_SIZE, POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET - deletedObservations);
-          const deleted = await this.repository.deleteExecutableObservationBatch(policyCutoff, limit);
-          deletedObservations += deleted;
-          if (deleted < limit) break;
-        }
-        const remainingExecutableObservationCandidates = await this.repository.countExecutableObservationCandidates(policyCutoff);
-        return this.result(plan, deletedCheckpoints, deletedObservations, 0, remainingExecutableObservationCandidates, remainingExecutableObservationCandidates > 0);
+        validatePlan?.(plan);
+        return this.executeBoundedDestructivePass(plan);
       });
     } catch (error) {
       if (error instanceof PositionHistoryHorizonAlreadyRunningError) throw new PositionHistoryRetentionExecutionError("LOCK_UNAVAILABLE");
       throw error;
     }
+  }
+
+  private async executeBoundedDestructivePass(plan: PositionHistoryRetentionPlan): Promise<PositionHistoryRetentionExecutionResult> {
+    const policyCutoff = new Date(plan.policyCutoff);
+    let deletedCheckpoints = 0;
+    while (plan.checkpoints.fullyObsolete > 0 && deletedCheckpoints < POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET) {
+      const limit = Math.min(POSITION_HISTORY_RETENTION_CHECKPOINT_BATCH_SIZE, POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET - deletedCheckpoints);
+      const deleted = await this.repository.deleteFullyObsoleteCheckpointBatch(policyCutoff, limit);
+      deletedCheckpoints += deleted;
+      if (deleted < limit) break;
+    }
+
+    const remainingFullyObsoleteCheckpoints = await this.repository.countFullyObsoleteCheckpoints(policyCutoff);
+    if (remainingFullyObsoleteCheckpoints > 0) {
+      return this.result(plan, deletedCheckpoints, 0, remainingFullyObsoleteCheckpoints, await this.repository.countExecutableObservationCandidates(policyCutoff), true);
+    }
+
+    let deletedObservations = 0;
+    while (plan.observations.executableObservationCandidates > 0 && deletedObservations < POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET) {
+      const limit = Math.min(POSITION_HISTORY_RETENTION_OBSERVATION_BATCH_SIZE, POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET - deletedObservations);
+      const deleted = await this.repository.deleteExecutableObservationBatch(policyCutoff, limit);
+      deletedObservations += deleted;
+      if (deleted < limit) break;
+    }
+    const remainingExecutableObservationCandidates = await this.repository.countExecutableObservationCandidates(policyCutoff);
+    return this.result(plan, deletedCheckpoints, deletedObservations, 0, remainingExecutableObservationCandidates, remainingExecutableObservationCandidates > 0);
   }
 
   private result(plan: PositionHistoryRetentionPlan, deletedCheckpoints: number, deletedObservations: number, remainingFullyObsoleteCheckpoints: number, remainingExecutableObservationCandidates: number, stoppedByBudget: boolean): PositionHistoryRetentionExecutionResult {

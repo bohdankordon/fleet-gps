@@ -98,6 +98,11 @@ export type PositionHistoryRetentionExecutionResult = Readonly<{
   noWork: boolean;
 }>;
 
+export type PositionHistoryAutomaticRetentionOutcome = Readonly<{
+  outcome: "DISABLED" | "NO_WORK" | "LOCK_UNAVAILABLE" | "ACTIVE_POPULATION" | "EXECUTED" | "FAILED_SAFE";
+  result: PositionHistoryRetentionExecutionResult | null;
+}>;
+
 export type PositionHistoryRetentionExecutionErrorCode = "LOCK_UNAVAILABLE" | "ACTIVE_DURABLE_RUN" | "STALE_PLAN";
 
 export class PositionHistoryRetentionExecutionError extends Error {

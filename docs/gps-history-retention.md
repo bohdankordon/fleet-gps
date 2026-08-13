@@ -1,4 +1,4 @@
-# GPS history retention (Stages 19A–19B)
+# GPS history retention (Stages 19A–19C)
 
 The Stage 19A planner remains a factual, mutation-free `GET /api/system/position-history/retention-plan` available with effective `historyAdmin.view`. It derives the latest already-occurred Tuesday 02:00 UTC anchor through the unchanged Stage 18C policy function and subtracts exactly 90 elapsed 24-hour days. The history page `?to=` value does not affect the retention anchor, cutoff, or days. Nest and Next responses are `Cache-Control: no-store`; query policy overrides are rejected.
 
@@ -27,4 +27,14 @@ This ordering makes partial crashes safe. A crash may leave obsolete checkpoint 
 
 The Next BFF reuses centralized same-origin write protection, forwards only the existing `taxi_session` through the shared helper, and never automatically retries a destructive POST. The ADMIN UI requires a separate confirmation displaying the exact planner snapshot, work counts, irreversible ordering, boundary protection, and fixed 5,000/25,000 limits. USERs retain planner visibility but see no cleanup controls. When there is no work, ADMIN sees a no-work state rather than an enabled destructive action.
 
-Retention has no scheduler, cron, startup cleanup, durable retention job, custom budget, retention-days input, 365-day control, provider dependency/request, archive/VACUUM behavior, schema change, migration, or additional advisory lock. Stage 18C automatic population, Stage 18B durable population, Stage 17C manual population, and Stage 14 inclusive semantics remain unchanged.
+## Automatic maintenance
+
+Stage 19C adds one operational opt-in: `POSITION_HISTORY_RETENTION_ENABLED`. Missing or `false` means automatic deletion is disabled before planning or lock acquisition; `true` permits one scheduled evaluation daily at exactly **06:00 UTC**. The timezone is explicit and independent of the server's local timezone. There is no startup invocation or missed-run catch-up.
+
+The retention flag is independent from `POSITION_HISTORY_MAINTENANCE_ENABLED`, which continues to control only Stage 18C automatic population at 03:00 UTC. Either feature can be enabled without the other. The Stage 19A planner and Stage 19B manual ADMIN cleanup remain available regardless of the automatic-retention flag; `historyAdmin.populate` still does not authorize deletion.
+
+Each 06:00 invocation performs at most one bounded pass through the same Stage 19B destructive core. A read-only planner precheck may avoid an unnecessary mutation lock, but it is never deletion authority. Under the existing shared advisory lock `1706170003`, the service checks for any USER or SYSTEM `PENDING`/`RUNNING` durable population, recomputes the fresh server-owned canonical anchor and 90-absolute-day cutoff, then uses the unchanged checkpoint-first algorithm and fixed limits of 5,000 checkpoints and 25,000 observations. The lock, active-population guard, inclusive surviving-checkpoint protection, boundary semantics, and partial-commit safety are identical to manual execution.
+
+An active population or unavailable lock is a benign skip. If `stoppedByBudget` is true, remaining work waits for the next normal daily schedule. Unexpected failure is contained at the cron boundary with no immediate retry, compensating restore, follow-up timer, or same-day continuation. Multiple API instances rely only on the existing shared lock; there is no leader election or second advisory key.
+
+Automatic execution has no browser confirmation because it accepts no browser policy fields and computes fresh policy under the lock. It adds no public run-now API, CLI trigger, UI setting/control/history, durable retention job/table, scheduler state, custom cutoff/days/budget, 365-day setting, provider dependency/request, archive, VACUUM, partitioning, schema change, or migration. Manual ADMIN retention remains unchanged and available when automatic retention is disabled.
