@@ -12,9 +12,13 @@ export function durableRunPresentation(run: SafeDurableRun): Readonly<{ title: s
   return { title: statusText[run.status], progress: `${run.committedWindows} / ${run.windowBudget}`, partialWork: run.status === "FAILED" };
 }
 
+export function durableRunInitiatorLabel(initiatorType: SafeDurableRun["initiatorType"]): "Оператор" | "Автоматически" {
+  return initiatorType === "SYSTEM" ? "Автоматически" : "Оператор";
+}
+
 function RunSummary({ run }: Readonly<{ run: SafeDurableRun }>) {
   const presentation = durableRunPresentation(run);
-  return <article className="history-population-result"><h3>{presentation.title}</h3><p><strong>{presentation.progress}</strong> часовых окон</p><p>Контрольная точка: {run.to}</p><p>Provider-disabled: {run.excludeProviderDisabled ? "пропускаются" : "не исключаются"}</p>{run.startedAt && <p>Начато: {run.startedAt}</p>}{presentation.partialWork && <p>Часть работы могла быть сохранена. После устранения причины можно создать новый запуск.</p>}</article>;
+  return <article className="history-population-result"><h3>{presentation.title}</h3><p>Инициатор: {durableRunInitiatorLabel(run.initiatorType)}</p><p><strong>{presentation.progress}</strong> часовых окон</p><p>Контрольная точка: {run.to}</p><p>Provider-disabled: {run.excludeProviderDisabled ? "пропускаются" : "не исключаются"}</p>{run.startedAt && <p>Начато: {run.startedAt}</p>}{presentation.partialWork && <p>Часть работы могла быть сохранена. После устранения причины можно создать новый запуск.</p>}</article>;
 }
 
 export function PositionHistoryDurableRuns({ anchor, canPopulate, initialActive, initialRecent }: Props) {

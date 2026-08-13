@@ -32,11 +32,13 @@ test("API config applies safe defaults, freezes config, and preserves the input 
     shutdownTimeoutMs: 50_000,
   });
   assert.deepEqual(config.alertIngestion, { enabled: false });
+  assert.deepEqual(config.positionHistoryMaintenance, { enabled: false });
   assert.deepEqual(config.telegramNotifications, { enabled: false, botToken: null, chatId: null, dispatchIntervalMs: 60_000, batchSize: 20 });
   assert.deepEqual(env, before);
   assert.equal(Object.isFrozen(config), true);
   assert.equal(Object.isFrozen(config.syncScheduler), true);
   assert.equal(Object.isFrozen(config.alertIngestion), true);
+  assert.equal(Object.isFrozen(config.positionHistoryMaintenance), true);
   assert.equal(Object.isFrozen(config.telegramNotifications), true);
   assert.equal(Object.isFrozen(config.database), true);
   assert.equal(Object.isFrozen(config.equGps), true);
@@ -86,6 +88,20 @@ test("API config accepts custom eQuGPS timeouts", () => {
 test("API config accepts an explicit alert-ingestion opt-in", () => {
   const config = parseApiConfig({ ...valid(), ALERT_INGESTION_ENABLED: "true" });
   assert.deepEqual(config.alertIngestion, { enabled: true });
+});
+
+test("position-history maintenance is disabled when missing or false and enabled only by exact true", () => {
+  assert.deepEqual(parseApiConfig(valid()).positionHistoryMaintenance, { enabled: false });
+  assert.deepEqual(parseApiConfig({ ...valid(), POSITION_HISTORY_MAINTENANCE_ENABLED: "false" }).positionHistoryMaintenance, { enabled: false });
+  assert.deepEqual(parseApiConfig({ ...valid(), POSITION_HISTORY_MAINTENANCE_ENABLED: "true" }).positionHistoryMaintenance, { enabled: true });
+  for (const value of ["TRUE", "yes", "1", "   "]) {
+    assert.throws(() => parseApiConfig({ ...valid(), POSITION_HISTORY_MAINTENANCE_ENABLED: value }), (error: unknown) => {
+      assert.ok(error instanceof ApiConfigurationError);
+      assert.deepEqual(error.issues, ["POSITION_HISTORY_MAINTENANCE_ENABLED"]);
+      assert.equal(JSON.stringify(error).includes(value), false);
+      return true;
+    });
+  }
 });
 
 test("Telegram notifications are opt-in and credentials are required only when enabled", () => {

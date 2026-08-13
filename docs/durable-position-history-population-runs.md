@@ -1,8 +1,8 @@
-# Durable position-history population runs (Stages 18A–18B)
+# Durable position-history population runs (Stages 18A–18C)
 
-Stage 18A provides the internal durable execution foundation for large, restart-safe GPS history population. Stage 18B adds protected operator APIs/UI and a server poller for already-existing runs. It does not add automatic policy, `SYSTEM` creation, cancellation, retry queues, retention, or deletion.
+Stage 18A provides the internal durable execution foundation for large, restart-safe GPS history population. Stage 18B adds protected operator APIs/UI and a server poller for already-existing runs. Stage 18C adds default-disabled policy-driven creation of `SYSTEM` runs; it does not add a second executor, cancellation, retry queues, retention, or deletion.
 
-`PositionHistoryPopulationRun` persists the exact absolute `to` timestamp, provider-disabled selection, positive window budget, committed-window count, initiator, lifecycle timestamps, lease, and a safe failure code. A run is `PENDING`, `RUNNING`, `SUCCEEDED`, or `FAILED`; its initiator is `USER` or `SYSTEM`. A `USER` run normally references `AuthUser`, and deletion of that user sets the nullable reference to null. `SYSTEM` is foundation for Stage 18C only and creates no work automatically.
+`PositionHistoryPopulationRun` persists the exact absolute `to` timestamp, provider-disabled selection, positive window budget, committed-window count, initiator, lifecycle timestamps, lease, and a safe failure code. A run is `PENDING`, `RUNNING`, `SUCCEEDED`, or `FAILED`; its initiator is `USER` or `SYSTEM`. A `USER` run normally references `AuthUser`, and deletion of that user sets the nullable reference to null. Stage 18C creates `SYSTEM` rows only through the internal maintenance evaluator, never through browser input.
 
 PostgreSQL check constraints require `windowBudget > 0`, `committedWindows >= 0`, and `committedWindows <= windowBudget`. A partial unique index permits at most one `PENDING` or `RUNNING` row, while any number of terminal historical rows may coexist. The internal creation service maps an active-row uniqueness race to a stable product conflict; it performs no provider or history work.
 
@@ -28,4 +28,20 @@ A fixed 30-second Nest poll invokes the existing Stage 18A `processNextAvailable
 
 The browser performs read-only active polling every five seconds. It retains prior truth on temporary failures, preserves the same URL anchor, refreshes horizon status during active progress/transition, and refreshes the fixed terminal list after completion. Closing the page stops only browser polling; database/server work continues. UI states are factual PENDING, RUNNING, SUCCEEDED, and FAILED window-budget progress. Failure explains that partial work may persist and offers no retry-same-run action.
 
-There is no cancel, pause, resume, force unlock, run deletion, pruning, retention, notification, automatic rolling-horizon maintenance, or automatic `SYSTEM` run. Stage 18C remains the future policy-automation stage.
+There is no cancel, pause, resume, force unlock, run deletion, pruning, retention, or notification.
+
+## Stage 18C automatic rolling maintenance
+
+`POSITION_HISTORY_MAINTENANCE_ENABLED` is an operational feature flag. It accepts the repository's exact boolean forms `true` and `false` and defaults to `false` when absent. Disabled maintenance performs no active-run lookup, horizon planning, durable creation, worker invocation, provider request, or durable mutation. This flag controls only automatic `SYSTEM` creation; the Stage 18B 30-second poller continues processing existing USER and SYSTEM rows independently.
+
+When enabled, one Nest cron invocation evaluates daily at **03:00 UTC**. There is no startup invocation, missed-run catch-up, CLI, HTTP trigger, browser setting, or “run now” control. The evaluator maps its current instant to the latest Tuesday **02:00:00.000 UTC** boundary that has already occurred. The anchor advances in exact seven-day increments. It intentionally does not use a daily-moving `Date.now()` target: stable weekly anchors preserve Stage 14's seven-day slice boundaries and checkpoint reuse. Automatic backfill may therefore lag wall-clock time by almost seven days; normal fleet synchronization still collects fresh positions, while Stage 17C and Stage 18B remain available for explicit manual historical work.
+
+The evaluator first skips if any PENDING or RUNNING durable row exists, regardless of USER/SYSTEM identity or anchor. Otherwise it runs the existing Stage 14 horizon planner read-only at the canonical anchor and uses `estimatedRemainingHourlyWindows`, which is already computed only from provider-eligible incomplete checkpoint work. Provider-disabled-only incompleteness, missing observation rows, or fleet-wide incomplete counts do not independently trigger creation. Zero eligible windows creates no audit row.
+
+Eligible work creates exactly one PENDING run with `initiatorType=SYSTEM`, no requested user, `windowBudget=5000`, and `excludeProviderDisabled=true`. The evaluator stops after creation. It never calls the durable worker, Stage 14C population, or the provider. The existing Stage 18B poller later owns execution through the Stage 18A worker, leases, atomic checkpoint/counter boundary, and shared PostgreSQL population lock `1706170003`.
+
+The initial active-row check is only an optimization. If multiple API instances race after planning, the existing PostgreSQL partial unique constraint remains authoritative; one create succeeds and the stable conflict is treated as a benign no-op. There is no leader election, scheduler lock, or second population mutex.
+
+FAILED and SUCCEEDED rows remain terminal history. Maintenance never reopens or retries a row. On a later daily evaluation, current planner truth may cause a new SYSTEM row with a new ID when no active row exists; zero eligible work causes no row. Large backlog is intentionally drained by at most one 5000-window SYSTEM run per daily evaluation. No retention, history deletion, run pruning, or configurable 365-day horizon is part of Stage 18C.
+
+The existing active/recent UI labels USER runs as `Оператор` and SYSTEM runs as `Автоматически`. It exposes no requested user ID, lease owner, scheduler identity, cancel/pause/resume/retry action, or maintenance configuration. Active SYSTEM runs suppress durable create controls exactly like active USER runs, while `historyAdmin.view` remains sufficient to inspect safe status.

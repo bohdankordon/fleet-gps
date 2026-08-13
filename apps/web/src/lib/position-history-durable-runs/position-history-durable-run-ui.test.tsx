@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { durableRunPresentation } from "../../components/position-history-durable-runs";
+import { durableRunInitiatorLabel, durableRunPresentation } from "../../components/position-history-durable-runs";
 import type { SafeDurableRun } from "./position-history-durable-run-contract";
 
 const exact = "2026-08-11T02:00:00.000Z";
@@ -25,6 +25,15 @@ test("PENDING, SUCCEEDED under budget, and FAILED retain factual product wording
   assert.deepEqual(pending, { title: "Ожидает запуска", progress: "0 / 1000", partialWork: false });
   assert.deepEqual(durableRunPresentation(terminal("SUCCEEDED", 50)), { title: "Завершено", progress: "50 / 1000", partialWork: false });
   assert.deepEqual(durableRunPresentation(terminal("FAILED", 24)), { title: "Остановлено с ошибкой", progress: "24 / 1000", partialWork: true });
+});
+
+test("active and recent summaries distinguish safe USER and SYSTEM initiators without attribution internals", () => {
+  assert.equal(durableRunInitiatorLabel("USER"), "Оператор");
+  assert.equal(durableRunInitiatorLabel("SYSTEM"), "Автоматически");
+  const source = readFileSync("src/components/position-history-durable-runs.tsx", "utf8");
+  assert.match(source, /Инициатор: \{durableRunInitiatorLabel\(run\.initiatorType\)\}/);
+  for (const forbidden of ["requestedByUserId", "leaseOwner", "scheduler instance", "server hostname", "cancel", "pause", "resume", "retry"]) assert.equal(source.toLowerCase().includes(forbidden.toLowerCase()), false, forbidden);
+  assert.match(source, /canPopulate && active === null/);
 });
 
 test("BFF server source forwards through named session helper and has one POST call site", () => {

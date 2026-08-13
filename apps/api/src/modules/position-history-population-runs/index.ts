@@ -5,3 +5,6 @@ export * from "./position-history-population-run.module";
 export * from "./position-history-population-run.types";
 export * from "./position-history-population-run-admin.service";
 export * from "./position-history-population-run-admin.types";
+export * from "./position-history-maintenance-anchor";
+export * from "./position-history-maintenance.service";
+export * from "./position-history-maintenance.module";
