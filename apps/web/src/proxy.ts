@@ -10,6 +10,7 @@ function requiredPermission(path: string): readonly AuthPermission[] | null {
   if (path === "/api/city-geofence/map") return ["map.view", "trips.view"];
   if (path === "/reports" || path === "/api/reports/fleet-activity") return ["reports.view"];
   if (path === "/admin/history" || path === "/api/system/position-history/horizon-status") return ["historyAdmin.view"];
+  if (path === "/api/system/position-history/horizon-populate") return ["historyAdmin.populate"];
   if (/^\/vehicles\/[^/]+$/.test(path) || /^\/api\/vehicles\/[^/]+\/details$/.test(path)) return ["vehicles.view"];
   if (/^\/vehicles\/[^/]+\/(track|trips)$/.test(path) || /^\/api\/vehicles\/[^/]+\/(track|track\/overview|trip-analysis)$/.test(path)) return ["trips.view"];
   return null;

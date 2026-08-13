@@ -19,7 +19,7 @@ Passwords use Node 24's asynchronous built-in Argon2 implementation. Profile ver
 | `trips.view` | Exact/overview tracks, trip analysis, and Trips UI |
 | `reports.view` | Daily fleet activity reports |
 | `historyAdmin.view` | Read-only GPS history administration status |
-| `historyAdmin.populate` | Reserved for Stage 17C; no HTTP action exists |
+| `historyAdmin.populate` | Protected bounded GPS history population action; implies history status view |
 
 `trips.view` implies `vehicles.view`; `historyAdmin.populate` implies `historyAdmin.view`. The CLI persists these dependencies.
 
@@ -46,6 +46,7 @@ Public exceptions are `POST /api/auth/login`, `GET /api/health`, and `GET /api/h
 | vehicle track/Trips pages, exact/overview track APIs, trip-analysis API | `trips.view` |
 | `/reports`, fleet activity report API | `reports.view` |
 | `/admin/history`, position history horizon-status API | `historyAdmin.view` |
+| `POST /api/system/position-history/horizon-populate` | `historyAdmin.populate` |
 | `/admin/users`, `/admin/users/new`, `/admin/users/:id`, all `/api/admin/users` operations | ADMIN role only |
 | alert-settings and city-geofence diagnostic APIs | ADMIN-only |
 | account/no-access/change-password pages and me/logout/change-password APIs | authenticated account flow |
@@ -75,10 +76,10 @@ USER permission updates are complete replace-set operations. Unknown keys reject
 
 An ADMIN cannot disable, demote, or administratively reset themselves; self-service password change remains under **Аккаунт → Сменить пароль**. Disabling or demoting an enabled ADMIN acquires fixed PostgreSQL transaction advisory lock `1706170002`, re-reads the target and enabled ADMIN count inside the transaction, rejects removal of the last enabled ADMIN, then mutates. Access, enable, and ADMIN creation use the same lock where ADMIN cardinality can change, so concurrent reductions cannot commit zero enabled ADMINs. This uses no schema object or migration.
 
-`historyAdmin.populate` remains assignable but has no browser endpoint or button; GPS population is Stage 17C. No authentication audit subsystem is introduced.
+`historyAdmin.populate` exposes the Stage 17C confirmation/action while `historyAdmin.view` alone remains status-only. ADMIN has both through role authority; the Nest POST is permission-protected rather than ADMIN-only. No authentication audit subsystem is introduced.
 
 ## Operator bootstrap account creation
 
 Run `npm run auth:user-create` in a real interactive terminal. It prompts for login, role, recognized USER permissions, password, and confirmation. Password input is hidden and cannot be supplied through argv or an application password environment variable. If a secure TTY is unavailable, the command stops. Creation and permission rows are transactional; duplicate canonical logins produce a safe error. ADMIN accounts need no permission rows.
 
-No default ADMIN is seeded. The bootstrap CLI remains intentionally separate from ADMIN web flows and may accept the operator-entered hidden password. Stage 17C will add the separately protected GPS population browser action; there is still no GPS population HTTP action in this stage.
+No default ADMIN is seeded. The bootstrap CLI remains intentionally separate from ADMIN web flows and may accept the operator-entered hidden password. Stage 17C's separately protected population POST reuses these account, session, permission-dependency, disabled-account, and must-change-password rules.

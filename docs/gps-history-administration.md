@@ -1,6 +1,6 @@
-# GPS history administration status (Stage 16A)
+# GPS history administration and protected population (Stage 17C)
 
-`/admin/history?to=<absolute-iso>` is a read-only administrative view of the Stage 14 historical population plan. The global **Администрирование** navigation item opens this single page; Stage 16A adds no settings hierarchy or unrelated settings.
+`/admin/history?to=<absolute-iso>` retains the Stage 16A administrative status view and adds one explicit, protected, bounded Stage 17C population action. The global **Администрирование** navigation item opens this single page; there is no settings hierarchy or unrelated provider configuration.
 
 ## Explicit control point
 
@@ -8,7 +8,7 @@
 
 When `/admin/history` has no `to`, the Next server resolves one absolute current instant and redirects to the canonical URL containing that visible value before it renders a report. It is presented as **План на контрольную точку**, not as universal or continuously rolling completion. A malformed or repeated value remains a visible validation state and causes no backend status request.
 
-The timestamp is the exact Stage 14 horizon anchor. Changing it regenerates the exact `(rangeFrom, rangeTo)` slices, so it can also change exact `(vehicleId, rangeFrom, rangeTo)` checkpoint matches. The change only recalculates a read-only plan/status; it does not move, delete, populate, or reconcile data. Stage 16A deliberately adds no rolling-anchor scheduler or automatic maintenance policy.
+The timestamp is the exact Stage 14 horizon anchor. Changing it regenerates the exact `(rangeFrom, rangeTo)` slices, so it can also change exact `(vehicleId, rangeFrom, rangeTo)` checkpoint matches. Changing the form value and loading the new canonical URL only recalculates status. A later confirmed population request uses exactly the already-loaded URL value; it never substitutes browser time, server time, or a newly generated anchor.
 
 ## Policy and planner reuse
 
@@ -31,10 +31,32 @@ This is not GPS coverage, observation density, vehicle movement, or data-complet
 
 Provider-disabled is the persisted technical provider state, not a business fleet status. Disabled vehicles stay in whole-fleet target and checkpoint totals. Provider-eligible incomplete targets are shown separately to describe currently eligible planned work.
 
-## Read-only and security boundary
+## Read status and safe public boundary
 
 The public DTO contains aggregate policy, horizon, fleet, backfill, observation, and per-slice counts only. It contains no external/provider device identifiers, vehicle UUID lists, coordinates, fingerprints, credentials, raw provider errors, or individual checkpoint cursors.
 
-The screen and endpoint make no provider or Telegram calls, write no observations or checkpoints, create no missing checkpoints, and invoke neither the Stage 14C executor nor any scheduler. There are no populate, resume, retry, cancel, retention, deletion, cleanup, archive, or pruning actions. Manual execution remains the operator-only `position-history:horizon-populate` CLI command and cannot be launched from the browser.
+The status GET remains read-only: it makes no provider or Telegram calls, writes nothing, and invokes neither the Stage 14C executor nor a scheduler. Its public DTO remains aggregate-only.
 
-Stage 16A adds no authentication or authorization. That is a separate stage; the absence of auth does not expand this page beyond aggregate read-only status.
+## Protected bounded population
+
+An account with effective `historyAdmin.populate`, including every `ADMIN`, sees **Дозаполнение истории**. A `USER` with only `historyAdmin.view` continues to see all status data but sees no execution controls. Nest remains authoritative: `POST /api/system/position-history/horizon-populate` returns 401 without a valid session and 403 for a view-only, disabled, expired/revoked, or `mustChangePassword` account as applicable.
+
+The request body is strict and has three explicit fields: the current absolute `to`, `maxWindows`, and `excludeProviderDisabled`. Browser budgets are exactly **6, 12, or 24 hourly committed windows**, with 24 selected by default. There is no unlimited value or vehicle-count budget. `maxWindows` keeps the existing Stage 14C global committed-window meaning; it is not a count of provider requests, vehicles, or GPS points.
+
+**Пропустить provider-disabled** is checked by default and maps directly to Stage 14C `excludeProviderDisabled=true`. Clearing it uses normal non-excluding Stage 14C behavior. `Vehicle.disabled` remains technical persisted provider state, not business/offline truth.
+
+The first button opens a confirmation showing the exact control point, budget, and provider-disabled behavior, and warning that the operation contacts the GPS provider and may write observations and checkpoints. Only **Запустить** sends the POST; **Отмена** sends nothing. The button is disabled while pending. The browser and BFF issue one request and never retry it automatically.
+
+The browser calls only the same-origin Next BFF. The BFF reuses the centralized Stage 17B same-origin write check, forwards only `taxi_session`, allowlists the three body fields, calls Nest once, and returns `Cache-Control: no-store`. Cross-site, same-site, or mismatched-Origin writes stop before Nest.
+
+Nest delegates all work to the accepted Stage 14C `PositionHistoryHorizonPopulationService`; Stage 17C contains no partitioner, hourly loop, checkpoint engine, dedupe, provider retry, pacing, or remaining-window implementation. Thus newest-to-oldest order, inclusive overlap, 500 ms pacing, Retry-After behavior, stop-first-failure, checkpoint semantics, telemetry, and the global committed-window budget remain unchanged. The existing `position-history:horizon-populate` CLI remains the large controlled catch-up tool with its existing arguments and output contract; internally it enters through the same lock-aware runner.
+
+## Cross-process execution mutex and failure behavior
+
+One fixed application-internal PostgreSQL session advisory lock, key `1706170003`, serializes fleet-wide horizon executions—including browser requests and the large-catch-up CLI—across application instances/processes. Each execution creates one short-lived dedicated `pg.Client`, connects, calls `pg_try_advisory_lock` on that physical session, holds the session for the entire external-provider execution, and calls `pg_advisory_unlock` on the same client in `finally` before `client.end()`. Provider work does not run inside a database transaction. A dead process/connection naturally releases the PostgreSQL session lock; no fake running record is persisted.
+
+Failure to acquire returns 409 and **Дозаполнение истории уже выполняется.** without calling the executor. A successful response exposes only safe factual Stage 14C counters: committed windows, provider requests/rows, candidates, inserts, duplicates, invalid rows, retries, rate limits, high-level slice counts, provider-disabled exclusions, budget stop, and horizon completion. It exposes no provider URL/credential/payload/error body, external numeric device ID, coordinate, fingerprint, checkpoint cursor, or session secret.
+
+Stage 14C stops at the first established failure. Because earlier windows commit independently, an HTTP failure is not rolled back and the UI warns that part of the work may have persisted. Success and failure both refresh status for the exact same `to`; neither generates a new anchor or navigates to now.
+
+Stage 17C deliberately remains a bounded synchronous manual action. It adds no job/lease/run table, queue, worker, polling, cancellation, pause/resume, scheduler, cron, startup catch-up, automatic rolling maintenance, retention, deletion, pruning, archive, or cleanup. The 90-day planning policy is not automatic population or retention deletion.

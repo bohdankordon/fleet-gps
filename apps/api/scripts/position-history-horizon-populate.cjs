@@ -112,8 +112,8 @@ async function run(argv, dependencies = {}) {
       if (kind !== "historicalPositions") throw new Error("Unexpected external request");
       return nativeFetch(input, init);
     };
-    const Module = dependencies.Module ?? require("../dist/modules/position-history-horizon-population").PositionHistoryHorizonPopulationModule;
-    const Service = dependencies.Service ?? require("../dist/modules/position-history-horizon-population").PositionHistoryHorizonPopulationService;
+    const Module = dependencies.Module ?? require("../dist/modules/position-history-horizon-execution").PositionHistoryHorizonExecutionModule;
+    const Service = dependencies.Service ?? require("../dist/modules/position-history-horizon-execution").PositionHistoryHorizonExecutionRunnerService;
     if (dependencies.createApplicationContext !== undefined) app = await dependencies.createApplicationContext(Module, { logger: false, abortOnError: false });
     else app = await (dependencies.NestFactory ?? require("@nestjs/core").NestFactory).createApplicationContext(Module, { logger: false, abortOnError: false });
     state.applicationClosed = false;
