@@ -24,6 +24,13 @@ export type PersistBackfillWindowInput = Readonly<{
   nextFrom: Date;
   completed: boolean;
   candidates: readonly PositionHistoryCandidate[];
+  durableAccounting?: PositionHistoryDurableAccountingContext;
+}>;
+
+/** Internal ownership proof propagated only by the durable worker. */
+export type PositionHistoryDurableAccountingContext = Readonly<{
+  runId: string;
+  leaseOwner: string;
 }>;
 
 export type PersistBackfillWindowResult = Readonly<{
@@ -57,6 +64,7 @@ export type PositionHistoryBackfillResult = Readonly<{
 export type PositionHistoryBackfillRunOptions = Readonly<{
   maxWindows?: number;
   paceBeforeFirstWindow?: boolean;
+  durableAccounting?: PositionHistoryDurableAccountingContext;
 }>;
 
 export type PositionHistoryFleetBackfillTarget = Readonly<{
@@ -86,6 +94,7 @@ export type PositionHistoryFleetBackfillRunOptions = Readonly<{
   plan?: boolean;
   excludeProviderDisabled?: boolean;
   paceBeforeFirstWindow?: boolean;
+  durableAccounting?: PositionHistoryDurableAccountingContext;
 }>;
 
 export type PositionHistoryFleetBackfillResult = Readonly<{

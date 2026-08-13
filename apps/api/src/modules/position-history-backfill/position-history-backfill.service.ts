@@ -69,7 +69,15 @@ export class PositionHistoryBackfillService {
       }
       aggregate.historyCandidates += candidates.length;
       const completed = windowTo.getTime() === checkpoint.rangeTo.getTime();
-      const persisted = await this.repository.persistWindow({ checkpointId: checkpoint.id, vehicleId: checkpoint.vehicleId, expectedNextFrom: cursor, nextFrom: windowTo, completed, candidates });
+      const persisted = await this.repository.persistWindow({
+        checkpointId: checkpoint.id,
+        vehicleId: checkpoint.vehicleId,
+        expectedNextFrom: cursor,
+        nextFrom: windowTo,
+        completed,
+        candidates,
+        ...(options.durableAccounting === undefined ? {} : { durableAccounting: options.durableAccounting }),
+      });
       aggregate.historyInserted += persisted.inserted;
       aggregate.historyDuplicates += persisted.duplicates;
       aggregate.windowsCompleted += 1;

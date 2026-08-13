@@ -3,7 +3,7 @@ import test from "node:test";
 import { PositionBackfillStatus, PositionIngestionSource, type PrismaClient } from "../../generated/prisma/client";
 import { DatabaseService } from "../database/database.service";
 import { normalizePositionHistoryCandidate } from "../position-history";
-import { PositionHistoryBackfillConcurrentProgressError, PositionHistoryBackfillVehicleNotFoundError } from "./position-history-backfill.errors";
+import { PositionHistoryBackfillConcurrentProgressError, PositionHistoryBackfillDurableAccountingError, PositionHistoryBackfillVehicleNotFoundError } from "./position-history-backfill.errors";
 import { PrismaPositionHistoryBackfillRepository } from "./prisma-position-history-backfill.repository";
 
 const vehicleId = "123e4567-e89b-42d3-a456-426614174000";
@@ -67,4 +67,57 @@ test("empty window advances without history insert and concurrent cursor change 
   const repository = new PrismaPositionHistoryBackfillRepository({ getClient: () => client } as DatabaseService);
   await assert.rejects(repository.persistWindow({ checkpointId: "checkpoint", vehicleId, expectedNextFrom: from, nextFrom: to, completed: true, candidates: [] }), PositionHistoryBackfillConcurrentProgressError);
   assert.equal(creates, 0);
+});
+
+test("durable zero-row committed window advances checkpoint and counter through the exact same transaction client", async () => {
+  const operations: string[] = [];
+  const transaction = {
+    vehiclePositionObservation: { createMany: async () => { operations.push("observations"); return { count: 0 }; } },
+    vehiclePositionBackfillCheckpoint: { updateMany: async () => { operations.push("checkpoint"); return { count: 1 }; } },
+    $executeRaw: async () => { operations.push("durable-accounting"); return 1; },
+  };
+  let transactionClient: unknown;
+  const client = { $transaction: async (callback: (value: typeof transaction) => Promise<unknown>) => { transactionClient = transaction; return callback(transaction); } } as unknown as PrismaClient;
+  const repository = new PrismaPositionHistoryBackfillRepository({ getClient: () => client } as DatabaseService);
+  await repository.persistWindow({
+    checkpointId: "checkpoint", vehicleId, expectedNextFrom: from, nextFrom: to, completed: true, candidates: [],
+    durableAccounting: { runId: "123e4567-e89b-42d3-a456-426614174001", leaseOwner: "123e4567-e89b-42d3-a456-426614174002" },
+  });
+  assert.equal(transactionClient, transaction);
+  assert.deepEqual(operations, ["checkpoint", "durable-accounting"]);
+});
+
+test("durable accounting mismatch aborts the checkpoint transaction and failed checkpoint never attempts accounting", async () => {
+  let accounting = 0;
+  let rolledBack = false;
+  const transaction = {
+    vehiclePositionObservation: { createMany: async () => ({ count: 0 }) },
+    vehiclePositionBackfillCheckpoint: { updateMany: async () => ({ count: 1 }) },
+    $executeRaw: async () => { accounting += 1; return 0; },
+  };
+  const client = { $transaction: async (callback: (value: typeof transaction) => Promise<unknown>) => {
+    try { return await callback(transaction); } catch (error) { rolledBack = true; throw error; }
+  } } as unknown as PrismaClient;
+  const repository = new PrismaPositionHistoryBackfillRepository({ getClient: () => client } as DatabaseService);
+  const input = { checkpointId: "checkpoint", vehicleId, expectedNextFrom: from, nextFrom: to, completed: true, candidates: [], durableAccounting: { runId: "123e4567-e89b-42d3-a456-426614174001", leaseOwner: "123e4567-e89b-42d3-a456-426614174002" } } as const;
+  await assert.rejects(repository.persistWindow(input), PositionHistoryBackfillDurableAccountingError);
+  assert.equal(accounting, 1);
+  assert.equal(rolledBack, true);
+
+  transaction.vehiclePositionBackfillCheckpoint.updateMany = async () => ({ count: 0 });
+  accounting = 0;
+  await assert.rejects(repository.persistWindow(input), PositionHistoryBackfillConcurrentProgressError);
+  assert.equal(accounting, 0);
+});
+
+test("legacy checkpoint execution performs no durable counter statement", async () => {
+  let accounting = 0;
+  const transaction = {
+    vehiclePositionObservation: { createMany: async () => ({ count: 0 }) },
+    vehiclePositionBackfillCheckpoint: { updateMany: async () => ({ count: 1 }) },
+    $executeRaw: async () => { accounting += 1; return 1; },
+  };
+  const client = { $transaction: async (callback: (value: typeof transaction) => Promise<unknown>) => callback(transaction) } as unknown as PrismaClient;
+  await new PrismaPositionHistoryBackfillRepository({ getClient: () => client } as DatabaseService).persistWindow({ checkpointId: "checkpoint", vehicleId, expectedNextFrom: from, nextFrom: to, completed: true, candidates: [] });
+  assert.equal(accounting, 0);
 });

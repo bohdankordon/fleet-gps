@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
-import { PositionBackfillStatus, type Prisma } from "../../generated/prisma/client";
+import { PositionBackfillStatus, Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database/database.service";
-import { PositionHistoryBackfillConcurrentProgressError, PositionHistoryBackfillVehicleNotFoundError } from "./position-history-backfill.errors";
+import { PositionHistoryBackfillConcurrentProgressError, PositionHistoryBackfillDurableAccountingError, PositionHistoryBackfillVehicleNotFoundError } from "./position-history-backfill.errors";
 import type { PersistBackfillWindowInput, PersistBackfillWindowResult, PositionHistoryBackfillCheckpoint, PositionHistoryBackfillRepository, PositionHistoryBackfillTarget } from "./position-history-backfill.types";
 
 const transactionTimeoutMs = 30_000;
@@ -33,6 +33,18 @@ export class PrismaPositionHistoryBackfillRepository implements PositionHistoryB
         data: { nextFrom: input.nextFrom, status: input.completed ? PositionBackfillStatus.COMPLETED : PositionBackfillStatus.RUNNING },
       });
       if (advanced.count !== 1) throw new PositionHistoryBackfillConcurrentProgressError();
+      if (input.durableAccounting !== undefined) {
+        const accounted = await transaction.$executeRaw(Prisma.sql`
+          UPDATE "position_history_population_runs"
+          SET "committed_windows" = "committed_windows" + 1,
+              "updated_at" = CURRENT_TIMESTAMP
+          WHERE "id" = ${input.durableAccounting.runId}::uuid
+            AND "status" = 'RUNNING'
+            AND "lease_owner" = ${input.durableAccounting.leaseOwner}::uuid
+            AND "committed_windows" < "window_budget"
+        `);
+        if (accounted !== 1) throw new PositionHistoryBackfillDurableAccountingError();
+      }
       return Object.freeze({ inserted, duplicates: rows.length - inserted });
     }, { timeout: transactionTimeoutMs });
   }

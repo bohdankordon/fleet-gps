@@ -76,6 +76,7 @@ export class PositionHistoryHorizonPopulationService {
             maxWindows: remainingBudget,
             ...(options.excludeProviderDisabled === true ? { excludeProviderDisabled: true } : {}),
             ...(priorWindowCommitted ? { paceBeforeFirstWindow: true } : {}),
+            ...(options.durableAccounting === undefined ? {} : { durableAccounting: options.durableAccounting }),
           },
         );
         add(progress, result);

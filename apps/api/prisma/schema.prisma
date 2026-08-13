@@ -69,23 +69,59 @@ enum AuthRole {
   USER
 }
 
+enum PositionHistoryPopulationRunStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum PositionHistoryPopulationRunInitiatorType {
+  USER
+  SYSTEM
+}
+
 model AuthUser {
-  id                  String               @id @default(uuid()) @map("id") @db.Uuid
-  login               String               @map("login") @db.VarChar(64)
-  normalizedLogin     String               @unique @map("normalized_login") @db.VarChar(64)
-  passwordHash        Bytes                @map("password_hash") @db.ByteA
-  passwordSalt        Bytes                @map("password_salt") @db.ByteA
-  passwordHashVersion Int                  @map("password_hash_version")
-  role                AuthRole             @map("role")
-  disabled            Boolean              @default(false) @map("disabled")
-  mustChangePassword  Boolean              @default(false) @map("must_change_password")
-  passwordChangedAt   DateTime?            @map("password_changed_at") @db.Timestamptz(6)
-  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  permissions         AuthUserPermission[]
-  sessions            AuthSession[]
+  id                            String                         @id @default(uuid()) @map("id") @db.Uuid
+  login                         String                         @map("login") @db.VarChar(64)
+  normalizedLogin               String                         @unique @map("normalized_login") @db.VarChar(64)
+  passwordHash                  Bytes                          @map("password_hash") @db.ByteA
+  passwordSalt                  Bytes                          @map("password_salt") @db.ByteA
+  passwordHashVersion           Int                            @map("password_hash_version")
+  role                          AuthRole                       @map("role")
+  disabled                      Boolean                        @default(false) @map("disabled")
+  mustChangePassword            Boolean                        @default(false) @map("must_change_password")
+  passwordChangedAt             DateTime?                      @map("password_changed_at") @db.Timestamptz(6)
+  createdAt                     DateTime                       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                     DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  permissions                   AuthUserPermission[]
+  sessions                      AuthSession[]
+  positionHistoryPopulationRuns PositionHistoryPopulationRun[]
 
   @@map("auth_users")
+}
+
+model PositionHistoryPopulationRun {
+  id                      String                                    @id @default(uuid()) @map("id") @db.Uuid
+  status                  PositionHistoryPopulationRunStatus        @default(PENDING) @map("status")
+  initiatorType           PositionHistoryPopulationRunInitiatorType @map("initiator_type")
+  requestedByUserId       String?                                   @map("requested_by_user_id") @db.Uuid
+  to                      DateTime                                  @map("to") @db.Timestamptz(6)
+  excludeProviderDisabled Boolean                                   @map("exclude_provider_disabled")
+  windowBudget            Int                                       @map("window_budget")
+  committedWindows        Int                                       @default(0) @map("committed_windows")
+  createdAt               DateTime                                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                                  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  startedAt               DateTime?                                 @map("started_at") @db.Timestamptz(6)
+  finishedAt              DateTime?                                 @map("finished_at") @db.Timestamptz(6)
+  leaseOwner              String?                                   @map("lease_owner") @db.Uuid
+  leaseExpiresAt          DateTime?                                 @map("lease_expires_at") @db.Timestamptz(6)
+  safeFailureCode         String?                                   @map("safe_failure_code") @db.VarChar(64)
+  requestedByUser         AuthUser?                                 @relation(fields: [requestedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([requestedByUserId])
+  @@index([status, leaseExpiresAt, createdAt], map: "position_history_population_runs_claim_idx")
+  @@map("position_history_population_runs")
 }
 
 model AuthUserPermission {

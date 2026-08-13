@@ -1,6 +1,9 @@
+import type { PositionHistoryDurableAccountingContext } from "../position-history-backfill/position-history-backfill.types";
+
 export type PositionHistoryHorizonPopulationOptions = Readonly<{
   maxWindows: number;
   excludeProviderDisabled?: boolean;
+  durableAccounting?: PositionHistoryDurableAccountingContext;
 }>;
 
 export type PositionHistoryHorizonPopulationProgress = Readonly<{

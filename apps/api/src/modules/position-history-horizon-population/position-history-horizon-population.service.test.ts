@@ -93,6 +93,14 @@ test("provider-disabled option is absent by default and forwards exact Stage 13B
   assert.equal(Object.hasOwn(options[1]!, "maxVehicles"), false);
 });
 
+test("Stage 14C forwards the optional durable ownership context without changing legacy options", async () => {
+  const received: PositionHistoryFleetBackfillRunOptions[] = [];
+  const durableAccounting = { runId: "123e4567-e89b-42d3-a456-426614174001", leaseOwner: "123e4567-e89b-42d3-a456-426614174002" };
+  await service(async (_target, options) => { received.push(options); return fleetResult({ stoppedByBudget: true }); }).run(to, { maxWindows: 1, durableAccounting });
+  assert.deepEqual(received[0]?.durableAccounting, durableAccounting);
+  assert.equal(received[0]?.maxWindows, 1);
+});
+
 test("eligible failure stops all later slices and preserves only known prior-slice counters", async () => {
   let calls = 0;
   const failure = Object.assign(new Error("provider secret"), { name: "EquGpsTimeoutError" });

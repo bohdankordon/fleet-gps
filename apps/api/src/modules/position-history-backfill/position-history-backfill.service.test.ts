@@ -6,7 +6,7 @@ import type { EquGpsGatewayService } from "../equgps/equgps-gateway.service";
 import { normalizePositionHistoryCandidate } from "../position-history";
 import { PositionHistoryBackfillProviderContractError, PositionHistoryBackfillTargetError } from "./position-history-backfill.errors";
 import { POSITION_HISTORY_BACKFILL_MAX_ROWS_PER_WINDOW, PositionHistoryBackfillService } from "./position-history-backfill.service";
-import type { PositionHistoryBackfillCheckpoint, PositionHistoryBackfillRepository, PositionHistoryBackfillTarget } from "./position-history-backfill.types";
+import type { PositionHistoryBackfillCheckpoint, PositionHistoryBackfillRepository, PositionHistoryBackfillTarget, PositionHistoryDurableAccountingContext } from "./position-history-backfill.types";
 
 const vehicleId = "123e4567-e89b-42d3-a456-426614174000";
 const from = new Date("2026-08-10T00:00:00.000Z");
@@ -160,6 +160,24 @@ test("provider success followed by database failure does not retry or advance ch
   await assert.rejects(item.service.run(target()), (error) => error === failure);
   assert.equal(item.calls.length, 1);
   assert.equal(item.getCursor().toISOString(), from.toISOString());
+});
+
+test("internal durable ownership context reaches every truly persisted window and never a completed replay", async () => {
+  const contexts: Array<PositionHistoryDurableAccountingContext | undefined> = [];
+  const durableAccounting = { runId: "123e4567-e89b-42d3-a456-426614174001", leaseOwner: "123e4567-e89b-42d3-a456-426614174002" };
+  const repository: PositionHistoryBackfillRepository = {
+    prepare: async (value) => ({ id: "checkpoint", vehicleId, externalDeviceId: 7, rangeFrom: value.from, rangeTo: value.to, nextFrom: value.from, status: PositionBackfillStatus.PENDING }),
+    persistWindow: async (input) => { contexts.push(input.durableAccounting); return { inserted: 0, duplicates: 0 }; },
+  };
+  const service = new PositionHistoryBackfillService({ getHistoricalPositions: async () => [] } as unknown as EquGpsGatewayService, repository, { now: () => new Date() }, { sleep: async () => undefined });
+  await service.run(target(2), { durableAccounting });
+  assert.deepEqual(contexts, [durableAccounting, durableAccounting]);
+
+  let persisted = 0;
+  repository.prepare = async (value) => ({ id: "checkpoint", vehicleId, externalDeviceId: 7, rangeFrom: value.from, rangeTo: value.to, nextFrom: value.to, status: PositionBackfillStatus.COMPLETED });
+  repository.persistWindow = async () => { persisted += 1; return { inserted: 0, duplicates: 0 }; };
+  await service.run(target(), { durableAccounting });
+  assert.equal(persisted, 0);
 });
 
 test("validates public UUID, finite non-empty range, and seven-day command bound before provider work", async () => {

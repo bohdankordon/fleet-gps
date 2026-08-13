@@ -27,6 +27,6 @@ import { PositionHistoryHorizonExecutionRunnerService } from "./position-history
     PositionHistoryHorizonExecutionRunnerService,
     PositionHistoryHorizonExecutionService,
   ],
-  exports: [PositionHistoryHorizonExecutionRunnerService],
+  exports: [PositionHistoryHorizonExecutionLockService, PositionHistoryHorizonExecutionRunnerService],
 })
 export class PositionHistoryHorizonExecutionModule {}

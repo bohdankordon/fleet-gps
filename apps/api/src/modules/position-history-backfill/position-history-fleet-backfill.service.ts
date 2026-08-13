@@ -105,6 +105,7 @@ export class PositionHistoryFleetBackfillService {
         {
           ...(perVehicleMaxWindows === undefined ? {} : { maxWindows: perVehicleMaxWindows }),
           ...(previousWindowCommitted ? { paceBeforeFirstWindow: true } : {}),
+          ...(options.durableAccounting === undefined ? {} : { durableAccounting: options.durableAccounting }),
         },
       );
       addResult(aggregate, result);

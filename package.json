@@ -55,6 +55,8 @@
     "position-history:horizon-populate-test": "npm --workspace @taxi-gps/api run position-history:horizon-populate-test",
     "position-history:horizon-execution-test": "npm --workspace @taxi-gps/api run position-history:horizon-execution-test",
     "position-history:horizon-lock-real-db-test": "npm --workspace @taxi-gps/api run position-history:horizon-lock-real-db-test",
+    "position-history:population-runs-test": "npm --workspace @taxi-gps/api run position-history:population-runs-test",
+    "position-history:population-runs-real-db-test": "npm --workspace @taxi-gps/api run position-history:population-runs-real-db-test",
     "position-history:trip-analysis": "npm --workspace @taxi-gps/api run position-history:trip-analysis --",
     "position-history:trip-analysis-test": "npm --workspace @taxi-gps/api run position-history:trip-analysis-test",
     "vinnytsia-boundary:verify": "npm --workspace @taxi-gps/api run vinnytsia-boundary:verify",

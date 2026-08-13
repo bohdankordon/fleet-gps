@@ -3,7 +3,7 @@ import test from "node:test";
 import { PositionBackfillStatus } from "../../generated/prisma/client";
 import type { PositionHistoryBackfillService } from "./position-history-backfill.service";
 import { PositionHistoryFleetBackfillService } from "./position-history-fleet-backfill.service";
-import type { PositionHistoryBackfillResult, PositionHistoryFleetBackfillRepository, PositionHistoryFleetBackfillVehicle } from "./position-history-backfill.types";
+import type { PositionHistoryBackfillResult, PositionHistoryBackfillRunOptions, PositionHistoryFleetBackfillRepository, PositionHistoryFleetBackfillVehicle } from "./position-history-backfill.types";
 
 const hour = 60 * 60 * 1_000;
 const from = new Date("2026-08-01T00:00:00.000Z");
@@ -38,11 +38,11 @@ function result(overrides: Partial<PositionHistoryBackfillResult> = {}): Positio
 }
 
 function harness(fleet: readonly PositionHistoryFleetBackfillVehicle[], responses: Array<PositionHistoryBackfillResult | Error> = []) {
-  const calls: Array<{ target: { vehicleId: string; from: Date; to: Date }; options: { maxWindows?: number; paceBeforeFirstWindow?: boolean } }> = [];
+  const calls: Array<{ target: { vehicleId: string; from: Date; to: Date }; options: PositionHistoryBackfillRunOptions }> = [];
   let inspections = 0;
   const repository: PositionHistoryFleetBackfillRepository = { inspect: async () => { inspections += 1; return fleet; } };
   const engine = {
-    run: async (runTarget: { vehicleId: string; from: Date; to: Date }, options: { maxWindows?: number; paceBeforeFirstWindow?: boolean }) => {
+    run: async (runTarget: { vehicleId: string; from: Date; to: Date }, options: PositionHistoryBackfillRunOptions) => {
       calls.push({ target: runTarget, options });
       const next = responses.shift() ?? result();
       if (next instanceof Error) throw next;
@@ -94,6 +94,14 @@ test("global max-window budget is passed as a decreasing remainder and can stop 
   assert.equal(aggregate.vehiclesCompleted, 1);
   assert.equal(aggregate.vehiclesRemaining, 2);
   assert.equal(aggregate.stoppedByBudget, true);
+});
+
+test("fleet orchestration forwards internal durable ownership without changing its budget algorithm", async () => {
+  const item = harness([vehicle(0)]);
+  const durableAccounting = { runId: "123e4567-e89b-42d3-a456-426614174001", leaseOwner: "123e4567-e89b-42d3-a456-426614174002" };
+  await item.service.run(target, { maxWindows: 2, durableAccounting });
+  assert.deepEqual(item.calls[0]?.options.durableAccounting, durableAccounting);
+  assert.equal(item.calls[0]?.options.maxWindows, 2);
 });
 
 test("max-vehicle budget selects a deterministic prefix and stops between vehicles", async () => {
