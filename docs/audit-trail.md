@@ -2,7 +2,7 @@
 
 The audit trail is durable evidence of successful, meaningful administration, security, population, and retention changes. `AuditEvent` is append-only product persistence: product code can append an event but cannot update, delete, clear, prune, or retain audit rows.
 
-There is no audit viewer, public audit API, export, audit permission, or audit-retention feature. Stage 20C remains reserved for a read-only ADMIN audit viewer.
+Stage 20C completes the planned v1.0 audit subsystem with an ADMIN-only read-only viewer at `/admin/audit`. It adds no audit permission, export, mutation, automatic refresh, or audit-retention feature.
 
 ## Complete current catalog
 
@@ -61,3 +61,15 @@ Retention deliberately is not one giant transaction. It preserves the shared loc
 ## Deliberately unaudited noise
 
 The database audit trail does not record 401 or 403 responses, validation rejection, same-origin rejection, login success or failure, logout, GET requests, provider retries, scheduler polling, scheduler no-work or lock-unavailable ticks, or GPS observation ingestion.
+
+## ADMIN viewer
+
+The viewer uses one protected read endpoint, `GET /api/admin/audit`, and a matching Next BFF. Authorization follows the existing ADMIN-only convention: unauthenticated requests are rejected, every USER is forbidden regardless of granular permissions, and no `audit.view` permission exists. Responses and BFF reads are `no-store`; opening, filtering, paginating, or refreshing the viewer creates no AuditEvent and performs no business mutation.
+
+Pages contain at most 50 events. The page size is source-controlled and cannot be supplied by the browser. Rows are ordered by `createdAt DESC, id DESC` and paginated with an opaque keyset cursor containing only the validated last `createdAt` and AuditEvent UUID. The query fetches at most 51 rows to determine `hasMore`; it uses no OFFSET and performs no total-count query.
+
+The only filters are one `eventType`, one `actorType`, one `targetType`, inclusive absolute `from` and `to` instants, and the opaque cursor. Unknown parameters, client page sizes, sorting, search, malformed cursors, date-only values, timezone-less values, invalid calendar timestamps, and reversed ranges are rejected.
+
+The public DTO exposes only the event ID and timestamp, event type, actor, target, and safe details. USER actors expose the durable login snapshot but never `actorUserId`; SYSTEM actors expose only their type. Targets are displayed without live target lookup. The repository's JSON details are never returned directly: every row is revalidated against its exact source-controlled event detail contract and reconstructed into typed fields. If one historical row has malformed or extra details, that row remains visible with `details.status = UNAVAILABLE`; raw JSON, validation errors, and embedded forbidden content are discarded without failing the rest of the page.
+
+The browser renders Russian labels and typed descriptions for all 11 approved event types. It provides the approved filters, an explicit first-page refresh, and cursor-based “Показать ещё”. Changing or resetting filters and refreshing discard the previous cursor chain. There is no polling, SSE, WebSocket, JSON dump, actor UUID, export/download, audit update/delete/clear/prune, or audit retention control.

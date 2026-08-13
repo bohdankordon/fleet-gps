@@ -1,0 +1,1 @@
+export const AUDIT_READ_REPOSITORY = Symbol("AUDIT_READ_REPOSITORY");

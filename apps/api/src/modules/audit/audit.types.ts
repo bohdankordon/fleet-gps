@@ -127,3 +127,5 @@ export type AuditEventSpec =
       targetId: null;
       details: RetentionExecutedAuditDetails;
     }>;
+
+export type AuditEventDetails = AuditEventSpec["details"];

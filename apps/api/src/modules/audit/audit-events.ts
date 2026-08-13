@@ -6,6 +6,7 @@ import { POSITION_HISTORY_BROWSER_WINDOW_BUDGETS, type PositionHistoryBrowserWin
 import { parseAbsoluteTimestamp } from "../vehicle-track/vehicle-track-query-params";
 import type {
   AuditActor,
+  AuditEventDetails,
   AuditEventSpec,
   AuditSystemActor,
   AuditUserActor,
@@ -117,6 +118,19 @@ function retentionDetails(details: RetentionExecutedAuditDetails): RetentionExec
   });
 }
 
+function shortPopulationDetails(details: ShortPopulationExecutedAuditDetails): ShortPopulationExecutedAuditDetails {
+  const windowBudget = requiredPositiveSafeInteger(details.windowBudget, "windowBudget");
+  if (!POSITION_HISTORY_BROWSER_WINDOW_BUDGETS.includes(windowBudget as PositionHistoryBrowserWindowBudget)) throw new AuditEventValidationError("windowBudget must be an approved browser population budget");
+  const committedWindows = requiredSafeInteger(details.committedWindows, "committedWindows");
+  if (committedWindows > windowBudget) throw new AuditEventValidationError("committedWindows cannot exceed windowBudget");
+  return Object.freeze({
+    to: requiredTimestamp(details.to, "to"),
+    windowBudget,
+    excludeProviderDisabled: requiredBoolean(details.excludeProviderDisabled, "excludeProviderDisabled"),
+    committedWindows,
+  });
+}
+
 export function buildUserActor(userId: string, loginSnapshot: string): AuditUserActor {
   return Object.freeze({
     actorType: AuditActorType.USER,
@@ -199,21 +213,12 @@ export function buildOwnPasswordChangedAuditEvent(actor: AuditUserActor): AuditE
 }
 
 export function buildShortPopulationExecutedAuditEvent(actor: AuditUserActor, details: ShortPopulationExecutedAuditDetails): AuditEventSpec {
-  const windowBudget = requiredPositiveSafeInteger(details.windowBudget, "windowBudget");
-  if (!POSITION_HISTORY_BROWSER_WINDOW_BUDGETS.includes(windowBudget as PositionHistoryBrowserWindowBudget)) throw new AuditEventValidationError("windowBudget must be an approved browser population budget");
-  const committedWindows = requiredSafeInteger(details.committedWindows, "committedWindows");
-  if (committedWindows > windowBudget) throw new AuditEventValidationError("committedWindows cannot exceed windowBudget");
   return Object.freeze({
     eventType: AuditEventType.SHORT_POPULATION_EXECUTED,
     actor: buildUserActor(actor.actorUserId, actor.actorLoginSnapshot),
     targetType: AuditTargetType.POSITION_HISTORY,
     targetId: null,
-    details: Object.freeze({
-      to: requiredTimestamp(details.to, "to"),
-      windowBudget,
-      excludeProviderDisabled: requiredBoolean(details.excludeProviderDisabled, "excludeProviderDisabled"),
-      committedWindows,
-    }),
+    details: shortPopulationDetails(details),
   });
 }
 
@@ -269,6 +274,54 @@ function parseRetentionDetails(value: unknown, eventType: string): RetentionExec
   const details = object(value, "details");
   exactKeys(details, ["canonicalAnchor", "policyCutoff", "deletedCheckpoints", "deletedObservations", "remainingFullyObsoleteCheckpoints", "remainingExecutableObservationCandidates", "stoppedByBudget"], `${eventType} details`);
   return details as RetentionExecutedAuditDetails;
+}
+
+export function parseAuditEventDetails(eventType: unknown, value: unknown): AuditEventDetails {
+  const details = object(value, "details");
+  switch (eventType) {
+    case AuditEventType.USER_CREATED: {
+      exactKeys(details, ["targetLoginSnapshot", "role", "permissions"], "USER_CREATED details");
+      const role = requiredRole(details.role, "role");
+      return Object.freeze({
+        targetLoginSnapshot: requiredLoginSnapshot(details.targetLoginSnapshot, "targetLoginSnapshot"),
+        role,
+        permissions: requiredEffectivePermissions(role, details.permissions, "permissions"),
+      });
+    }
+    case AuditEventType.USER_ACCESS_CHANGED: {
+      exactKeys(details, ["targetLoginSnapshot", "previousRole", "role", "previousPermissions", "permissions"], "USER_ACCESS_CHANGED details");
+      const previousRole = requiredRole(details.previousRole, "previousRole");
+      const role = requiredRole(details.role, "role");
+      return Object.freeze({
+        targetLoginSnapshot: requiredLoginSnapshot(details.targetLoginSnapshot, "targetLoginSnapshot"),
+        previousRole,
+        role,
+        previousPermissions: requiredEffectivePermissions(previousRole, details.previousPermissions, "previousPermissions"),
+        permissions: requiredEffectivePermissions(role, details.permissions, "permissions"),
+      });
+    }
+    case AuditEventType.USER_DISABLED:
+    case AuditEventType.USER_ENABLED:
+    case AuditEventType.USER_PASSWORD_RESET:
+      exactKeys(details, ["targetLoginSnapshot"], `${eventType} details`);
+      return Object.freeze({ targetLoginSnapshot: requiredLoginSnapshot(details.targetLoginSnapshot, "targetLoginSnapshot") });
+    case AuditEventType.OWN_PASSWORD_CHANGED:
+      exactKeys(details, [], "OWN_PASSWORD_CHANGED details");
+      return Object.freeze({});
+    case AuditEventType.SHORT_POPULATION_EXECUTED:
+      exactKeys(details, ["to", "windowBudget", "excludeProviderDisabled", "committedWindows"], "SHORT_POPULATION_EXECUTED details");
+      return shortPopulationDetails(details as ShortPopulationExecutedAuditDetails);
+    case AuditEventType.DURABLE_POPULATION_CREATED:
+    case AuditEventType.SYSTEM_POPULATION_CREATED:
+      exactKeys(details, ["to", "windowBudget", "excludeProviderDisabled"], `${eventType} details`);
+      return durableDetails(details as DurablePopulationCreatedAuditDetails);
+    case AuditEventType.RETENTION_EXECUTED:
+    case AuditEventType.AUTOMATIC_RETENTION_EXECUTED:
+      exactKeys(details, ["canonicalAnchor", "policyCutoff", "deletedCheckpoints", "deletedObservations", "remainingFullyObsoleteCheckpoints", "remainingExecutableObservationCandidates", "stoppedByBudget"], `${eventType} details`);
+      return retentionDetails(details as RetentionExecutedAuditDetails);
+    default:
+      throw new AuditEventValidationError("eventType is not implemented");
+  }
 }
 
 export function parseAuditEventSpec(value: unknown): AuditEventSpec {
