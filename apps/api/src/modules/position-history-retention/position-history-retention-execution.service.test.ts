@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { PositionHistoryHorizonAlreadyRunningError } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
+import { buildUserActor } from "../audit";
 import { PositionHistoryRetentionService } from "./position-history-retention.service";
 import { PositionHistoryRetentionExecutionError, type PositionHistoryRetentionFacts, type PositionHistoryRetentionRepository } from "./position-history-retention.types";
 
 const anchor = new Date("2026-08-11T02:00:00.000Z");
 const cutoff = new Date("2026-05-13T02:00:00.000Z");
 const request = { expectedCanonicalAnchor: anchor, expectedPolicyCutoff: cutoff };
+const actor = buildUserActor("00000000-0000-4000-8000-000000000001", "admin");
 
 function facts(fullyObsolete: number, candidates: number): PositionHistoryRetentionFacts {
   return {
@@ -17,8 +19,9 @@ function facts(fullyObsolete: number, candidates: number): PositionHistoryRetent
 }
 
 type Scenario = Readonly<{ active?: number; fullyObsolete?: number; candidates?: number; deleteCheckpoints?: (limit: number, remaining: number) => number | Promise<number>; deleteObservations?: (limit: number, remaining: number) => number | Promise<number> }>;
-function fixture(scenario: Scenario = {}) {
+function fixture(scenario: Scenario = {}, auditOverride?: { appendWithDatabase(event: unknown): Promise<unknown> }) {
   const events: string[] = [];
+  const auditEvents: unknown[] = [];
   let remainingCheckpoints = scenario.fullyObsolete ?? 0;
   let remainingCandidates = scenario.candidates ?? 0;
   const repository: PositionHistoryRetentionRepository = {
@@ -30,7 +33,8 @@ function fixture(scenario: Scenario = {}) {
     countExecutableObservationCandidates: async () => { events.push("count-obs"); return remainingCandidates; },
   };
   const lock = { runExclusive: async <T>(work: () => Promise<T>): Promise<T> => { events.push("lock"); try { return await work(); } finally { events.push("unlock"); } } };
-  return { service: new PositionHistoryRetentionService(repository, { now: () => new Date("2026-08-13T00:00:00Z") }, lock as never), events };
+  const audit = auditOverride ?? { appendWithDatabase: async (event: unknown) => { auditEvents.push(event); return { id: "audit" }; } };
+  return { service: new PositionHistoryRetentionService(repository, { now: () => new Date("2026-08-13T00:00:00Z") }, lock as never, audit as never), events, auditEvents };
 }
 
 test("fresh no-work execution performs no destructive repository call", async () => {
@@ -39,6 +43,62 @@ test("fresh no-work execution performs no destructive repository call", async ()
   assert.deepEqual(result, { canonicalAnchor: anchor.toISOString(), policyCutoff: cutoff.toISOString(), deletedCheckpoints: 0, deletedObservations: 0, remainingFullyObsoleteCheckpoints: 0, remainingExecutableObservationCandidates: 0, stoppedByBudget: false, noWork: true });
   assert.equal(state.events.some((event) => event.startsWith("delete-")), false);
   assert.deepEqual(state.events, ["lock", "active", "inspect", "count-cp", "count-obs", "unlock"]);
+});
+
+test("successful manual disposable deletion appends exactly one factual RETENTION_EXECUTED audit", async () => {
+  const state = fixture({ fullyObsolete: 2, candidates: 3 });
+  const result = await state.service.executeRetention(request, actor);
+  assert.equal(state.auditEvents.length, 1);
+  const event = state.auditEvents[0] as { eventType: string; actor: { actorUserId: string; actorLoginSnapshot: string }; targetType: string; targetId: null; details: Record<string, unknown> };
+  assert.equal(event.eventType, "RETENTION_EXECUTED");
+  assert.equal(event.actor.actorUserId, actor.actorUserId);
+  assert.equal(event.actor.actorLoginSnapshot, "admin");
+  assert.equal(event.targetType, "POSITION_HISTORY_RETENTION");
+  assert.equal(event.targetId, null);
+  assert.deepEqual(event.details, {
+    canonicalAnchor: result.canonicalAnchor,
+    policyCutoff: result.policyCutoff,
+    deletedCheckpoints: result.deletedCheckpoints,
+    deletedObservations: result.deletedObservations,
+    remainingFullyObsoleteCheckpoints: result.remainingFullyObsoleteCheckpoints,
+    remainingExecutableObservationCandidates: result.remainingExecutableObservationCandidates,
+    stoppedByBudget: result.stoppedByBudget,
+  });
+});
+
+test("no-work and rejected manual retention paths write zero audit", async () => {
+  const noWork = fixture();
+  await noWork.service.executeRetention(request, actor);
+  assert.equal(noWork.auditEvents.length, 0);
+
+  const active = fixture({ active: 1, fullyObsolete: 1, candidates: 1 });
+  await assert.rejects(active.service.executeRetention(request, actor), PositionHistoryRetentionExecutionError);
+  assert.equal(active.auditEvents.length, 0);
+
+  const stale = fixture({ fullyObsolete: 1, candidates: 1 });
+  await assert.rejects(stale.service.executeRetention({ expectedCanonicalAnchor: new Date(anchor.getTime() - 1), expectedPolicyCutoff: cutoff }, actor), PositionHistoryRetentionExecutionError);
+  assert.equal(stale.auditEvents.length, 0);
+});
+
+test("automatic Stage 19C execution writes zero audit even when deletions occur", async () => {
+  const state = fixture({ fullyObsolete: 2, candidates: 3 });
+  const result = await state.service.executeAutomaticRetention();
+  assert.equal(result.deletedCheckpoints + result.deletedObservations > 0, true);
+  assert.equal(state.auditEvents.length, 0);
+});
+
+test("partial destructive failure does not fabricate a success audit", async () => {
+  let calls = 0;
+  const state = fixture({ fullyObsolete: 1_001, candidates: 2, deleteCheckpoints: (limit) => { calls += 1; if (calls === 2) throw new Error("fixture failure"); return limit; } });
+  await assert.rejects(state.service.executeRetention(request, actor), /fixture failure/);
+  assert.equal(state.auditEvents.length, 0);
+});
+
+test("final audit failure does not compensate committed deletion and surfaces the ambiguous failure", async () => {
+  const state = fixture({ fullyObsolete: 2, candidates: 3 }, { appendWithDatabase: async () => { throw new Error("final audit failure"); } });
+  await assert.rejects(state.service.executeRetention(request, actor), /final audit failure/);
+  assert.equal(state.events.filter((event) => event.startsWith("delete-cp")).length, 1);
+  assert.equal(state.events.filter((event) => event.startsWith("delete-obs")).length, 1);
 });
 
 test("automatic execution shares the exact locked checkpoint-first destructive core without browser snapshot fields", async () => {
@@ -99,7 +159,7 @@ test("active durable population and stale confirmations fail under the lock with
 test("shared lock conflict maps to the retention conflict and executes zero repository work", async () => {
   const repository = { inspect: async () => { throw new Error("should not run"); } } as unknown as PositionHistoryRetentionRepository;
   const lock = { runExclusive: async () => { throw new PositionHistoryHorizonAlreadyRunningError(); } };
-  const service = new PositionHistoryRetentionService(repository, { now: () => new Date() }, lock as never);
+  const service = new PositionHistoryRetentionService(repository, { now: () => new Date() }, lock as never, { appendWithDatabase: async () => ({ id: "audit" }) } as never);
   await assert.rejects(service.executeRetention(request), (error: unknown) => error instanceof PositionHistoryRetentionExecutionError && error.code === "LOCK_UNAVAILABLE");
   await assert.rejects(service.executeAutomaticRetention(), (error: unknown) => error instanceof PositionHistoryRetentionExecutionError && error.code === "LOCK_UNAVAILABLE");
 });

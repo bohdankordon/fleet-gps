@@ -42,12 +42,12 @@ test("authentication rejects absent/revoked and must-change sessions before crea
 
 test("controller passes authenticated identity, rejects spoofing, returns no-store and safely maps conflict", async () => {
   const calls: unknown[] = []; const headers = new Map<string, string>();
-  const service = { create: async (id: string, body: unknown) => { calls.push({ id, body }); return safe; }, active: async () => safe, recent: async () => [] } as unknown as PositionHistoryPopulationRunAdminService;
+  const service = { create: async (actorValue: unknown, body: unknown) => { calls.push({ actorValue, body }); return safe; }, active: async () => safe, recent: async () => [] } as unknown as PositionHistoryPopulationRunAdminService;
   const controller = new PositionHistoryPopulationRunAdminController(service);
   const response = { setHeader: (name: string, value: string) => headers.set(name, value) };
   const request = { auth: principal(AuthRole.ADMIN), headers: {} };
   assert.equal(await controller.create(request, { to: safe.to, windowBudget: 1000, excludeProviderDisabled: true }, response), safe);
-  assert.equal((calls[0] as { id: string }).id, actor); assert.equal(headers.get("Cache-Control"), "no-store");
+  assert.deepEqual((calls[0] as { actorValue: unknown }).actorValue, { actorType: "USER", actorUserId: actor, actorLoginSnapshot: "operator" }); assert.equal(headers.get("Cache-Control"), "no-store");
   for (const spoof of [{ initiatorType: "SYSTEM" }, { requestedByUserId: "other" }]) await assert.rejects(controller.create(request, { to: safe.to, windowBudget: 1000, excludeProviderDisabled: true, ...spoof }, response), (error) => error instanceof HttpException && error.getStatus() === 400);
   assert.equal(calls.length, 1);
   const conflict = new PositionHistoryPopulationRunAdminController({ create: async () => { throw new PositionHistoryPopulationRunConflictError(); } } as unknown as PositionHistoryPopulationRunAdminService);

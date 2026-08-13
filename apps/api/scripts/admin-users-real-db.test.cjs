@@ -5,20 +5,36 @@ const { PrismaPg } = require("@prisma/adapter-pg");
 const { PrismaClient } = require("../dist/generated/prisma/client");
 const { AuthRole } = require("../dist/generated/prisma/enums");
 const { ADMIN_CARDINALITY_ADVISORY_LOCK_KEY, AdminUsersError, AdminUsersService } = require("../dist/modules/auth/admin-users.service");
+const { AuditEventRepository } = require("../dist/modules/audit/audit.repository");
 
 const prefix = "acceptance-real-db-";
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 const database = { getClient: () => prisma };
 const security = { generatePassword: () => "A".repeat(24), hashPassword: async () => ({ version: 1, salt: new Uint8Array(16), hash: new Uint8Array(32) }) };
-const service = new AdminUsersService(database, security);
+const service = new AdminUsersService(database, security, new AuditEventRepository(database));
+const browserActor = (user) => ({ actorType: "USER", actorUserId: user.id, actorLoginSnapshot: user.login });
 
 function user(login, role) {
   return { login, normalizedLogin: login, role, disabled: false, mustChangePassword: false, passwordHashVersion: 1, passwordSalt: new Uint8Array(16), passwordHash: new Uint8Array(32) };
 }
 
+async function auditDigest() {
+  const rows = await prisma.$queryRawUnsafe(`
+    SELECT COUNT(*)::text AS count,
+           md5(COALESCE(string_agg(to_jsonb(row_data)::text, E'\\n' ORDER BY to_jsonb(row_data)::text), '')) AS digest
+    FROM "audit_events" AS row_data
+  `);
+  return rows[0];
+}
+
 async function cleanup() {
   const ids = (await prisma.authUser.findMany({ where: { normalizedLogin: { startsWith: prefix } }, select: { id: true } })).map(({ id }) => id);
   if (ids.length === 0) return;
+  const fixtureAuditIds = (await prisma.auditEvent.findMany({
+    where: { OR: [{ actorUserId: { in: ids } }, { targetId: { in: ids } }] },
+    select: { id: true },
+  })).map(({ id }) => id);
+  if (fixtureAuditIds.length > 0) await prisma.auditEvent.deleteMany({ where: { id: { in: fixtureAuditIds } } });
   await prisma.$transaction([
     prisma.authSession.deleteMany({ where: { userId: { in: ids } } }),
     prisma.authUserPermission.deleteMany({ where: { userId: { in: ids } } }),
@@ -27,6 +43,7 @@ async function cleanup() {
 }
 
 test("real PostgreSQL admin cardinality and user-state transactions", async () => {
+  const beforeAudit = await auditDigest();
   assert.equal(await prisma.authUser.count(), 0, "real-DB auth test requires an empty disposable auth state");
   try {
     const lockProof = await prisma.$transaction(async (transaction) => {
@@ -46,7 +63,7 @@ test("real PostgreSQL admin cardinality and user-state transactions", async () =
 
     const replaced = await service.updateAccess(adminA.id, target.id, { role: "USER", permissions: ["historyAdmin.populate"] });
     assert.deepEqual(replaced.permissions, ["historyAdmin.view", "historyAdmin.populate"]);
-    assert.equal((await service.disable(adminA.id, target.id)).disabled, true);
+    assert.equal((await service.disable(browserActor(adminA), target.id)).disabled, true);
     assert.equal(await prisma.authSession.count({ where: { userId: target.id } }), 0);
     assert.equal((await service.enable(target.id)).disabled, false);
     assert.equal(await prisma.authSession.count({ where: { userId: target.id } }), 0);
@@ -57,17 +74,18 @@ test("real PostgreSQL admin cardinality and user-state transactions", async () =
     const demoted = await service.updateAccess(adminA.id, target.id, { role: "USER", permissions: ["trips.view"] });
     assert.deepEqual(demoted.permissions, ["vehicles.view", "trips.view"]);
 
-    await service.disable(adminA.id, adminB.id);
-    await assert.rejects(service.disable(adminB.id, adminA.id), (error) => error instanceof AdminUsersError && error.code === "LAST_ENABLED_ADMIN");
+    await service.disable(browserActor(adminA), adminB.id);
+    await assert.rejects(service.disable(browserActor(adminB), adminA.id), (error) => error instanceof AdminUsersError && error.code === "LAST_ENABLED_ADMIN");
     await assert.rejects(service.updateAccess(adminB.id, adminA.id, { role: "USER", permissions: ["reports.view"] }), (error) => error instanceof AdminUsersError && error.code === "LAST_ENABLED_ADMIN");
 
     await service.enable(adminB.id);
-    const outcomes = await Promise.allSettled([service.disable(adminB.id, adminA.id), service.disable(adminA.id, adminB.id)]);
+    const outcomes = await Promise.allSettled([service.disable(browserActor(adminB), adminA.id), service.disable(browserActor(adminA), adminB.id)]);
     assert.equal(outcomes.filter(({ status }) => status === "fulfilled").length, 1);
     assert.equal(outcomes.filter((outcome) => outcome.status === "rejected" && outcome.reason instanceof AdminUsersError && outcome.reason.code === "LAST_ENABLED_ADMIN").length, 1);
     assert.equal(await prisma.authUser.count({ where: { role: AuthRole.ADMIN, disabled: false } }), 1);
   } finally {
     await cleanup();
+    assert.deepEqual(await auditDigest(), beforeAudit);
   }
 });
 

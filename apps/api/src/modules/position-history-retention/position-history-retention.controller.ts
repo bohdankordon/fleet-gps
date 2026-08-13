@@ -1,5 +1,7 @@
-import { Body, Controller, Get, HttpException, Post, Query, Res } from "@nestjs/common";
+import { Body, Controller, Get, HttpException, Post, Query, Req, Res } from "@nestjs/common";
 import { AdminOnly, RequireAnyPermission } from "../auth/auth.decorators";
+import type { AuthenticatedRequest } from "../auth/auth.types";
+import { buildUserActor } from "../audit";
 import { parsePositionHistoryRetentionExecutionRequest } from "./position-history-retention-execution.validation";
 import { PositionHistoryRetentionService } from "./position-history-retention.service";
 import { PositionHistoryRetentionExecutionError, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPlan } from "./position-history-retention.types";
@@ -21,11 +23,11 @@ export class PositionHistoryRetentionController {
 
   @Post("retention-execute")
   @AdminOnly()
-  public async executeRetention(@Body() body: unknown, @Res({ passthrough: true }) response: HttpResponse): Promise<PositionHistoryRetentionExecutionResult> {
+  public async executeRetention(@Req() request: AuthenticatedRequest, @Body() body: unknown, @Res({ passthrough: true }) response: HttpResponse): Promise<PositionHistoryRetentionExecutionResult> {
     response.setHeader("Cache-Control", "no-store");
-    const request = parsePositionHistoryRetentionExecutionRequest(body);
-    if (request === null) throw new HttpException({ statusCode: 400, error: "Bad Request" }, 400);
-    try { return await this.retention.executeRetention(request); }
+    const parsed = parsePositionHistoryRetentionExecutionRequest(body);
+    if (parsed === null) throw new HttpException({ statusCode: 400, error: "Bad Request" }, 400);
+    try { return await this.retention.executeRetention(parsed, buildUserActor(request.auth!.id, request.auth!.login)); }
     catch (error) {
       if (error instanceof PositionHistoryRetentionExecutionError) {
         const message = error.code === "LOCK_UNAVAILABLE"

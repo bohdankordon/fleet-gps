@@ -38,8 +38,8 @@ test("real PostgreSQL durable-run constraints, concurrency, terminal history, an
   await cleanup();
   try {
     const migrations = await prisma.$queryRaw`SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name`;
-    assert.equal(migrations.length, 10);
-    assert.equal(migrations.at(-1)?.migration_name, "20260813120000_add_position_history_population_runs");
+    assert.equal(migrations.length, 11);
+    assert.equal(migrations.at(-1)?.migration_name, "20260813185936_add_audit_trail_foundation");
 
     const constraintRows = await prisma.$queryRaw`SELECT conname, confdeltype::text AS confdeltype FROM pg_constraint WHERE conrelid = 'position_history_population_runs'::regclass`;
     assert.equal(constraintRows.some(({ conname }) => conname === "position_history_population_runs_window_budget_positive"), true);

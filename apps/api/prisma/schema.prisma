@@ -81,6 +81,32 @@ enum PositionHistoryPopulationRunInitiatorType {
   SYSTEM
 }
 
+enum AuditEventType {
+  USER_CREATED
+  USER_ACCESS_CHANGED
+  USER_DISABLED
+  USER_ENABLED
+  USER_PASSWORD_RESET
+  OWN_PASSWORD_CHANGED
+  SHORT_POPULATION_EXECUTED
+  DURABLE_POPULATION_CREATED
+  RETENTION_EXECUTED
+  SYSTEM_POPULATION_CREATED
+  AUTOMATIC_RETENTION_EXECUTED
+}
+
+enum AuditActorType {
+  USER
+  SYSTEM
+}
+
+enum AuditTargetType {
+  USER
+  POSITION_HISTORY
+  POSITION_HISTORY_POPULATION_RUN
+  POSITION_HISTORY_RETENTION
+}
+
 model AuthUser {
   id                            String                         @id @default(uuid()) @map("id") @db.Uuid
   login                         String                         @map("login") @db.VarChar(64)
@@ -97,8 +123,27 @@ model AuthUser {
   permissions                   AuthUserPermission[]
   sessions                      AuthSession[]
   positionHistoryPopulationRuns PositionHistoryPopulationRun[]
+  auditEvents                   AuditEvent[]                  @relation("AuditEventActor")
 
   @@map("auth_users")
+}
+
+model AuditEvent {
+  id                 String         @id @default(uuid()) @map("id") @db.Uuid
+  eventType          AuditEventType @map("event_type")
+  actorType          AuditActorType @map("actor_type")
+  actorUserId        String?        @map("actor_user_id") @db.Uuid
+  actorLoginSnapshot String?        @map("actor_login_snapshot") @db.VarChar(64)
+  targetType         AuditTargetType @map("target_type")
+  targetId           String?        @map("target_id") @db.VarChar(64)
+  details            Json           @map("details") @db.JsonB
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  actorUser          AuthUser?      @relation("AuditEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt, id], map: "audit_events_created_at_id_idx")
+  @@index([eventType, createdAt], map: "audit_events_event_type_created_at_idx")
+  @@index([actorUserId, createdAt], map: "audit_events_actor_user_id_created_at_idx")
+  @@map("audit_events")
 }
 
 model PositionHistoryPopulationRun {

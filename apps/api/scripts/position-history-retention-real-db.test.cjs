@@ -40,7 +40,7 @@ async function exactSnapshot() {
 test("Stage 19A planner is a real PostgreSQL read with exact before/after equality", async () => {
   const before = await exactSnapshot();
   const migrations = await prisma.$queryRaw`SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`;
-  assert.equal(migrations.length, 10);
+  assert.equal(migrations.length, 11);
   assert.equal(await prisma.positionHistoryPopulationRun.count({ where: { status: { in: ["PENDING", "RUNNING"] } } }), 0, "an active durable population run could invalidate the read-only audit");
 
   const planner = new PositionHistoryRetentionService(new PrismaPositionHistoryRetentionRepository(database), { now: () => new Date() }, null);

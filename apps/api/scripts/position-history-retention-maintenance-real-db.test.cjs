@@ -55,7 +55,7 @@ test("Stage 19C internal automatic service uses one real shared-core pass on dis
   const before = await exactSnapshot();
   let report;
   try {
-    assert.equal((await prisma.$queryRaw`SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`).length, 10);
+    assert.equal((await prisma.$queryRaw`SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`).length, 11);
     assert.equal(await prisma.positionHistoryPopulationRun.count({ where: { status: { in: ["PENDING", "RUNNING"] } } }), 0);
 
     const repository = new PrismaPositionHistoryRetentionRepository(database);

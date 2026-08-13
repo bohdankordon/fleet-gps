@@ -18,7 +18,7 @@ test("schema exposes the exact durable statuses, initiators, timestamps, default
 });
 
 test("the one Stage 18A migration adds only durable-run schema with database budget and active-run constraints", () => {
-  assert.equal(readdirSync("prisma/migrations", { withFileTypes: true }).filter((entry) => entry.isDirectory()).length, 10);
+  assert.equal(readdirSync("prisma/migrations", { withFileTypes: true }).filter((entry) => entry.isDirectory()).length, 11);
   assert.equal(readdirSync(migrationDirectory).length, 1);
   assert.match(migration, /CHECK \("window_budget" > 0\)/);
   assert.match(migration, /CHECK \("committed_windows" >= 0\)/);

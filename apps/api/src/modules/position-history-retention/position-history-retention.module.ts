@@ -7,9 +7,10 @@ import { PositionHistoryRetentionService } from "./position-history-retention.se
 import { POSITION_HISTORY_RETENTION_CLOCK, POSITION_HISTORY_RETENTION_REPOSITORY } from "./position-history-retention.tokens";
 import { PrismaPositionHistoryRetentionRepository } from "./prisma-position-history-retention.repository";
 import { PositionHistoryRetentionMaintenanceService } from "./position-history-retention-maintenance.service";
+import { AuditModule } from "../audit";
 
 @Module({
-  imports: [ApiConfigModule, DatabaseModule, PositionHistoryHorizonExecutionLockModule],
+  imports: [ApiConfigModule, DatabaseModule, AuditModule, PositionHistoryHorizonExecutionLockModule],
   controllers: [PositionHistoryRetentionController],
   providers: [
     PrismaPositionHistoryRetentionRepository,

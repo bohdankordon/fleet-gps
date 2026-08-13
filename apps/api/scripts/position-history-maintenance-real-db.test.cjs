@@ -5,10 +5,11 @@ const { PrismaPg } = require("@prisma/adapter-pg");
 const { AuthRole, PrismaClient, PositionHistoryPopulationRunInitiatorType, PositionHistoryPopulationRunStatus } = require("../dist/generated/prisma/client");
 const { PositionHistoryMaintenanceService } = require("../dist/modules/position-history-population-runs/position-history-maintenance.service");
 const { PositionHistoryPopulationRunCreationService } = require("../dist/modules/position-history-population-runs/position-history-population-run-creation.service");
+const { AuditEventRepository } = require("../dist/modules/audit/audit.repository");
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 const database = { getClient: () => prisma };
-const creation = new PositionHistoryPopulationRunCreationService(database);
+const creation = new PositionHistoryPopulationRunCreationService(database, new AuditEventRepository(database));
 const config = { positionHistoryMaintenance: { enabled: true } };
 const runIds = new Set();
 let userId = null;
@@ -34,6 +35,15 @@ async function protectedSnapshot() {
 
 async function authCounts() {
   return { users: await prisma.authUser.count(), permissions: await prisma.authUserPermission.count(), sessions: await prisma.authSession.count() };
+}
+
+async function auditDigest() {
+  const rows = await prisma.$queryRawUnsafe(`
+    SELECT COUNT(*)::text AS count,
+           md5(COALESCE(string_agg(to_jsonb(row_data)::text, E'\\n' ORDER BY to_jsonb(row_data)::text), '')) AS digest
+    FROM "audit_events" AS row_data
+  `);
+  return rows[0];
 }
 
 async function rememberActive() {
@@ -66,7 +76,14 @@ function racingDatabase(participants) {
 }
 
 async function cleanup() {
-  if (runIds.size > 0) await prisma.positionHistoryPopulationRun.deleteMany({ where: { id: { in: [...runIds] } } });
+  if (runIds.size > 0) {
+    const fixtureAuditIds = (await prisma.auditEvent.findMany({
+      where: { targetType: "POSITION_HISTORY_POPULATION_RUN", targetId: { in: [...runIds] } },
+      select: { id: true },
+    })).map(({ id }) => id);
+    if (fixtureAuditIds.length > 0) await prisma.auditEvent.deleteMany({ where: { id: { in: fixtureAuditIds } } });
+    await prisma.positionHistoryPopulationRun.deleteMany({ where: { id: { in: [...runIds] } } });
+  }
   if (userId !== null) {
     await prisma.authSession.deleteMany({ where: { userId } });
     await prisma.authUserPermission.deleteMany({ where: { userId } });
@@ -77,10 +94,11 @@ async function cleanup() {
 test("Stage 18C PostgreSQL creation, active skip, terminal continuation and race remain provider-free and disposable", async () => {
   const beforeProtected = await protectedSnapshot();
   const beforeAuth = await authCounts();
+  const beforeAudit = await auditDigest();
   assert.equal(await prisma.positionHistoryPopulationRun.count({ where: { status: { in: [PositionHistoryPopulationRunStatus.PENDING, PositionHistoryPopulationRunStatus.RUNNING] } } }), 0, "an unexplained active durable run exists");
   try {
     const migrations = await prisma.$queryRaw`SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`;
-    assert.equal(migrations.length, 10);
+    assert.equal(migrations.length, 11);
 
     const firstCalls = [];
     assert.equal((await serviceWith(database, 100, firstCalls).evaluate(anchor)).outcome, "CREATED");
@@ -98,7 +116,7 @@ test("Stage 18C PostgreSQL creation, active skip, terminal continuation and race
     const marker = crypto.randomUUID();
     const user = await prisma.authUser.create({ data: { login: `stage18c-${marker}`, normalizedLogin: `stage18c-${marker}`, passwordHash: new Uint8Array(32), passwordSalt: new Uint8Array(16), passwordHashVersion: 1, role: AuthRole.USER, disabled: false, mustChangePassword: false } });
     userId = user.id;
-    const userRun = await creation.createRun({ initiatorType: PositionHistoryPopulationRunInitiatorType.USER, requestedByUserId: user.id, to: new Date("2026-08-11T02:00:00.000Z"), excludeProviderDisabled: true, windowBudget: 500 });
+    const userRun = await creation.createRun({ initiatorType: PositionHistoryPopulationRunInitiatorType.USER, requestedByUserId: user.id, requestedByLoginSnapshot: user.login, to: new Date("2026-08-11T02:00:00.000Z"), excludeProviderDisabled: true, windowBudget: 500 });
     runIds.add(userRun.id);
     const skipCalls = [];
     assert.equal((await serviceWith(database, 100, skipCalls).evaluate(anchor)).outcome, "ACTIVE_RUN");
@@ -124,6 +142,7 @@ test("Stage 18C PostgreSQL creation, active skip, terminal continuation and race
     assert.equal(await prisma.positionHistoryPopulationRun.count({ where: { id: { in: [...runIds] } } }), 0);
     assert.deepEqual(await authCounts(), beforeAuth);
     assert.deepEqual(await protectedSnapshot(), beforeProtected);
+    assert.deepEqual(await auditDigest(), beforeAudit);
   }
 });
 

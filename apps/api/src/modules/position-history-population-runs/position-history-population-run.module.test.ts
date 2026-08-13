@@ -11,7 +11,7 @@ test("module exposes admin orchestration, reuses Stage 14C and the Stage 17C loc
   assert.equal(POSITION_HISTORY_POPULATION_RUN_LEASE_DURATION_MS, 120_000);
   assert.equal(POSITION_HISTORY_POPULATION_RUN_HEARTBEAT_MS, 30_000);
   const imports = (Reflect.getMetadata("imports", PositionHistoryPopulationRunModule) as Array<{ name: string }>).map((value) => value.name);
-  assert.deepEqual(imports, ["DatabaseModule", "PositionHistoryHorizonPopulationModule", "PositionHistoryHorizonExecutionModule"]);
+  assert.deepEqual(imports, ["DatabaseModule", "AuditModule", "PositionHistoryHorizonPopulationModule", "PositionHistoryHorizonExecutionModule"]);
   const source = readFileSync("src/modules/position-history-population-runs/position-history-population-run.module.ts", "utf8");
   assert.doesNotMatch(source, /onModuleInit|@Cron|ScheduleModule|setTimeout|createRun\(\{[^}]*SYSTEM/);
   assert.deepEqual((Reflect.getMetadata("controllers", PositionHistoryPopulationRunModule) as Array<{ name: string }>).map((value) => value.name), ["PositionHistoryPopulationRunAdminController"]);

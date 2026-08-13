@@ -15,11 +15,12 @@ const facts: PositionHistoryRetentionFacts = {
   },
 };
 const lock = { runExclusive: async <T>(work: () => Promise<T>) => work() };
+const audit = { appendWithDatabase: async () => ({ id: "audit" }) };
 
 test("reuses the Stage 18C anchor and subtracts exactly 90 absolute UTC days", async () => {
   const cutoffs: string[] = [];
   const repository = { inspect: async (cutoff: Date) => { cutoffs.push(cutoff.toISOString()); return facts; } } as PositionHistoryRetentionRepository;
-  const service = new PositionHistoryRetentionService(repository, { now: () => new Date("1999-01-01T00:00:00Z") }, lock as never);
+  const service = new PositionHistoryRetentionService(repository, { now: () => new Date("1999-01-01T00:00:00Z") }, lock as never, audit as never);
   const plan = await service.getRetentionPlan(new Date("2026-08-13T10:15:16.789Z"));
   assert.equal(plan.policyDays, 90);
   assert.equal(plan.canonicalAnchor, "2026-08-11T02:00:00.000Z");
@@ -34,7 +35,7 @@ test("reuses the Stage 18C anchor and subtracts exactly 90 absolute UTC days", a
 
 test("policy is independent of local timezone, DST, and the history page anchor", async () => {
   const repository = { inspect: async () => facts } as unknown as PositionHistoryRetentionRepository;
-  const service = new PositionHistoryRetentionService(repository, { now: () => new Date("2026-08-13T10:00:00Z") }, lock as never);
+  const service = new PositionHistoryRetentionService(repository, { now: () => new Date("2026-08-13T10:00:00Z") }, lock as never, audit as never);
   const original = process.env.TZ;
   try {
     for (const timezone of ["UTC", "Europe/Kyiv", "America/New_York"]) {
@@ -56,7 +57,7 @@ test("empty facts retain nullable extrema and do not manufacture overlap safety"
     observations: { total: 0, olderThanPolicyCutoff: 0, atOrAfterPolicyCutoff: 0, oldestObservedAt: null, newestObservedAt: null, vehiclesWithObservationsOlderThanCutoff: 0, executableObservationCandidates: 0 },
     checkpoints: { total: 0, fullyObsolete: 0, boundaryOverlap: 0, protected: 0, fullyObsoleteByStatus: { pending: 0, running: 0, completed: 0 }, boundaryOverlapByStatus: { pending: 0, running: 0, completed: 0 }, protectedByStatus: { pending: 0, running: 0, completed: 0 }, endingExactlyAtCutoff: 0, startingExactlyAtCutoff: 0, strictlyCrossingCutoff: 0 },
   };
-  const plan = await new PositionHistoryRetentionService({ inspect: async () => empty } as unknown as PositionHistoryRetentionRepository, { now: () => new Date("2026-08-13T00:00:00Z") }, lock as never).getRetentionPlan();
+  const plan = await new PositionHistoryRetentionService({ inspect: async () => empty } as unknown as PositionHistoryRetentionRepository, { now: () => new Date("2026-08-13T00:00:00Z") }, lock as never, audit as never).getRetentionPlan();
   assert.equal(plan.observations.oldestObservedAt, null);
   assert.equal(plan.observations.newestObservedAt, null);
   assert.equal(plan.safety.hasBoundaryOverlap, false);

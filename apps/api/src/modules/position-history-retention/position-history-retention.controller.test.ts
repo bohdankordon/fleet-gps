@@ -6,7 +6,7 @@ import { AuthRole } from "../../generated/prisma/enums";
 import { AuthenticationGuard } from "../auth/authentication.guard";
 import type { AuthService } from "../auth/auth.service";
 import { PermissionGuard } from "../auth/permission.guard";
-import type { AuthenticatedPrincipal } from "../auth/auth.types";
+import type { AuthenticatedPrincipal, AuthenticatedRequest } from "../auth/auth.types";
 import { resolvePermissions } from "../auth/permissions";
 import { PositionHistoryRetentionController } from "./position-history-retention.controller";
 import type { PositionHistoryRetentionService } from "./position-history-retention.service";
@@ -78,12 +78,13 @@ test("execution POST is strict, no-store, returns safe result, and maps all zero
   const safeResult = { canonicalAnchor: safePlan.canonicalAnchor, policyCutoff: safePlan.policyCutoff, deletedCheckpoints: 0, deletedObservations: 0, remainingFullyObsoleteCheckpoints: 0, remainingExecutableObservationCandidates: 0, stoppedByBudget: false, noWork: true } as const;
   let calls = 0;
   const controller = new PositionHistoryRetentionController({ executeRetention: async () => { calls += 1; return safeResult; } } as unknown as PositionHistoryRetentionService);
-  assert.deepEqual(await controller.executeRetention(body, response), safeResult);
+  const request = { auth: principal(AuthRole.ADMIN) } as AuthenticatedRequest;
+  assert.deepEqual(await controller.executeRetention(request, body, response), safeResult);
   assert.equal(headers.get("Cache-Control"), "no-store");
-  await assert.rejects(controller.executeRetention({ ...body, days: 365 }, response), (error) => error instanceof HttpException && error.getStatus() === 400);
+  await assert.rejects(controller.executeRetention(request, { ...body, days: 365 }, response), (error) => error instanceof HttpException && error.getStatus() === 400);
   assert.equal(calls, 1);
   for (const code of ["LOCK_UNAVAILABLE", "ACTIVE_DURABLE_RUN", "STALE_PLAN"] as const) {
     const conflicting = new PositionHistoryRetentionController({ executeRetention: async () => { throw new PositionHistoryRetentionExecutionError(code); } } as unknown as PositionHistoryRetentionService);
-    await assert.rejects(conflicting.executeRetention(body, response), (error) => error instanceof HttpException && error.getStatus() === 409 && (error.getResponse() as { error: string }).error === code);
+    await assert.rejects(conflicting.executeRetention(request, body, response), (error) => error instanceof HttpException && error.getStatus() === 409 && (error.getResponse() as { error: string }).error === code);
   }
 });

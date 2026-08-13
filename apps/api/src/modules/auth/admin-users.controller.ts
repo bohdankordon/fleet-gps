@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from "./auth.types";
 import type { OneTimePasswordResult, SafeAdminUser } from "./admin-users.types";
 import { AdminUsersError, AdminUsersService } from "./admin-users.service";
 import { normalizeUuid } from "../../common/uuid.validation";
+import { buildUserActor } from "../audit";
 
 type HttpResponse = { setHeader(name: string, value: string): void };
 
@@ -44,7 +45,7 @@ export class AdminUsersController {
   public async access(@Req() request: AuthenticatedRequest, @Param("userId") userId: string, @Body() body: unknown): Promise<SafeAdminUser> { try { return await this.users.updateAccess(request.auth!.id, targetId(userId), body); } catch (error) { return adminError(error); } }
 
   @Post(":userId/disable")
-  public async disable(@Req() request: AuthenticatedRequest, @Param("userId") userId: string, @Body() body: unknown): Promise<SafeAdminUser> { try { requireEmptyBody(body); return await this.users.disable(request.auth!.id, targetId(userId)); } catch (error) { return adminError(error); } }
+  public async disable(@Req() request: AuthenticatedRequest, @Param("userId") userId: string, @Body() body: unknown): Promise<SafeAdminUser> { try { requireEmptyBody(body); return await this.users.disable(buildUserActor(request.auth!.id, request.auth!.login), targetId(userId)); } catch (error) { return adminError(error); } }
 
   @Post(":userId/enable")
   public async enable(@Param("userId") userId: string, @Body() body: unknown): Promise<SafeAdminUser> { try { requireEmptyBody(body); return await this.users.enable(targetId(userId)); } catch (error) { return adminError(error); } }

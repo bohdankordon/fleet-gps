@@ -3,6 +3,7 @@ import type { PositionHistoryPopulationRun, PositionHistoryPopulationRunInitiato
 export type CreatePositionHistoryPopulationRunInput = Readonly<{
   initiatorType: PositionHistoryPopulationRunInitiatorType;
   requestedByUserId?: string;
+  requestedByLoginSnapshot?: string;
   to: Date;
   excludeProviderDisabled: boolean;
   windowBudget: number;

@@ -12,9 +12,9 @@ test("create derives USER initiator and authenticated requestedBy identity", asy
   const calls: unknown[] = [];
   const creation = { createRun: async (input: unknown) => { calls.push(input); return row(PositionHistoryPopulationRunStatus.PENDING); } } as unknown as PositionHistoryPopulationRunCreationService;
   const service = new PositionHistoryPopulationRunAdminService({} as DatabaseService, creation);
-  const actor = "00000000-0000-4000-8000-000000000001";
+  const actor = { actorType: "USER" as const, actorUserId: "00000000-0000-4000-8000-000000000001", actorLoginSnapshot: "operator" };
   const result = await service.create(actor, { to: new Date("2026-08-11T02:00:00Z"), windowBudget: 500, excludeProviderDisabled: false });
-  assert.deepEqual(calls, [{ initiatorType: PositionHistoryPopulationRunInitiatorType.USER, requestedByUserId: actor, to: new Date("2026-08-11T02:00:00Z"), excludeProviderDisabled: false, windowBudget: 500 }]);
+  assert.deepEqual(calls, [{ initiatorType: PositionHistoryPopulationRunInitiatorType.USER, requestedByUserId: actor.actorUserId, requestedByLoginSnapshot: actor.actorLoginSnapshot, to: new Date("2026-08-11T02:00:00Z"), excludeProviderDisabled: false, windowBudget: 500 }]);
   assert.equal(result.initiatorType, "USER");
   assert.equal(JSON.stringify(result).includes("requestedByUserId"), false);
 });
@@ -45,4 +45,3 @@ test("active returns null and unknown failure codes map to a stable category", a
   assert.equal(await new PositionHistoryPopulationRunAdminService(database, {} as PositionHistoryPopulationRunCreationService).active(), null);
   assert.equal(toSafePositionHistoryPopulationRun(row(PositionHistoryPopulationRunStatus.FAILED, "SENSITIVE_INTERNAL_DETAIL")).failureCategory, "UNKNOWN");
 });
-

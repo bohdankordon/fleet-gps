@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PositionHistoryPopulationRunInitiatorType, PositionHistoryPopulationRunStatus, type Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database/database.service";
+import type { AuditUserActor } from "../audit";
 import { PositionHistoryPopulationRunCreationService } from "./position-history-population-run-creation.service";
 import type { CreatePositionHistoryPopulationRunRequest, PositionHistoryPopulationRunSafeSource, SafePositionHistoryPopulationRun } from "./position-history-population-run-admin.types";
 
@@ -33,10 +34,11 @@ export function toSafePositionHistoryPopulationRun(run: PositionHistoryPopulatio
 export class PositionHistoryPopulationRunAdminService {
   public constructor(private readonly database: DatabaseService, private readonly creation: PositionHistoryPopulationRunCreationService) {}
 
-  public async create(actorUserId: string, request: CreatePositionHistoryPopulationRunRequest): Promise<SafePositionHistoryPopulationRun> {
+  public async create(actor: AuditUserActor, request: CreatePositionHistoryPopulationRunRequest): Promise<SafePositionHistoryPopulationRun> {
     const run = await this.creation.createRun({
       initiatorType: PositionHistoryPopulationRunInitiatorType.USER,
-      requestedByUserId: actorUserId,
+      requestedByUserId: actor.actorUserId,
+      requestedByLoginSnapshot: actor.actorLoginSnapshot,
       to: request.to,
       excludeProviderDisabled: request.excludeProviderDisabled,
       windowBudget: request.windowBudget,

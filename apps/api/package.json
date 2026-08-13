@@ -11,7 +11,7 @@
     "auth:user-create": "npm run build && node scripts/require-database-url.cjs && node --env-file=../../.env dist/auth-user-create.js",
     "auth:test": "npm run build && node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node --test .test-dist/modules/auth/*.test.js",
     "auth:real-db-test": "npm run build && node scripts/require-database-url.cjs && node --env-file=../../.env --test scripts/admin-users-real-db.test.cjs",
-    "pretest": "npm run auth:test",
+    "pretest": "npm run auth:test && node --test .test-dist/modules/audit/*.test.js",
     "build": "npm run prisma:generate && node scripts/clean-output.cjs dist && nest build",
     "typecheck": "npm run prisma:generate && tsc --noEmit -p tsconfig.json",
     "fleet-activity-report:test": "npm run build && node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node --test .test-dist/modules/fleet-activity-report/fleet-activity-report.service.test.js .test-dist/modules/fleet-activity-report/prisma-fleet-activity-report.repository.test.js .test-dist/modules/fleet-activity-report/fleet-activity-report.controller.test.js .test-dist/modules/fleet-activity-report/fleet-activity-report.module.test.js",

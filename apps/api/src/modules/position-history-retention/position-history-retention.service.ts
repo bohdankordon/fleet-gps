@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { canonicalPositionHistoryMaintenanceAnchor } from "../position-history-population-runs/position-history-maintenance-anchor";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
+import { AuditEventRepository, buildRetentionExecutedAuditEvent, type AuditUserActor } from "../audit";
 import { POSITION_HISTORY_RETENTION_CLOCK, POSITION_HISTORY_RETENTION_REPOSITORY } from "./position-history-retention.tokens";
 import { POSITION_HISTORY_RETENTION_ABSOLUTE_DAY_MS, POSITION_HISTORY_RETENTION_CHECKPOINT_BATCH_SIZE, POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET, POSITION_HISTORY_RETENTION_OBSERVATION_BATCH_SIZE, POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET, POSITION_HISTORY_RETENTION_POLICY_DAYS, PositionHistoryRetentionExecutionError, type PositionHistoryRetentionClock, type PositionHistoryRetentionExecutionRequest, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPlan, type PositionHistoryRetentionRepository } from "./position-history-retention.types";
 
@@ -10,6 +11,7 @@ export class PositionHistoryRetentionService {
     @Inject(POSITION_HISTORY_RETENTION_REPOSITORY) private readonly repository: PositionHistoryRetentionRepository,
     @Inject(POSITION_HISTORY_RETENTION_CLOCK) private readonly clock: PositionHistoryRetentionClock,
     private readonly mutationLock: PositionHistoryHorizonExecutionLockService,
+    private readonly audit: AuditEventRepository,
   ) {}
 
   public async getRetentionPlan(now: Date = this.clock.now()): Promise<PositionHistoryRetentionPlan> {
@@ -36,27 +38,39 @@ export class PositionHistoryRetentionService {
     });
   }
 
-  public async executeRetention(request: PositionHistoryRetentionExecutionRequest): Promise<PositionHistoryRetentionExecutionResult> {
+  public async executeRetention(request: PositionHistoryRetentionExecutionRequest, actor?: AuditUserActor): Promise<PositionHistoryRetentionExecutionResult> {
     return this.executeLocked((plan) => {
       if (request.expectedCanonicalAnchor.getTime() !== Date.parse(plan.canonicalAnchor)
         || request.expectedPolicyCutoff.getTime() !== Date.parse(plan.policyCutoff)) {
         throw new PositionHistoryRetentionExecutionError("STALE_PLAN");
       }
-    });
+    }, actor);
   }
 
   public async executeAutomaticRetention(): Promise<PositionHistoryRetentionExecutionResult> {
     return this.executeLocked();
   }
 
-  private async executeLocked(validatePlan?: (plan: PositionHistoryRetentionPlan) => void): Promise<PositionHistoryRetentionExecutionResult> {
+  private async executeLocked(validatePlan?: (plan: PositionHistoryRetentionPlan) => void, actor?: AuditUserActor): Promise<PositionHistoryRetentionExecutionResult> {
     try {
       return await this.mutationLock.runExclusive(async () => {
         if (await this.repository.countActiveDurableRuns() > 0) throw new PositionHistoryRetentionExecutionError("ACTIVE_DURABLE_RUN");
 
         const plan = await this.getRetentionPlan(this.clock.now());
         validatePlan?.(plan);
-        return this.executeBoundedDestructivePass(plan);
+        const result = await this.executeBoundedDestructivePass(plan);
+        if (actor !== undefined && result.deletedCheckpoints + result.deletedObservations > 0) {
+          await this.audit.appendWithDatabase(buildRetentionExecutedAuditEvent(actor, {
+            canonicalAnchor: result.canonicalAnchor,
+            policyCutoff: result.policyCutoff,
+            deletedCheckpoints: result.deletedCheckpoints,
+            deletedObservations: result.deletedObservations,
+            remainingFullyObsoleteCheckpoints: result.remainingFullyObsoleteCheckpoints,
+            remainingExecutableObservationCandidates: result.remainingExecutableObservationCandidates,
+            stoppedByBudget: result.stoppedByBudget,
+          }));
+        }
+        return result;
       });
     } catch (error) {
       if (error instanceof PositionHistoryHorizonAlreadyRunningError) throw new PositionHistoryRetentionExecutionError("LOCK_UNAVAILABLE");

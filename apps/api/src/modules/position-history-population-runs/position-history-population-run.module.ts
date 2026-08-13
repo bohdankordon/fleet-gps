@@ -10,9 +10,10 @@ import { PositionHistoryPopulationRunStateService } from "./position-history-pop
 import { POSITION_HISTORY_POPULATION_RUN_CLOCK, POSITION_HISTORY_POPULATION_RUN_HEARTBEAT_SCHEDULER } from "./position-history-population-run.tokens";
 import type { PositionHistoryPopulationRunClock, PositionHistoryPopulationRunHeartbeatScheduler } from "./position-history-population-run.types";
 import { PositionHistoryPopulationRunWorkerService } from "./position-history-population-run-worker.service";
+import { AuditModule } from "../audit";
 
 @Module({
-  imports: [DatabaseModule, PositionHistoryHorizonPopulationModule, PositionHistoryHorizonExecutionModule],
+  imports: [DatabaseModule, AuditModule, PositionHistoryHorizonPopulationModule, PositionHistoryHorizonExecutionModule],
   controllers: [PositionHistoryPopulationRunAdminController],
   providers: [
     { provide: POSITION_HISTORY_POPULATION_RUN_CLOCK, useValue: { now: (): Date => new Date() } satisfies PositionHistoryPopulationRunClock },

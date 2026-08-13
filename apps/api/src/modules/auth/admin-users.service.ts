@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { AuthUser, Prisma } from "../../generated/prisma/client";
 import { AuthRole } from "../../generated/prisma/enums";
 import { DatabaseService } from "../database/database.service";
+import { AuditEventRepository, buildUserActor, buildUserDisabledAuditEvent, type AuditUserActor } from "../audit";
 import { normalizeLogin } from "./login";
 import { hashPassword, type PasswordMaterial } from "./password";
 import { isPermission, resolvePermissions, type Permission } from "./permissions";
@@ -68,7 +69,7 @@ function prismaDuplicate(error: unknown): boolean {
 
 @Injectable()
 export class AdminUsersService {
-  public constructor(private readonly database: DatabaseService, @Inject(ADMIN_USER_SECURITY) private readonly security: AdminUserSecurity) {}
+  public constructor(private readonly database: DatabaseService, @Inject(ADMIN_USER_SECURITY) private readonly security: AdminUserSecurity, private readonly audit: AuditEventRepository) {}
 
   public async list(): Promise<readonly SafeAdminUser[]> {
     const users = await this.database.getClient().authUser.findMany({ orderBy: [{ normalizedLogin: "asc" }, { id: "asc" }], include: { permissions: true } });
@@ -125,8 +126,8 @@ export class AdminUsersService {
     });
   }
 
-  public async disable(actorId: string, userId: string): Promise<SafeAdminUser> {
-    if (actorId === userId) throw new AdminUsersError("SELF_PROTECTED");
+  public async disable(actor: AuditUserActor, userId: string): Promise<SafeAdminUser> {
+    if (actor.actorUserId === userId) throw new AdminUsersError("SELF_PROTECTED");
     return this.database.getClient().$transaction(async (transaction: Prisma.TransactionClient) => {
       await lockAdminCardinality(transaction);
       const current = await transaction.authUser.findUnique({ where: { id: userId }, include: { permissions: true } });
@@ -135,8 +136,13 @@ export class AdminUsersService {
         const enabledAdmins = await transaction.authUser.count({ where: { role: AuthRole.ADMIN, disabled: false } });
         if (enabledAdmins <= 1) throw new AdminUsersError("LAST_ENABLED_ADMIN");
       }
-      if (!current.disabled) await transaction.authUser.update({ where: { id: userId }, data: { disabled: true } });
-      await transaction.authSession.deleteMany({ where: { userId } });
+      if (!current.disabled) {
+        await transaction.authUser.update({ where: { id: userId }, data: { disabled: true } });
+        await transaction.authSession.deleteMany({ where: { userId } });
+        await this.audit.append(transaction, buildUserDisabledAuditEvent(buildUserActor(actor.actorUserId, actor.actorLoginSnapshot), userId, current.login));
+      } else {
+        await transaction.authSession.deleteMany({ where: { userId } });
+      }
       return safeUser(await transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: { permissions: true } }));
     });
   }

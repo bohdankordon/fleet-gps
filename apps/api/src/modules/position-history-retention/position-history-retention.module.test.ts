@@ -6,7 +6,7 @@ import { PositionHistoryRetentionModule } from "./position-history-retention.mod
 import { POSITION_HISTORY_HORIZON_EXECUTION_LOCK_KEY } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
 
 test("retention runtime composes config, database, and the existing shared mutation-lock module only", () => {
-  assert.deepEqual((Reflect.getMetadata("imports", PositionHistoryRetentionModule) as Array<{ name: string }>).map((value) => value.name), ["ApiConfigModule", "DatabaseModule", "PositionHistoryHorizonExecutionLockModule"]);
+  assert.deepEqual((Reflect.getMetadata("imports", PositionHistoryRetentionModule) as Array<{ name: string }>).map((value) => value.name), ["ApiConfigModule", "DatabaseModule", "AuditModule", "PositionHistoryHorizonExecutionLockModule"]);
   assert.deepEqual(Reflect.getMetadata("controllers", PositionHistoryRetentionModule), [PositionHistoryRetentionController]);
   assert.equal(POSITION_HISTORY_HORIZON_EXECUTION_LOCK_KEY, 1706170003);
 });
