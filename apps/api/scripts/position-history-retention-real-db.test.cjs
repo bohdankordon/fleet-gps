@@ -43,7 +43,7 @@ test("Stage 19A planner is a real PostgreSQL read with exact before/after equali
   assert.equal(migrations.length, 10);
   assert.equal(await prisma.positionHistoryPopulationRun.count({ where: { status: { in: ["PENDING", "RUNNING"] } } }), 0, "an active durable population run could invalidate the read-only audit");
 
-  const planner = new PositionHistoryRetentionService(new PrismaPositionHistoryRetentionRepository(database), { now: () => new Date() });
+  const planner = new PositionHistoryRetentionService(new PrismaPositionHistoryRetentionRepository(database), { now: () => new Date() }, null);
   const startedAt = performance.now();
   const plan = await planner.getRetentionPlan();
   const queryDurationMs = performance.now() - startedAt;

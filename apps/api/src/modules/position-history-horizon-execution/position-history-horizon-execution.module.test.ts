@@ -5,10 +5,10 @@ import { PositionHistoryHorizonExecutionController } from "./position-history-ho
 import { POSITION_HISTORY_HORIZON_EXECUTION_LOCK_KEY } from "./position-history-horizon-execution-lock.service";
 import { PositionHistoryHorizonExecutionModule } from "./position-history-horizon-execution.module";
 
-test("execution module composes the existing Stage 14C service and one dedicated pg Client factory", () => {
-  assert.deepEqual((Reflect.getMetadata("imports", PositionHistoryHorizonExecutionModule) as Array<{ name: string }>).map((value) => value.name), ["ApiConfigModule", "PositionHistoryHorizonPopulationModule"]);
+test("execution module composes Stage 14C with the shared lock module and one dedicated pg Client factory", () => {
+  assert.deepEqual((Reflect.getMetadata("imports", PositionHistoryHorizonExecutionModule) as Array<{ name: string }>).map((value) => value.name), ["PositionHistoryHorizonExecutionLockModule", "PositionHistoryHorizonPopulationModule"]);
   assert.deepEqual(Reflect.getMetadata("controllers", PositionHistoryHorizonExecutionModule), [PositionHistoryHorizonExecutionController]);
-  const moduleSource = readFileSync("src/modules/position-history-horizon-execution/position-history-horizon-execution.module.ts", "utf8");
+  const moduleSource = readFileSync("src/modules/position-history-horizon-execution/position-history-horizon-execution-lock.module.ts", "utf8");
   const lockSource = readFileSync("src/modules/position-history-horizon-execution/position-history-horizon-execution-lock.service.ts", "utf8");
   assert.match(moduleSource, /new Client\(/); assert.match(moduleSource, /client\.connect\(\)/); assert.match(moduleSource, /client\.end\(\)/);
   assert.match(lockSource, /pg_try_advisory_lock/); assert.match(lockSource, /pg_advisory_unlock/); assert.equal(POSITION_HISTORY_HORIZON_EXECUTION_LOCK_KEY, 1706170003);

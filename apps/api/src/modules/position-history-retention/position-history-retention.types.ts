@@ -17,6 +17,7 @@ export type PositionHistoryRetentionFacts = Readonly<{
     oldestObservedAt: Date | null;
     newestObservedAt: Date | null;
     vehiclesWithObservationsOlderThanCutoff: number;
+    executableObservationCandidates: number;
   }>;
   checkpoints: Readonly<{
     total: number;
@@ -34,6 +35,11 @@ export type PositionHistoryRetentionFacts = Readonly<{
 
 export interface PositionHistoryRetentionRepository {
   inspect(policyCutoff: Date): Promise<PositionHistoryRetentionFacts>;
+  countActiveDurableRuns(): Promise<number>;
+  deleteFullyObsoleteCheckpointBatch(policyCutoff: Date, limit: number): Promise<number>;
+  countFullyObsoleteCheckpoints(policyCutoff: Date): Promise<number>;
+  deleteExecutableObservationBatch(policyCutoff: Date, limit: number): Promise<number>;
+  countExecutableObservationCandidates(policyCutoff: Date): Promise<number>;
 }
 
 export type PositionHistoryRetentionClock = Readonly<{ now(): Date }>;
@@ -49,6 +55,7 @@ export type PositionHistoryRetentionPlan = Readonly<{
     oldestObservedAt: string | null;
     newestObservedAt: string | null;
     vehiclesWithObservationsOlderThanCutoff: number;
+    executableObservationCandidates: number;
   }>;
   checkpoints: Readonly<{
     total: number;
@@ -69,3 +76,33 @@ export type PositionHistoryRetentionPlan = Readonly<{
     destructiveExecutionApproved: false;
   }>;
 }>;
+
+export const POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET = 5_000;
+export const POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET = 25_000;
+export const POSITION_HISTORY_RETENTION_CHECKPOINT_BATCH_SIZE = 500;
+export const POSITION_HISTORY_RETENTION_OBSERVATION_BATCH_SIZE = 1_000;
+
+export type PositionHistoryRetentionExecutionRequest = Readonly<{
+  expectedCanonicalAnchor: Date;
+  expectedPolicyCutoff: Date;
+}>;
+
+export type PositionHistoryRetentionExecutionResult = Readonly<{
+  canonicalAnchor: string;
+  policyCutoff: string;
+  deletedCheckpoints: number;
+  deletedObservations: number;
+  remainingFullyObsoleteCheckpoints: number;
+  remainingExecutableObservationCandidates: number;
+  stoppedByBudget: boolean;
+  noWork: boolean;
+}>;
+
+export type PositionHistoryRetentionExecutionErrorCode = "LOCK_UNAVAILABLE" | "ACTIVE_DURABLE_RUN" | "STALE_PLAN";
+
+export class PositionHistoryRetentionExecutionError extends Error {
+  public constructor(public readonly code: PositionHistoryRetentionExecutionErrorCode) {
+    super(code);
+    this.name = "PositionHistoryRetentionExecutionError";
+  }
+}

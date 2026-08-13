@@ -1,19 +1,30 @@
-# GPS history retention planning (Stage 19A)
+# GPS history retention (Stages 19A–19B)
 
-Stage 19A adds a completely read-only retention audit to the existing `/admin/history` page. `GET /api/system/position-history/retention-plan` calculates policy truth from the server current instant, reuses the Stage 18C canonical latest-occurred Tuesday 02:00 UTC function, and subtracts exactly 90 elapsed 24-hour days. The page-selected history `?to=` value is not sent to this endpoint and cannot change its canonical anchor or cutoff. The Nest and Next responses use `Cache-Control: no-store`, require effective `historyAdmin.view`, and expose aggregate numbers and timestamps only.
+The Stage 19A planner remains a factual, mutation-free `GET /api/system/position-history/retention-plan` available with effective `historyAdmin.view`. It derives the latest already-occurred Tuesday 02:00 UTC anchor through the unchanged Stage 18C policy function and subtracts exactly 90 elapsed 24-hour days. The history page `?to=` value does not affect the retention anchor, cutoff, or days. Nest and Next responses are `Cache-Control: no-store`; query policy overrides are rejected.
 
-Observation policy eligibility is strictly `observedAt < policyCutoff`; an observation exactly at the cutoff remains protected. Stage 14 checkpoint target ranges retain their existing closed/inclusive `[rangeFrom, rangeTo]` meaning:
+Observation policy eligibility is strictly `observedAt < policyCutoff`. An observation exactly at the cutoff is protected. Stage 14 checkpoint targets remain closed/inclusive `[rangeFrom, rangeTo]` intervals:
 
 - `FULLY_OBSOLETE`: `rangeTo < policyCutoff`.
 - `BOUNDARY_OVERLAP`: `rangeFrom < policyCutoff` and `rangeTo >= policyCutoff`.
 - `PROTECTED`: `rangeFrom >= policyCutoff`.
 
-Consequently, a checkpoint ending exactly at the cutoff is boundary-overlapping, not fully obsolete. `PENDING`, `RUNNING`, and `COMPLETED` are independent facts and are reported within each range class.
+A checkpoint ending exactly at the cutoff is boundary-overlapping, while one starting exactly at the cutoff is protected. Range class—not `PENDING`, `RUNNING`, or `COMPLETED` status—controls retention eligibility.
 
-The planner uses one set-based PostgreSQL aggregate statement for all observation and checkpoint facts. It does not acquire advisory lock `1706170003`, contact eQuGPS, invoke a worker or population executor, create a durable run, or write observations/checkpoints. A browser plan may become slightly stale while population progresses; any future destructive execution must re-evaluate facts under its own coordinated safety boundary instead of trusting an earlier plan.
+The planner additionally reports `executableObservationCandidates`: old observations not inclusively covered by any checkpoint that would survive retention. Coverage requires the same vehicle and `rangeFrom <= observedAt <= rangeTo`. Thus an old observation covered by a boundary-overlap range stays protected. The candidate count describes eventual executable work after obsolete checkpoint cleanup; it is not a promise that the next bounded POST will delete every candidate. `destructiveExecutionApproved` remains `false`; browser data is never the security authority.
 
-The count of observations older than the policy cutoff is not an assertion that all those rows are immediately safe to delete. Boundary-overlapping checkpoint targets remain explicitly protected because they also cover the protected cutoff instant or a newer interval. No Stage 19B deletion algorithm has been finalized: Stage 19A does not split, truncate, rewind, rewrite, or remove checkpoints and does not delete observations.
+## Manual execution
 
-A future coordinated design may consider fully obsolete observations/checkpoints, but it must never leave stale completed-checkpoint truth for deleted history. Preserving the ability to repopulate after a future 90-to-365-day expansion remains mandatory.
+Stage 19B adds one synchronous ADMIN-only confirmation POST. `historyAdmin.populate` does not grant deletion authority, and no new permission exists. The strict body contains only `expectedCanonicalAnchor` and `expectedPolicyCutoff`. After acquiring the existing global session advisory lock `1706170003`, the server checks for `PENDING`/`RUNNING` durable population, recomputes current policy, and returns 409 with zero deletion for a busy lock, active durable run, or stale confirmation. The server-computed matching policy is frozen for that invocation.
 
-There is no retention scheduler, automatic cleanup, durable retention job, delete/cleanup button, policy-days selector, environment setting, provider request, schema change, migration, or new permission in Stage 19A.
+Deletion is checkpoint truth first, observation data second:
+
+1. Remove `FULLY_OBSOLETE` checkpoints in short, committed, set-based batches, up to 5,000 per explicit invocation.
+2. Recount obsolete checkpoints. If any remain, stop with zero observation deletion.
+3. Only after the obsolete checkpoint count reaches zero, remove old observations not covered by any surviving boundary/protected checkpoint, in short batches up to 25,000.
+4. Return deleted and remaining counts plus the factual budget-stop state.
+
+This ordering makes partial crashes safe. A crash may leave obsolete checkpoint truth removed while observations remain, allowing a future wider backfill to recreate checkpoint truth and use existing observation deduplication. Retention never creates the unsafe inverse state where an observation is gone but surviving checkpoint truth still claims its range is populated. Boundary-overlap and protected checkpoints are never deleted. This preserves future 90-to-365-day repopulation safety.
+
+The Next BFF reuses centralized same-origin write protection, forwards only the existing `taxi_session` through the shared helper, and never automatically retries a destructive POST. The ADMIN UI requires a separate confirmation displaying the exact planner snapshot, work counts, irreversible ordering, boundary protection, and fixed 5,000/25,000 limits. USERs retain planner visibility but see no cleanup controls. When there is no work, ADMIN sees a no-work state rather than an enabled destructive action.
+
+Retention has no scheduler, cron, startup cleanup, durable retention job, custom budget, retention-days input, 365-day control, provider dependency/request, archive/VACUUM behavior, schema change, migration, or additional advisory lock. Stage 18C automatic population, Stage 18B durable population, Stage 17C manual population, and Stage 14 inclusive semantics remain unchanged.

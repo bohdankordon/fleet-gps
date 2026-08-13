@@ -1,12 +1,13 @@
 import { Module } from "@nestjs/common";
 import { DatabaseModule } from "../database/database.module";
+import { PositionHistoryHorizonExecutionLockModule } from "../position-history-horizon-execution/position-history-horizon-execution-lock.module";
 import { PositionHistoryRetentionController } from "./position-history-retention.controller";
 import { PositionHistoryRetentionService } from "./position-history-retention.service";
 import { POSITION_HISTORY_RETENTION_CLOCK, POSITION_HISTORY_RETENTION_REPOSITORY } from "./position-history-retention.tokens";
 import { PrismaPositionHistoryRetentionRepository } from "./prisma-position-history-retention.repository";
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, PositionHistoryHorizonExecutionLockModule],
   controllers: [PositionHistoryRetentionController],
   providers: [
     PrismaPositionHistoryRetentionRepository,

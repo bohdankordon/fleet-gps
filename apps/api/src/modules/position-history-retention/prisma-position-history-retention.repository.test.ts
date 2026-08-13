@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import type { PrismaClient } from "../../generated/prisma/client";
 import type { DatabaseService } from "../database/database.service";
@@ -14,7 +15,7 @@ test("uses one set-based read statement with strict observation and inclusive ch
       query = sql.strings?.join("?") ?? "";
       return [{
         observationTotal: 7n, observationOlder: 2n, observationProtected: 5n,
-        oldestObservedAt: new Date("2026-04-01T00:00:00Z"), newestObservedAt: new Date("2026-08-01T00:00:00Z"), affectedVehicles: 2n,
+        oldestObservedAt: new Date("2026-04-01T00:00:00Z"), newestObservedAt: new Date("2026-08-01T00:00:00Z"), affectedVehicles: 2n, executableObservationCandidates: 1n,
         checkpointTotal: 6n, fullyObsolete: 1n, boundaryOverlap: 2n, protected: 3n,
         obsoletePending: 0n, obsoleteRunning: 0n, obsoleteCompleted: 1n,
         overlapPending: 1n, overlapRunning: 0n, overlapCompleted: 1n,
@@ -41,7 +42,33 @@ test("uses one set-based read statement with strict observation and inclusive ch
   assert.doesNotMatch(query, /\b(?:INSERT|UPDATE|DELETE)\b/i);
   assert.equal(result.observations.olderThanPolicyCutoff, 2);
   assert.equal(result.observations.atOrAfterPolicyCutoff, 5);
+  assert.equal(result.observations.executableObservationCandidates, 1);
   assert.deepEqual(result.checkpoints.boundaryOverlapByStatus, { pending: 1, running: 0, completed: 1 });
   assert.equal(result.checkpoints.endingExactlyAtCutoff, 1);
   assert.equal(result.checkpoints.startingExactlyAtCutoff, 1);
+});
+
+test("execution queries are deterministic set-based short transactions with same-vehicle inclusive surviving coverage", () => {
+  const source = readFileSync("src/modules/position-history-retention/prisma-position-history-retention.repository.ts", "utf8");
+  assert.match(source, /\$transaction\(async/);
+  assert.match(source, /WHERE range_to < \$\{policyCutoff\}/);
+  assert.match(source, /ORDER BY range_to ASC, range_from ASC, vehicle_id ASC, id ASC/);
+  assert.match(source, /ORDER BY observation\.observed_at ASC, observation\.id ASC/);
+  assert.match(source, /LIMIT \$\{limit\}/);
+  assert.match(source, /FOR UPDATE(?: OF observation)? SKIP LOCKED/);
+  assert.match(source, /surviving\.vehicle_id = observation\.vehicle_id/);
+  assert.match(source, /surviving\.range_to >= \$\{policyCutoff\}/);
+  assert.match(source, /surviving\.range_from <= observation\.observed_at/);
+  assert.match(source, /surviving\.range_to >= observation\.observed_at/);
+  assert.doesNotMatch(source, /for \(const .*vehicle|deleteMany|findMany/);
+});
+
+test("active durable guard covers PENDING/RUNNING for every initiator and never mutates a run", async () => {
+  let argument: unknown;
+  const client = { positionHistoryPopulationRun: { count: async (value: unknown) => { argument = value; return 4; } } } as unknown as PrismaClient;
+  const repository = new PrismaPositionHistoryRetentionRepository({ getClient: () => client } as DatabaseService);
+  assert.equal(await repository.countActiveDurableRuns(), 4);
+  assert.deepEqual(argument, { where: { status: { in: ["PENDING", "RUNNING"] } } });
+  const source = readFileSync("src/modules/position-history-retention/prisma-position-history-retention.repository.ts", "utf8");
+  assert.doesNotMatch(source, /positionHistoryPopulationRun\.(?:update|updateMany|delete|deleteMany|create)/);
 });

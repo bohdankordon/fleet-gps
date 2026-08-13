@@ -16,6 +16,7 @@ export const positionHistoryRetentionPlanSchema = z.object({
     oldestObservedAt: timestamp.nullable(),
     newestObservedAt: timestamp.nullable(),
     vehiclesWithObservationsOlderThanCutoff: count,
+    executableObservationCandidates: count,
   }).strict(),
   checkpoints: z.object({
     total: count,
@@ -51,3 +52,22 @@ export const positionHistoryRetentionPlanSchema = z.object({
 });
 
 export type PositionHistoryRetentionPlan = z.infer<typeof positionHistoryRetentionPlanSchema>;
+
+export const positionHistoryRetentionExecutionRequestSchema = z.object({
+  expectedCanonicalAnchor: timestamp,
+  expectedPolicyCutoff: timestamp,
+}).strict();
+
+export const positionHistoryRetentionExecutionResultSchema = z.object({
+  canonicalAnchor: timestamp,
+  policyCutoff: timestamp,
+  deletedCheckpoints: count,
+  deletedObservations: count,
+  remainingFullyObsoleteCheckpoints: count,
+  remainingExecutableObservationCandidates: count,
+  stoppedByBudget: z.boolean(),
+  noWork: z.boolean(),
+}).strict();
+
+export type PositionHistoryRetentionExecutionRequest = z.infer<typeof positionHistoryRetentionExecutionRequestSchema>;
+export type PositionHistoryRetentionExecutionResult = z.infer<typeof positionHistoryRetentionExecutionResultSchema>;
