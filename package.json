@@ -59,6 +59,8 @@
     "position-history:population-runs-real-db-test": "npm --workspace @taxi-gps/api run position-history:population-runs-real-db-test",
     "position-history:population-admin-real-db-test": "npm --workspace @taxi-gps/api run position-history:population-admin-real-db-test",
     "position-history:maintenance-test": "npm --workspace @taxi-gps/api run position-history:maintenance-test",
+    "position-history:retention-plan-test": "npm --workspace @taxi-gps/api run position-history:retention-plan-test",
+    "position-history:retention-plan-real-db-test": "npm --workspace @taxi-gps/api run position-history:retention-plan-real-db-test",
     "position-history:maintenance-real-db-test": "npm --workspace @taxi-gps/api run position-history:maintenance-real-db-test",
     "position-history:trip-analysis": "npm --workspace @taxi-gps/api run position-history:trip-analysis --",
     "position-history:trip-analysis-test": "npm --workspace @taxi-gps/api run position-history:trip-analysis-test",

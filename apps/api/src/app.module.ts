@@ -23,8 +23,9 @@ import { PositionHistoryStatusModule } from "./modules/position-history-status";
 import { AuthModule } from "./modules/auth/auth.module";
 import { PositionHistoryHorizonExecutionModule } from "./modules/position-history-horizon-execution";
 import { PositionHistoryMaintenanceModule, PositionHistoryPopulationRunModule } from "./modules/position-history-population-runs";
+import { PositionHistoryRetentionModule } from "./modules/position-history-retention";
 
 @Module({
-  imports: [ApiConfigModule, AuthModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, FleetMapModule, VehicleDetailsModule, VehicleTrackModule, TripStopAnalyticsModule, FleetActivityReportModule, PositionHistoryStatusModule, PositionHistoryHorizonExecutionModule, PositionHistoryPopulationRunModule, PositionHistoryMaintenanceModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule, AlertEventsModule, AlertEvaluationModule, AlertNotificationsModule, AlertNotificationSchedulerModule],
+  imports: [ApiConfigModule, AuthModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, FleetMapModule, VehicleDetailsModule, VehicleTrackModule, TripStopAnalyticsModule, FleetActivityReportModule, PositionHistoryStatusModule, PositionHistoryHorizonExecutionModule, PositionHistoryPopulationRunModule, PositionHistoryMaintenanceModule, PositionHistoryRetentionModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule, AlertEventsModule, AlertEvaluationModule, AlertNotificationsModule, AlertNotificationSchedulerModule],
 })
 export class AppModule {}
