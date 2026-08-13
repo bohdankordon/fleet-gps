@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { AuthRole } from "../../generated/prisma/enums";
-import { AUTHENTICATED_ONLY, AUTH_PERMISSIONS, AUTH_PUBLIC } from "./auth.decorators";
+import { AUTH_ADMIN_ONLY, AUTHENTICATED_ONLY, AUTH_PERMISSIONS, AUTH_PUBLIC } from "./auth.decorators";
 import type { AuthenticatedRequest } from "./auth.types";
 import type { Permission } from "./permissions";
 
@@ -13,6 +13,7 @@ export class PermissionGuard implements CanActivate {
     if (this.reflector.getAllAndOverride<boolean>(AUTH_PUBLIC, targets)) return true;
     const principal = context.switchToHttp().getRequest<AuthenticatedRequest>().auth;
     if (!principal) return false;
+    if (this.reflector.getAllAndOverride<boolean>(AUTH_ADMIN_ONLY, targets) && principal.role !== AuthRole.ADMIN) throw new ForbiddenException();
     if (principal.role === AuthRole.ADMIN) return true;
     if (this.reflector.getAllAndOverride<boolean>(AUTHENTICATED_ONLY, targets)) return true;
     const required = this.reflector.getAllAndOverride<readonly Permission[]>(AUTH_PERMISSIONS, targets);

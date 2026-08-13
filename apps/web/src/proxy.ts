@@ -15,10 +15,13 @@ function requiredPermission(path: string): readonly AuthPermission[] | null {
   return null;
 }
 
+function requiresAdmin(path: string): boolean { return path === "/admin/users" || path.startsWith("/admin/users/") || path === "/api/admin/users" || path.startsWith("/api/admin/users/"); }
+
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const path = request.nextUrl.pathname;
   const required = requiredPermission(path);
-  if (!required) return NextResponse.next();
+  const adminOnly = requiresAdmin(path);
+  if (!required && !adminOnly) return NextResponse.next();
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   let user = null;
   if (token) {
@@ -31,8 +34,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const api = path.startsWith("/api/");
   if (!user) return api ? NextResponse.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 }) : NextResponse.redirect(new URL("/login", request.url));
   if (user.mustChangePassword) return api ? NextResponse.json({ statusCode: 403, error: "Forbidden" }, { status: 403 }) : NextResponse.redirect(new URL("/account/change-password", request.url));
-  if (!required.some((permission) => hasPermission(user!, permission))) return api ? NextResponse.json({ statusCode: 403, error: "Forbidden" }, { status: 403 }) : NextResponse.redirect(new URL("/forbidden", request.url));
+  if (adminOnly && user.role !== "ADMIN") return api ? NextResponse.json({ statusCode: 403, error: "Forbidden" }, { status: 403 }) : NextResponse.redirect(new URL("/forbidden", request.url));
+  if (required && !required.some((permission) => hasPermission(user!, permission))) return api ? NextResponse.json({ statusCode: 403, error: "Forbidden" }, { status: 403 }) : NextResponse.redirect(new URL("/forbidden", request.url));
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/", "/map", "/events", "/reports", "/admin/history", "/vehicles/:path*", "/api/dashboard/:path*", "/api/fleet/:path*", "/api/alert-events/:path*", "/api/city-geofence/:path*", "/api/reports/:path*", "/api/system/:path*", "/api/vehicles/:path*"] };
+export const config = { matcher: ["/", "/map", "/events", "/reports", "/admin/:path*", "/vehicles/:path*", "/api/admin/:path*", "/api/dashboard/:path*", "/api/fleet/:path*", "/api/alert-events/:path*", "/api/city-geofence/:path*", "/api/reports/:path*", "/api/system/:path*", "/api/vehicles/:path*"] };

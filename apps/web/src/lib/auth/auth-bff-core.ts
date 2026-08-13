@@ -1,4 +1,5 @@
 import { AUTH_COOKIE_NAME } from "./auth-contract";
+import { rejectCrossOriginWrite } from "./same-origin";
 
 export type AuthPath = "/api/auth/login" | "/api/auth/me" | "/api/auth/logout" | "/api/auth/change-password";
 
@@ -11,6 +12,7 @@ function unavailableLogoutResponse(production: boolean): Response {
 }
 
 export async function forwardAuthToUpstream(request: Request, path: AuthPath, apiInternalBaseUrl: string, bodyKeys: readonly string[] = [], fetcher: typeof fetch = fetch, production = process.env.NODE_ENV === "production"): Promise<Response> {
+  if (request.method !== "GET") { const rejection = rejectCrossOriginWrite(request); if (rejection) return rejection; }
   const headers = new Headers({ Accept: "application/json" });
   const token = request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${AUTH_COOKIE_NAME}=`))?.slice(AUTH_COOKIE_NAME.length + 1);
   if (token && path !== "/api/auth/login") headers.set("Cookie", `${AUTH_COOKIE_NAME}=${token}`);

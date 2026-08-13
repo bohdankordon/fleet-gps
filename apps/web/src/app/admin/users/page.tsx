@@ -1,0 +1,8 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { AdminSubnavigation } from "@/components/admin-subnavigation";
+import { fetchAdminUsers } from "@/lib/admin-users/admin-users-client";
+import { PERMISSION_LABELS } from "@/lib/admin-users/admin-users-contract";
+import { requireAuthUser } from "@/lib/auth/auth-user";
+export const dynamic = "force-dynamic"; export const revalidate = 0;
+export default async function AdminUsersPage() { const actor = await requireAuthUser(); if (actor.role !== "ADMIN") redirect("/forbidden"); let users = null; try { users = await fetchAdminUsers(); } catch {} return <main><AdminSubnavigation /><header className="hero"><div><p className="eyebrow">Администрирование</p><h1>Пользователи</h1><p>Учётные записи, роли, доступ и состояние.</p></div><Link className="admin-primary-link" href="/admin/users/new">Создать пользователя</Link></header>{!users ? <p className="admin-error" role="alert">Не удалось загрузить пользователей.</p> : <div className="admin-users-table"><table><thead><tr><th>Логин</th><th>Роль</th><th>Статус</th><th>Требуется смена пароля</th><th>Доступ</th><th>Дата создания</th></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><Link href={`/admin/users/${user.id}`}>{user.login}</Link></td><td>{user.role}</td><td><span className={`badge ${user.disabled ? "badge-stale" : "badge-fresh"}`}>{user.disabled ? "Отключён" : "Активен"}</span></td><td>{user.mustChangePassword ? "Да" : "Нет"}</td><td>{user.role === "ADMIN" ? "Полный доступ" : user.permissions.length ? user.permissions.map((permission) => PERMISSION_LABELS[permission]).join(", ") : "Нет доступа"}</td><td>{new Date(user.createdAt).toLocaleString("ru-RU")}</td></tr>)}</tbody></table></div>}</main>; }
