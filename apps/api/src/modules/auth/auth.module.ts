@@ -8,11 +8,12 @@ import { PermissionGuard } from "./permission.guard";
 import { AdminUsersController } from "./admin-users.controller";
 import { ADMIN_USER_SECURITY, AdminUsersService, DEFAULT_ADMIN_USER_SECURITY } from "./admin-users.service";
 import { AuditModule } from "../audit";
+import { LoginRateLimiter } from "./login-rate-limiter";
 
 @Module({
   imports: [DatabaseModule, AuditModule],
   controllers: [AuthController, AdminUsersController],
-  providers: [AuthService, AdminUsersService, { provide: ADMIN_USER_SECURITY, useValue: DEFAULT_ADMIN_USER_SECURITY }, { provide: APP_GUARD, useClass: AuthenticationGuard }, { provide: APP_GUARD, useClass: PermissionGuard }],
+  providers: [AuthService, LoginRateLimiter, AdminUsersService, { provide: ADMIN_USER_SECURITY, useValue: DEFAULT_ADMIN_USER_SECURITY }, { provide: APP_GUARD, useClass: AuthenticationGuard }, { provide: APP_GUARD, useClass: PermissionGuard }],
   exports: [AuthService],
 })
 export class AuthModule {}

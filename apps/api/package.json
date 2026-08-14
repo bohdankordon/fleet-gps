@@ -11,6 +11,7 @@
     "auth:user-create": "npm run build && node scripts/require-database-url.cjs && node --env-file=../../.env dist/auth-user-create.js",
     "auth:test": "npm run build && node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node --test .test-dist/modules/auth/*.test.js",
     "auth:real-db-test": "npm run build && node scripts/require-database-url.cjs && node --env-file=../../.env --test scripts/admin-users-real-db.test.cjs",
+    "stage-21:security-real-db-test": "npm run build && node scripts/require-database-url.cjs && node --env-file=../../.env --test scripts/stage-21-security-real-db.test.cjs",
     "audit:viewer-real-db-test": "npm run build && node scripts/require-database-url.cjs && node --env-file=../../.env --test scripts/stage-20c-audit-viewer-real-db.test.cjs",
     "pretest": "npm run auth:test && node --test .test-dist/modules/audit/*.test.js",
     "build": "npm run prisma:generate && node scripts/clean-output.cjs dist && nest build",

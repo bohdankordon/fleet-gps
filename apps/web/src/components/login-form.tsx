@@ -35,7 +35,7 @@ export function LoginForm() {
       router.refresh();
     } else {
       if (passwordInput) passwordInput.value = "";
-      setError(result.kind === "invalid-credentials" ? "INVALID_CREDENTIALS" : "UNAVAILABLE");
+      setError(result.kind === "invalid-credentials" ? "INVALID_CREDENTIALS" : result.kind === "rate-limited" ? "RATE_LIMITED" : "UNAVAILABLE");
     }
     pending.current = false;
     setBusy(false);

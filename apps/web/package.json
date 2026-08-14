@@ -11,6 +11,7 @@
     "build": "next build",
     "standalone:prepare": "node scripts/prepare-standalone.cjs",
     "standalone:build": "npm run build && npm run standalone:prepare",
+    "stage-21:security-acceptance": "npm run standalone:build && node scripts/stage-21-security-acceptance.cjs",
     "standalone:start": "node scripts/start-standalone.cjs",
     "start": "npm run standalone:start",
     "typecheck": "tsc --noEmit",

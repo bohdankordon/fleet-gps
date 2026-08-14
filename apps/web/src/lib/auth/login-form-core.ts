@@ -2,8 +2,8 @@ import { AuthUser, parseAuthUser } from "./auth-contract";
 
 export const LOGIN_ACTION = "/api/auth/login";
 export const LOGIN_PATTERN = /^[A-Za-z0-9._-]{3,64}$/;
-export type LoginFormError = "LOGIN_REQUIRED" | "LOGIN_INVALID" | "PASSWORD_REQUIRED" | "INVALID_CREDENTIALS" | "UNAVAILABLE";
-export type LoginAttemptResult = Readonly<{ kind: "success"; user: AuthUser }> | Readonly<{ kind: "invalid-credentials" }> | Readonly<{ kind: "unavailable" }>;
+export type LoginFormError = "LOGIN_REQUIRED" | "LOGIN_INVALID" | "PASSWORD_REQUIRED" | "INVALID_CREDENTIALS" | "RATE_LIMITED" | "UNAVAILABLE";
+export type LoginAttemptResult = Readonly<{ kind: "success"; user: AuthUser }> | Readonly<{ kind: "invalid-credentials" }> | Readonly<{ kind: "rate-limited" }> | Readonly<{ kind: "unavailable" }>;
 
 export function validateLoginForm(login: string, password: string): LoginFormError | null {
   if (login.length === 0) return "LOGIN_REQUIRED";
@@ -16,6 +16,10 @@ export async function attemptLogin(login: string, password: string, fetcher: typ
   try {
     const response = await fetcher(LOGIN_ACTION, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login, password }) });
     if (response.status === 401) return { kind: "invalid-credentials" };
+    if (response.status === 429) {
+      try { const body = await response.json() as { error?: unknown }; return body.error === "LOGIN_RATE_LIMITED" ? { kind: "rate-limited" } : { kind: "unavailable" }; }
+      catch { return { kind: "unavailable" }; }
+    }
     if (!response.ok) return { kind: "unavailable" };
     const user = parseAuthUser(await response.json());
     return user ? { kind: "success", user } : { kind: "unavailable" };

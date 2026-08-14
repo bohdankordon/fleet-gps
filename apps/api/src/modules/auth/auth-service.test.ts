@@ -4,12 +4,14 @@ import test from "node:test";
 import { AuthRole } from "../../generated/prisma/enums";
 import type { DatabaseService } from "../database/database.service";
 import { AuthService, InvalidCredentialsError } from "./auth.service";
+import { LoginRateLimitedError } from "./auth.service";
+import { LoginRateLimiter } from "./login-rate-limiter";
 import { hashPassword } from "./password";
 
 const now = new Date("2026-08-12T12:00:00.000Z");
 const userId = "00000000-0000-4000-8000-000000000001";
 
-async function fixture(auditFailure = false) {
+async function fixture(auditFailure = false, loginRateLimiter = new LoginRateLimiter()) {
   const material = await hashPassword("current secure password");
   const sessionCreates: Record<string, unknown>[] = [];
   const sessionDeletes: Record<string, unknown>[] = [];
@@ -17,6 +19,7 @@ async function fixture(auditFailure = false) {
   let updated: Record<string, unknown> | null = null;
   let finalAuthorityRows: readonly Readonly<{ id: string }>[] = [{ id: userId }];
   let loginTransactions = 0;
+  let loginLookups = 0;
   const user = { id: userId, login: "User.One", normalizedLogin: "user.one", role: AuthRole.USER, disabled: false, mustChangePassword: false, passwordHashVersion: material.version, passwordSalt: new Uint8Array(material.salt), passwordHash: new Uint8Array(material.hash), passwordChangedAt: null, createdAt: now, updatedAt: now, permissions: [{ key: "trips.view" }] };
   const transaction = {
     $queryRaw: async () => { loginTransactions += 1; return finalAuthorityRows; },
@@ -30,7 +33,7 @@ async function fixture(auditFailure = false) {
     },
   };
   const client = {
-    authUser: { findUnique: async ({ where }: { where: Record<string, unknown> }) => where.normalizedLogin === "user.one" || where.id === user.id ? user : null },
+    authUser: { findUnique: async ({ where }: { where: Record<string, unknown> }) => { loginLookups += 1; return where.normalizedLogin === "user.one" || where.id === user.id ? user : null; } },
     authSession: {
       create: async ({ data }: { data: Record<string, unknown> }) => { sessionCreates.push(data); },
       findUnique: async () => null,
@@ -50,7 +53,7 @@ async function fixture(auditFailure = false) {
     },
   };
   return {
-    service: new AuthService({ getClient: () => client } as unknown as DatabaseService, audit as never),
+    service: new AuthService({ getClient: () => client } as unknown as DatabaseService, audit as never, loginRateLimiter),
     user,
     sessionCreates,
     sessionDeletes,
@@ -58,6 +61,7 @@ async function fixture(auditFailure = false) {
     updated: () => updated,
     setFinalAuthority: (allowed: boolean) => { finalAuthorityRows = allowed ? [{ id: user.id }] : []; },
     loginTransactions: () => loginTransactions,
+    loginLookups: () => loginLookups,
   };
 }
 
@@ -82,6 +86,77 @@ test("stale credential authority, disabled transition, unknown login, and wrong 
   await assert.rejects(state.service.login("user.one", "wrong password value", now), InvalidCredentialsError);
   assert.equal(state.sessionCreates.length, 0);
   assert.equal(state.auditEvents.length, 0);
+});
+
+test("login limiter uses canonical login buckets, clears below threshold on success, and ignores malformed logins", async () => {
+  let clock = 0;
+  const limiter = new LoginRateLimiter({ now: () => clock });
+  const state = await fixture(false, limiter);
+  for (let attempt = 0; attempt < 4; attempt += 1) await assert.rejects(state.service.login("USER.ONE", "wrong password value", now), InvalidCredentialsError);
+  await state.service.login("user.one", "current secure password", now);
+  for (let attempt = 0; attempt < 5; attempt += 1) await assert.rejects(state.service.login("User.One", "wrong password value", now), InvalidCredentialsError);
+  await assert.rejects(state.service.login("user.one", "current secure password", now), LoginRateLimitedError);
+  assert.equal(state.sessionCreates.length, 1);
+  const sizeBeforeMalformed = limiter.size;
+  await assert.rejects(state.service.login("bad login", "wrong password value", now), InvalidCredentialsError);
+  await assert.rejects(state.service.login(null, "wrong password value", now), InvalidCredentialsError);
+  assert.equal(limiter.size, sizeBeforeMalformed);
+  clock += 15 * 60 * 1_000;
+  await state.service.login("user.one", "current secure password", now);
+});
+
+test("malformed credentials reject before database lookup, Argon2 verification, and limiter accounting", async () => {
+  const limiter = new LoginRateLimiter({ now: () => 0 });
+  const state = await fixture(false, limiter);
+  for (const [login, password] of [["bad login", "wrong password value"], [null, "wrong password value"], ["user.one", null]] as const) {
+    await assert.rejects(state.service.login(login, password, now), InvalidCredentialsError);
+  }
+  assert.equal(state.loginLookups(), 0);
+  assert.equal(state.loginTransactions(), 0);
+  assert.equal(state.sessionCreates.length, 0);
+  assert.equal(limiter.size, 0);
+});
+
+test("malformed credentials cannot disturb a canonical limiter bucket", async () => {
+  const limiter = new LoginRateLimiter({ now: () => 0 });
+  const state = await fixture(false, limiter);
+  for (let attempt = 0; attempt < 4; attempt += 1) await assert.rejects(state.service.login("user.one", "wrong password value", now), InvalidCredentialsError);
+  const lookupsBeforeMalformed = state.loginLookups();
+  await assert.rejects(state.service.login("bad login", "wrong password value", now), InvalidCredentialsError);
+  await assert.rejects(state.service.login("user.one", null, now), InvalidCredentialsError);
+  assert.equal(state.loginLookups(), lookupsBeforeMalformed);
+  await assert.rejects(state.service.login("user.one", "wrong password value", now), InvalidCredentialsError);
+  await assert.rejects(state.service.login("user.one", "current secure password", now), LoginRateLimitedError);
+});
+
+test("unknown login and wrong password receive identical fixed-threshold accounting", async () => {
+  const limiter = new LoginRateLimiter({ now: () => 0 });
+  const state = await fixture(false, limiter);
+  for (const login of ["missing", "user.one"]) {
+    for (let attempt = 0; attempt < 5; attempt += 1) await assert.rejects(state.service.login(login, "wrong password value", now), InvalidCredentialsError);
+    await assert.rejects(state.service.login(login, "wrong password value", now), LoginRateLimitedError);
+  }
+});
+
+test("valid unknown logins keep the dummy Argon2 path and normal limiter accounting", async () => {
+  const limiter = new LoginRateLimiter({ now: () => 0 });
+  const state = await fixture(false, limiter);
+  await assert.rejects(state.service.login("missing.user", "wrong password value", now), InvalidCredentialsError);
+  assert.equal(state.loginLookups(), 1);
+  assert.equal(limiter.size, 1);
+  const source = readFileSync("src/modules/auth/auth.service.ts", "utf8");
+  const rejection = source.indexOf("if (normalized === null || typeof password !== \"string\") throw new InvalidCredentialsError()");
+  const lookup = source.indexOf("authUser.findUnique", rejection);
+  const dummyVerification = source.indexOf("await verifyPassword(suppliedPassword, DUMMY_MATERIAL)", rejection);
+  assert.ok(rejection >= 0 && lookup > rejection && dummyVerification > lookup);
+});
+
+test("every successful login creates a fresh opaque session and no pre-auth identifier is reused", async () => {
+  const state = await fixture();
+  const first = await state.service.login("user.one", "current secure password", now);
+  const second = await state.service.login("user.one", "current secure password", now);
+  assert.notEqual(first.token, second.token);
+  assert.notDeepEqual(state.sessionCreates[0]?.tokenHash, state.sessionCreates[1]?.tokenHash);
 });
 
 test("own password change writes exact self-target event in the credential/session transaction", async () => {

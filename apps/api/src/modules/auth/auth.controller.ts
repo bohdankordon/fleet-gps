@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpException, Post, Req, Res } from "@nestjs/common";
 import { AllowMustChangePassword, AuthenticatedOnly, Public } from "./auth.decorators";
 import { INVALID_CREDENTIALS_MESSAGE } from "./auth.constants";
-import { AuthService, InvalidCredentialsError, InvalidPasswordError } from "./auth.service";
+import { AuthService, InvalidCredentialsError, InvalidPasswordError, LoginRateLimitedError } from "./auth.service";
 import type { AuthenticatedRequest, SafeAuthUser } from "./auth.types";
 import { clearedSessionCookie, sessionCookie } from "./session";
 
@@ -19,7 +19,10 @@ export class AuthController {
   @Public()
   public async login(@Body() body: LoginBody, @Res({ passthrough: true }) response: HttpResponse): Promise<SafeAuthUser> {
     try { const result = await this.auth.login(body?.login, body?.password); response.setHeader("Set-Cookie", sessionCookie(result.token)); return result.user; }
-    catch { throw invalidCredentials(); }
+    catch (error) {
+      if (error instanceof LoginRateLimitedError) throw new HttpException({ statusCode: 429, error: "LOGIN_RATE_LIMITED" }, 429);
+      throw invalidCredentials();
+    }
   }
 
   @Get("me")

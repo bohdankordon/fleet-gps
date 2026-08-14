@@ -1,5 +1,6 @@
 import { rejectCrossOriginWrite } from "../auth/same-origin";
 import { isAppLocale, LOCALE_COOKIE_MAX_AGE_SECONDS, LOCALE_COOKIE_NAME } from "../../i18n/locales";
+import { boundedBodyStatus, readBoundedJson } from "../http/bounded-body";
 
 const noStore = { "Cache-Control": "no-store" };
 
@@ -12,7 +13,7 @@ export function createLocalePreferenceHandler(production = process.env.NODE_ENV 
     const rejection = rejectCrossOriginWrite(request);
     if (rejection) return rejection;
     let body: unknown;
-    try { body = await request.json(); } catch { return Response.json({ statusCode: 400, error: "Bad Request" }, { status: 400, headers: noStore }); }
+    try { body = await readBoundedJson(request); } catch (error) { const status = boundedBodyStatus(error); return Response.json({ statusCode: status, error: status === 413 ? "Payload Too Large" : "Bad Request" }, { status, headers: noStore }); }
     if (typeof body !== "object" || body === null || Array.isArray(body)) return Response.json({ statusCode: 400, error: "Bad Request" }, { status: 400, headers: noStore });
     const source = body as Record<string, unknown>;
     if (Object.keys(source).length !== 1 || !Object.hasOwn(source, "locale") || !isAppLocale(source.locale)) return Response.json({ statusCode: 400, error: "Bad Request" }, { status: 400, headers: noStore });

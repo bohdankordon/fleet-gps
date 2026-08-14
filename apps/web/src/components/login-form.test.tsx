@@ -31,7 +31,7 @@ test("login inputs expose the approved autocomplete hints", () => {
 
 test("login form renders only safe inline errors", () => {
   const t = createTranslator("ru");
-  const cases = [["LOGIN_REQUIRED", "auth.login.loginRequired"], ["LOGIN_INVALID", "auth.login.loginInvalid"], ["PASSWORD_REQUIRED", "auth.login.passwordRequired"], ["INVALID_CREDENTIALS", "auth.login.invalidCredentials"], ["UNAVAILABLE", "auth.login.unavailable"]] as const;
+  const cases = [["LOGIN_REQUIRED", "auth.login.loginRequired"], ["LOGIN_INVALID", "auth.login.loginInvalid"], ["PASSWORD_REQUIRED", "auth.login.passwordRequired"], ["INVALID_CREDENTIALS", "auth.login.invalidCredentials"], ["RATE_LIMITED", "auth.login.rateLimited"], ["UNAVAILABLE", "auth.login.unavailable"]] as const;
   for (const [code, key] of cases) {
     const html = render(code);
     assert.match(html, /role="alert"/);

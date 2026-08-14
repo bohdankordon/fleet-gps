@@ -1,5 +1,6 @@
 import { rejectCrossOriginWrite } from "../auth/same-origin";
 import { activeDurableRunSchema, createDurableRunRequestSchema, recentDurableRunsSchema, safeDurableRunSchema, type CreateDurableRunRequest } from "./position-history-durable-run-contract";
+import { boundedBodyStatus, readBoundedJson } from "../http/bounded-body";
 
 const headers = { "Cache-Control": "no-store" };
 function safeError(status: number): Response {
@@ -13,7 +14,7 @@ export function createDurableRunRouteHandler(execute: (request: CreateDurableRun
     const rejected = rejectCrossOriginWrite(request);
     if (rejected) return rejected;
     let parsed: ReturnType<typeof createDurableRunRequestSchema.safeParse>;
-    try { parsed = createDurableRunRequestSchema.safeParse(await request.json()); } catch { return safeError(400); }
+    try { parsed = createDurableRunRequestSchema.safeParse(await readBoundedJson(request)); } catch (error) { const status = boundedBodyStatus(error); return status === 413 ? Response.json({ statusCode: 413, error: "Payload Too Large" }, { status, headers }) : safeError(400); }
     if (!parsed.success) return safeError(400);
     let upstream: Response;
     try { upstream = await execute(parsed.data); } catch { return safeError(503); }

@@ -1,5 +1,6 @@
 import { rejectCrossOriginWrite } from "../auth/same-origin";
 import { positionHistoryRetentionExecutionRequestSchema, positionHistoryRetentionExecutionResultSchema, type PositionHistoryRetentionExecutionRequest } from "./position-history-retention-contract";
+import { boundedBodyStatus, readBoundedJson } from "../http/bounded-body";
 
 type Executor = (request: PositionHistoryRetentionExecutionRequest) => Promise<Response>;
 const noStore = { "Cache-Control": "no-store" };
@@ -24,8 +25,8 @@ export function createPositionHistoryRetentionExecutionRouteHandler(execute: Exe
     const rejection = rejectCrossOriginWrite(request);
     if (rejection) return rejection;
     let parsed: ReturnType<typeof positionHistoryRetentionExecutionRequestSchema.safeParse>;
-    try { parsed = positionHistoryRetentionExecutionRequestSchema.safeParse(await request.json()); }
-    catch { return safeError(400); }
+    try { parsed = positionHistoryRetentionExecutionRequestSchema.safeParse(await readBoundedJson(request)); }
+    catch (error) { const status = boundedBodyStatus(error); return status === 413 ? Response.json({ statusCode: 413, error: "Payload Too Large" }, { status, headers: noStore }) : safeError(400); }
     if (!parsed.success) return safeError(400);
     let upstream: Response;
     try { upstream = await execute(parsed.data); }

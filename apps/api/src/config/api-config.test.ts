@@ -10,6 +10,13 @@ const valid = () => ({
   DATABASE_URL: "postgresql://user:password@example.test/db",
 });
 
+const productionValid = () => ({
+  ...valid(),
+  NODE_ENV: "production",
+  EQUGPS_PASSWORD: "synthetic-production-provider-secret",
+  DATABASE_URL: "postgresql://runtime_user:synthetic-db-secret@example.test/taxi_gps",
+});
+
 test("API config applies safe defaults, freezes config, and preserves the input object", () => {
   const env = valid();
   const before = { ...env };
@@ -310,5 +317,42 @@ test("API configuration errors do not serialize secrets or environment values", 
     assert.equal(text.includes(email), false);
     assert.equal(text.includes(password), false);
     assert.equal(text.includes(url), false);
+  }
+});
+
+test("complete production configuration passes without weakening safe feature defaults", () => {
+  const config = parseApiConfig(productionValid());
+  assert.equal(config.syncScheduler.enabled, false);
+  assert.equal(config.alertIngestion.enabled, false);
+  assert.equal(config.telegramNotifications.enabled, false);
+  assert.equal(config.positionHistoryMaintenance.enabled, false);
+  assert.equal(config.positionHistoryRetention?.enabled, false);
+});
+
+test("production rejects malformed database URLs and obvious repository placeholders by field name only", () => {
+  const cases: readonly [string, Record<string, string>][] = [
+    ["DATABASE_URL", { ...productionValid(), DATABASE_URL: "not-a-url" }],
+    ["DATABASE_URL", { ...productionValid(), DATABASE_URL: "postgresql://user:change-me-local@example.test/taxi_gps" }],
+    ["DATABASE_URL", { ...productionValid(), DATABASE_URL: "postgresql://example.test/taxi_gps" }],
+    ["EQUGPS_PASSWORD", { ...productionValid(), EQUGPS_PASSWORD: "change-me" }],
+  ];
+  for (const [field, env] of cases) assert.throws(() => parseApiConfig(env), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes(field) && !JSON.stringify(error).includes(env[field] ?? ""));
+});
+
+test("production strict booleans fail closed while missing dangerous flags stay disabled", () => {
+  for (const field of ["SYNC_SCHEDULER_ENABLED", "ALERT_INGESTION_ENABLED", "TELEGRAM_NOTIFICATIONS_ENABLED", "POSITION_HISTORY_MAINTENANCE_ENABLED", "POSITION_HISTORY_RETENTION_ENABLED"] as const) {
+    assert.throws(() => parseApiConfig({ ...productionValid(), [field]: "TRUE" }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes(field));
+  }
+  const config = parseApiConfig(productionValid());
+  assert.deepEqual([config.syncScheduler.enabled, config.alertIngestion.enabled, config.telegramNotifications.enabled, config.positionHistoryMaintenance.enabled, config.positionHistoryRetention?.enabled], [false, false, false, false, false]);
+});
+
+test("a malformed nonempty NODE_ENV cannot silently select insecure cookie behavior", () => {
+  assert.throws(() => parseApiConfig({ ...productionValid(), NODE_ENV: "Production" }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes("NODE_ENV"));
+});
+
+test("production Telegram opt-in rejects known placeholder credentials", () => {
+  for (const field of ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] as const) {
+    assert.throws(() => parseApiConfig({ ...productionValid(), TELEGRAM_NOTIFICATIONS_ENABLED: "true", TELEGRAM_BOT_TOKEN: "synthetic-bot-token", TELEGRAM_CHAT_ID: "synthetic-chat-id", [field]: "change-me" }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes(field));
   }
 });

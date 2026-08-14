@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { forwardAuthToUpstream } from "./auth-bff-core";
 
+const safeUser = { id: "00000000-0000-4000-8000-000000000001", login: "operator", role: "ADMIN", permissions: [], mustChangePassword: false } as const;
+const localSessionCookie = `taxi_session=${"a".repeat(43)}; Max-Age=604800; HttpOnly; SameSite=Lax; Path=/`;
+
 function logoutRequest(cookie = "taxi_session=raw-token; preference=dark"): Request { return new Request("http://app.test/api/auth/logout", { method: "POST", headers: { Cookie: cookie, Origin: "http://app.test" } }); }
 function assertOnlyAuthCookieCleared(response: Response): void { const cookie = response.headers.get("set-cookie") ?? ""; assert.match(cookie, /^taxi_session=;/); assert.match(cookie, /Max-Age=0/); assert.match(cookie, /HttpOnly/); assert.match(cookie, /SameSite=Lax/); assert.match(cookie, /Path=\//); assert.doesNotMatch(cookie, /preference|unrelated/); }
 
@@ -12,7 +15,7 @@ test("logout never forwards or clears unrelated cookies", async () => { let upst
 test("native login POST is normalized to the existing JSON BFF flow without credential query parameters", async () => {
   const request = new Request("http://app.test/api/auth/login", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document" }, body: new URLSearchParams({ login: "operator", password: "private-password" }) });
   let upstreamUrl = ""; let upstreamInit: RequestInit | undefined;
-  const response = await forwardAuthToUpstream(request, "/api/auth/login", "http://api.test", ["login", "password"], async (input, init) => { upstreamUrl = String(input); upstreamInit = init; return Response.json({ ok: true }); }, false);
+  const response = await forwardAuthToUpstream(request, "/api/auth/login", "http://api.test", ["login", "password"], async (input, init) => { upstreamUrl = String(input); upstreamInit = init; return Response.json(safeUser, { headers: { "Set-Cookie": localSessionCookie } }); }, false);
   assert.equal(response.status, 200);
   assert.equal(upstreamUrl, "http://api.test/api/auth/login");
   assert.equal(new URL(upstreamUrl).search, "");
@@ -31,4 +34,34 @@ test("missing evidence and cross-origin writes are rejected before auth upstream
   assert.equal(calls, 0);
 });
 test("the exact supported Chromium login request reaches the Nest authentication layer", async () => { let calls = 0; const request = new Request("http://localhost:3000/api/auth/login", { method: "POST", headers: { Host: "127.0.0.1:3000", Origin: "http://127.0.0.1:3000", "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" }, body: JSON.stringify({ login: "operator", password: "test-only-value" }) }); const response = await forwardAuthToUpstream(request, "/api/auth/login", "http://api.test", ["login", "password"], async () => { calls += 1; return Response.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 }); }); assert.equal(response.status, 401); assert.equal(calls, 1); });
-test("same-origin change-password reaches the existing protected upstream flow", async () => { let calls = 0; const request = new Request("http://app.test/api/auth/change-password", { method: "POST", headers: { Origin: "http://app.test", Cookie: "taxi_session=token", "Content-Type": "application/json" }, body: JSON.stringify({ currentPassword: "current", newPassword: "next-password-value" }) }); const response = await forwardAuthToUpstream(request, "/api/auth/change-password", "http://api.test", ["currentPassword", "newPassword"], async () => { calls += 1; return Response.json({ ok: true }); }); assert.equal(response.status, 200); assert.equal(calls, 1); });
+test("same-origin change-password reaches the existing protected upstream flow", async () => { let calls = 0; const request = new Request("http://app.test/api/auth/change-password", { method: "POST", headers: { Origin: "http://app.test", Cookie: "taxi_session=token", "Content-Type": "application/json" }, body: JSON.stringify({ currentPassword: "current", newPassword: "next-password-value" }) }); const response = await forwardAuthToUpstream(request, "/api/auth/change-password", "http://api.test", ["currentPassword", "newPassword"], async () => { calls += 1; return Response.json(safeUser, { headers: { "Set-Cookie": localSessionCookie } }); }); assert.equal(response.status, 200); assert.equal(calls, 1); });
+
+test("login 429 and unexpected upstream failures are reduced to safe stable bodies", async () => {
+  const request = () => new Request("http://app.test/api/auth/login", { method: "POST", headers: { Origin: "http://app.test", "Content-Type": "application/json" }, body: JSON.stringify({ login: "operator", password: "private" }) });
+  const limited = await forwardAuthToUpstream(request(), "/api/auth/login", "http://api.test", ["login", "password"], async () => Response.json({ error: "LOGIN_RATE_LIMITED", stack: "SECRET_SENTINEL" }, { status: 429 }));
+  assert.equal(limited.status, 429);
+  assert.deepEqual(await limited.json(), { statusCode: 429, error: "LOGIN_RATE_LIMITED" });
+  const failed = await forwardAuthToUpstream(request(), "/api/auth/login", "http://api.test", ["login", "password"], async () => Response.json({ stack: "SECRET_SENTINEL", database: "private" }, { status: 500 }));
+  assert.equal(failed.status, 503);
+  assert.equal((await failed.text()).includes("SECRET_SENTINEL"), false);
+});
+
+test("oversized login body is rejected before upstream auth work", async () => {
+  let calls = 0;
+  const request = new Request("http://app.test/api/auth/login", { method: "POST", headers: { Origin: "http://app.test", "Content-Type": "application/json" }, body: JSON.stringify({ login: "operator", password: "x".repeat(70_000) }) });
+  const response = await forwardAuthToUpstream(request, "/api/auth/login", "http://api.test", ["login", "password"], async () => { calls += 1; return Response.json(safeUser); });
+  assert.equal(response.status, 413);
+  assert.equal(calls, 0);
+});
+
+test("production refuses an insecure or domain-scoped upstream auth cookie", async () => {
+  const request = () => new Request("https://app.test/api/auth/login", { method: "POST", headers: { Origin: "https://app.test", "Content-Type": "application/json" }, body: JSON.stringify({ login: "operator", password: "private" }) });
+  for (const cookie of [localSessionCookie, `${localSessionCookie}; Secure; Domain=app.test`]) {
+    const response = await forwardAuthToUpstream(request(), "/api/auth/login", "http://api.test", ["login", "password"], async () => Response.json(safeUser, { headers: { "Set-Cookie": cookie } }), true);
+    assert.equal(response.status, 502);
+    assert.equal(response.headers.get("set-cookie"), null);
+  }
+  const secure = await forwardAuthToUpstream(request(), "/api/auth/login", "http://api.test", ["login", "password"], async () => Response.json(safeUser, { headers: { "Set-Cookie": `${localSessionCookie}; Secure` } }), true);
+  assert.equal(secure.status, 200);
+  assert.match(secure.headers.get("set-cookie") ?? "", /; Secure$/);
+});

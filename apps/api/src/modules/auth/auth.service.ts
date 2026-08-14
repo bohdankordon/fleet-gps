@@ -9,6 +9,7 @@ import { normalizeLogin } from "./login";
 import { hashPassword, isValidPassword, verifyPassword } from "./password";
 import { PERMISSIONS, resolvePermissions } from "./permissions";
 import { createSessionToken, hashSessionToken, sessionExpiresAt } from "./session";
+import { LoginRateLimiter } from "./login-rate-limiter";
 
 const DUMMY_MATERIAL = Object.freeze({
   version: 1,
@@ -17,6 +18,7 @@ const DUMMY_MATERIAL = Object.freeze({
 });
 
 export class InvalidCredentialsError extends Error { public constructor() { super(INVALID_CREDENTIALS_MESSAGE); this.name = "InvalidCredentialsError"; } }
+export class LoginRateLimitedError extends Error { public constructor() { super("LOGIN_RATE_LIMITED"); this.name = "LoginRateLimitedError"; } }
 export class InvalidPasswordError extends Error { public constructor() { super("Password must contain 15 to 128 Unicode code points."); this.name = "InvalidPasswordError"; } }
 
 type UserWithPermissions = AuthUser & Readonly<{ permissions: readonly Readonly<{ key: string }>[] }>;
@@ -33,32 +35,40 @@ function safeUser(user: UserWithPermissions): SafeAuthUser {
 
 @Injectable()
 export class AuthService {
-  public constructor(private readonly database: DatabaseService, private readonly audit: AuditEventRepository) {}
+  public constructor(private readonly database: DatabaseService, private readonly audit: AuditEventRepository, private readonly loginRateLimiter: LoginRateLimiter = new LoginRateLimiter()) {}
 
   public async login(login: unknown, password: unknown, now = new Date()): Promise<Readonly<{ user: SafeAuthUser; token: string }>> {
     const normalized = typeof login === "string" ? normalizeLogin(login) : null;
-    const suppliedPassword = typeof password === "string" ? password : "";
-    const user = normalized ? await this.database.getClient().authUser.findUnique({ where: { normalizedLogin: normalized }, include: { permissions: true } }) : null;
-    const valid = user
-      ? await verifyPassword(suppliedPassword, { version: user.passwordHashVersion, salt: user.passwordSalt, hash: user.passwordHash })
-      : await verifyPassword(suppliedPassword, DUMMY_MATERIAL);
-    if (!user || !valid || user.disabled) throw new InvalidCredentialsError();
-    const token = createSessionToken();
-    await this.database.getClient().$transaction(async (transaction: Prisma.TransactionClient) => {
-      const current = await transaction.$queryRaw<readonly Readonly<{ id: string }>[]>`
-        SELECT "id"
-        FROM "auth_users"
-        WHERE "id" = ${user.id}::uuid
-          AND "password_hash_version" = ${user.passwordHashVersion}
-          AND "password_salt" = ${user.passwordSalt}
-          AND "password_hash" = ${user.passwordHash}
-          AND "disabled" = false
-        FOR UPDATE
-      `;
-      if (current.length !== 1) throw new InvalidCredentialsError();
-      await transaction.authSession.create({ data: { userId: user.id, tokenHash: hashSessionToken(token), createdAt: now, expiresAt: sessionExpiresAt(now) } });
-    });
-    return Object.freeze({ user: safeUser(user), token });
+    if (normalized === null || typeof password !== "string") throw new InvalidCredentialsError();
+    const suppliedPassword = password;
+    if (this.loginRateLimiter.isBlocked(normalized)) throw new LoginRateLimitedError();
+    try {
+      const user = normalized ? await this.database.getClient().authUser.findUnique({ where: { normalizedLogin: normalized }, include: { permissions: true } }) : null;
+      const valid = user
+        ? await verifyPassword(suppliedPassword, { version: user.passwordHashVersion, salt: user.passwordSalt, hash: user.passwordHash })
+        : await verifyPassword(suppliedPassword, DUMMY_MATERIAL);
+      if (!user || !valid || user.disabled) throw new InvalidCredentialsError();
+      const token = createSessionToken();
+      await this.database.getClient().$transaction(async (transaction: Prisma.TransactionClient) => {
+        const current = await transaction.$queryRaw<readonly Readonly<{ id: string }>[]>`
+          SELECT "id"
+          FROM "auth_users"
+          WHERE "id" = ${user.id}::uuid
+            AND "password_hash_version" = ${user.passwordHashVersion}
+            AND "password_salt" = ${user.passwordSalt}
+            AND "password_hash" = ${user.passwordHash}
+            AND "disabled" = false
+          FOR UPDATE
+        `;
+        if (current.length !== 1) throw new InvalidCredentialsError();
+        await transaction.authSession.create({ data: { userId: user.id, tokenHash: hashSessionToken(token), createdAt: now, expiresAt: sessionExpiresAt(now) } });
+      });
+      this.loginRateLimiter.clear(normalized);
+      return Object.freeze({ user: safeUser(user), token });
+    } catch (error) {
+      if (error instanceof InvalidCredentialsError) this.loginRateLimiter.recordFailure(normalized);
+      throw error;
+    }
   }
 
   public async authenticate(token: string, now = new Date()): Promise<AuthenticatedPrincipal | null> {

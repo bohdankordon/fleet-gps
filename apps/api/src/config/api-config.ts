@@ -49,6 +49,22 @@ export class ApiConfigurationError extends Error {
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
+const OBVIOUS_PLACEHOLDERS = new Set(["change-me", "change-me-local", "changeme", "example", "password", "replace-me", "secret", "todo"]);
+
+function obviousPlaceholder(value: string | null | undefined): boolean {
+  return value !== null && value !== undefined && OBVIOUS_PLACEHOLDERS.has(value.trim().toLowerCase());
+}
+
+function validDatabaseUrl(value: string | undefined, production: boolean): boolean {
+  if (typeof value !== "string" || value.trim() === "") return false;
+  try {
+    const url = new URL(value.trim());
+    if ((url.protocol !== "postgresql:" && url.protocol !== "postgres:") || url.hostname === "" || url.pathname === "" || url.pathname === "/" || url.hash !== "") return false;
+    if (production && (url.username === "" || url.password === "" || obviousPlaceholder(decodeURIComponent(url.username)) || obviousPlaceholder(decodeURIComponent(url.password)))) return false;
+    return true;
+  } catch { return false; }
+}
+
 function parsePort(value: string | undefined): number | undefined {
   return parseInteger(value, 3_000, 1, 65_535);
 }
@@ -78,6 +94,8 @@ const equGpsIssueNames: Readonly<Record<string, string>> = Object.freeze({
 });
 
 export function parseApiConfig(env: Environment): ApiConfig {
+  const production = env.NODE_ENV === "production";
+  const nodeEnvironment = env.NODE_ENV;
   const host = (env.HOST ?? "127.0.0.1").trim();
   const port = parsePort(env.PORT);
   const databaseUrl = env.DATABASE_URL;
@@ -98,9 +116,10 @@ export function parseApiConfig(env: Environment): ApiConfig {
   const shutdownTimeoutMs = parseInteger(env.SYNC_SCHEDULER_SHUTDOWN_TIMEOUT_MS, 50_000, 1_000, 120_000);
   const issues: string[] = [];
 
+  if (nodeEnvironment !== undefined && nodeEnvironment !== "" && nodeEnvironment !== "development" && nodeEnvironment !== "test" && nodeEnvironment !== "production") issues.push("NODE_ENV");
   if (host.length === 0) issues.push("HOST");
   if (port === undefined) issues.push("PORT");
-  if (typeof databaseUrl !== "string" || databaseUrl.trim() === "") issues.push("DATABASE_URL");
+  if (!validDatabaseUrl(databaseUrl, production)) issues.push("DATABASE_URL");
   if (poolMax === undefined) issues.push("DATABASE_POOL_MAX");
   if (connectionTimeoutMs === undefined) issues.push("DATABASE_CONNECTION_TIMEOUT_MS");
   if (idleTimeoutMs === undefined) issues.push("DATABASE_IDLE_TIMEOUT_MS");
@@ -111,6 +130,9 @@ export function parseApiConfig(env: Environment): ApiConfig {
   if (telegramNotificationsEnabled === undefined) issues.push("TELEGRAM_NOTIFICATIONS_ENABLED");
   if (telegramNotificationsEnabled === true && telegramBotToken === null) issues.push("TELEGRAM_BOT_TOKEN");
   if (telegramNotificationsEnabled === true && telegramChatId === null) issues.push("TELEGRAM_CHAT_ID");
+  if (production && obviousPlaceholder(env.EQUGPS_PASSWORD)) issues.push("EQUGPS_PASSWORD");
+  if (production && telegramNotificationsEnabled === true && obviousPlaceholder(telegramBotToken)) issues.push("TELEGRAM_BOT_TOKEN");
+  if (production && telegramNotificationsEnabled === true && obviousPlaceholder(telegramChatId)) issues.push("TELEGRAM_CHAT_ID");
   if (telegramDispatchIntervalMs === undefined) issues.push("TELEGRAM_NOTIFICATION_DISPATCH_INTERVAL_MS");
   if (telegramBatchSize === undefined) issues.push("TELEGRAM_NOTIFICATION_BATCH_SIZE");
   if (fleetIntervalSeconds === undefined) issues.push("FLEET_SYNC_INTERVAL_SECONDS");
@@ -142,7 +164,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
     return Object.freeze({
       host,
       port,
-      database: Object.freeze({ url: databaseUrl, poolMax, connectionTimeoutMs, idleTimeoutMs }),
+      database: Object.freeze({ url: databaseUrl.trim(), poolMax, connectionTimeoutMs, idleTimeoutMs }),
       syncScheduler: Object.freeze({ enabled: schedulerEnabled, fleetIntervalSeconds, runsIntervalSeconds, shutdownTimeoutMs }),
       alertIngestion: Object.freeze({ enabled: alertIngestionEnabled }),
       positionHistoryMaintenance: Object.freeze({ enabled: positionHistoryMaintenanceEnabled }),

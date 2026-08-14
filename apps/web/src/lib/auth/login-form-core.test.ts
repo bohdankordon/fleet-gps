@@ -35,3 +35,11 @@ test("5xx, network, and malformed success responses become one safe unavailable 
   for (const result of [server, network, malformed]) assert.deepEqual(result, { kind: "unavailable" });
   assert.equal(JSON.stringify([server, network, malformed]).includes("private"), false);
 });
+
+test("only the stable LOGIN_RATE_LIMITED code becomes the localized rate-limit state", async () => {
+  const limited = await attemptLogin("operator", "present", async () => Response.json({ statusCode: 429, error: "LOGIN_RATE_LIMITED", message: "raw backend text" }, { status: 429 }));
+  const unknown = await attemptLogin("operator", "present", async () => Response.json({ error: "SOMETHING_ELSE", message: "raw backend text" }, { status: 429 }));
+  assert.deepEqual(limited, { kind: "rate-limited" });
+  assert.deepEqual(unknown, { kind: "unavailable" });
+  assert.equal(JSON.stringify([limited, unknown]).includes("raw backend text"), false);
+});

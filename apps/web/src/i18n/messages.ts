@@ -47,6 +47,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "auth.login.loginInvalid": { ru: "Логин должен содержать 3–64 символа: латинские буквы, цифры, точку, дефис или подчёркивание", uk: "Логін має містити 3–64 символи: латинські літери, цифри, крапку, дефіс або підкреслення", en: "Login must contain 3–64 characters: Latin letters, digits, a dot, hyphen or underscore" },
   "auth.login.passwordRequired": { ru: "Введите пароль", uk: "Введіть пароль", en: "Enter your password" },
   "auth.login.invalidCredentials": { ru: "Неверный логин или пароль", uk: "Неправильний логін або пароль", en: "Incorrect login or password" },
+  "auth.login.rateLimited": { ru: "Слишком много неудачных попыток входа. Попробуйте позже.", uk: "Забагато невдалих спроб входу. Спробуйте пізніше.", en: "Too many unsuccessful sign-in attempts. Try again later." },
   "auth.login.unavailable": { ru: "Не удалось выполнить вход. Попробуйте ещё раз.", uk: "Не вдалося увійти. Спробуйте ще раз.", en: "Sign-in failed. Please try again." },
   "auth.logout.submit": { ru: "Выйти", uk: "Вийти", en: "Sign out" },
   "auth.logout.submitting": { ru: "Выход…", uk: "Вихід…", en: "Signing out…" },

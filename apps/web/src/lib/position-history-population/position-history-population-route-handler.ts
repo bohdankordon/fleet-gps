@@ -1,4 +1,5 @@
 import { rejectCrossOriginWrite } from "../auth/same-origin";
+import { boundedBodyStatus, readBoundedJson } from "../http/bounded-body";
 import { positionHistoryPopulationRequestSchema, positionHistoryPopulationResultSchema, type PositionHistoryPopulationRequest } from "./position-history-population-contract";
 
 type Executor = (request: PositionHistoryPopulationRequest) => Promise<Response>;
@@ -14,8 +15,8 @@ export function createPositionHistoryPopulationRouteHandler(execute: Executor) {
     const originRejection = rejectCrossOriginWrite(request);
     if (originRejection) return originRejection;
     let parsed: ReturnType<typeof positionHistoryPopulationRequestSchema.safeParse>;
-    try { parsed = positionHistoryPopulationRequestSchema.safeParse(await request.json()); }
-    catch { return error(400); }
+    try { parsed = positionHistoryPopulationRequestSchema.safeParse(await readBoundedJson(request)); }
+    catch (cause) { const status = boundedBodyStatus(cause); return status === 413 ? Response.json({ statusCode: 413, error: "Payload Too Large" }, { status, headers: noStore }) : error(400); }
     if (!parsed.success) return error(400);
     let upstream: Response;
     try { upstream = await execute(parsed.data); }

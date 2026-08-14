@@ -1,5 +1,6 @@
 import { AUTH_COOKIE_NAME } from "../auth/auth-contract";
 import { rejectCrossOriginWrite } from "../auth/same-origin";
+import { boundedBodyStatus, readBoundedJson } from "../http/bounded-body";
 
 export type AdminUsersPath = "/api/admin/users" | `/api/admin/users/${string}`;
 
@@ -12,12 +13,12 @@ async function strictBody(request: Request, allowedKeys: readonly string[] | nul
   const contentLength = request.headers.get("content-length");
   if ((contentLength === null || contentLength === "0") && !request.headers.get("content-type")) return undefined;
   try {
-    const input = await request.json();
+    const input = await readBoundedJson(request);
     if (typeof input !== "object" || input === null || Array.isArray(input)) throw new Error();
     const source = input as Record<string, unknown>;
     if (Object.keys(source).some((key) => !allowedKeys.includes(key))) throw new Error();
     return JSON.stringify(Object.fromEntries(allowedKeys.filter((key) => key in source).map((key) => [key, source[key]])));
-  } catch { return Response.json({ statusCode: 400, error: "Bad Request", message: "Проверьте отправленные данные." }, { status: 400, headers: { "Cache-Control": "no-store" } }); }
+  } catch (error) { const status = boundedBodyStatus(error); return Response.json({ statusCode: status, error: status === 413 ? "Payload Too Large" : "Bad Request" }, { status, headers: { "Cache-Control": "no-store" } }); }
 }
 
 export async function forwardAdminUsersToUpstream(request: Request, path: AdminUsersPath, apiInternalBaseUrl: string, allowedBodyKeys: readonly string[] | null, fetcher: typeof fetch = fetch): Promise<Response> {

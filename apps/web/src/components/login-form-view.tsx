@@ -10,7 +10,7 @@ type LoginFormViewProps = Readonly<{
 
 export function LoginFormView({ busy, error, onSubmit }: LoginFormViewProps) {
   const { t } = useI18n();
-  const errorMessage = error === "LOGIN_REQUIRED" ? t("auth.login.loginRequired") : error === "LOGIN_INVALID" ? t("auth.login.loginInvalid") : error === "PASSWORD_REQUIRED" ? t("auth.login.passwordRequired") : error === "INVALID_CREDENTIALS" ? t("auth.login.invalidCredentials") : error === "UNAVAILABLE" ? t("auth.login.unavailable") : null;
+  const errorMessage = error === "LOGIN_REQUIRED" ? t("auth.login.loginRequired") : error === "LOGIN_INVALID" ? t("auth.login.loginInvalid") : error === "PASSWORD_REQUIRED" ? t("auth.login.passwordRequired") : error === "INVALID_CREDENTIALS" ? t("auth.login.invalidCredentials") : error === "RATE_LIMITED" ? t("auth.login.rateLimited") : error === "UNAVAILABLE" ? t("auth.login.unavailable") : null;
   return <form className="auth-form" action={LOGIN_ACTION} method="post" noValidate onSubmit={onSubmit}>
     <label>{t("auth.login.loginLabel")}<input name="login" autoComplete="username" minLength={3} maxLength={64} /></label>
     <label>{t("auth.login.passwordLabel")}<input name="password" type="password" autoComplete="current-password" /></label>

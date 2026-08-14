@@ -12,6 +12,7 @@
   },
   "scripts": {
     "api:config": "tsx src/scripts/config-check.ts",
+    "production:check": "npm run equgps:build && npm run api:build && node --experimental-transform-types src/scripts/production-check.ts",
     "api:devices": "tsx src/scripts/devices-probe.ts",
     "api:positions": "tsx src/scripts/positions-probe.ts",
     "api:positions:built": "node dist/scripts/positions-probe.js",
@@ -23,6 +24,8 @@
     "api:dev": "npm --workspace @taxi-gps/api run start:dev",
     "auth:user-create": "npm --workspace @taxi-gps/api run auth:user-create",
     "auth:test": "npm --workspace @taxi-gps/api run auth:test",
+    "stage-21:security-real-db-test": "npm --workspace @taxi-gps/api run stage-21:security-real-db-test",
+    "stage-21:security-web-acceptance": "npm --workspace @taxi-gps/web run stage-21:security-acceptance",
     "api:build": "npm --workspace @taxi-gps/api run build",
     "api:typecheck": "npm --workspace @taxi-gps/api run typecheck",
     "api:test": "npm --workspace @taxi-gps/api run test",
