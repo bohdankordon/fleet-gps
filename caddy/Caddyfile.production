@@ -1,0 +1,28 @@
+# =============================================================================
+# Production Caddy reverse proxy (single-host v1.0 deployment).
+#
+# SITE_ADDRESS is injected from the deployment environment and MUST be an
+# operator-controlled value, for example:
+#   SITE_ADDRESS=https://taxi.example.com
+#
+# Responsibilities (and nothing more):
+#   - public HTTP/HTTPS edge
+#   - TLS termination (automatic HTTPS)
+#   - automatic HTTP -> HTTPS redirect
+#   - reverse proxy exclusively to the Next standalone server (web:3000)
+#
+# Stage 21 application security (Origin/Host checks, CSP, cookie attributes,
+# CORS-off) remains Next/Nest responsibility and is intentionally NOT
+# reimplemented here. Browsers are never routed directly to Nest.
+# =============================================================================
+{
+	admin off
+	log {
+		output stdout
+		format console
+	}
+}
+
+{$SITE_ADDRESS} {
+	reverse_proxy web:3000
+}

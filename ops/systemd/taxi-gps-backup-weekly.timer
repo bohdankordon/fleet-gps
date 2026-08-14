@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly taxi-gps database backup timer
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00
+Persistent=true
+Unit=taxi-gps-backup-weekly.service
+
+[Install]
+WantedBy=timers.target

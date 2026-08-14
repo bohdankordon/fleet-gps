@@ -1,0 +1,13 @@
+[Unit]
+Description=Taxi GPS daily PostgreSQL logical backup (one-shot Docker Compose job)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/taxi-gps
+# The canonical wrapper owns the shared crash-released host flock.
+ExecStart=/bin/sh /opt/taxi-gps/ops/backup-host.sh daily .env.production
+
+[Install]
+WantedBy=multi-user.target

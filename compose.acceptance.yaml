@@ -1,0 +1,28 @@
+# =============================================================================
+# Isolated Stage 22 acceptance override. Combine with the production file:
+#
+#   docker compose \
+#     -f compose.production.yaml \
+#     -f compose.acceptance.yaml \
+#     --env-file <synthetic acceptance env> \
+#     --project-name taxi-gps-s22 \
+#     <command>
+#
+# Changes from production are LIMITED to the public edge:
+#   - Caddy publishes a loopback-only port (127.0.0.1:8080), never 0.0.0.0.
+#   - Caddy uses a plain-HTTP acceptance Caddyfile (no public DNS/ACME/cert).
+#
+# web, api and postgres remain on private networks with no host ports. This
+# override does NOT weaken production network isolation.
+# =============================================================================
+
+services:
+  caddy:
+    ports: !override
+      - "127.0.0.1:8080:80"
+    environment:
+      SITE_ADDRESS: "https://localhost"
+    volumes:
+      - ./caddy/Caddyfile.acceptance:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config

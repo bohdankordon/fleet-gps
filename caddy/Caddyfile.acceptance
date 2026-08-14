@@ -1,0 +1,22 @@
+# =============================================================================
+# Isolated Stage 22 acceptance proxy.
+#
+# Loopback-only, plain-HTTP acceptance edge. This proves Caddy reverse-proxies
+# to the Next standalone server locally without public DNS, ACME, or a real
+# certificate ("another equally safe method" per the Stage 22 contract).
+#
+# Production TLS termination + automatic HTTP->HTTPS redirect live in
+# Caddyfile.production, which is validated separately with "caddy validate".
+# =============================================================================
+
+{
+	admin off
+	log {
+		output stdout
+		format console
+	}
+}
+
+http://:80 {
+	reverse_proxy web:3000
+}

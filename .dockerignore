@@ -1,0 +1,56 @@
+# Version control and metadata -- never needed inside an image.
+.git
+.gitignore
+.gitattributes
+.agents
+.codex
+
+# Real and sanitized environment files must never be baked into an image layer.
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Dependencies and build outputs are rebuilt inside the image.
+node_modules
+**/node_modules
+dist
+**/dist
+apps/web/.next
+apps/web/.test-dist
+apps/api/.test-dist
+apps/api/src/generated/prisma
+apps/web/next-env.d.ts
+apps/web/tsconfig.tsbuildinfo
+apps/web/public/maplibre
+
+# Tests, coverage and local instrumentation output.
+coverage
+*.lcov
+ops/tests/*.env
+
+# Review / acceptance / backup artifacts.
+*.zip
+*.tar
+*.tar.gz
+*.dump
+*.dump.sha256
+review/
+.review/
+acceptance-output/
+.acceptance/
+backups/
+backup/
+ops/backups/
+
+# Local databases, logs and network captures.
+data/**/*.dump
+logs/
+*.log
+*.har
+
+# Editor and OS caches.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

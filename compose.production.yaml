@@ -1,0 +1,235 @@
+# =============================================================================
+# Canonical production Compose definition for the single-host v1.0 deployment.
+#
+# Public edge: Caddy only (host ports 80/443). web, api and postgres publish
+# no host ports. Internal networks enforce the approved isolation:
+#   edge     -> caddy + web        (proxy reaches only Next)
+#   app      -> web + api          (Next BFF reaches only Nest)
+#   database -> api + postgres     (only Nest reaches PostgreSQL)
+#   egress   -> api only           (Nest can reach approved external providers)
+#
+# Operator flow (an explicit env file is REQUIRED; never rely on a developer
+# .env):
+#   docker compose \
+#     -f compose.production.yaml \
+#     --env-file .env.production \
+#     --project-name taxi-gps-prod \
+#     <command>
+#
+# See docs/deployment.md and docs/backup-restore.md for the full runbook.
+# =============================================================================
+
+name: taxi-gps-prod
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?SITE_ADDRESS is required (e.g. https://taxi.example.com)}
+    volumes:
+      - ./caddy/Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - edge
+    logging: *default-logging
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_MAP_STYLE_URL: ${NEXT_PUBLIC_MAP_STYLE_URL:-}
+    image: taxi-gps-web:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required (pin the exact release tag/revision)}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      API_INTERNAL_BASE_URL: http://api:3000
+      NEXT_PUBLIC_MAP_STYLE_URL: ${NEXT_PUBLIC_MAP_STYLE_URL:-}
+    expose:
+      - "3000"
+    networks:
+      - edge
+      - app
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(function(r){process.exit(r.ok?0:1)}).catch(function(){process.exit(1)})"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    stop_grace_period: 30s
+    logging: *default-logging
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+    image: taxi-gps-api:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required (pin the exact release tag/revision)}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # Listen on all container interfaces. The api container publishes no host
+      # port and sits on internal-only networks, so this is not host exposure.
+      HOST: 0.0.0.0
+      PORT: "3000"
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+      DATABASE_CONNECTION_TIMEOUT_MS: ${DATABASE_CONNECTION_TIMEOUT_MS:-5000}
+      DATABASE_IDLE_TIMEOUT_MS: ${DATABASE_IDLE_TIMEOUT_MS:-30000}
+      EQUGPS_BASE_URL: ${EQUGPS_BASE_URL}
+      EQUGPS_WEB_BASE_URL: ${EQUGPS_WEB_BASE_URL}
+      EQUGPS_EMAIL: ${EQUGPS_EMAIL}
+      EQUGPS_PASSWORD: ${EQUGPS_PASSWORD}
+      EQUGPS_REQUEST_TIMEOUT_MS: ${EQUGPS_REQUEST_TIMEOUT_MS:-15000}
+      EQUGPS_RUNS_TIMEOUT_MS: ${EQUGPS_RUNS_TIMEOUT_MS:-45000}
+      SYNC_SCHEDULER_ENABLED: ${SYNC_SCHEDULER_ENABLED:-false}
+      FLEET_SYNC_INTERVAL_SECONDS: ${FLEET_SYNC_INTERVAL_SECONDS:-60}
+      RUNS_SYNC_INTERVAL_SECONDS: ${RUNS_SYNC_INTERVAL_SECONDS:-300}
+      SYNC_SCHEDULER_SHUTDOWN_TIMEOUT_MS: ${SYNC_SCHEDULER_SHUTDOWN_TIMEOUT_MS:-50000}
+      ALERT_INGESTION_ENABLED: ${ALERT_INGESTION_ENABLED:-false}
+      POSITION_HISTORY_MAINTENANCE_ENABLED: ${POSITION_HISTORY_MAINTENANCE_ENABLED:-false}
+      POSITION_HISTORY_RETENTION_ENABLED: ${POSITION_HISTORY_RETENTION_ENABLED:-false}
+      TELEGRAM_NOTIFICATIONS_ENABLED: ${TELEGRAM_NOTIFICATIONS_ENABLED:-false}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_NOTIFICATION_DISPATCH_INTERVAL_MS: ${TELEGRAM_NOTIFICATION_DISPATCH_INTERVAL_MS:-60000}
+      TELEGRAM_NOTIFICATION_BATCH_SIZE: ${TELEGRAM_NOTIFICATION_BATCH_SIZE:-20}
+    expose:
+      - "3000"
+    networks:
+      - app
+      - database
+      - egress
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then(function(r){process.exit(r.ok?0:1)}).catch(function(){process.exit(1)})"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    stop_grace_period: 30s
+    logging: *default-logging
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    stop_grace_period: 30s
+    logging: *default-logging
+
+  migrate:
+    # One-shot Prisma migration job. NOT started by "docker compose up".
+    # Run explicitly: docker compose --profile migrate run --rm migrate
+    profiles: ["migrate"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: migrate
+    image: taxi-gps-migrate:${APP_IMAGE_TAG:?APP_IMAGE_TAG is required (pin the exact release tag/revision)}
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+    networks:
+      - database
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["npx", "prisma"]
+    command: ["migrate", "deploy", "--config", "prisma.config.ts"]
+    logging: *default-logging
+
+  backup:
+    # One-shot logical backup. Run explicitly via the systemd timers or manually.
+    profiles: ["backup"]
+    image: postgres:17-alpine
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      PGDATABASE: ${POSTGRES_DB:?POSTGRES_DB is required}
+      BACKUP_DIR: /backups
+      BACKUP_TIER: ${BACKUP_TIER:-daily}
+      BACKUP_RETENTION_DAILY: ${BACKUP_RETENTION_DAILY:-14}
+      BACKUP_RETENTION_WEEKLY: ${BACKUP_RETENTION_WEEKLY:-8}
+    volumes:
+      - ${BACKUP_DIR:?BACKUP_DIR is required (host backup directory)}:/backups
+      - ./ops:/ops:ro
+    networks:
+      - database
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/sh", "-e", "/ops/backup.sh"]
+    logging: *default-logging
+
+  restore:
+    # One-shot restore job. Run explicitly with --backup and --target-db args.
+    profiles: ["restore"]
+    image: postgres:17-alpine
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - ${BACKUP_DIR:?BACKUP_DIR is required (host backup directory)}:/backups:ro
+      - ./ops:/ops:ro
+    networks:
+      - database
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/sh", "-e", "/ops/restore.sh"]
+    logging: *default-logging
+
+networks:
+  # edge carries public traffic to Caddy and is the only externally reachable
+  # network (Caddy publishes 80/443 on it).
+  edge:
+  # app and database are private: no host port is published on them.
+  app:
+    internal: true
+  database:
+    internal: true
+  # egress is deliberately non-internal so Nest can reach existing approved
+  # providers. Only api joins it; no service publishes a port through it.
+  egress:
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

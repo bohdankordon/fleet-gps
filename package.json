@@ -12,7 +12,8 @@
   },
   "scripts": {
     "api:config": "tsx src/scripts/config-check.ts",
-    "production:check": "npm run equgps:build && npm run api:build && node --experimental-transform-types src/scripts/production-check.ts",
+    "production:check": "node ops/production-preflight.mjs",
+    "stage-22:preflight-test": "node --test ops/tests/deployment-config.test.mjs",
     "api:devices": "tsx src/scripts/devices-probe.ts",
     "api:positions": "tsx src/scripts/positions-probe.ts",
     "api:positions:built": "node dist/scripts/positions-probe.js",
