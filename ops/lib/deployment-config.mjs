@@ -56,6 +56,17 @@ function backupPathIsSafe(value, repositoryRoot) {
   return true;
 }
 
+// Stage 23 operational-alert gate. OPS_ALERTS_ENABLED is independent from
+// TELEGRAM_NOTIFICATIONS_ENABLED and strictly accepts only "true" or "false"
+// when set. Missing/empty defaults to false (safe default). Any other nonempty
+// value is malformed and must fail the preflight.
+export function parseOpsAlertsEnabled(value) {
+  if (value === undefined || value === "") return false;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
+}
+
 export function validateDeploymentEnvironment(env, { repositoryRoot = process.cwd() } = {}) {
   const issues = [];
   const invalid = (...fields) => issues.push(...fields);
@@ -115,6 +126,13 @@ export function validateDeploymentEnvironment(env, { repositoryRoot = process.cw
   for (const field of ["BACKUP_RETENTION_DAILY", "BACKUP_RETENTION_WEEKLY"]) {
     const value = env[field];
     if (value !== undefined && !/^[1-9][0-9]*$/.test(value)) invalid(field);
+  }
+
+  const opsAlertsEnabled = parseOpsAlertsEnabled(env.OPS_ALERTS_ENABLED);
+  if (opsAlertsEnabled === undefined) invalid("OPS_ALERTS_ENABLED");
+  if (opsAlertsEnabled === true) {
+    if ((env.TELEGRAM_BOT_TOKEN ?? "").trim() === "") invalid("TELEGRAM_BOT_TOKEN");
+    if ((env.TELEGRAM_CHAT_ID ?? "").trim() === "") invalid("TELEGRAM_CHAT_ID");
   }
 
   if (issues.length > 0) throw new DeploymentConfigurationError(issues);

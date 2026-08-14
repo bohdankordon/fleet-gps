@@ -2,6 +2,7 @@
 Description=Taxi GPS daily PostgreSQL logical backup (one-shot Docker Compose job)
 Wants=network-online.target
 After=network-online.target
+OnFailure=taxi-gps-ops-notify@backup-daily.service
 
 [Service]
 Type=oneshot

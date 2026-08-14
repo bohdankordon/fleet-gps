@@ -1,0 +1,11 @@
+[Unit]
+Description=Taxi GPS host monitor timer
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=1s
+Unit=taxi-gps-monitor.service
+
+[Install]
+WantedBy=timers.target

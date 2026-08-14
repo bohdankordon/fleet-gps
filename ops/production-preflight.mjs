@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseEnv } from "node:util";
+import { controlledEnvironment } from "./lib/controlled-environment.mjs";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -16,22 +16,6 @@ function parseArguments(argv) {
   if (argv.length === 2 && argv[0] === "--env-file" && argv[1] !== "") return argv[1];
   if (argv.length === 1 && argv[0].startsWith("--env-file=") && argv[0].slice(11) !== "") return argv[0].slice(11);
   fail("usage: npm run production:check -- --env-file .env.production");
-}
-
-function referencedEnvironmentNames(text) {
-  return [...text.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)/g)].map((match) => match[1]);
-}
-
-function controlledEnvironment(envFile) {
-  const result = { ...process.env };
-  const names = new Set();
-  for (const file of [envFile, path.join(repositoryRoot, ".env.production.example"), path.join(repositoryRoot, ".env.example")]) {
-    if (!existsSync(file)) continue;
-    for (const name of Object.keys(parseEnv(readFileSync(file, "utf8")))) names.add(name);
-  }
-  for (const name of referencedEnvironmentNames(readFileSync(path.join(repositoryRoot, "compose.production.yaml"), "utf8"))) names.add(name);
-  for (const name of names) delete result[name];
-  return result;
 }
 
 function run(command, args, env, label) {
@@ -58,7 +42,7 @@ if (!existsSync(envFile) || !statSync(envFile).isFile()) fail("explicit env file
 
 let controlledEnv;
 try {
-  controlledEnv = controlledEnvironment(envFile);
+  controlledEnv = controlledEnvironment({ envFile, repositoryRoot });
 } catch {
   fail("explicit env file is malformed");
 }

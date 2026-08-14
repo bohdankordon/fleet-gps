@@ -1,4 +1,4 @@
-# Host backup scheduling (systemd timers)
+# Host operations scheduling and failure notification (systemd units)
 
 These are source-controlled **examples** for a Linux/Docker Compose v2 host.
 They are NOT installed or enabled automatically by the application.
@@ -7,10 +7,14 @@ They are NOT installed or enabled automatically by the application.
 
 - `taxi-gps-backup-daily.service` / `.timer` - daily backup at 02:30 local.
 - `taxi-gps-backup-weekly.service` / `.timer` - weekly backup Sunday 03:00 local.
+- `taxi-gps-monitor.service` / `.timer` - host monitor every ~60 seconds.
+- `taxi-gps-ops-notify@.service` - operational Telegram failure notification
+  template (instantiated on failure, never enabled directly).
 
-Both invoke the Compose one-shot `backup` service from `compose.production.yaml`,
-passing an explicit production env file and a backup tier. No secrets are stored
-in these units; credentials come from `.env.production` on the host.
+The daily and weekly backup units invoke the Compose one-shot `backup` service
+from `compose.production.yaml`, passing an explicit production env file and a
+backup tier. No secrets are stored in these units; credentials come from
+`.env.production` on the host.
 
 ## Overlap protection
 
@@ -39,3 +43,28 @@ service to the checkout path. Confirm `.env.production` exists there with
 
 Use that same command for the required pre-deploy backup. For the weekly tier,
 replace `daily` with `weekly`.
+
+## Monitor installation (operator-only, not automated)
+
+    sudo cp ops/systemd/taxi-gps-monitor.service \
+            ops/systemd/taxi-gps-monitor.timer \
+            ops/systemd/taxi-gps-ops-notify@.service \
+            /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now taxi-gps-monitor.timer
+
+The monitor runs every ~60 seconds, is Type=oneshot, is time-bounded, and holds
+a crash-released flock at /run/lock/taxi-gps-monitor.lock so overlapping runs
+are impossible. It exits 0 for ordinary application incidents; only genuine
+monitor execution failures exit nonzero.
+
+## Failure notification wiring
+
+- Daily backup failure -> taxi-gps-ops-notify@backup-daily.service
+- Weekly backup failure -> taxi-gps-ops-notify@backup-weekly.service
+- Monitor execution failure -> taxi-gps-ops-notify@monitor.service
+
+The notify template itself has no OnFailure, so notification can never recurse
+into itself. It reads OPS_ALERTS_ENABLED and the existing TELEGRAM_BOT_TOKEN and
+TELEGRAM_CHAT_ID from .env.production; no credentials appear in these units or
+in process argv. See docs/observability.md for the full runbook.

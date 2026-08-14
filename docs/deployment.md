@@ -229,5 +229,6 @@ Stage 22 acceptance projects during final cleanup.
 
 ## Stage 23 boundary
 
-Observability (metrics, dashboards, alerting) is Stage 23 and is not implemented
-here. This document does not treat Stage 23 as implemented.
+Observability, health and failure detection is Stage 23 and is now implemented
+as a host-level monitor; see docs/observability.md. This document does not treat
+Stage 24 (release-candidate/soak) as implemented.

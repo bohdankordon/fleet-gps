@@ -69,6 +69,23 @@ test("optional retention values default when absent and otherwise require strict
   }
 });
 
+test("OPS_ALERTS_ENABLED is independent from product Telegram notifications", () => {
+  assert.deepEqual(validateDeploymentEnvironment(valid, { repositoryRoot }), { valid: true });
+  assert.deepEqual(issues({ OPS_ALERTS_ENABLED: "true", TELEGRAM_BOT_TOKEN: "123:abc", TELEGRAM_CHAT_ID: "456" }), []);
+  assert.deepEqual(issues({ OPS_ALERTS_ENABLED: "true", TELEGRAM_CHAT_ID: "456" }), ["TELEGRAM_BOT_TOKEN"]);
+  assert.deepEqual(issues({ OPS_ALERTS_ENABLED: "true", TELEGRAM_BOT_TOKEN: "123:abc" }), ["TELEGRAM_CHAT_ID"]);
+  for (const value of ["TRUE", "1", "yes", "on", "typo"]) {
+    assert.deepEqual(issues({ OPS_ALERTS_ENABLED: value }), ["OPS_ALERTS_ENABLED"]);
+  }
+});
+
+test("OPS_ALERTS_ENABLED validation never prints Telegram token values", () => {
+  const sentinel = "OPS_TOKEN_SENTINEL";
+  const result = issues({ OPS_ALERTS_ENABLED: "true", TELEGRAM_BOT_TOKEN: sentinel, TELEGRAM_CHAT_ID: "chat", BACKUP_DIR: "relative" });
+  assert.deepEqual(result, ["BACKUP_DIR"]);
+  assert.equal(result.join(",").includes(sentinel), false);
+});
+
 test("CLI failures print field names without synthetic secret sentinels", () => {
   const sentinel = "DO_NOT_PRINT_SECRET_SENTINEL";
   const result = spawnSync(process.execPath, [path.join(repositoryRoot, "ops", "validate-env.mjs")], {

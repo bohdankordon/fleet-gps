@@ -1,0 +1,10 @@
+[Unit]
+Description=Taxi GPS operational failure notification (%i)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/taxi-gps
+# %i is one of: monitor, backup-daily, backup-weekly, test. The bot token is
+# read from the explicit env file, never from argv.
+ExecStart=/bin/sh /opt/taxi-gps/ops/notify-host.sh %i .env.production
+# Deliberately NO OnFailure here: the notifier must never recurse into itself.
