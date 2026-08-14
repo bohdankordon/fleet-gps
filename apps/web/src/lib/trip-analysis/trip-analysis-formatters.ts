@@ -1,5 +1,6 @@
-const dateTime = new Intl.DateTimeFormat("uk-UA", { timeZone: "Europe/Kyiv", dateStyle: "short", timeStyle: "short" });
-export function formatTripAnalysisTime(value: string): string { return dateTime.format(new Date(value)); }
-export function formatTripAnalysisDuration(seconds: number): string { if (seconds < 60) return `${Math.round(seconds)} с`; const minutes = Math.round(seconds / 60); if (minutes < 60) return `${minutes} мин`; const hours = Math.floor(minutes / 60); const rest = minutes % 60; return rest === 0 ? `${hours} ч` : `${hours} ч ${rest} мин`; }
-export function formatObservedDistance(meters: number): string { return meters < 1_000 ? `${Math.round(meters)} м` : `${(meters / 1_000).toFixed(1)} км`; }
-
+import { translate } from "../../i18n/core";
+import { formatDateTime, formatNumber } from "../../i18n/formatting";
+import { DEFAULT_LOCALE, type AppLocale } from "../../i18n/locales";
+export function formatTripAnalysisTime(value: string, locale: AppLocale = DEFAULT_LOCALE): string { return formatDateTime(locale, value) ?? "—"; }
+export function formatTripAnalysisDuration(seconds: number, locale: AppLocale = DEFAULT_LOCALE): string { if (seconds < 60) return `${formatNumber(locale, Math.round(seconds))} ${translate(locale, "unit.secondShort")}`; const minutes = Math.round(seconds / 60); if (minutes < 60) return `${formatNumber(locale, minutes)} ${translate(locale, "unit.minuteShort")}`; const hours = Math.floor(minutes / 60); const rest = minutes % 60; return rest === 0 ? `${formatNumber(locale, hours)} ${translate(locale, "unit.hourShort")}` : `${formatNumber(locale, hours)} ${translate(locale, "unit.hourShort")} ${formatNumber(locale, rest)} ${translate(locale, "unit.minuteShort")}`; }
+export function formatObservedDistance(meters: number, locale: AppLocale = DEFAULT_LOCALE): string { return meters < 1_000 ? `${formatNumber(locale, Math.round(meters))} ${translate(locale, "unit.metre")}` : `${formatNumber(locale, meters / 1_000, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ${translate(locale, "unit.kilometre")}`; }

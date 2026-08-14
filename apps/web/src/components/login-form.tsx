@@ -35,7 +35,7 @@ export function LoginForm() {
       router.refresh();
     } else {
       if (passwordInput) passwordInput.value = "";
-      setError(result.kind === "invalid-credentials" ? "Неверный логин или пароль" : "Не удалось выполнить вход. Попробуйте ещё раз.");
+      setError(result.kind === "invalid-credentials" ? "INVALID_CREDENTIALS" : "UNAVAILABLE");
     }
     pending.current = false;
     setBusy(false);

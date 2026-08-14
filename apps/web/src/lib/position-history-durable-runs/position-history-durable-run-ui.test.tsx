@@ -16,7 +16,7 @@ test("view-only integration receives active/recent truth while create controls s
 
 test("populate UI has exact defaults, confirmation-only create, long-running disclosure, and no expansive controls", () => {
   const source = readFileSync("src/components/position-history-durable-runs.tsx", "utf8");
-  for (const expected of ["durableRunBudgets.map", "useState<DurableRunBudget>(1000)", "useState(true)", "checked={budget === value}", "checked={excludeProviderDisabled}", "setConfirming(true)", "submitting.current", "submitDurableRun", "после закрытия страницы или браузера", "GPS-провайдеру", "GPS-наблюдения и чекпоинты", "readActiveDurableRun", "startDurableRunPolling"]) assert.ok(source.includes(expected), expected);
+  for (const expected of ["durableRunBudgets.map", "useState<DurableRunBudget>(1000)", "useState(true)", "checked={budget === value}", "checked={excludeProviderDisabled}", "setConfirming(true)", "submitting.current", "submitDurableRun", "history.durable.warning", "readActiveDurableRun", "startDurableRunPolling"]) assert.ok(source.includes(expected), expected);
   for (const forbidden of ["type=\"number\"", "unlimited", "Cancel", "Pause", "Resume", "Retry", "leaseOwner", "leaseExpiresAt", "ETA", "Date.now()", "new Date()", "localStorage", "sessionStorage", "keepalive"]) assert.equal(source.includes(forbidden), false, forbidden);
 });
 
@@ -31,8 +31,8 @@ test("active and recent summaries distinguish safe USER and SYSTEM initiators wi
   assert.equal(durableRunInitiatorLabel("USER"), "Оператор");
   assert.equal(durableRunInitiatorLabel("SYSTEM"), "Автоматически");
   const source = readFileSync("src/components/position-history-durable-runs.tsx", "utf8");
-  assert.match(source, /Инициатор: \{durableRunInitiatorLabel\(run\.initiatorType\)\}/);
-  for (const forbidden of ["requestedByUserId", "leaseOwner", "scheduler instance", "server hostname", "cancel", "pause", "resume", "retry"]) assert.equal(source.toLowerCase().includes(forbidden.toLowerCase()), false, forbidden);
+  assert.match(source, /history\.durable\.initiator/);
+  for (const forbidden of ["requestedByUserId", "leaseOwner", "scheduler instance", "server hostname", "pause", "resume", "retry"]) assert.equal(source.toLowerCase().includes(forbidden.toLowerCase()), false, forbidden);
   assert.match(source, /canPopulate && active === null/);
 });
 

@@ -1,2 +1,3 @@
 import Link from "next/link";
-export function InitialVehicleDetailsError() { return <main><section className="empty" role="alert"><h1>Карточка автомобиля недоступна</h1><p>Не удалось получить данные автомобиля. Повторите попытку позже.</p><Link href="/">Вернуться к автопарку</Link></section></main>; }
+import { getServerI18n } from "../i18n/server";
+export async function InitialVehicleDetailsError() { const { t } = await getServerI18n(); return <main><section className="empty" role="alert"><h1>{t("vehicle.detailsUnavailableTitle")}</h1><p>{t("vehicle.detailsUnavailableText")}</p><Link href="/">{t("vehicle.backToFleet")}</Link></section></main>; }

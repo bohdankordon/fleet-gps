@@ -2,7 +2,6 @@ import { AUTH_PERMISSIONS, type AuthPermission } from "../auth/auth-contract";
 
 export type AdminManagedUser = Readonly<{ id: string; login: string; role: "ADMIN" | "USER"; disabled: boolean; mustChangePassword: boolean; permissions: readonly AuthPermission[]; createdAt: string; updatedAt: string }>;
 
-export const PERMISSION_LABELS: Readonly<Record<AuthPermission, string>> = Object.freeze({ "fleet.view": "Автопарк", "map.view": "Карта", "events.view": "События", "vehicles.view": "Машины", "trips.view": "Поездки", "reports.view": "Отчёты", "historyAdmin.view": "Просмотр истории GPS", "historyAdmin.populate": "Заполнение истории GPS" });
 const permissionDependencies = { "trips.view": Object.freeze(["vehicles.view"] as const), "historyAdmin.populate": Object.freeze(["historyAdmin.view"] as const) } satisfies Readonly<Partial<Record<AuthPermission, readonly AuthPermission[]>>>;
 export const PERMISSION_DEPENDENCIES: Readonly<Partial<Record<AuthPermission, readonly AuthPermission[]>>> = Object.freeze(permissionDependencies);
 

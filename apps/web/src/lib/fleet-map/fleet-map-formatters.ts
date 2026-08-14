@@ -1,14 +1,17 @@
-export function formatFleetMapAge(observedAt: string, generatedAt: string): string {
+import { translate } from "../../i18n/core";
+import { formatDateTime, formatNumber } from "../../i18n/formatting";
+import { DEFAULT_LOCALE, type AppLocale } from "../../i18n/locales";
+
+export function formatFleetMapAge(observedAt: string, generatedAt: string, locale: AppLocale = DEFAULT_LOCALE): string {
   const observed = Date.parse(observedAt); const generated = Date.parse(generatedAt);
-  if (!Number.isFinite(observed) || !Number.isFinite(generated) || observed > generated) return "время позиции уточняется";
+  if (!Number.isFinite(observed) || !Number.isFinite(generated) || observed > generated) return translate(locale, "format.age.unknown");
   const seconds = Math.floor((generated - observed) / 1_000);
-  if (seconds < 10) return "только что";
-  if (seconds < 60) return `${seconds} сек назад`;
-  const minutes = Math.floor(seconds / 60); if (minutes < 60) return `${minutes} мин назад`;
-  return `${Math.floor(minutes / 60)} ч назад`;
+  if (seconds < 10) return translate(locale, "format.age.justNow");
+  if (seconds < 60) return translate(locale, "format.age.secondsAgo", { count: formatNumber(locale, seconds) });
+  const minutes = Math.floor(seconds / 60); if (minutes < 60) return translate(locale, "format.age.minutesAgo", { count: formatNumber(locale, minutes) });
+  return translate(locale, "format.age.hoursAgo", { count: formatNumber(locale, Math.floor(minutes / 60)) });
 }
 
-export function formatFleetMapTimestamp(value: string): string {
-  const date = new Date(value); if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Kyiv", dateStyle: "short", timeStyle: "medium" }).format(date);
+export function formatFleetMapTimestamp(value: string, locale: AppLocale = DEFAULT_LOCALE): string {
+  return formatDateTime(locale, value, { dateStyle: "short", timeStyle: "medium" }) ?? "—";
 }

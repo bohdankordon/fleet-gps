@@ -20,6 +20,8 @@ import { activeAlertDetails } from "@/lib/open-alert-map/open-alert-map-formatte
 import { FLEET_MAP_SELECTED_LAYER_ID, FLEET_MAP_SOURCE_ID, FLEET_MAP_VEHICLE_LAYER_ID, ensureFleetAlertMapLayers } from "@/lib/open-alert-map/open-alert-map-layers";
 import { alertsForFleetVehicle, fleetAlertMapToGeoJson, joinFleetOpenAlerts } from "@/lib/open-alert-map/open-alert-map-model";
 import { abortCoordinatedMapRefresh, beginCoordinatedMapRefresh, initialCoordinatedMapRefreshState, settleCoordinatedMapRefresh, type MapRefreshResult } from "@/lib/open-alert-map/open-alert-map-refresh-state";
+import { useI18n } from "../i18n/client";
+import { formatNumber } from "../i18n/formatting";
 
 const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 const mapLibreWorkerBootstrapState: FleetMapWorkerBootstrapState = { configured: false };
@@ -45,10 +47,8 @@ function applyInitialCamera(map: MapLibreMap, snapshot: FleetMapResponse, geofen
   else map.jumpTo({ center: camera.center as [number, number], zoom: camera.zoom });
 }
 
-function freshnessLabel(value: "FRESH" | "STALE"): string { return value === "FRESH" ? "Свежая позиция" : "Устаревшая позиция"; }
-function formatSpeed(value: number | null): string { return value === null ? "—" : `${value.toFixed(1)} км/ч`; }
-
 export function FleetMapClient({ initialSnapshot, initialGeofence, initialGeofenceUnavailable, initialAlerts, initialAlertsUnavailable }: Props) {
+  const { locale, t } = useI18n();
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [alerts, setAlerts] = useState(initialAlerts);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -181,56 +181,59 @@ export function FleetMapClient({ initialSnapshot, initialGeofence, initialGeofen
 
   return <>
     <header className="hero">
-      <p className="eyebrow">Текущий snapshot автопарка</p>
-      <h1>Карта</h1>
-      <p>Позиции автомобилей из локального persisted состояния.</p>
-      <div className="metadata"><span>Сформировано: <strong>{formatFleetMapTimestamp(snapshot.generatedAt)}</strong></span><span>Порог свежести: <strong>{snapshot.positionFreshnessSeconds} сек</strong></span></div>
+      <p className="eyebrow">{t("map.eyebrow")}</p>
+      <h1>{t("map.title")}</h1>
+      <p>{t("map.description")}</p>
+      <div className="metadata"><span>{t("map.generated")} <strong>{formatFleetMapTimestamp(snapshot.generatedAt, locale)}</strong></span><span>{t("map.freshnessThreshold")} <strong>{formatNumber(locale, snapshot.positionFreshnessSeconds)} {t("unit.secondShort")}</strong></span></div>
     </header>
-    <section className="map-summary" aria-label="Сводка карты"><Summary snapshot={snapshot} /><button type="button" onClick={() => void refresh()} disabled={refreshing}>{refreshing ? "Обновление…" : "Обновить"}</button></section>
+    <section className="map-summary" aria-label={t("map.summary.label")}><Summary snapshot={snapshot} /><button type="button" onClick={() => void refresh()} disabled={refreshing}>{refreshing ? t("common.refreshing") : t("common.refresh")}</button></section>
     {alerts && <AlertSummary model={model} />}
-    <div className="map-legend" aria-label="Легенда">
-      <span><i className="map-dot map-dot-fresh" />Свежая позиция</span>
-      <span><i className="map-dot map-dot-stale" />Устаревшая позиция</span>
-      <span><i className="map-alert-ring map-alert-ring-speeding" />Превышение скорости</span>
-      <span><i className="map-alert-ring map-alert-ring-inactivity" />Неактивность</span>
-      <span><i className="map-boundary-line" />Граница города</span>
+    <div className="map-legend" aria-label={t("map.legend.label")}>
+      <span><i className="map-dot map-dot-fresh" />{t("map.legend.fresh")}</span>
+      <span><i className="map-dot map-dot-stale" />{t("map.legend.stale")}</span>
+      <span><i className="map-alert-ring map-alert-ring-speeding" />{t("events.type.SPEEDING")}</span>
+      <span><i className="map-alert-ring map-alert-ring-inactivity" />{t("events.type.INACTIVITY")}</span>
+      <span><i className="map-boundary-line" />{t("map.legend.cityBoundary")}</span>
     </div>
-    <p className="map-alert-position-note">Индикатор активного события показан у текущей позиции автомобиля, а не в месте возникновения события.</p>
-    {initialGeofenceUnavailable && <p className="map-geofence-status" role="alert" data-city-geofence-state="unavailable">Граница города недоступна</p>}
-    {!initialGeofenceUnavailable && !initialGeofence?.configured && <p className="map-geofence-status" data-city-geofence-state="unconfigured">Граница города не настроена</p>}
-    {initialGeofence?.configured && <span className="sr-only" data-city-geofence-state="configured">Граница города настроена</span>}
-    {refreshing && <p className="refresh" aria-live="polite">Обновление данных карты…</p>}
-    {refreshError && <section className="notice" role="alert"><span>⚠</span><div><strong>Не удалось обновить карту</strong><span>Показан последний успешный fleet snapshot.</span></div></section>}
-    {alertError && <section className="notice" role="alert"><span>⚠</span><div><strong>Активные события недоступны</strong><span>{alerts ? "Показано последнее успешное состояние событий." : "Карта автомобилей продолжает работать."}</span></div></section>}
-    {styleError && <section className="notice" role="alert"><span>⚠</span><div><strong>Не удалось загрузить базовую карту</strong><span>Данные автопарка доступны, повторите попытку позже.</span></div></section>}
-    <section className="map-shell" aria-label="Интерактивная карта автопарка"><div ref={containerRef} className="fleet-map-canvas" data-fleet-map-container="true" />{snapshot.summary.withPosition === 0 && <div className="map-empty">Нет автомобилей с доступной позицией.</div>}</section>
+    <p className="map-alert-position-note">{t("map.alertPositionNote")}</p>
+    {initialGeofenceUnavailable && <p className="map-geofence-status" role="alert" data-city-geofence-state="unavailable">{t("map.geofence.unavailable")}</p>}
+    {!initialGeofenceUnavailable && !initialGeofence?.configured && <p className="map-geofence-status" data-city-geofence-state="unconfigured">{t("map.geofence.unconfigured")}</p>}
+    {initialGeofence?.configured && <span className="sr-only" data-city-geofence-state="configured">{t("map.geofence.configured")}</span>}
+    {refreshing && <p className="refresh" aria-live="polite">{t("map.refreshing")}</p>}
+    {refreshError && <section className="notice" role="alert"><span>⚠</span><div><strong>{t("map.refreshError")}</strong><span>{t("map.refreshFallback")}</span></div></section>}
+    {alertError && <section className="notice" role="alert"><span>⚠</span><div><strong>{t("map.alertsUnavailable")}</strong><span>{alerts ? t("map.alertsLastState") : t("map.alertsMapContinues")}</span></div></section>}
+    {styleError && <section className="notice" role="alert"><span>⚠</span><div><strong>{t("map.basemapError")}</strong><span>{t("map.basemapFallback")}</span></div></section>}
+    <section className="map-shell" aria-label={t("map.interactiveLabel")}><div ref={containerRef} className="fleet-map-canvas" data-fleet-map-container="true" />{snapshot.summary.withPosition === 0 && <div className="map-empty">{t("map.noPositions")}</div>}</section>
     <SelectedVehicle vehicle={selected} alerts={selectedAlerts} generatedAt={snapshot.generatedAt} />
   </>;
 }
 
 function Summary({ snapshot }: Readonly<{ snapshot: FleetMapResponse }>) {
-  const values = [["Всего автомобилей", snapshot.summary.totalVehicles], ["На карте", snapshot.summary.withPosition], ["Свежие", snapshot.summary.fresh], ["Устаревшие", snapshot.summary.stale], ["Без позиции", snapshot.summary.withoutPosition]] as const;
-  return <>{values.map(([label, value]) => <article className="map-summary-card" key={label}><span>{label}</span><strong>{value}</strong></article>)}{snapshot.summary.invalidPosition > 0 && <p className="map-warning">Некорректных позиций: {snapshot.summary.invalidPosition}</p>}</>;
+  const { t } = useI18n();
+  const values = [[t("map.summary.total"), snapshot.summary.totalVehicles], [t("map.summary.onMap"), snapshot.summary.withPosition], [t("map.summary.fresh"), snapshot.summary.fresh], [t("map.summary.stale"), snapshot.summary.stale], [t("map.summary.withoutPosition"), snapshot.summary.withoutPosition]] as const;
+  return <>{values.map(([label, value]) => <article className="map-summary-card" key={label}><span>{label}</span><strong>{value}</strong></article>)}{snapshot.summary.invalidPosition > 0 && <p className="map-warning">{t("map.summary.invalidPositions", { count: snapshot.summary.invalidPosition })}</p>}</>;
 }
 
 function AlertSummary({ model }: Readonly<{ model: ReturnType<typeof joinFleetOpenAlerts> }>) {
-  return <section className="map-alert-summary" aria-label="Сводка активных событий" data-open-alert-summary="true">
-    <span>Активных событий: <strong>{model.summary.totalOpenAlerts}</strong></span>
-    <span>Машин с событиями: <strong>{model.summary.vehiclesWithOpenAlerts}</strong></span>
-    <span>Превышение скорости: <strong>{model.summary.speeding}</strong></span>
-    <span>Неактивность: <strong>{model.summary.inactivity}</strong></span>
-    <span>Видно на карте: <strong>{model.summary.visibleVehiclesWithOpenAlerts}</strong></span>
-    <span>Без позиции: <strong>{model.summary.vehiclesWithoutMapPosition}</strong></span>
+  const { t } = useI18n();
+  return <section className="map-alert-summary" aria-label={t("map.alertSummary.label")} data-open-alert-summary="true">
+    <span>{t("map.alertSummary.total")} <strong>{model.summary.totalOpenAlerts}</strong></span>
+    <span>{t("map.alertSummary.vehicles")} <strong>{model.summary.vehiclesWithOpenAlerts}</strong></span>
+    <span>{t("events.type.SPEEDING")}: <strong>{model.summary.speeding}</strong></span>
+    <span>{t("events.type.INACTIVITY")}: <strong>{model.summary.inactivity}</strong></span>
+    <span>{t("map.alertSummary.visible")} <strong>{model.summary.visibleVehiclesWithOpenAlerts}</strong></span>
+    <span>{t("map.alertSummary.withoutPosition")} <strong>{model.summary.vehiclesWithoutMapPosition}</strong></span>
   </section>;
 }
 
 function SelectedVehicle({ vehicle, alerts, generatedAt }: Readonly<{ vehicle: FleetMapVehicle | null; alerts: readonly OpenAlertMapAlert[]; generatedAt: string }>) {
+  const { locale, t } = useI18n();
   const auth = useAuth(); const canOpenVehicle = auth !== null && hasPermission(auth, "vehicles.view"); const canOpenEvents = auth !== null && hasPermission(auth, "events.view");
-  if (!vehicle) return <section className="map-details" aria-live="polite"><h2>Автомобиль не выбран</h2><p>Выберите точку на карте, чтобы увидеть её состояние.</p></section>;
-  const active = activeAlertDetails(alerts);
+  if (!vehicle) return <section className="map-details" aria-live="polite"><h2>{t("map.vehicleNotSelected")}</h2><p>{t("map.selectVehicle")}</p></section>;
+  const active = activeAlertDetails(alerts, locale);
   return <section className="map-details" aria-live="polite">
     <h2>{vehicle.vehicle.name}</h2>
-    <dl><div><dt>Состояние</dt><dd>{freshnessLabel(vehicle.freshness)}</dd></div><div><dt>Скорость</dt><dd>{formatSpeed(vehicle.speedKph)}</dd></div><div><dt>Время позиции</dt><dd>{formatFleetMapTimestamp(vehicle.position.observedAt)}</dd></div><div><dt>Возраст</dt><dd>{formatFleetMapAge(vehicle.position.observedAt, generatedAt)}</dd></div></dl>
-    <div className="map-active-alerts"><h3>Активные события</h3>{active.length === 0 ? <p>Нет</p> : <ul>{active.map((alert) => <li key={alert.type}><strong>{alert.label}</strong><span>Открыто: {formatFleetMapTimestamp(alert.openedAt)}</span></li>)}</ul>}<div className="map-details-links">{canOpenVehicle && <Link href={`/vehicles/${vehicle.vehicle.id}`}>Открыть карточку</Link>}{canOpenEvents && <Link href="/events?status=OPEN">Открыть события</Link>}</div></div>
+    <dl><div><dt>{t("map.vehicle.state")}</dt><dd>{t(`map.freshness.${vehicle.freshness}`)}</dd></div><div><dt>{t("map.vehicle.speed")}</dt><dd>{vehicle.speedKph === null ? "—" : `${formatNumber(locale, vehicle.speedKph, { maximumFractionDigits: 1 })} ${t("unit.kilometresPerHour")}`}</dd></div><div><dt>{t("map.vehicle.positionTime")}</dt><dd>{formatFleetMapTimestamp(vehicle.position.observedAt, locale)}</dd></div><div><dt>{t("map.vehicle.age")}</dt><dd>{formatFleetMapAge(vehicle.position.observedAt, generatedAt, locale)}</dd></div></dl>
+    <div className="map-active-alerts"><h3>{t("map.vehicle.activeEvents")}</h3>{active.length === 0 ? <p>{t("common.no")}</p> : <ul>{active.map((alert) => <li key={alert.type}><strong>{alert.label}</strong><span>{t("map.vehicle.opened")} {formatFleetMapTimestamp(alert.openedAt, locale)}</span></li>)}</ul>}<div className="map-details-links">{canOpenVehicle && <Link href={`/vehicles/${vehicle.vehicle.id}`}>{t("map.vehicle.openCard")}</Link>}{canOpenEvents && <Link href="/events?status=OPEN">{t("map.vehicle.openEvents")}</Link>}</div></div>
   </section>;
 }

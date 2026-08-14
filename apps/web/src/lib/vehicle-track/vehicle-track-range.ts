@@ -2,11 +2,11 @@ export const VEHICLE_TRACK_DEFAULT_HOURS = 6;
 export const VEHICLE_TRACK_EXACT_MAX_RANGE_MS = 24 * 60 * 60 * 1_000;
 export const VEHICLE_TRACK_MAX_RANGE_MS = 7 * 24 * 60 * 60 * 1_000;
 export const VEHICLE_TRACK_PRESETS = Object.freeze([
-  { hours: 1, label: "Последний час" },
-  { hours: 6, label: "6 часов" },
-  { hours: 24, label: "24 часа" },
-  { hours: 72, label: "3 дня" },
-  { hours: 168, label: "7 дней" },
+  { hours: 1, messageKey: "track.preset.lastHour" },
+  { hours: 6, messageKey: "track.preset.hours6" },
+  { hours: 24, messageKey: "track.preset.hours24" },
+  { hours: 72, messageKey: "track.preset.days3" },
+  { hours: 168, messageKey: "track.preset.days7" },
 ] as const);
 
 export type VehicleTrackRange = Readonly<{ from: string; to: string }>;

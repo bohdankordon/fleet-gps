@@ -14,7 +14,7 @@ test("view-only status remains visible without the protected execution block", (
 
 test("populate UI source has exact defaults, confirmation gate, pending guard, safe result and no expansive controls", () => {
   const source = readFileSync("src/components/position-history-population.tsx", "utf8");
-  for (const expected of ["Дозаполнение истории", "useState<Budget>(24)", "useState(true)", "setConfirming(true)", "Подтвердите запуск", "Контрольная точка", "GPS-провайдером", "GPS-наблюдения и чекпоинты", "Отмена", "Запустить", "if (pendingRequest.current) return", "pendingRequest.current = true", "disabled={pending}", "Дозаполнение истории уже выполняется", "Часть работы могла быть сохранена", "Дозаполнение завершено", "Обработано окон", "Rate limits", "router.refresh()"] ) assert.ok(source.includes(expected), expected);
+  for (const expected of ["history.population.title", "useState<Budget>(24)", "useState(true)", "setConfirming(true)", "history.population.confirmTitle", "history.population.checkpoint", "history.population.warning", "common.cancel", "history.population.start", "if (pendingRequest.current) return", "pendingRequest.current = true", "disabled={pending}", "history.population.already", "history.population.failed", "history.population.result", "history.population.processed", "history.population.rateLimits", "router.refresh()"] ) assert.ok(source.includes(expected), expected);
   assert.match(source, /\(\[6, 12, 24\] as const\)/); assert.match(source, /to: anchor, maxWindows, excludeProviderDisabled/);
   for (const forbidden of ["500, 1000", "unlimited", "Без лимита", "Pause", "Resume", "Приостановить", "Возобновить", "Удалить", "Очистить", "setInterval", "useEffect"]) assert.equal(source.includes(forbidden), false, forbidden);
 });

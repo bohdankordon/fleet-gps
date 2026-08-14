@@ -4,7 +4,7 @@ import { parseVehicleTrackRange, type VehicleTrackRange } from "../vehicle-track
 
 export type TripAnalysisPreset = "TODAY" | "YESTERDAY" | "LAST_24_HOURS" | "LAST_7_DAYS";
 export type InitialTripAnalysisRange = Readonly<{ range: VehicleTrackRange; restoredFromUrl: boolean }>;
-export const TRIP_ANALYSIS_PRESETS = Object.freeze([{ key: "TODAY", label: "Сегодня" }, { key: "YESTERDAY", label: "Вчера" }, { key: "LAST_24_HOURS", label: "Последние 24 часа" }, { key: "LAST_7_DAYS", label: "Последние 7 дней" }] as const);
+export const TRIP_ANALYSIS_PRESETS = Object.freeze([{ key: "TODAY", messageKey: "trips.preset.today" }, { key: "YESTERDAY", messageKey: "trips.preset.yesterday" }, { key: "LAST_24_HOURS", messageKey: "trips.preset.last24" }, { key: "LAST_7_DAYS", messageKey: "trips.preset.last7" }] as const);
 
 export function createTripAnalysisPresetRange(preset: TripAnalysisPreset, now: Date): VehicleTrackRange | null {
   if (!Number.isFinite(now.getTime())) return null;

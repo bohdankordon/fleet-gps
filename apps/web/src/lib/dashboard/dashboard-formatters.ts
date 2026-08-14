@@ -1,10 +1,13 @@
 import type { DashboardVehiclesResponse } from "./dashboard-contract";
+import { translate } from "../../i18n/core";
+import { formatDateTime, formatNumber } from "../../i18n/formatting";
+import { DEFAULT_LOCALE, DISPLAY_TIMEZONE, type AppLocale } from "../../i18n/locales";
 
-export function formatDistance(value: number | null): string { return value === null ? "Нет данных" : `${(value / 1_000).toLocaleString("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 1 })} км`; }
-export function formatSpeed(value: number | null): string { return value === null ? "Нет данных" : `${value.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} км/ч`; }
-export function formatTimestamp(value: string | null, timezone: string): string { if (value === null) return "Нет данных"; try { return new Intl.DateTimeFormat("ru-RU", { timeZone: timezone, dateStyle: "short", timeStyle: "short" }).format(new Date(value)); } catch { return "Нет данных"; } }
-export function formatGeneratedAt(value: string | null, timezone: string): string { return formatTimestamp(value, timezone); }
-export function statusLabel(value: DashboardVehiclesResponse["vehicles"][number]["status"]): string { return ({ online: "Онлайн", offline: "Офлайн", unknown: "Неизвестно" })[value]; }
-export function sourceLabel(value: DashboardVehiclesResponse["vehicles"][number]["dailyDistanceSource"]): string { return value === null ? "Нет данных" : ({ runs: "Быстрые данные", mode1: "Детальный отчёт", historical_positions: "Исторические позиции" })[value]; }
-export function qualityLabel(value: DashboardVehiclesResponse["vehicles"][number]["dailyDistanceQuality"]): string { return value === null ? "Нет данных" : ({ exact: "Точно", provisional: "Предварительно", estimated: "Оценка" })[value]; }
-export function freshnessLabel(value: DashboardVehiclesResponse["vehicles"][number]["positionFreshness"]): string { return ({ fresh: "Свежая", stale: "Устарела", missing: "Нет позиции", future: "Время впереди" })[value]; }
+export function formatDistance(value: number | null, locale: AppLocale = DEFAULT_LOCALE): string { return value === null ? translate(locale, "common.noData") : `${formatNumber(locale, value / 1_000, { minimumFractionDigits: 0, maximumFractionDigits: 1 })} ${translate(locale, "unit.kilometre")}`; }
+export function formatSpeed(value: number | null, locale: AppLocale = DEFAULT_LOCALE): string { return value === null ? translate(locale, "common.noData") : `${formatNumber(locale, value, { maximumFractionDigits: 1 })} ${translate(locale, "unit.kilometresPerHour")}`; }
+export function formatTimestamp(value: string | null, timezone: string, locale: AppLocale = DEFAULT_LOCALE): string { return timezone === DISPLAY_TIMEZONE ? (formatDateTime(locale, value) ?? translate(locale, "common.noData")) : translate(locale, "common.noData"); }
+export function formatGeneratedAt(value: string | null, timezone: string, locale: AppLocale = DEFAULT_LOCALE): string { return formatTimestamp(value, timezone, locale); }
+export function statusLabel(value: DashboardVehiclesResponse["vehicles"][number]["status"], locale: AppLocale = DEFAULT_LOCALE): string { return translate(locale, `dashboard.status.${value}`); }
+export function sourceLabel(value: DashboardVehiclesResponse["vehicles"][number]["dailyDistanceSource"], locale: AppLocale = DEFAULT_LOCALE): string { return value === null ? translate(locale, "common.noData") : translate(locale, `dashboard.format.source.${value}`); }
+export function qualityLabel(value: DashboardVehiclesResponse["vehicles"][number]["dailyDistanceQuality"], locale: AppLocale = DEFAULT_LOCALE): string { return value === null ? translate(locale, "common.noData") : translate(locale, `dashboard.format.quality.${value}`); }
+export function freshnessLabel(value: DashboardVehiclesResponse["vehicles"][number]["positionFreshness"], locale: AppLocale = DEFAULT_LOCALE): string { return translate(locale, `dashboard.format.freshness.${value}`); }

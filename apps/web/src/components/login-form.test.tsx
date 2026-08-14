@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { LoginFormView } from "./login-form-view";
+import { createTranslator } from "../i18n/core";
 
 function render(error: Parameters<typeof LoginFormView>[0]["error"] = null): string {
   return renderToStaticMarkup(<LoginFormView busy={false} error={error} onSubmit={() => undefined} />);
@@ -29,9 +30,11 @@ test("login inputs expose the approved autocomplete hints", () => {
 });
 
 test("login form renders only safe inline errors", () => {
-  for (const message of ["Введите логин", "Логин должен содержать 3–64 символа: латинские буквы, цифры, точку, дефис или подчёркивание", "Введите пароль", "Неверный логин или пароль", "Не удалось выполнить вход. Попробуйте ещё раз."] as const) {
-    const html = render(message);
+  const t = createTranslator("ru");
+  const cases = [["LOGIN_REQUIRED", "auth.login.loginRequired"], ["LOGIN_INVALID", "auth.login.loginInvalid"], ["PASSWORD_REQUIRED", "auth.login.passwordRequired"], ["INVALID_CREDENTIALS", "auth.login.invalidCredentials"], ["UNAVAILABLE", "auth.login.unavailable"]] as const;
+  for (const [code, key] of cases) {
+    const html = render(code);
     assert.match(html, /role="alert"/);
-    assert.ok(html.includes(message));
+    assert.ok(html.includes(t(key)));
   }
 });

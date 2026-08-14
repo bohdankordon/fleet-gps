@@ -5,9 +5,9 @@ import { attemptLogin, validateLoginForm } from "./login-form-core";
 const safeUser = { id: "user-id", login: "operator", role: "ADMIN", permissions: [], mustChangePassword: false } as const;
 
 test("validation distinguishes local form mistakes without validating login-time password policy", () => {
-  assert.equal(validateLoginForm("", "present"), "Введите логин");
-  for (const login of ["ab", "bad login", "кириллица"]) assert.match(validateLoginForm(login, "present") ?? "", /^Логин должен содержать/);
-  assert.equal(validateLoginForm("operator", ""), "Введите пароль");
+  assert.equal(validateLoginForm("", "present"), "LOGIN_REQUIRED");
+  for (const login of ["ab", "bad login", "кириллица"]) assert.equal(validateLoginForm(login, "present"), "LOGIN_INVALID");
+  assert.equal(validateLoginForm("operator", ""), "PASSWORD_REQUIRED");
   assert.equal(validateLoginForm("operator", "x"), null);
 });
 

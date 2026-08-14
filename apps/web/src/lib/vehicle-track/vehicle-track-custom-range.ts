@@ -1,5 +1,7 @@
 import { DateTime } from "luxon";
 import { parseVehicleTrackRange, type VehicleTrackRange } from "./vehicle-track-range";
+import { translate } from "../../i18n/core";
+import { DEFAULT_LOCALE, type AppLocale } from "../../i18n/locales";
 
 export const VEHICLE_TRACK_INPUT_TIMEZONE = "Europe/Kyiv";
 export type VehicleTrackDraftRange = Readonly<{ from: string; to: string }>;
@@ -38,12 +40,12 @@ export function parseVehicleTrackCustomRange(draft: VehicleTrackDraftRange): Veh
   return Object.freeze({ range: null, error: toMs <= fromMs ? "ORDER" : "TOO_LONG" });
 }
 
-export function vehicleTrackCustomRangeErrorCopy(error: VehicleTrackCustomRangeError | null): string | null {
-  if (error === "REQUIRED") return "Заполните обе границы периода.";
-  if (error === "INVALID") return "Укажите существующие дату и время.";
-  if (error === "NONEXISTENT") return "Такого местного времени нет из-за перехода на летнее время.";
-  if (error === "AMBIGUOUS") return "Это местное время встречается дважды из-за перевода часов. Выберите другое время.";
-  if (error === "ORDER") return "Время «С» должно быть раньше времени «До».";
-  if (error === "TOO_LONG") return "Максимальный период — 7 дней.";
+export function vehicleTrackCustomRangeErrorCopy(error: VehicleTrackCustomRangeError | null, locale: AppLocale = DEFAULT_LOCALE): string | null {
+  if (error === "REQUIRED") return translate(locale, "track.rangeError.required");
+  if (error === "INVALID") return translate(locale, "track.rangeError.invalid");
+  if (error === "NONEXISTENT") return translate(locale, "track.rangeError.nonexistent");
+  if (error === "AMBIGUOUS") return translate(locale, "track.rangeError.ambiguous");
+  if (error === "ORDER") return translate(locale, "track.rangeError.order");
+  if (error === "TOO_LONG") return translate(locale, "track.rangeError.tooLong");
   return null;
 }

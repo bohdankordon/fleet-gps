@@ -2,13 +2,13 @@ import { AuthUser, parseAuthUser } from "./auth-contract";
 
 export const LOGIN_ACTION = "/api/auth/login";
 export const LOGIN_PATTERN = /^[A-Za-z0-9._-]{3,64}$/;
-export type LoginFormError = "Введите логин" | "Логин должен содержать 3–64 символа: латинские буквы, цифры, точку, дефис или подчёркивание" | "Введите пароль" | "Неверный логин или пароль" | "Не удалось выполнить вход. Попробуйте ещё раз.";
+export type LoginFormError = "LOGIN_REQUIRED" | "LOGIN_INVALID" | "PASSWORD_REQUIRED" | "INVALID_CREDENTIALS" | "UNAVAILABLE";
 export type LoginAttemptResult = Readonly<{ kind: "success"; user: AuthUser }> | Readonly<{ kind: "invalid-credentials" }> | Readonly<{ kind: "unavailable" }>;
 
 export function validateLoginForm(login: string, password: string): LoginFormError | null {
-  if (login.length === 0) return "Введите логин";
-  if (!LOGIN_PATTERN.test(login)) return "Логин должен содержать 3–64 символа: латинские буквы, цифры, точку, дефис или подчёркивание";
-  if (password.length === 0) return "Введите пароль";
+  if (login.length === 0) return "LOGIN_REQUIRED";
+  if (!LOGIN_PATTERN.test(login)) return "LOGIN_INVALID";
+  if (password.length === 0) return "PASSWORD_REQUIRED";
   return null;
 }
 

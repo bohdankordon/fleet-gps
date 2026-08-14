@@ -12,7 +12,7 @@ test("renders newest-first typed content, USER/SYSTEM actors, and all 11 Russian
   assert.equal(html.includes("operator"), true);
   assert.equal(html.includes("Система"), true);
   assert.equal(html.indexOf(AUDIT_EVENT_LABELS.USER_CREATED) < html.indexOf(AUDIT_EVENT_LABELS.AUTOMATIC_RETENTION_EXECUTED), true);
-  for (const expected of ["Роль: USER", "Права до:", "Зафиксировано окон: 6", "Удалено GPS-наблюдений: 2"]) assert.equal(html.includes(expected), true, expected);
+  for (const expected of ["Роль: Пользователь", "Права до:", "Зафиксировано окон: 6", "Удалено GPS-наблюдений: 2"]) assert.equal(html.includes(expected), true, expected);
 });
 
 test("unavailable details render only safe fallback and never a JSON or secret dump", () => {

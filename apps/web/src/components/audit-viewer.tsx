@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AUDIT_ACTOR_TYPES, AUDIT_EVENT_TYPES, AUDIT_TARGET_TYPES, parseAuditReadResponse, type AuditReadItem } from "../lib/audit/audit-contract";
 import { normalizeAuditFilters, serializeAuditRequestQuery, type AuditFilters } from "../lib/audit/audit-query";
-import { AUDIT_EVENT_LABELS, AUDIT_TARGET_LABELS, auditActorLabel, auditDetailsLines, auditTargetLabel, formatAuditTimestamp } from "../lib/audit/audit-ui-model";
+import { auditActorLabel, auditDetailsLines, auditEventLabel, auditTargetLabel, auditTargetTypeLabel, formatAuditTimestamp } from "../lib/audit/audit-ui-model";
 import { beginAuditFirstPage, beginAuditLoadMore, canLoadMoreAudit, failAuditFirstPage, failAuditLoadMore, initialAuditViewerState, succeedAuditFirstPage, succeedAuditLoadMore } from "../lib/audit/audit-viewer-state";
+import { useI18n } from "../i18n/client";
 
 type DraftFilters = { eventType: string; actorType: string; targetType: string; from: string; to: string };
 const emptyDraft = (): DraftFilters => ({ eventType: "", actorType: "", targetType: "", from: "", to: "" });
@@ -18,10 +19,12 @@ async function requestAudit(query: string, signal: AbortSignal): Promise<ReturnT
 }
 
 export function AuditEventTable({ items }: Readonly<{ items: readonly AuditReadItem[] }>) {
-  return <div className="audit-table"><table><thead><tr><th>Время</th><th>Событие</th><th>Инициатор</th><th>Цель</th><th>Описание</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><time dateTime={item.createdAt}>{formatAuditTimestamp(item.createdAt)}</time></td><td>{AUDIT_EVENT_LABELS[item.eventType]}</td><td>{auditActorLabel(item)}</td><td>{auditTargetLabel(item)}</td><td><ul className="audit-details">{auditDetailsLines(item).map((line) => <li key={line}>{line}</li>)}</ul></td></tr>)}</tbody></table></div>;
+  const { locale, t } = useI18n();
+  return <div className="audit-table"><table><thead><tr><th>{t("audit.table.time")}</th><th>{t("audit.table.event")}</th><th>{t("audit.table.actor")}</th><th>{t("audit.table.target")}</th><th>{t("audit.table.description")}</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><time dateTime={item.createdAt}>{formatAuditTimestamp(item.createdAt, locale)}</time></td><td>{auditEventLabel(item.eventType, locale)}</td><td>{auditActorLabel(item, locale)}</td><td>{auditTargetLabel(item, locale)}</td><td><ul className="audit-details">{auditDetailsLines(item, locale).map((line) => <li key={line}>{line}</li>)}</ul></td></tr>)}</tbody></table></div>;
 }
 
 export function AuditViewer() {
+  const { locale, t } = useI18n();
   const [state, setState] = useState(initialAuditViewerState);
   const [draft, setDraft] = useState<DraftFilters>(emptyDraft);
   const [filterError, setFilterError] = useState(false);
@@ -66,19 +69,19 @@ export function AuditViewer() {
   };
 
   return <>
-    <header className="hero"><p className="eyebrow">Администрирование</p><h1>Аудит</h1><p>Неизменяемая история административных и событий безопасности.</p></header>
-    <form className="audit-filters" onSubmit={apply} aria-label="Фильтры аудита">
-      <label>Тип события<select value={draft.eventType} onChange={(event) => setDraft((current) => ({ ...current, eventType: event.target.value }))}><option value="">Все</option>{AUDIT_EVENT_TYPES.map((value) => <option key={value} value={value}>{AUDIT_EVENT_LABELS[value]}</option>)}</select></label>
-      <label>Инициатор<select value={draft.actorType} onChange={(event) => setDraft((current) => ({ ...current, actorType: event.target.value }))}><option value="">Все</option>{AUDIT_ACTOR_TYPES.map((value) => <option key={value} value={value}>{value === "USER" ? "Пользователь" : "Система"}</option>)}</select></label>
-      <label>Тип цели<select value={draft.targetType} onChange={(event) => setDraft((current) => ({ ...current, targetType: event.target.value }))}><option value="">Все</option>{AUDIT_TARGET_TYPES.map((value) => <option key={value} value={value}>{AUDIT_TARGET_LABELS[value]}</option>)}</select></label>
-      <label>С<input type="text" inputMode="text" placeholder="2026-08-11T02:00:00.000Z" value={draft.from} onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))} /></label>
-      <label>По<input type="text" inputMode="text" placeholder="2026-08-12T02:00:00.000Z" value={draft.to} onChange={(event) => setDraft((current) => ({ ...current, to: event.target.value }))} /></label>
-      <div className="audit-filter-actions"><button type="submit" disabled={state.loading}>Применить</button><button type="button" className="secondary-button" onClick={reset} disabled={state.loading}>Сбросить</button><button type="button" onClick={() => void loadFirst(state.filters)} disabled={state.loading}>Обновить</button></div>
+    <header className="hero"><p className="eyebrow">{t("common.administration")}</p><h1>{t("audit.title")}</h1><p>{t("audit.description")}</p></header>
+    <form className="audit-filters" onSubmit={apply} aria-label={t("audit.filters.label")}>
+      <label>{t("audit.filters.eventType")}<select value={draft.eventType} onChange={(event) => setDraft((current) => ({ ...current, eventType: event.target.value }))}><option value="">{t("common.all")}</option>{AUDIT_EVENT_TYPES.map((value) => <option key={value} value={value}>{auditEventLabel(value, locale)}</option>)}</select></label>
+      <label>{t("audit.filters.actor")}<select value={draft.actorType} onChange={(event) => setDraft((current) => ({ ...current, actorType: event.target.value }))}><option value="">{t("common.all")}</option>{AUDIT_ACTOR_TYPES.map((value) => <option key={value} value={value}>{value === "USER" ? t("audit.actor.user") : t("audit.actor.system")}</option>)}</select></label>
+      <label>{t("audit.filters.targetType")}<select value={draft.targetType} onChange={(event) => setDraft((current) => ({ ...current, targetType: event.target.value }))}><option value="">{t("common.all")}</option>{AUDIT_TARGET_TYPES.map((value) => <option key={value} value={value}>{auditTargetTypeLabel(value, locale)}</option>)}</select></label>
+      <label>{t("audit.filters.from")}<input type="text" inputMode="text" placeholder="2026-08-11T02:00:00.000Z" value={draft.from} onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))} /></label>
+      <label>{t("audit.filters.to")}<input type="text" inputMode="text" placeholder="2026-08-12T02:00:00.000Z" value={draft.to} onChange={(event) => setDraft((current) => ({ ...current, to: event.target.value }))} /></label>
+      <div className="audit-filter-actions"><button type="submit" disabled={state.loading}>{t("audit.filters.apply")}</button><button type="button" className="secondary-button" onClick={reset} disabled={state.loading}>{t("audit.filters.reset")}</button><button type="button" onClick={() => void loadFirst(state.filters)} disabled={state.loading}>{t("common.refresh")}</button></div>
     </form>
-    {filterError && <p className="admin-error" role="alert">Укажите абсолютные даты со смещением часового пояса; начало не должно быть позже окончания.</p>}
-    {state.error && <section className="notice" role="alert"><span>⚠</span><div><strong>{state.error === "more" ? "Не удалось загрузить следующую страницу аудита." : "Не удалось загрузить аудит."}</strong><button type="button" onClick={() => state.error === "more" ? void loadMore() : void loadFirst(state.filters)}>Повторить</button></div></section>}
-    {(state.loading || state.moreLoading) && <p className="refresh" aria-live="polite">{state.moreLoading ? "Загрузка следующих событий…" : "Обновление аудита…"}</p>}
-    {!state.loading && state.data.items.length === 0 ? <section className="empty"><h2>События аудита не найдены.</h2><p>Измените фильтры или обновите список.</p></section> : <AuditEventTable items={state.data.items} />}
-    {canLoadMoreAudit(state) && <div className="load-more"><button type="button" onClick={() => void loadMore()} disabled={state.moreLoading}>{state.moreLoading ? "Загрузка…" : "Показать ещё"}</button></div>}
+    {filterError && <p className="admin-error" role="alert">{t("audit.filters.invalid")}</p>}
+    {state.error && <section className="notice" role="alert"><span>⚠</span><div><strong>{state.error === "more" ? t("audit.loadMoreError") : t("audit.loadError")}</strong><button type="button" onClick={() => state.error === "more" ? void loadMore() : void loadFirst(state.filters)}>{t("common.retry")}</button></div></section>}
+    {(state.loading || state.moreLoading) && <p className="refresh" aria-live="polite">{state.moreLoading ? t("audit.loadingMore") : t("audit.loading")}</p>}
+    {!state.loading && state.data.items.length === 0 ? <section className="empty"><h2>{t("audit.emptyTitle")}</h2><p>{t("audit.emptyText")}</p></section> : <AuditEventTable items={state.data.items} />}
+    {canLoadMoreAudit(state) && <div className="load-more"><button type="button" onClick={() => void loadMore()} disabled={state.moreLoading}>{state.moreLoading ? t("common.loading") : t("audit.loadMore")}</button></div>}
   </>;
 }
