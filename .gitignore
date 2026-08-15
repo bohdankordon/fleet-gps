@@ -19,6 +19,7 @@ logs/
 *.log
 *.har
 private/
+.dev-runtime/
 
 .vscode/
 .idea/
