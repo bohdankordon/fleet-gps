@@ -9,8 +9,8 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = $PSScriptRoot
 $RuntimeDirectory = Join-Path $RepoRoot '.dev-runtime'
-$ApiPort = 3001
-$WebPort = 3000
+$ApiPort = 3000
+$WebPort = 3001
 $PostgresService = 'postgres'
 
 $ProcessSettings = @{
@@ -101,7 +101,7 @@ function Assert-PortAvailable {
         [Parameter(Mandatory = $true)][int]$Port
     )
 
-    $listeners = Get-PortListeners -Port $Port
+    $listeners = @(Get-PortListeners -Port $Port)
     if ($listeners.Count -gt 0) {
         $ownerIds = @($listeners | Select-Object -ExpandProperty OwningProcess -Unique)
         throw "$Name cannot start: local port $Port is already occupied by unmanaged process PID(s): $($ownerIds -join ', '). No process was killed."
@@ -124,12 +124,13 @@ $env:POSITION_HISTORY_RETENTION_ENABLED = 'false'
 $env:TELEGRAM_NOTIFICATIONS_ENABLED = 'false'
 $env:OPS_ALERTS_ENABLED = 'false'
 '@
+        $environmentOverrides += "`n`$env:PORT = '$ApiPort'"
         $npmArguments = "@('run', 'api:dev')"
         $title = 'taxi-gps API development'
     }
     else {
-        $environmentOverrides = ''
-        $npmArguments = "@('run', 'web:dev', '--', '--hostname', '127.0.0.1', '--port', '$WebPort')"
+        $environmentOverrides = "`$env:API_INTERNAL_BASE_URL = 'http://127.0.0.1:$ApiPort'"
+        $npmArguments = "@('--workspace', '@taxi-gps/web', 'run', 'dev', '--', '--hostname', '127.0.0.1', '--port', '$WebPort')"
         $title = 'taxi-gps Web development'
     }
 
@@ -141,9 +142,18 @@ Set-Location -LiteralPath `$repoRoot
 try { `$Host.UI.RawUI.WindowTitle = '$title' } catch {}
 $environmentOverrides
 `$npmArguments = $npmArguments
-`$nodeRunner = "const { spawnSync } = require('node:child_process'); const result = spawnSync('npm.cmd', process.argv.slice(1), { stdio: 'inherit', shell: false }); process.exit(result.status === null ? 1 : result.status);"
-& node.exe "--env-file=`$envFile" -e `$nodeRunner @npmArguments
-exit `$LASTEXITCODE
+`$nodeRunner = "const { spawnSync } = require('node:child_process'); const result = spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npm.cmd', ...process.argv.slice(1)], { stdio: 'inherit', shell: false }); process.exit(result.status === null ? 1 : result.status);"
+`$previousErrorActionPreference = `$ErrorActionPreference
+try {
+    `$ErrorActionPreference = 'Continue'
+    & node.exe "--env-file=`$envFile" -e `$nodeRunner -- @npmArguments
+    `$nodeExitCode = `$LASTEXITCODE
+}
+finally {
+    `$ErrorActionPreference = `$previousErrorActionPreference
+}
+if (`$null -eq `$nodeExitCode) { throw 'Node.js did not return an exit code.' }
+exit `$nodeExitCode
 "@
 
     Set-Content -LiteralPath $Settings.LauncherFile -Value $launcher -Encoding UTF8
@@ -174,20 +184,21 @@ function Start-ManagedProcess {
         throw "Failed to launch $($Settings.DisplayName). $($_.Exception.Message)"
     }
 
-    $deadline = [DateTime]::UtcNow.AddSeconds(45)
+    $readinessTimeoutSeconds = 300
+    $deadline = [DateTime]::UtcNow.AddSeconds($readinessTimeoutSeconds)
     do {
         Start-Sleep -Milliseconds 500
         if ($process.HasExited) {
             Remove-RuntimeState -Settings $Settings
             throw "$($Settings.DisplayName) exited before listening on port $($Settings.Port). Review its terminal output."
         }
-        if ((Get-PortListeners -Port $Settings.Port).Count -gt 0) {
+        if (@(Get-PortListeners -Port $Settings.Port).Count -gt 0) {
             Write-Host "$($Settings.DisplayName) started (managed PID $($process.Id))."
             return
         }
     } while ([DateTime]::UtcNow -lt $deadline)
 
-    throw "$($Settings.DisplayName) process PID $($process.Id) did not listen on port $($Settings.Port) within 45 seconds. It remains managed and can be stopped with '.\dev.ps1 stop'."
+    throw "$($Settings.DisplayName) process PID $($process.Id) did not listen on port $($Settings.Port) within $readinessTimeoutSeconds seconds. It remains managed and can be stopped with '.\dev.ps1 stop'."
 }
 
 function Stop-ManagedProcess {
@@ -199,22 +210,52 @@ function Stop-ManagedProcess {
         return
     }
 
-    & taskkill.exe /PID $managed.Id /T /F 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to stop the managed $($Settings.DisplayName) process tree (PID $($managed.Id))."
+    $result = Invoke-NativeExecutable -FilePath 'taskkill.exe' -Arguments @('/PID', $managed.Id, '/T', '/F')
+    if ($result.ExitCode -ne 0) {
+        throw "Failed to stop the managed $($Settings.DisplayName) process tree (PID $($managed.Id)): $($result.Output -join [Environment]::NewLine)"
     }
     Remove-RuntimeState -Settings $Settings
     Write-Host "$($Settings.DisplayName) stopped."
 }
 
+function Invoke-NativeExecutable {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [string[]]$Arguments = @()
+    )
+
+    $executable = (Get-Command $FilePath -CommandType Application -ErrorAction Stop).Source
+    $previousErrorActionPreference = $ErrorActionPreference
+    $exitCode = $null
+    try {
+        # Windows PowerShell 5.1 can promote redirected native stderr to a
+        # NativeCommandError. Native exit codes remain authoritative here.
+        $ErrorActionPreference = 'Continue'
+        $output = & $executable @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($null -eq $exitCode) {
+        throw "$FilePath did not return an exit code."
+    }
+
+    return [pscustomobject]@{
+        ExitCode = $exitCode
+        Output = @($output | ForEach-Object { $_.ToString() })
+    }
+}
+
 function Invoke-Compose {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
 
-    $output = & docker.exe compose @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "Docker Compose failed: $($output -join [Environment]::NewLine)"
+    $result = Invoke-NativeExecutable -FilePath 'docker.exe' -Arguments (@('compose') + $Arguments)
+    if ($result.ExitCode -ne 0) {
+        throw "Docker Compose failed: $($result.Output -join [Environment]::NewLine)"
     }
-    return $output
+    return $result.Output
 }
 
 function Get-PostgresStatus {
