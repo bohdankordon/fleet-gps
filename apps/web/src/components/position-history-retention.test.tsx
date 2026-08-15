@@ -5,12 +5,14 @@ import { readFileSync } from "node:fs";
 import { positionHistoryRetentionFixture } from "../lib/position-history-retention/position-history-retention-fixture";
 import { PositionHistoryRetention } from "./position-history-retention";
 import { createTranslator } from "../i18n/core";
+import { formatDateTime } from "../i18n/formatting";
 
 const t = createTranslator("ru");
 
 test("renders factual policy, observation, checkpoint, and read-only safety data", () => {
   const html = renderToStaticMarkup(<PositionHistoryRetention data={positionHistoryRetentionFixture()} />);
-  for (const expected of [t("history.retention.title"), "90 дней", "2026-08-11T02:00:00.000Z", "2026-05-13T02:00:00.000Z", t("history.retention.totalObs"), ">100<", t("history.retention.olderObs"), ">20<", t("history.retention.vehicles"), ">4<", t("history.retention.totalCheckpoints"), t("history.retention.obsolete"), t("history.retention.overlap"), t("history.retention.protected"), t("history.retention.audit"), t("history.retention.boundaryRule"), t("history.retention.candidateRule")] ) assert.ok(html.includes(expected), expected);
+  for (const expected of [t("history.retention.title"), "90 дней", formatDateTime("ru", "2026-08-11T02:00:00.000Z")!, formatDateTime("ru", "2026-05-13T02:00:00.000Z")!, t("history.retention.totalObs"), ">100<", t("history.retention.olderObs"), ">20<", t("history.retention.vehicles"), ">4<", t("history.retention.totalCheckpoints"), t("history.retention.obsolete"), t("history.retention.overlap"), t("history.retention.protected"), t("history.retention.audit"), t("history.retention.boundaryRule"), t("history.retention.candidateRule")] ) assert.ok(html.includes(expected), expected);
+  assert.doesNotMatch(html.replace(/<[^>]+>/g, ""), /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
   assert.ok(html.includes(t("history.retention.overlapWarning")));
   assert.equal((html.match(/<button/g) ?? []).length, 0);
   assert.equal((html.match(/<input/g) ?? []).length, 0);

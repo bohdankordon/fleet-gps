@@ -63,8 +63,8 @@ export function PositionHistoryRetention({ data, unavailable = false, isAdmin = 
       <p className="admin-history-disclaimer">{t("history.retention.audit")}</p>
       <div className="admin-history-summary">
         <article><span>{t("history.retention.policy")}</span><strong>{formatUnit(locale, plan.policyDays, "day")}</strong></article>
-        <article><span>{t("history.retention.canonical")}</span><strong>{plan.canonicalAnchor}</strong></article>
-        <article><span>{t("history.retention.cutoff")}</span><strong>{plan.policyCutoff}</strong></article>
+        <article><span>{t("history.retention.canonical")}</span><strong>{instant(plan.canonicalAnchor)}</strong></article>
+        <article><span>{t("history.retention.cutoff")}</span><strong>{instant(plan.policyCutoff)}</strong></article>
         <article><span>{t("history.retention.totalObs")}</span><strong>{number(plan.observations.total)}</strong></article>
         <article><span>{t("history.retention.olderObs")}</span><strong>{number(plan.observations.olderThanPolicyCutoff)}</strong></article>
         <article><span>{t("history.retention.candidates")}</span><strong>{number(plan.observations.executableObservationCandidates)}</strong></article>
@@ -86,8 +86,8 @@ export function PositionHistoryRetention({ data, unavailable = false, isAdmin = 
         {hasWork && !confirming && <><p className="admin-history-disclaimer">{t("history.retention.manualLimits")}</p><button type="button" className="danger-button" onClick={() => { setConfirming(true); setError(null); }}>{t("history.retention.clean")}</button></>}
         {hasWork && confirming && <div className="confirmation" role="alertdialog" aria-modal="true" aria-label={t("history.retention.confirmLabel")}>
           <h3>{t("history.retention.confirmTitle")}</h3>
-          <p>{t("history.retention.canonical")}: <strong>{plan.canonicalAnchor}</strong></p>
-          <p>{t("history.retention.cutoff")}: <strong>{plan.policyCutoff}</strong></p>
+          <p>{t("history.retention.canonical")}: <strong>{instant(plan.canonicalAnchor)}</strong></p>
+          <p>{t("history.retention.cutoff")}: <strong>{instant(plan.policyCutoff)}</strong></p>
           <p>{t("history.retention.obsoleteCount")}: <strong>{number(plan.checkpoints.fullyObsolete)}</strong></p>
           <p>{t("history.retention.candidateCount")}: <strong>{number(plan.observations.executableObservationCandidates)}</strong></p>
           <p>{t("history.retention.confirmWarning")}</p>

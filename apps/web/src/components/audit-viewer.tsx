@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AUDIT_ACTOR_TYPES, AUDIT_EVENT_TYPES, AUDIT_TARGET_TYPES, parseAuditReadResponse, type AuditReadItem } from "../lib/audit/audit-contract";
-import { normalizeAuditFilters, serializeAuditRequestQuery, type AuditFilters } from "../lib/audit/audit-query";
+import { normalizeAuditLocalFilters, serializeAuditRequestQuery, type AuditFilters } from "../lib/audit/audit-query";
 import { auditActorLabel, auditDetailsLines, auditEventLabel, auditTargetLabel, auditTargetTypeLabel, formatAuditTimestamp } from "../lib/audit/audit-ui-model";
 import { beginAuditFirstPage, beginAuditLoadMore, canLoadMoreAudit, failAuditFirstPage, failAuditLoadMore, initialAuditViewerState, succeedAuditFirstPage, succeedAuditLoadMore } from "../lib/audit/audit-viewer-state";
 import { useI18n } from "../i18n/client";
+import { WarningIcon } from "./ui/icons";
 
 type DraftFilters = { eventType: string; actorType: string; targetType: string; from: string; to: string };
 const emptyDraft = (): DraftFilters => ({ eventType: "", actorType: "", targetType: "", from: "", to: "" });
@@ -52,7 +53,7 @@ export function AuditViewer() {
   const apply = (event: React.FormEvent) => {
     event.preventDefault();
     try {
-      const filters = normalizeAuditFilters({ eventType: draft.eventType, actorType: draft.actorType, targetType: draft.targetType, from: draft.from, to: draft.to });
+      const filters = normalizeAuditLocalFilters({ eventType: draft.eventType, actorType: draft.actorType, targetType: draft.targetType, from: draft.from, to: draft.to });
       setFilterError(false); void loadFirst(filters);
     } catch { setFilterError(true); }
   };
@@ -74,12 +75,13 @@ export function AuditViewer() {
       <label>{t("audit.filters.eventType")}<select value={draft.eventType} onChange={(event) => setDraft((current) => ({ ...current, eventType: event.target.value }))}><option value="">{t("common.all")}</option>{AUDIT_EVENT_TYPES.map((value) => <option key={value} value={value}>{auditEventLabel(value, locale)}</option>)}</select></label>
       <label>{t("audit.filters.actor")}<select value={draft.actorType} onChange={(event) => setDraft((current) => ({ ...current, actorType: event.target.value }))}><option value="">{t("common.all")}</option>{AUDIT_ACTOR_TYPES.map((value) => <option key={value} value={value}>{value === "USER" ? t("audit.actor.user") : t("audit.actor.system")}</option>)}</select></label>
       <label>{t("audit.filters.targetType")}<select value={draft.targetType} onChange={(event) => setDraft((current) => ({ ...current, targetType: event.target.value }))}><option value="">{t("common.all")}</option>{AUDIT_TARGET_TYPES.map((value) => <option key={value} value={value}>{auditTargetTypeLabel(value, locale)}</option>)}</select></label>
-      <label>{t("audit.filters.from")}<input type="text" inputMode="text" placeholder="2026-08-11T02:00:00.000Z" value={draft.from} onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))} /></label>
-      <label>{t("audit.filters.to")}<input type="text" inputMode="text" placeholder="2026-08-12T02:00:00.000Z" value={draft.to} onChange={(event) => setDraft((current) => ({ ...current, to: event.target.value }))} /></label>
+      <label>{t("audit.filters.from")}<input type="datetime-local" step="60" value={draft.from} onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))} /></label>
+      <label>{t("audit.filters.to")}<input type="datetime-local" step="60" value={draft.to} onChange={(event) => setDraft((current) => ({ ...current, to: event.target.value }))} /></label>
+      <p className="audit-filter-timezone">{t("track.controls.timezone")}</p>
       <div className="audit-filter-actions"><button type="submit" disabled={state.loading}>{t("audit.filters.apply")}</button><button type="button" className="secondary-button" onClick={reset} disabled={state.loading}>{t("audit.filters.reset")}</button><button type="button" onClick={() => void loadFirst(state.filters)} disabled={state.loading}>{t("common.refresh")}</button></div>
     </form>
     {filterError && <p className="admin-error" role="alert">{t("audit.filters.invalid")}</p>}
-    {state.error && <section className="notice" role="alert"><span>⚠</span><div><strong>{state.error === "more" ? t("audit.loadMoreError") : t("audit.loadError")}</strong><button type="button" onClick={() => state.error === "more" ? void loadMore() : void loadFirst(state.filters)}>{t("common.retry")}</button></div></section>}
+    {state.error && <section className="notice" role="alert"><WarningIcon className="notice-icon" /><div><strong>{state.error === "more" ? t("audit.loadMoreError") : t("audit.loadError")}</strong><button type="button" onClick={() => state.error === "more" ? void loadMore() : void loadFirst(state.filters)}>{t("common.retry")}</button></div></section>}
     {(state.loading || state.moreLoading) && <p className="refresh" aria-live="polite">{state.moreLoading ? t("audit.loadingMore") : t("audit.loading")}</p>}
     {!state.loading && state.data.items.length === 0 ? <section className="empty"><h2>{t("audit.emptyTitle")}</h2><p>{t("audit.emptyText")}</p></section> : <AuditEventTable items={state.data.items} />}
     {canLoadMoreAudit(state) && <div className="load-more"><button type="button" onClick={() => void loadMore()} disabled={state.moreLoading}>{state.moreLoading ? t("common.loading") : t("audit.loadMore")}</button></div>}

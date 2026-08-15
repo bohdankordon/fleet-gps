@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "../i18n/client";
 import { NATIVE_LOCALE_NAMES, SUPPORTED_LOCALES, type AppLocale } from "../i18n/locales";
+import { ChevronDownIcon, GlobeIcon } from "./ui/icons";
 
 export function LanguageSelector() {
   const router = useRouter();
@@ -34,9 +35,12 @@ export function LanguageSelector() {
   }
 
   return <div className="language-selector">
-    <span id="language-selector-label">{t("language.label")}</span>
-    <div role="group" aria-labelledby="language-selector-label">
-      {SUPPORTED_LOCALES.map((value) => <button type="button" key={value} aria-pressed={value === locale} disabled={pending} onClick={() => { void change(value); }}>{NATIVE_LOCALE_NAMES[value]}</button>)}
+    <div className="language-selector-control">
+      <GlobeIcon className="language-selector-globe" size={18} />
+      <select aria-label={t("language.label")} value={locale} disabled={pending} onChange={(event) => { void change(event.currentTarget.value as AppLocale); }}>
+        {SUPPORTED_LOCALES.map((value) => <option value={value} key={value}>{NATIVE_LOCALE_NAMES[value]}</option>)}
+      </select>
+      <ChevronDownIcon className="language-selector-chevron" size={16} />
     </div>
     {error && <span className="language-selector-error" role="alert">{t("language.changeError")}</span>}
   </div>;

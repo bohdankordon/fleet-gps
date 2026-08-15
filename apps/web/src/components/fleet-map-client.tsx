@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/components/auth-provider";
+import { WarningIcon } from "@/components/ui/icons";
 import { hasPermission } from "@/lib/auth/auth-contract";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
@@ -200,9 +201,9 @@ export function FleetMapClient({ initialSnapshot, initialGeofence, initialGeofen
     {!initialGeofenceUnavailable && !initialGeofence?.configured && <p className="map-geofence-status" data-city-geofence-state="unconfigured">{t("map.geofence.unconfigured")}</p>}
     {initialGeofence?.configured && <span className="sr-only" data-city-geofence-state="configured">{t("map.geofence.configured")}</span>}
     {refreshing && <p className="refresh" aria-live="polite">{t("map.refreshing")}</p>}
-    {refreshError && <section className="notice" role="alert"><span>⚠</span><div><strong>{t("map.refreshError")}</strong><span>{t("map.refreshFallback")}</span></div></section>}
-    {alertError && <section className="notice" role="alert"><span>⚠</span><div><strong>{t("map.alertsUnavailable")}</strong><span>{alerts ? t("map.alertsLastState") : t("map.alertsMapContinues")}</span></div></section>}
-    {styleError && <section className="notice" role="alert"><span>⚠</span><div><strong>{t("map.basemapError")}</strong><span>{t("map.basemapFallback")}</span></div></section>}
+    {refreshError && <section className="notice" role="alert"><WarningIcon className="notice-icon" /><div><strong>{t("map.refreshError")}</strong><span>{t("map.refreshFallback")}</span></div></section>}
+    {alertError && <section className="notice" role="alert"><WarningIcon className="notice-icon" /><div><strong>{t("map.alertsUnavailable")}</strong><span>{alerts ? t("map.alertsLastState") : t("map.alertsMapContinues")}</span></div></section>}
+    {styleError && <section className="notice" role="alert"><WarningIcon className="notice-icon" /><div><strong>{t("map.basemapError")}</strong><span>{t("map.basemapFallback")}</span></div></section>}
     <section className="map-shell" aria-label={t("map.interactiveLabel")}><div ref={containerRef} className="fleet-map-canvas" data-fleet-map-container="true" />{snapshot.summary.withPosition === 0 && <div className="map-empty">{t("map.noPositions")}</div>}</section>
     <SelectedVehicle vehicle={selected} alerts={selectedAlerts} generatedAt={snapshot.generatedAt} />
   </>;
@@ -232,8 +233,8 @@ function SelectedVehicle({ vehicle, alerts, generatedAt }: Readonly<{ vehicle: F
   if (!vehicle) return <section className="map-details" aria-live="polite"><h2>{t("map.vehicleNotSelected")}</h2><p>{t("map.selectVehicle")}</p></section>;
   const active = activeAlertDetails(alerts, locale);
   return <section className="map-details" aria-live="polite">
-    <h2>{vehicle.vehicle.name}</h2>
-    <dl><div><dt>{t("map.vehicle.state")}</dt><dd>{t(`map.freshness.${vehicle.freshness}`)}</dd></div><div><dt>{t("map.vehicle.speed")}</dt><dd>{vehicle.speedKph === null ? "—" : `${formatNumber(locale, vehicle.speedKph, { maximumFractionDigits: 1 })} ${t("unit.kilometresPerHour")}`}</dd></div><div><dt>{t("map.vehicle.positionTime")}</dt><dd>{formatFleetMapTimestamp(vehicle.position.observedAt, locale)}</dd></div><div><dt>{t("map.vehicle.age")}</dt><dd>{formatFleetMapAge(vehicle.position.observedAt, generatedAt, locale)}</dd></div></dl>
-    <div className="map-active-alerts"><h3>{t("map.vehicle.activeEvents")}</h3>{active.length === 0 ? <p>{t("common.no")}</p> : <ul>{active.map((alert) => <li key={alert.type}><strong>{alert.label}</strong><span>{t("map.vehicle.opened")} {formatFleetMapTimestamp(alert.openedAt, locale)}</span></li>)}</ul>}<div className="map-details-links">{canOpenVehicle && <Link href={`/vehicles/${vehicle.vehicle.id}`}>{t("map.vehicle.openCard")}</Link>}{canOpenEvents && <Link href="/events?status=OPEN">{t("map.vehicle.openEvents")}</Link>}</div></div>
+    <header className="map-details-header"><h2>{vehicle.vehicle.name}</h2></header>
+    <dl className="map-details-grid"><div><dt>{t("map.vehicle.state")}</dt><dd>{t(`map.freshness.${vehicle.freshness}`)}</dd></div><div><dt>{t("map.vehicle.speed")}</dt><dd>{vehicle.speedKph === null ? "—" : `${formatNumber(locale, vehicle.speedKph, { maximumFractionDigits: 1 })} ${t("unit.kilometresPerHour")}`}</dd></div><div><dt>{t("map.vehicle.positionTime")}</dt><dd>{formatFleetMapTimestamp(vehicle.position.observedAt, locale)}</dd></div><div><dt>{t("map.vehicle.age")}</dt><dd>{formatFleetMapAge(vehicle.position.observedAt, generatedAt, locale)}</dd></div><div className="map-details-events"><dt>{t("map.vehicle.activeEvents")}</dt><dd>{active.length === 0 ? t("common.no") : <ul>{active.map((alert) => <li key={alert.type}><strong>{alert.label}</strong><span>{t("map.vehicle.opened")} {formatFleetMapTimestamp(alert.openedAt, locale)}</span></li>)}</ul>}</dd></div></dl>
+    <div className="map-details-actions">{canOpenVehicle && <Link className="map-details-action-primary" href={`/vehicles/${vehicle.vehicle.id}`}>{t("map.vehicle.openCard")}</Link>}{canOpenEvents && <Link className="map-details-action-secondary" href="/events?status=OPEN">{t("map.vehicle.openEvents")}</Link>}</div>
   </section>;
 }

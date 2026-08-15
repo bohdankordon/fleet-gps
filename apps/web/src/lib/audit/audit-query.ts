@@ -1,5 +1,6 @@
 import { AUDIT_ACTOR_TYPES, AUDIT_EVENT_TYPES, AUDIT_TARGET_TYPES, type AuditActorType, type AuditEventType, type AuditTargetType } from "./audit-contract";
 import { parseVehicleTrackTimestamp } from "../vehicle-track/vehicle-track-range";
+import { kyivLocalToAbsolute } from "../vehicle-track/vehicle-track-custom-range";
 
 export type AuditFilters = Readonly<{ eventType?: AuditEventType; actorType?: AuditActorType; targetType?: AuditTargetType; from?: string; to?: string }>;
 export type AuditRequestQuery = AuditFilters & Readonly<{ cursor?: string }>;
@@ -46,4 +47,14 @@ export function serializeAuditRequestQuery(query: AuditRequestQuery): string {
 
 export function normalizeAuditFilters(filters: Readonly<Record<keyof AuditFilters, string | undefined>>): AuditFilters {
   return parseAuditRequestQuery(new URLSearchParams(Object.entries(filters).filter((entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== "")));
+}
+
+export function normalizeAuditLocalFilters(filters: Readonly<Record<keyof AuditFilters, string | undefined>>): AuditFilters {
+  const convert = (value: string | undefined): string | undefined => {
+    if (value === undefined || value === "") return undefined;
+    const converted = kyivLocalToAbsolute(value);
+    if (converted.error || converted.instant === null) throw new AuditQueryError();
+    return converted.instant;
+  };
+  return normalizeAuditFilters({ ...filters, from: convert(filters.from), to: convert(filters.to) });
 }

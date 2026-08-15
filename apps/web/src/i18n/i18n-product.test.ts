@@ -78,14 +78,19 @@ test("all ten major surface groups expose source-controlled copy in ru, uk, and 
   }
 });
 
-test("selector is global, single-POST, non-submitting, non-retrying, and route-stable", () => {
+test("selector is header-integrated, native, single-POST, non-retrying, and route-stable", () => {
   const selector = readFileSync("src/components/language-selector.tsx", "utf8");
   const layout = readFileSync("src/app/layout.tsx", "utf8");
-  assert.match(layout, /<LanguageSelector/);
+  const navigation = readFileSync("src/components/app-navigation.tsx", "utf8");
+  assert.doesNotMatch(layout, /LanguageSelector|language-selector-shell/);
+  assert.match(layout, /<AppNavigation/);
   assert.match(layout, /<AuthProvider/);
+  assert.match(navigation, /app-header-tools/);
+  assert.match(navigation, /pathname === "\/login"[^]*<LanguageSelector/);
+  assert.match(navigation, /<LanguageSelector \/>\{user && <Link className="account-link"/);
   for (const expected of ["Русский", "Українська", "English"]) assert.ok(readFileSync("src/i18n/locales.ts", "utf8").includes(expected));
-  assert.match(selector, /aria-pressed=\{value === locale\}/);
-  assert.match(selector, /type="button"/);
+  assert.match(selector, /<select aria-label=\{t\("language\.label"\)\} value=\{locale\}/);
+  assert.doesNotMatch(selector, /aria-pressed|role="listbox"/);
   assert.match(selector, /disabled=\{pending\}/);
   assert.match(selector, /router\.refresh\(\)/);
   assert.equal((selector.match(/fetch\("\/api\/preferences\/locale"/g) ?? []).length, 1);

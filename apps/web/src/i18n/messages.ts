@@ -145,7 +145,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "audit.filters.to": { ru: "По", uk: "До", en: "To" },
   "audit.filters.apply": { ru: "Применить", uk: "Застосувати", en: "Apply" },
   "audit.filters.reset": { ru: "Сбросить", uk: "Скинути", en: "Reset" },
-  "audit.filters.invalid": { ru: "Укажите абсолютные даты со смещением часового пояса; начало не должно быть позже окончания.", uk: "Укажіть абсолютні дати зі зміщенням часового поясу; початок не має бути пізніше завершення.", en: "Enter absolute dates with a timezone offset; the start must not be later than the end." },
+  "audit.filters.invalid": { ru: "Укажите корректные дату и время Europe/Kyiv; начало не должно быть позже окончания.", uk: "Укажіть коректні дату й час Europe/Kyiv; початок не має бути пізніше завершення.", en: "Enter a valid Europe/Kyiv date and time; the start must not be later than the end." },
   "audit.table.time": { ru: "Время", uk: "Час", en: "Time" },
   "audit.table.event": { ru: "Событие", uk: "Подія", en: "Event" },
   "audit.table.actor": { ru: "Инициатор", uk: "Ініціатор", en: "Actor" },

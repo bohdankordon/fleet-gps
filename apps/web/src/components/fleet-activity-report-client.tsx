@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useI18n } from "../i18n/client";
+import { formatDateTime } from "../i18n/formatting";
 import { createFleetActivityReportDateNavigation, FLEET_ACTIVITY_REPORT_DATE_FORM } from "@/lib/fleet-activity-report/fleet-activity-report-navigation";
 import type { FleetActivityReportResponse } from "@/lib/fleet-activity-report/fleet-activity-report-contract";
 import { formatObservedDistance, formatTripAnalysisDuration } from "@/lib/trip-analysis/trip-analysis-formatters";
 import type { VehicleTrackRange } from "@/lib/vehicle-track/vehicle-track-range";
+import { WarningIcon } from "./ui/icons";
 
 type Props = Readonly<{ initialDate: string; initialRange: VehicleTrackRange; initialData: FleetActivityReportResponse | null; initialError: boolean; now: Date; canOpenTrips: boolean }>;
 
@@ -13,11 +15,13 @@ export function FleetActivityReportClient({ initialDate, initialRange, initialDa
   const { locale, t } = useI18n();
   const navigation = createFleetActivityReportDateNavigation(now);
   const allNoGps = data !== null && data.summary.vehicleCount > 0 && data.summary.vehiclesWithGps === 0;
+  const periodFrom = formatDateTime(locale, initialRange.from) ?? t("common.notAvailable");
+  const periodTo = formatDateTime(locale, initialRange.to) ?? t("common.notAvailable");
 
   return <>
     <header className="hero report-hero"><p className="eyebrow">{t("reports.eyebrow")}</p><h1>{t("reports.title")}</h1><p>{t("reports.description")}</p></header>
-    <section className="report-controls" aria-label={t("reports.controls.label")}><div>{navigation && <><Link className="report-date-link" href={navigation.todayHref}>{t("reports.today")}</Link><Link className="report-date-link" href={navigation.yesterdayHref}>{t("reports.yesterday")}</Link></>}</div><form action={FLEET_ACTIVITY_REPORT_DATE_FORM.action} method={FLEET_ACTIVITY_REPORT_DATE_FORM.method}><label>{t("reports.date")}<input type="date" name={FLEET_ACTIVITY_REPORT_DATE_FORM.fieldName} defaultValue={initialDate} /></label><button type="submit">{t("reports.show")}</button></form><span>{t("reports.period", { from: initialRange.from, to: initialRange.to })}</span></section>
-    {initialError && <section className="notice" role="alert"><span>⚠</span><div><strong>{t("reports.loadError")}</strong><span>{t("reports.loadErrorText")}</span></div></section>}
+    <section className="report-controls" aria-label={t("reports.controls.label")}><div className="report-control-groups"><div className="report-quick-ranges">{navigation && <><Link className="report-date-link" href={navigation.todayHref}>{t("reports.today")}</Link><Link className="report-date-link" href={navigation.yesterdayHref}>{t("reports.yesterday")}</Link></>}</div><form className="report-custom-date" action={FLEET_ACTIVITY_REPORT_DATE_FORM.action} method={FLEET_ACTIVITY_REPORT_DATE_FORM.method}><label>{t("reports.date")}<input type="date" name={FLEET_ACTIVITY_REPORT_DATE_FORM.fieldName} defaultValue={initialDate} /></label><button type="submit">{t("reports.show")}</button></form></div><p className="report-period">{t("reports.period", { from: periodFrom, to: periodTo })}</p></section>
+    {initialError && <section className="notice" role="alert"><WarningIcon className="notice-icon" /><div><strong>{t("reports.loadError")}</strong><span>{t("reports.loadErrorText")}</span></div></section>}
     {data && <>
       <section className="report-summary" aria-label={t("reports.summary.label")}><article><span>{t("reports.summary.vehiclesWithGps")}</span><strong>{data.summary.vehiclesWithGps} / {data.summary.vehicleCount}</strong></article><article><span>{t("trips.summary.trips")}</span><strong>{data.summary.tripCount}</strong></article><article><span>{t("trips.summary.distance")}</span><strong>{formatObservedDistance(data.summary.totalObservedDistanceMeters, locale)}</strong></article><article><span>{t("reports.summary.tripTime")}</span><strong>{formatTripAnalysisDuration(data.summary.totalTripDurationSeconds, locale)}</strong></article><article><span>{t("trips.summary.gaps")}</span><strong>{data.summary.gapCount}</strong></article></section>
       {allNoGps && <p className="report-empty">{t("reports.noGpsDay")}</p>}

@@ -91,8 +91,8 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
     </form>
     {!self && <section className="details-section">
       <h2>{t("admin.user.stateAndPassword")}</h2>
-      <div className="admin-actions">{user.disabled ? <button type="button" disabled={busy} onClick={() => lifecycle("enable")}>{t("admin.user.enable")}</button> : <button type="button" disabled={busy} onClick={() => setConfirm("disable")}>{t("admin.user.disable")}</button>}<button type="button" disabled={busy} onClick={() => setConfirm("reset")}>{t("admin.user.resetPassword")}</button></div>
-      {confirm === "disable" && <div className="confirmation" role="alert"><p>{t("admin.user.disablePrompt")}</p><button type="button" disabled={busy} onClick={() => lifecycle("disable")}>{t("admin.user.confirmDisable")}</button><button type="button" onClick={() => setConfirm(null)}>{t("common.cancel")}</button></div>}
+      <div className="admin-actions">{user.disabled ? <button type="button" disabled={busy} onClick={() => lifecycle("enable")}>{t("admin.user.enable")}</button> : <button type="button" className="danger-button" disabled={busy} onClick={() => setConfirm("disable")}>{t("admin.user.disable")}</button>}<button type="button" className="secondary-button" disabled={busy} onClick={() => setConfirm("reset")}>{t("admin.user.resetPassword")}</button></div>
+      {confirm === "disable" && <div className="confirmation" role="alert"><p>{t("admin.user.disablePrompt")}</p><button type="button" className="danger-button" disabled={busy} onClick={() => lifecycle("disable")}>{t("admin.user.confirmDisable")}</button><button type="button" onClick={() => setConfirm(null)}>{t("common.cancel")}</button></div>}
       {confirm === "reset" && <div className="confirmation" role="alert"><p>{t("admin.user.resetPrompt")}</p><button type="button" disabled={busy} onClick={reset}>{t("admin.user.confirmReset")}</button><button type="button" onClick={() => setConfirm(null)}>{t("common.cancel")}</button></div>}
     </section>}
     {error && <p className="admin-error" role="alert">{error}</p>}
