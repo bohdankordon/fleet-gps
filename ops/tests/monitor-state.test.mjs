@@ -127,15 +127,46 @@ test("disabled alerts never produce a notification decision", () => {
   }
 });
 
-test("an incident while disabled is not falsely marked delivered", () => {
+test("disabled alerts persist a newly detected incident without delivery metadata", () => {
   const { plan, next } = advance(emptyState(), [fp(WEB, SEVERITY.CRITICAL)], { now: T0, alertsEnabled: false });
   assert.equal(plan.kind, NOTIFICATION_KIND.NONE);
+  assert.deepEqual(next.open, [fp(WEB, SEVERITY.CRITICAL)]);
+  assert.equal(next.notifiedSet, null);
+  assert.equal(next.notifiedAt, null);
+});
+
+test("disabled alerts retain an unchanged open incident without delivery metadata", () => {
+  const previous = advance(emptyState(), [fp(WEB, SEVERITY.CRITICAL)], { now: T0, alertsEnabled: false }).next;
+  const { plan, next } = advance(previous, [fp(WEB, SEVERITY.CRITICAL)], { now: T0 + MINUTE, alertsEnabled: false });
+  assert.equal(plan.kind, NOTIFICATION_KIND.NONE);
+  assert.deepEqual(next.open, [fp(WEB, SEVERITY.CRITICAL)]);
+  assert.equal(next.notifiedSet, null);
+  assert.equal(next.notifiedAt, null);
+});
+
+test("disabled alerts persist a changed or escalated incident set without delivery metadata", () => {
+  const previous = advance(emptyState(), [fp(DB_DISK, SEVERITY.WARNING)], { now: T0 }).next;
+  const { plan, next } = advance(previous, [fp(DB_DISK, SEVERITY.CRITICAL)], { now: T0 + MINUTE, alertsEnabled: false });
+  assert.equal(plan.kind, NOTIFICATION_KIND.NONE);
+  assert.deepEqual(next.open, [fp(DB_DISK, SEVERITY.CRITICAL)]);
+  assert.equal(next.notifiedSet, null);
+  assert.equal(next.notifiedAt, null);
+});
+
+test("disabled alerts clear recovered incidents without sending recovery", () => {
+  const previous = advance(emptyState(), [fp(WEB, SEVERITY.CRITICAL)], { now: T0 }).next;
+  const { plan, next } = advance(previous, [], { now: T0 + MINUTE, alertsEnabled: false });
+  assert.equal(plan.kind, NOTIFICATION_KIND.NONE);
+  assert.deepEqual(next.open, []);
   assert.equal(next.notifiedSet, null);
   assert.equal(next.notifiedAt, null);
 });
 
 test("enabling alerts while an incident is active sends the current incident", () => {
   const whileDisabled = advance(emptyState(), [fp(WEB, SEVERITY.CRITICAL)], { now: T0, alertsEnabled: false }).next;
+  assert.deepEqual(whileDisabled.open, [fp(WEB, SEVERITY.CRITICAL)]);
+  assert.equal(whileDisabled.notifiedSet, null);
+  assert.equal(whileDisabled.notifiedAt, null);
   const enabled = advance(whileDisabled, [fp(WEB, SEVERITY.CRITICAL)], { now: T0 + MINUTE, alertsEnabled: true });
   assert.equal(enabled.plan.kind, NOTIFICATION_KIND.INCIDENT);
 

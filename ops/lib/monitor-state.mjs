@@ -89,9 +89,9 @@ export function planNotifications(previous, currentFingerprints, { now, alertsEn
 
   if (!alertsEnabled) {
     // Zero transport. Never pretend an alert was delivered. Drop notification
-    // markers so a later enable sends the current incident; keep "open" so a
-    // pending recovery is still summarized when delivery is possible.
-    const next = stamp(open, null, null);
+    // markers so a later enable sends the current incident. Incident state is
+    // independent of delivery, so it must still reflect the current checks.
+    const next = stamp(current, null, null);
     return { kind: NOTIFICATION_KIND.NONE, reportFingerprints: current, nextOnSuccess: next, nextOnFailure: next };
   }
 
