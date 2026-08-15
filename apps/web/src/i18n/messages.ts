@@ -133,6 +133,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "admin.password.hide": { ru: "Скрыть", uk: "Сховати", en: "Hide" },
   "admin.password.copy": { ru: "Скопировать", uk: "Скопіювати", en: "Copy" },
   "admin.password.copied": { ru: "Пароль скопирован.", uk: "Пароль скопійовано.", en: "Password copied." },
+  "admin.password.copyError": { ru: "Не удалось скопировать пароль. Скопируйте его вручную.", uk: "Не вдалося скопіювати пароль. Скопіюйте його вручну.", en: "The password could not be copied. Copy it manually." },
 
   "audit.title": { ru: "Аудит", uk: "Аудит", en: "Audit" },
   "audit.description": { ru: "Неизменяемая история административных действий и событий безопасности.", uk: "Незмінна історія адміністративних дій і подій безпеки.", en: "Immutable history of administrative actions and security events." },
