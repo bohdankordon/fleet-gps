@@ -22,11 +22,38 @@ export function localEdgeHttpsOptions(hostname, requestPath, httpsTimeout) {
     path: requestPath,
     method: "GET",
     servername: hostname,
-    lookup: (_hostname, _options, callback) => callback(null, "127.0.0.1", 4),
+    lookup: (_hostname, options, callback) => {
+      // Node 24 can request all candidate addresses. Its callback contract then
+      // requires an address array, not the classic address/family pair.
+      if (options?.all === true) {
+        callback(null, [{ address: "127.0.0.1", family: 4 }]);
+        return;
+      }
+      callback(null, "127.0.0.1", 4);
+    },
     rejectUnauthorized: true,
     timeout: httpsTimeout,
     headers: { host: hostname },
   };
+}
+
+export function probeLocalHttps({ hostname, requestPath, httpsTimeout, request = https.request }) {
+  return new Promise((resolve) => {
+    const probe = request(
+      localEdgeHttpsOptions(hostname, requestPath, httpsTimeout),
+      (response) => {
+        response.resume();
+        const status = response.statusCode;
+        resolve({ ok: typeof status === "number" && status >= 200 && status < 400, status });
+      },
+    );
+    probe.on("timeout", () => {
+      probe.destroy();
+      resolve({ ok: false });
+    });
+    probe.on("error", () => resolve({ ok: false }));
+    probe.end();
+  });
 }
 
 export function createProductionRuntime({ repositoryRoot, envFile, dockerBin = "docker", shBin = "sh", timeouts = {} }) {
@@ -99,22 +126,7 @@ export function createProductionRuntime({ repositoryRoot, envFile, dockerBin = "
   }
 
   function requestLocalHttps({ hostname, path: requestPath }) {
-    return new Promise((resolve) => {
-      const request = https.request(
-        localEdgeHttpsOptions(hostname, requestPath, httpsTimeout),
-        (response) => {
-          response.resume();
-          const status = response.statusCode;
-          resolve({ ok: typeof status === "number" && status >= 200 && status < 400, status });
-        },
-      );
-      request.on("timeout", () => {
-        request.destroy();
-        resolve({ ok: false });
-      });
-      request.on("error", () => resolve({ ok: false }));
-      request.end();
-    });
+    return probeLocalHttps({ hostname, requestPath, httpsTimeout });
   }
 
   async function statfs(target) {
