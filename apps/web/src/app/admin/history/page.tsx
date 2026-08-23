@@ -15,11 +15,11 @@ export const revalidate = 0;
 export default async function AdminHistoryPage({ searchParams }: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) {
   const [resolved, user] = await Promise.all([searchParams.then(resolvePositionHistoryAnchor), getAuthUser()]);
   if (resolved.absent) redirect(`/admin/history?${new URLSearchParams({ to: new Date().toISOString() })}`);
-  if (!resolved.anchor) return <main><AdminSubnavigation /><PositionHistoryStatusView anchor={resolved.input} data={null} error="INVALID_ANCHOR" /></main>;
+  if (!resolved.anchor) return <div><AdminSubnavigation /><PositionHistoryStatusView anchor={resolved.input} data={null} error="INVALID_ANCHOR" /></div>;
   let data = null;
   let error: "UNAVAILABLE" | null = null;
   const [statusResult, activeResult, recentResult, retentionResult] = await Promise.allSettled([fetchPositionHistoryStatus(resolved.anchor), fetchActiveDurableRun(), fetchRecentDurableRuns(), fetchPositionHistoryRetentionPlan()]);
   if (statusResult.status === "fulfilled") data = statusResult.value;
   else error = "UNAVAILABLE";
-  return <main><AdminSubnavigation /><PositionHistoryStatusView anchor={resolved.anchor} data={data} error={error} canPopulate={user !== null && hasPermission(user, "historyAdmin.populate")} showDurableRuns initialDurableActive={activeResult.status === "fulfilled" ? activeResult.value : null} initialDurableRecent={recentResult.status === "fulfilled" ? recentResult.value : []} /><PositionHistoryRetention data={retentionResult.status === "fulfilled" ? retentionResult.value : null} unavailable={retentionResult.status === "rejected"} isAdmin={user?.role === "ADMIN"} /></main>;
+  return <div><AdminSubnavigation /><PositionHistoryStatusView anchor={resolved.anchor} data={data} error={error} canPopulate={user !== null && hasPermission(user, "historyAdmin.populate")} showDurableRuns initialDurableActive={activeResult.status === "fulfilled" ? activeResult.value : null} initialDurableRecent={recentResult.status === "fulfilled" ? recentResult.value : []} /><PositionHistoryRetention data={retentionResult.status === "fulfilled" ? retentionResult.value : null} unavailable={retentionResult.status === "rejected"} isAdmin={user?.role === "ADMIN"} /></div>;
 }

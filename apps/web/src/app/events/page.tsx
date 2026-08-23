@@ -10,5 +10,5 @@ export default async function EventsPage({ searchParams }: Readonly<{ searchPara
   let filters; try { filters = parseAlertEventsFilters(params); } catch { return <InitialEventsError />; }
   const [events, summary] = await Promise.allSettled([fetchAlertEvents(firstAlertEventsQuery(filters)), fetchAlertEventsSummary()]);
   if (events.status !== "fulfilled") return <InitialEventsError />;
-  return <main><EventsClient initialData={events.value} initialSummary={summary.status === "fulfilled" ? summary.value : null} initialFilters={filters} /></main>;
+  return <div><EventsClient initialData={events.value} initialSummary={summary.status === "fulfilled" ? summary.value : null} initialFilters={filters} /></div>;
 }

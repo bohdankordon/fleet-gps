@@ -13,11 +13,11 @@ export default async function FleetMapPage() {
     fetchOpenAlertMap(),
   ]);
   if (fleetResult.status === "rejected") return <InitialFleetMapError />;
-  return <main><FleetMapClient
+  return <div><FleetMapClient
     initialSnapshot={fleetResult.value}
     initialGeofence={geofenceResult.status === "fulfilled" ? geofenceResult.value : null}
     initialGeofenceUnavailable={geofenceResult.status === "rejected"}
     initialAlerts={alertsResult.status === "fulfilled" ? alertsResult.value : null}
     initialAlertsUnavailable={alertsResult.status === "rejected"}
-  /></main>;
+  /></div>;
 }

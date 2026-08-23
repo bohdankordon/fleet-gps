@@ -34,12 +34,12 @@ export default async function VehicleTrackPage({ params, searchParams }: Readonl
     const error = trackResult.reason;
     initialError = error instanceof VehicleTrackBackendBadRequestError ? "INVALID_RANGE" : error instanceof VehicleTrackBackendNotFoundError ? "NOT_FOUND" : error instanceof VehicleTrackBackendTooDenseError ? mode === "OVERVIEW" ? "TOO_FRAGMENTED_OVERVIEW" : "TOO_DENSE_EXACT" : error instanceof VehicleTrackContractError || error instanceof VehicleTrackOverviewContractError ? "MALFORMED" : "UNAVAILABLE";
   }
-  return <main><VehicleTrackClient
+  return <div><VehicleTrackClient
     vehicleId={vehicleId}
     initialData={initialData}
     initialRange={resolved.range}
     initialError={initialError}
     initialGeofence={geofenceResult.status === "fulfilled" ? geofenceResult.value : null}
     initialGeofenceUnavailable={geofenceResult.status === "rejected"}
-  /></main>;
+  /></div>;
 }

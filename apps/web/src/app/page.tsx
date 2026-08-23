@@ -14,5 +14,5 @@ export default async function Home({ searchParams }: Readonly<{ searchParams: Pr
   const initialData = dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
   const initialSchedulerStatus = schedulerResult.status === "fulfilled" ? schedulerResult.value : null;
   if (!initialData) return <InitialDashboardError />;
-  return <main><DashboardClient initialData={initialData} initialQuery={query} initialSchedulerStatus={initialSchedulerStatus} /></main>;
+  return <div><DashboardClient initialData={initialData} initialQuery={query} initialSchedulerStatus={initialSchedulerStatus} /></div>;
 }
