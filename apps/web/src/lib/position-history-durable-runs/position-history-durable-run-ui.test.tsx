@@ -16,7 +16,7 @@ test("view-only integration receives active/recent truth while create controls s
 
 test("populate UI has exact defaults, confirmation-only create, long-running disclosure, and no expansive controls", () => {
   const source = readFileSync("src/components/position-history-durable-runs.tsx", "utf8");
-  for (const expected of ["durableRunBudgets.map", "useState<DurableRunBudget>(1000)", "useState(true)", "checked={budget === value}", "checked={excludeProviderDisabled}", "setConfirming(true)", "submitting.current", "submitDurableRun", "history.durable.warning", "readActiveDurableRun", "startDurableRunPolling"]) assert.ok(source.includes(expected), expected);
+  for (const expected of ["durableRunBudgets.map", "useState<DurableRunBudget>(1000)", "useState(true)", "checked={budget === value}", "checked={excludeProviderDisabled}", "AlertDialog", "submitting.current", "submitDurableRun", "history.durable.warning", "readActiveDurableRun", "startDurableRunPolling"]) assert.ok(source.includes(expected), expected);
   for (const forbidden of ["type=\"number\"", "unlimited", "Cancel", "Pause", "Resume", "Retry", "leaseOwner", "leaseExpiresAt", "ETA", "Date.now()", "new Date()", "localStorage", "sessionStorage", "keepalive"]) assert.equal(source.includes(forbidden), false, forbidden);
 });
 

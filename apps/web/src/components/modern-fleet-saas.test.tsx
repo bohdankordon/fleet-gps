@@ -40,7 +40,8 @@ test("shared CSS exposes the bounded token layer and no legacy language strip", 
   assert.doesNotMatch(css, /\.language-selector-shell/);
 });
 
-test("visual polish adds no UI or icon package dependency", () => {
+test("visual polish keeps component libraries out except the owned-dialog behavioral dependency", () => {
   const packages = `${readFileSync("package.json", "utf8")}\n${readFileSync("../../package.json", "utf8")}`;
-  assert.doesNotMatch(packages, /@mui|radix|shadcn|lucide|heroicons|fontawesome|react-icons/i);
+  assert.match(packages, /"@radix-ui\/react-dialog": "\^1\.1\.23"/);
+  assert.doesNotMatch(packages, /@mui|shadcn|lucide|heroicons|fontawesome|react-icons/i);
 });

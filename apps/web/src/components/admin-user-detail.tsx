@@ -10,6 +10,7 @@ import { adminUserErrorMessage } from "../i18n/errors";
 import { formatDateTime } from "../i18n/formatting";
 import { OneTimePassword } from "./one-time-password";
 import { PermissionSelector } from "./permission-selector";
+import { Alert, AlertDialog, Button } from "./ui";
 
 class AdminUserRequestError extends Error {
   public constructor(public readonly body: unknown) { super("ADMIN_USER_REQUEST_FAILED"); }
@@ -35,13 +36,9 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
     return body;
   }
 
-  function localizedError(cause: unknown): string {
-    return adminUserErrorMessage(cause instanceof AdminUserRequestError ? cause.body : null, t);
-  }
+  function localizedError(cause: unknown): string { return adminUserErrorMessage(cause instanceof AdminUserRequestError ? cause.body : null, t); }
 
-  async function save(event: FormEvent): Promise<void> {
-    event.preventDefault();
-    if (user.role === "ADMIN" && role === "USER" && confirm !== "demote") { setConfirm("demote"); return; }
+  async function saveAccess(): Promise<void> {
     setBusy(true); setError(null);
     try {
       const updated = parseAdminManagedUser(await mutate(`/api/admin/users/${user.id}/access`, "PATCH", { role, permissions: role === "USER" ? permissions : [] }));
@@ -49,6 +46,12 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
       setUser(updated); setRole(updated.role); setPermissions(updated.permissions); setConfirm(null); router.refresh();
     } catch (cause) { setError(localizedError(cause)); }
     finally { setBusy(false); }
+  }
+
+  function save(event: FormEvent): void {
+    event.preventDefault();
+    if (user.role === "ADMIN" && role === "USER" && confirm !== "demote") { setConfirm("demote"); return; }
+    void saveAccess();
   }
 
   async function lifecycle(action: "disable" | "enable"): Promise<void> {
@@ -72,6 +75,10 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
   }
 
   if (secret) return <OneTimePassword password={secret} title={t("admin.user.newTemporaryPassword")} onDone={() => setSecret(null)} />;
+  const closeConfirmation = (kind: "demote" | "disable" | "reset") => (open: boolean) => { if (open) setConfirm(kind); else setConfirm(null); };
+  const dialogError = (kind: "demote" | "disable" | "reset") => confirm === kind && error ? <Alert variant="danger" live="assertive" title={error} /> : null;
+  const demoting = user.role === "ADMIN" && role === "USER";
+
   return <div className="admin-user-detail">
     <section className="details-section">
       <h2>{user.login} {self && <span className="badge badge-fresh">{t("admin.user.yourAccount")}</span>}</h2>
@@ -86,15 +93,15 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
     <form className="admin-form" onSubmit={save}>
       <label>{t("admin.user.role")}<select value={role} disabled={self} onChange={(event) => { setRole(event.currentTarget.value as "USER" | "ADMIN"); setConfirm(null); }}><option value="USER">{roleLabel("USER", locale)}</option><option value="ADMIN">{roleLabel("ADMIN", locale)}</option></select></label>
       {role === "USER" ? <PermissionSelector value={permissions} onChange={setPermissions} disabled={self} /> : <p className="admin-note">{t("admin.user.adminFullAccessCompact")}</p>}
-      {confirm === "demote" && <div className="confirmation" role="alert"><p>{t("admin.user.demotePrompt")}</p><button type="submit" disabled={busy}>{t("admin.user.confirmDemote")}</button><button type="button" onClick={() => setConfirm(null)}>{t("common.cancel")}</button></div>}
-      <button type="submit" disabled={busy || self}>{t("admin.user.saveAccess")}</button>
+      {demoting ? <AlertDialog open={confirm === "demote"} onOpenChange={closeConfirmation("demote")} trigger={<Button type="button" disabled={busy || self}>{t("admin.user.saveAccess")}</Button>} title={t("admin.user.confirmDemote")} description={t("admin.user.demotePrompt")} cancelLabel={t("common.cancel")} confirmLabel={t("admin.user.confirmDemote")} loading={busy} onConfirm={() => void saveAccess()}>{dialogError("demote")}</AlertDialog> : <Button type="submit" disabled={busy || self}>{t("admin.user.saveAccess")}</Button>}
     </form>
     {!self && <section className="details-section">
       <h2>{t("admin.user.stateAndPassword")}</h2>
-      <div className="admin-actions">{user.disabled ? <button type="button" disabled={busy} onClick={() => lifecycle("enable")}>{t("admin.user.enable")}</button> : <button type="button" className="danger-button" disabled={busy} onClick={() => setConfirm("disable")}>{t("admin.user.disable")}</button>}<button type="button" className="secondary-button" disabled={busy} onClick={() => setConfirm("reset")}>{t("admin.user.resetPassword")}</button></div>
-      {confirm === "disable" && <div className="confirmation" role="alert"><p>{t("admin.user.disablePrompt")}</p><button type="button" className="danger-button" disabled={busy} onClick={() => lifecycle("disable")}>{t("admin.user.confirmDisable")}</button><button type="button" onClick={() => setConfirm(null)}>{t("common.cancel")}</button></div>}
-      {confirm === "reset" && <div className="confirmation" role="alert"><p>{t("admin.user.resetPrompt")}</p><button type="button" disabled={busy} onClick={reset}>{t("admin.user.confirmReset")}</button><button type="button" onClick={() => setConfirm(null)}>{t("common.cancel")}</button></div>}
+      <div className="admin-actions">
+        {user.disabled ? <Button disabled={busy} onClick={() => void lifecycle("enable")}>{t("admin.user.enable")}</Button> : <AlertDialog open={confirm === "disable"} onOpenChange={closeConfirmation("disable")} trigger={<Button variant="destructive" disabled={busy}>{t("admin.user.disable")}</Button>} title={t("admin.user.confirmDisable")} description={t("admin.user.disablePrompt")} cancelLabel={t("common.cancel")} confirmLabel={t("admin.user.confirmDisable")} destructive loading={busy} onConfirm={() => void lifecycle("disable")}>{dialogError("disable")}</AlertDialog>}
+        <AlertDialog open={confirm === "reset"} onOpenChange={closeConfirmation("reset")} trigger={<Button variant="secondary" disabled={busy}>{t("admin.user.resetPassword")}</Button>} title={t("admin.user.confirmReset")} description={t("admin.user.resetPrompt")} cancelLabel={t("common.cancel")} confirmLabel={t("admin.user.confirmReset")} loading={busy} onConfirm={() => void reset()}>{dialogError("reset")}</AlertDialog>
+      </div>
     </section>}
-    {error && <p className="admin-error" role="alert">{error}</p>}
+    {error && confirm === null && <p className="admin-error" role="alert">{error}</p>}
   </div>;
 }

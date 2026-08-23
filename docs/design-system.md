@@ -47,3 +47,9 @@ The fleet dashboard is the first page-level consumer. Its order is `PageHeader`,
 ## Cursor pagination
 
 Cursor-paginated operational lists retain already loaded rows and use the owned `LoadMore` pattern rather than numbered pagination. It is a secondary native button with loading width preservation, `aria-busy`, and a polite loading status. The domain page owns cursors, request generation, aborting, errors, and retry semantics; `LoadMore` only presents the existing action. Keep it below the data surface, never replace retained rows while loading the next cursor page, and keep table/mobile-card content parity below the 768px transition.
+
+## Dialogs and confirmations
+
+Use the Taxi GPS-owned `Dialog` for an interrupting, dismissible focused task, and `AlertDialog` only for a consequential action requiring explicit cancel or confirm. They provide a compact 12px raised surface, tokenized overlay/elevation, labelled title, optional description, portal rendering, focus containment, Escape dismissal where allowed, and restoration to the trigger. AlertDialog gives initial focus to its secondary Cancel button; destructive confirms use a textual `Button` with the destructive variant and retain the consequence in the title/description. Keep errors visible inside an open dialog and use loading buttons for an in-flight confirmation.
+
+`@radix-ui/react-dialog` is a selective behavioral implementation dependency for this contract—not Taxi GPS’s product design language. Domain components import the Taxi GPS-owned primitives from `components/ui`, never Radix directly. Do not hand-build modal focus traps, overlays, or portal behavior; use native HTML first where no complex overlay is needed.

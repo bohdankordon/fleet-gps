@@ -24,6 +24,7 @@
     "scheduler:observe:test": "node --test scripts/scheduler-runtime-observer.test.cjs"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.23",
     "luxon": "^3.7.2",
     "maplibre-gl": "^6.2.0",
     "next": "^16.0.0",

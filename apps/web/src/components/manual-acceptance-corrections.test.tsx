@@ -58,10 +58,10 @@ test("Fleet vehicle identities are semantic links to the existing detail route",
 
 test("Disable is destructive while Enable and password reset are not", () => {
   const detail = source("src/components/admin-user-detail.tsx");
-  assert.match(detail, /className="danger-button"[\s\S]{0,160}setConfirm\("disable"\)/);
-  assert.match(detail, /className="danger-button"[\s\S]{0,160}lifecycle\("disable"\)/);
-  assert.doesNotMatch(detail, /className="danger-button"[\s\S]{0,160}lifecycle\("enable"\)/);
-  assert.match(detail, /className="secondary-button"[\s\S]{0,160}setConfirm\("reset"\)/);
+  assert.match(detail, /variant="destructive"[\s\S]*lifecycle\("disable"\)/);
+  assert.match(detail, /destructive loading=\{busy\}/);
+  assert.doesNotMatch(detail, /variant="destructive"[\s\S]*lifecycle\("enable"\)/);
+  assert.match(detail, /variant="secondary"[\s\S]*onConfirm=\{\(\) => void reset\(\)\}/);
 });
 
 test("accepted correction hooks cover users, permissions, account, dashboard summary semantics, and Trips spacing", () => {

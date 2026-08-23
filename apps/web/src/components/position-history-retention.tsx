@@ -6,6 +6,7 @@ import { createTranslator } from "../i18n/core";
 import { formatDateTime, formatNumber, formatUnit } from "../i18n/formatting";
 import type { AppLocale } from "../i18n/locales";
 import { positionHistoryRetentionExecutionResultSchema, positionHistoryRetentionPlanSchema, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPlan } from "../lib/position-history-retention/position-history-retention-contract";
+import { Alert, AlertDialog, Button } from "./ui";
 
 type Props = Readonly<{ data: PositionHistoryRetentionPlan | null; unavailable?: boolean; isAdmin?: boolean }>;
 
@@ -56,6 +57,7 @@ export function PositionHistoryRetention({ data, unavailable = false, isAdmin = 
   }
 
   const hasWork = plan !== null && (plan.checkpoints.fullyObsolete > 0 || plan.observations.executableObservationCandidates > 0);
+  const setRetentionDialogOpen = (open: boolean) => { setConfirming(open); if (!open) setError(null); };
   return <section className="admin-history-section" aria-labelledby="history-retention-title">
     <h2 id="history-retention-title">{t("history.retention.title")}</h2>
     {unavailable && !plan && <p className="admin-history-disclaimer" role="alert">{t("history.retention.unavailable")}</p>}
@@ -83,18 +85,11 @@ export function PositionHistoryRetention({ data, unavailable = false, isAdmin = 
 
       {isAdmin && <div className="admin-history-destructive">
         {!hasWork && <p className="notice" role="status">{t("history.retention.noWork")}</p>}
-        {hasWork && !confirming && <><p className="admin-history-disclaimer">{t("history.retention.manualLimits")}</p><button type="button" className="danger-button" onClick={() => { setConfirming(true); setError(null); }}>{t("history.retention.clean")}</button></>}
-        {hasWork && confirming && <div className="confirmation" role="alertdialog" aria-modal="true" aria-label={t("history.retention.confirmLabel")}>
-          <h3>{t("history.retention.confirmTitle")}</h3>
-          <p>{t("history.retention.canonical")}: <strong>{instant(plan.canonicalAnchor)}</strong></p>
-          <p>{t("history.retention.cutoff")}: <strong>{instant(plan.policyCutoff)}</strong></p>
-          <p>{t("history.retention.obsoleteCount")}: <strong>{number(plan.checkpoints.fullyObsolete)}</strong></p>
-          <p>{t("history.retention.candidateCount")}: <strong>{number(plan.observations.executableObservationCandidates)}</strong></p>
-          <p>{t("history.retention.confirmWarning")}</p>
-          <div className="admin-actions"><button type="button" disabled={busy} onClick={() => { setConfirming(false); setError(null); }}>{t("common.cancel")}</button><button type="button" className="danger-button" disabled={busy} onClick={() => void execute()}>{busy ? t("history.retention.cleaning") : t("history.retention.delete")}</button></div>
-        </div>}
+        {hasWork && <><p className="admin-history-disclaimer">{t("history.retention.manualLimits")}</p><AlertDialog open={confirming} onOpenChange={setRetentionDialogOpen} trigger={<Button variant="destructive" disabled={busy}>{t("history.retention.clean")}</Button>} title={t("history.retention.confirmTitle")} description={t("history.retention.confirmWarning")} cancelLabel={t("common.cancel")} confirmLabel={busy ? t("history.retention.cleaning") : t("history.retention.delete")} destructive loading={busy} onConfirm={() => void execute()}>
+          <div className="ui-dialog__summary"><p>{t("history.retention.canonical")}: <strong>{instant(plan.canonicalAnchor)}</strong></p><p>{t("history.retention.cutoff")}: <strong>{instant(plan.policyCutoff)}</strong></p><p>{t("history.retention.obsoleteCount")}: <strong>{number(plan.checkpoints.fullyObsolete)}</strong></p><p>{t("history.retention.candidateCount")}: <strong>{number(plan.observations.executableObservationCandidates)}</strong></p>{error && <Alert variant="danger" live="assertive" title={error} />}</div>
+        </AlertDialog></>}
         {result && <div className="notice" role="status"><p>{t("history.retention.deletedCheckpoints", { count: number(result.deletedCheckpoints) })}</p><p>{t("history.retention.deletedObservations", { count: number(result.deletedObservations) })}</p>{result.stoppedByBudget && <p>{t("history.retention.moreWork")}</p>}</div>}
-        {error && <p className="admin-error" role="alert">{error}</p>}
+        {error && !confirming && <p className="admin-error" role="alert">{error}</p>}
       </div>}
     </>}
   </section>;

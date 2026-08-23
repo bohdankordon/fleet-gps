@@ -9,6 +9,7 @@ import { DEFAULT_LOCALE, type AppLocale } from "../i18n/locales";
 import { readActiveDurableRun, readRecentDurableRuns, submitDurableRun } from "../lib/position-history-durable-runs/position-history-durable-run-browser";
 import { durableRunBudgets, type DurableRunBudget, type SafeDurableRun } from "../lib/position-history-durable-runs/position-history-durable-run-contract";
 import { startDurableRunPolling } from "../lib/position-history-durable-runs/position-history-durable-run-polling";
+import { AlertDialog, Button } from "./ui";
 
 type Props = Readonly<{ anchor: string; canPopulate: boolean; initialActive: SafeDurableRun | null; initialRecent: readonly SafeDurableRun[] }>;
 
@@ -61,8 +62,9 @@ export function PositionHistoryDurableRuns({ anchor, canPopulate, initialActive,
       <p>{t("history.population.checkpoint", { anchor: displayedAnchor })}</p>
       <fieldset disabled={pending}><legend>{t("history.population.maxWindows")}</legend><div className="history-budget-options">{durableRunBudgets.map((value) => <label key={value}><input type="radio" name="durable-history-budget" value={value} checked={budget === value} onChange={() => setBudget(value)} /> {formatNumber(locale, value)}</label>)}</div></fieldset>
       <label className="check"><input type="checkbox" checked={excludeProviderDisabled} disabled={pending} onChange={(event) => setExcludeProviderDisabled(event.target.checked)} /> {t("history.population.skipDisabled")}</label>
-      {!confirming && <button type="button" disabled={pending} onClick={() => setConfirming(true)}>{t("history.durable.start")}</button>}
-      {confirming && <div className="confirmation" role="dialog" aria-modal="true" aria-labelledby="durable-confirm-title"><h3 id="durable-confirm-title">{t("history.durable.confirmTitle")}</h3><p>{t("history.population.checkpoint", { anchor: displayedAnchor })}</p><p>{t("history.population.limit", { windows: formatNumber(locale, budget) })}</p><p>{t("history.population.providerState", { state: t(excludeProviderDisabled ? "history.population.willSkip" : "history.population.willInclude") })}</p><p>{t("history.durable.warning")}</p><button type="button" disabled={pending} onClick={() => setConfirming(false)}>{t("common.cancel")}</button><button type="button" disabled={pending} onClick={() => void create()}>{pending ? t("history.durable.creating") : t("history.durable.start")}</button></div>}
+      <AlertDialog open={confirming} onOpenChange={setConfirming} trigger={<Button disabled={pending}>{t("history.durable.start")}</Button>} title={t("history.durable.confirmTitle")} description={t("history.durable.warning")} cancelLabel={t("common.cancel")} confirmLabel={pending ? t("history.durable.creating") : t("history.durable.start")} loading={pending} onConfirm={() => void create()}>
+        <div className="ui-dialog__summary"><p>{t("history.population.checkpoint", { anchor: displayedAnchor })}</p><p>{t("history.population.limit", { windows: formatNumber(locale, budget) })}</p><p>{t("history.population.providerState", { state: t(excludeProviderDisabled ? "history.population.willSkip" : "history.population.willInclude") })}</p></div>
+      </AlertDialog>
     </>}
     {failure === "ALREADY_RUNNING" && <p className="admin-error" role="alert">{t("history.durable.already")}</p>}
     {failure === "FAILED" && <p className="admin-error" role="alert">{t("history.durable.failed")}</p>}
