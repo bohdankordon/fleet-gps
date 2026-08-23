@@ -26,6 +26,7 @@ test("dashboard data representations preserve native accessible structures and m
   for (const value of ["dashboard.table.gps", "dashboard.mobile.speed", "dashboard.mobile.distance", "dashboard.table.sourceQuality", "dashboard.table.activity"]) assert.ok(dashboard.includes(`t("${value}")`));
   assert.match(styles, /\.dashboard-table-container \{ display: none; \}/);
   assert.match(styles, /\.dashboard-mobile-list \{ display: grid/);
+  assert.match(styles, /@media \(max-width: 767px\)/);
 });
 
 test("dashboard scheduler adopts shared feedback and action contracts while retaining its refresh route", () => {
