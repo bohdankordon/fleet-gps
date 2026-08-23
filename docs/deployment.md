@@ -182,6 +182,7 @@ until DB, migrations, API, web, auth, readiness, backup and restore are proven:
     ALERT_INGESTION_ENABLED=false
     TELEGRAM_NOTIFICATIONS_ENABLED=false
     POSITION_HISTORY_MAINTENANCE_ENABLED=false
+    POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET=2000
     POSITION_HISTORY_RETENTION_ENABLED=false
 
 IMPORTANT: SYNC_SCHEDULER_ENABLED=false disables only the fleet/daily-runs

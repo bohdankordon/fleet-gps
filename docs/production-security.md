@@ -71,6 +71,7 @@ The cache holds at most 10,000 buckets. Expired entries are reclaimed opportunis
 | `SYNC_SCHEDULER_SHUTDOWN_TIMEOUT_MS` | Optional duration | 50000; 1000..120000 ms |
 | `ALERT_INGESTION_ENABLED` | Optional strict boolean | false |
 | `POSITION_HISTORY_MAINTENANCE_ENABLED` | Optional strict boolean | false |
+| `POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET` | Conditional strict decimal integer | Required when maintenance is enabled; 1..5000; intended initial production value 2000 |
 | `POSITION_HISTORY_RETENTION_ENABLED` | Optional strict boolean | false |
 | `TELEGRAM_NOTIFICATIONS_ENABLED` | Optional strict boolean | false |
 | `TELEGRAM_BOT_TOKEN` | Conditional secret | required/non-placeholder only when Telegram is enabled |
@@ -98,4 +99,4 @@ A bounded high-signal scan of current source and reachable Git history found no 
 
 ## Frozen architecture facts
 
-The Prisma schema and all 11 migrations remain unchanged. History budgets remain Stage 17C `6/12/24`, Stage 18B `500/1000/5000`, Stage 18C at `03:00 UTC` with SYSTEM budget `5000`, Stage 19C at `06:00 UTC`, and retention limits `5000` checkpoints / `25000` observations. Localization remains exactly `ru`, `uk`, `en`, default `ru`, unprefixed URLs, `taxi_locale` cookie preference, no Accept-Language detection, and Europe/Kyiv display authority.
+The Prisma schema and all 11 migrations remain unchanged. History budgets remain Stage 17C `6/12/24`, Stage 18B `500/1000/5000`, Stage 18C at `03:00 UTC` with an explicitly configured SYSTEM budget of `1..5000` (initial production value `2000`), Stage 19C at `06:00 UTC`, and retention limits `5000` checkpoints / `25000` observations. Localization remains exactly `ru`, `uk`, `en`, default `ru`, unprefixed URLs, `taxi_locale` cookie preference, and Europe/Kyiv display authority.

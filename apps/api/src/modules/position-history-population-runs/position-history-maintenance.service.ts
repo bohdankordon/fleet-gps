@@ -11,7 +11,6 @@ import { PositionHistoryPopulationRunConflictError } from "./position-history-po
 
 export const POSITION_HISTORY_MAINTENANCE_CRON = "0 0 3 * * *";
 export const POSITION_HISTORY_MAINTENANCE_TIME_ZONE = "UTC";
-export const POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET = 5_000;
 
 export type PositionHistoryMaintenanceEvaluationResult = Readonly<{
   outcome: "DISABLED" | "ACTIVE_RUN" | "NO_ELIGIBLE_WORK" | "CREATED" | "CREATION_RACE_LOST";
@@ -57,7 +56,7 @@ export class PositionHistoryMaintenanceService {
       await this.creation.createRun({
         initiatorType: PositionHistoryPopulationRunInitiatorType.SYSTEM,
         to: anchor,
-        windowBudget: POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET,
+        windowBudget: this.config.positionHistoryMaintenance.windowBudget,
         excludeProviderDisabled: true,
       });
       return Object.freeze({ outcome: "CREATED", eligibleRemainingWindows });

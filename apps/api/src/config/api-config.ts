@@ -17,6 +17,7 @@ export type AlertIngestionConfig = Readonly<{
 }>;
 export type PositionHistoryMaintenanceConfig = Readonly<{
   enabled: boolean;
+  windowBudget: number;
 }>;
 export type PositionHistoryRetentionConfig = Readonly<{
   enabled: boolean;
@@ -105,6 +106,8 @@ export function parseApiConfig(env: Environment): ApiConfig {
   const schedulerEnabled = parseBoolean(env.SYNC_SCHEDULER_ENABLED);
   const alertIngestionEnabled = parseBoolean(env.ALERT_INGESTION_ENABLED);
   const positionHistoryMaintenanceEnabled = parseBoolean(env.POSITION_HISTORY_MAINTENANCE_ENABLED);
+  const positionHistoryMaintenanceWindowBudget = parseInteger(env.POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET, 5_000, 1, 5_000);
+  const positionHistoryMaintenanceWindowBudgetExplicit = env.POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET !== undefined && env.POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET !== "";
   const positionHistoryRetentionEnabled = parseBoolean(env.POSITION_HISTORY_RETENTION_ENABLED);
   const telegramNotificationsEnabled = parseBoolean(env.TELEGRAM_NOTIFICATIONS_ENABLED);
   const telegramBotToken = env.TELEGRAM_BOT_TOKEN?.trim() || null;
@@ -126,6 +129,10 @@ export function parseApiConfig(env: Environment): ApiConfig {
   if (schedulerEnabled === undefined) issues.push("SYNC_SCHEDULER_ENABLED");
   if (alertIngestionEnabled === undefined) issues.push("ALERT_INGESTION_ENABLED");
   if (positionHistoryMaintenanceEnabled === undefined) issues.push("POSITION_HISTORY_MAINTENANCE_ENABLED");
+  if (
+    positionHistoryMaintenanceWindowBudget === undefined
+    || (positionHistoryMaintenanceEnabled === true && !positionHistoryMaintenanceWindowBudgetExplicit)
+  ) issues.push("POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET");
   if (positionHistoryRetentionEnabled === undefined) issues.push("POSITION_HISTORY_RETENTION_ENABLED");
   if (telegramNotificationsEnabled === undefined) issues.push("TELEGRAM_NOTIFICATIONS_ENABLED");
   if (telegramNotificationsEnabled === true && telegramBotToken === null) issues.push("TELEGRAM_BOT_TOKEN");
@@ -149,6 +156,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
     schedulerEnabled === undefined ||
     alertIngestionEnabled === undefined ||
     positionHistoryMaintenanceEnabled === undefined ||
+    positionHistoryMaintenanceWindowBudget === undefined ||
     positionHistoryRetentionEnabled === undefined ||
     telegramNotificationsEnabled === undefined ||
     telegramDispatchIntervalMs === undefined ||
@@ -167,7 +175,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
       database: Object.freeze({ url: databaseUrl.trim(), poolMax, connectionTimeoutMs, idleTimeoutMs }),
       syncScheduler: Object.freeze({ enabled: schedulerEnabled, fleetIntervalSeconds, runsIntervalSeconds, shutdownTimeoutMs }),
       alertIngestion: Object.freeze({ enabled: alertIngestionEnabled }),
-      positionHistoryMaintenance: Object.freeze({ enabled: positionHistoryMaintenanceEnabled }),
+      positionHistoryMaintenance: Object.freeze({ enabled: positionHistoryMaintenanceEnabled, windowBudget: positionHistoryMaintenanceWindowBudget }),
       positionHistoryRetention: Object.freeze({ enabled: positionHistoryRetentionEnabled }),
       telegramNotifications: Object.freeze({ enabled: telegramNotificationsEnabled, botToken: telegramBotToken, chatId: telegramChatId, dispatchIntervalMs: telegramDispatchIntervalMs, batchSize: telegramBatchSize }),
       equGps: Object.freeze(parseEquGpsConfig({
