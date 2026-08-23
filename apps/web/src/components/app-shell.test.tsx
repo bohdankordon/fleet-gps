@@ -39,6 +39,8 @@ test("shell navigation keeps semantic links, labelled landmarks, and permission-
   assert.match(shellCss, /app-nav__list \{ display: flex; gap: var\(--space-1\); width: 100%; min-width: 0;/);
   assert.match(shellCss, /@media \(max-width: 639px\)/);
   assert.match(shellCss, /app-nav a\[aria-current="page"\]/);
+  assert.match(shellCss, /app-nav a\[aria-current="page"\][^\n]*color-brand-subtle/);
+  assert.match(shellCss, /\.app-brand svg[^\n]*color-brand-subtle/);
 });
 
 test("route content delegates its main landmark to AppShell rather than nesting main elements", () => {

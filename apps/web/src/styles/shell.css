@@ -7,12 +7,12 @@
 .app-shell .app-header { border-bottom: 1px solid var(--color-border-subtle); background: var(--color-surface); }
 .app-shell .app-header-inner { display: flex; align-items: center; gap: var(--space-3); width: 100%; max-width: 1440px; min-width: 0; min-height: 52px; margin: 0 auto; padding: 0 var(--space-4); }
 .app-brand { display: inline-flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); color: var(--color-text-primary); font-size: var(--font-size-label); font-weight: var(--font-weight-semibold); line-height: var(--line-height-label); white-space: nowrap; }
-.app-brand svg { width: var(--icon-size-default); height: var(--icon-size-default); color: var(--color-action-primary); }
+.app-brand svg { width: var(--icon-size-default); height: var(--icon-size-default); padding: var(--space-1); border-radius: var(--radius-sm); color: var(--color-action-primary); background: var(--color-brand-subtle); }
 .app-shell .app-nav { flex: 1 1 auto; min-width: 0; border: 0; background: transparent; }
 .app-shell .app-nav__list { display: flex; gap: var(--space-1); width: 100%; min-width: 0; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; }
 .app-shell .app-nav a { display: inline-flex; align-items: center; min-height: var(--control-height-comfortable); padding: 0 var(--space-3); border-bottom: 2px solid transparent; color: var(--color-text-secondary); font-size: var(--font-size-label); font-weight: var(--font-weight-semibold); line-height: var(--line-height-label); text-decoration: none; white-space: nowrap; }
-.app-shell .app-nav a:hover { color: var(--color-text-primary); background: var(--color-surface-hover); }
-.app-shell .app-nav a[aria-current="page"] { border-bottom-color: var(--color-action-primary); color: var(--color-text-primary); background: var(--color-surface-selected); }
+.app-shell .app-nav a:hover { color: var(--color-text-primary); background: var(--color-brand-subtle-hover); }
+.app-shell .app-nav a[aria-current="page"] { border-bottom-color: var(--color-action-primary); color: var(--color-text-primary); background: var(--color-brand-subtle); }
 .app-shell .app-header-tools { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); margin-left: auto; }
 .app-shell .app-header .account-link { min-width: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-shell .app-header-login .app-header-inner { justify-content: flex-end; }

@@ -26,6 +26,7 @@ test("the final semantic palette is explicitly owned and complete", () => {
     "color-text-primary": "#1b1b1b", "color-text-secondary": "#424242", "color-text-tertiary": "#616161", "color-text-disabled": "#626262", "color-text-inverse": "#ffffff", "color-text-link": "#0f5c91",
     "color-border-subtle": "#e0e0e0", "color-border-default": "#bdbdbd", "color-border-strong": "#707070", "color-border-interactive": "#0f5c91",
     "color-action-primary": "#0f5c91", "color-action-primary-hover": "#0b4c78", "color-action-primary-pressed": "#083b5d", "color-action-secondary": "#ffffff", "color-action-secondary-hover": "#f0f3f6", "color-action-secondary-pressed": "#e8f2f8", "color-action-subtle": "#e8f2f8", "color-action-subtle-hover": "#d9eaf5", "color-action-subtle-pressed": "#c7deed",
+    "color-brand-subtle": "#edf6fb", "color-brand-subtle-hover": "#e1f0f8", "color-brand-border-subtle": "#4b8db6",
     "color-focus-ring": "#0b6ea8", "color-neutral-foreground": "#424242", "color-neutral-background": "#f0f3f6", "color-neutral-border": "#bdbdbd",
   };
   for (const [name, value] of Object.entries(expected)) assert.equal(token(name), value, name);
@@ -39,7 +40,7 @@ test("semantic text, status, and focus pairs meet their contrast targets", () =>
     ["color-text-link", "color-canvas", 4.5], ["color-focus-ring", "color-canvas", 3], ["color-focus-ring", "color-surface", 3],
     ["color-success-foreground", "color-success-background", 4.5], ["color-warning-foreground", "color-warning-background", 4.5], ["color-danger-foreground", "color-danger-background", 4.5], ["color-info-foreground", "color-info-background", 4.5],
     ["color-text-primary", "color-surface-selected", 4.5], ["color-text-secondary", "color-surface-selected", 4.5], ["color-text-secondary", "color-success-background", 4.5], ["color-text-secondary", "color-warning-background", 4.5], ["color-text-secondary", "color-danger-background", 4.5], ["color-text-secondary", "color-info-background", 4.5], ["color-text-secondary", "color-neutral-background", 4.5],
-    ["color-action-primary", "color-surface-selected", 4.5], ["color-neutral-foreground", "color-neutral-background", 4.5],
+    ["color-action-primary", "color-surface-selected", 4.5], ["color-action-primary", "color-brand-subtle", 4.5], ["color-text-primary", "color-brand-subtle", 4.5], ["color-text-secondary", "color-brand-subtle", 4.5], ["color-brand-border-subtle", "color-surface", 3], ["color-neutral-foreground", "color-neutral-background", 4.5],
     ["color-text-tertiary", "color-surface", 4.5], ["color-text-disabled", "color-surface-subtle", 4.5],
   ];
   for (const [foreground, background, minimum] of pairs) {

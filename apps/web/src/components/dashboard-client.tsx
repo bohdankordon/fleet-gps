@@ -54,16 +54,16 @@ export function DashboardClient({ initialData, initialQuery, initialSchedulerSta
 function Summary({ data }: Readonly<{ data: DashboardVehiclesResponse }>) {
   const { t } = useI18n();
   const cards = [
-    { label: t("dashboard.summary.total"), value: data.summary.total, tone: "primary" as MetricTone, Icon: FleetIcon },
-    { label: t("dashboard.summary.online"), value: data.summary.online, tone: "success" as MetricTone, Icon: OnlineIcon },
-    { label: t("dashboard.summary.offline"), value: data.summary.offline, tone: "danger" as MetricTone, Icon: OfflineIcon },
-    { label: t("dashboard.summary.unknown"), value: data.summary.unknown, tone: "info" as MetricTone },
-    { label: t("dashboard.summary.fresh"), value: data.summary.freshPositions, tone: "success" as MetricTone, Icon: ClockIcon },
-    { label: t("dashboard.summary.stale"), value: data.summary.stalePositions, tone: "warning" as MetricTone, Icon: HistoryIcon },
-    { label: t("dashboard.summary.missing"), value: data.summary.withoutPosition, tone: "neutral" as MetricTone },
-    { label: t("dashboard.summary.belowMinimum"), value: data.summary.belowMinimumDistance, tone: "warning" as MetricTone, Icon: WarningIcon },
-    { label: t("dashboard.summary.withoutDistance"), value: data.summary.withoutDailyStat, tone: "info" as MetricTone, Icon: RouteIcon },
+    { label: t("dashboard.summary.total"), value: data.summary.total, tone: "primary" as MetricTone, priority: "primary", Icon: FleetIcon },
+    { label: t("dashboard.summary.online"), value: data.summary.online, tone: "success" as MetricTone, priority: "primary", Icon: OnlineIcon },
+    { label: t("dashboard.summary.offline"), value: data.summary.offline, tone: "danger" as MetricTone, priority: "primary", Icon: OfflineIcon },
+    { label: t("dashboard.summary.fresh"), value: data.summary.freshPositions, tone: "success" as MetricTone, priority: "primary", Icon: ClockIcon },
+    { label: t("dashboard.summary.stale"), value: data.summary.stalePositions, tone: "warning" as MetricTone, priority: "primary", Icon: HistoryIcon },
+    { label: t("dashboard.summary.unknown"), value: data.summary.unknown, tone: "info" as MetricTone, priority: "secondary" },
+    { label: t("dashboard.summary.missing"), value: data.summary.withoutPosition, tone: "neutral" as MetricTone, priority: "secondary" },
+    { label: t("dashboard.summary.belowMinimum"), value: data.summary.belowMinimumDistance, tone: "warning" as MetricTone, priority: "secondary", Icon: WarningIcon },
+    { label: t("dashboard.summary.withoutDistance"), value: data.summary.withoutDailyStat, tone: "info" as MetricTone, priority: "secondary", Icon: RouteIcon },
   ];
-  return <section className="dashboard-summary-grid" aria-label={t("dashboard.summary.label")}>{cards.map(({ label, value, tone, Icon }) => <Card as="article" className={`dashboard-stat-card dashboard-stat-card--${tone}`} key={label}><div><p>{label}</p><strong className="ui-tabular-nums">{value}</strong></div>{Icon ? <Icon className="dashboard-stat-card__icon" size={20} /> : null}</Card>)}</section>;
+  return <section className="dashboard-summary-grid" aria-label={t("dashboard.summary.label")}>{cards.map(({ label, value, tone, priority, Icon }) => <Card as="article" className={`dashboard-stat-card dashboard-stat-card--${tone} dashboard-stat-card--${priority}-metric`} key={label}><div><p>{label}</p><strong className="ui-tabular-nums">{value}</strong></div>{Icon ? <Icon className="dashboard-stat-card__icon" size={20} /> : null}</Card>)}</section>;
 }
-function Header({ data }: Readonly<{ data: DashboardVehiclesResponse }>) { const { locale, t } = useI18n(); return <PageHeader eyebrow={t("dashboard.eyebrow")} title={t("dashboard.title")} description={t("dashboard.description")} metadata={<><span>{t("dashboard.metadata.serviceDate")} <strong>{data.serviceDate}</strong></span><span>{t("dashboard.metadata.timezone")} <strong>{data.timezone}</strong></span><span>{t("dashboard.metadata.vehicles")} <strong>{data.summary.total}</strong></span><span>{t("dashboard.metadata.generated")} <time dateTime={data.generatedAt}>{formatGeneratedAt(data.generatedAt, data.timezone, locale)}</time></span></>} />; }
+function Header({ data }: Readonly<{ data: DashboardVehiclesResponse }>) { const { locale, t } = useI18n(); return <PageHeader className="dashboard-page-header" eyebrow={t("dashboard.eyebrow")} title={t("dashboard.title")} description={t("dashboard.description")} metadata={<><span>{t("dashboard.metadata.serviceDate")} <strong>{data.serviceDate}</strong></span><span>{t("dashboard.metadata.timezone")} <strong>{data.timezone}</strong></span><span>{t("dashboard.metadata.vehicles")} <strong>{data.summary.total}</strong></span><span>{t("dashboard.metadata.generated")} <time dateTime={data.generatedAt}>{formatGeneratedAt(data.generatedAt, data.timezone, locale)}</time></span></>} />; }

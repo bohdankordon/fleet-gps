@@ -73,6 +73,9 @@
   --color-action-subtle: #e8f2f8;
   --color-action-subtle-hover: #d9eaf5;
   --color-action-subtle-pressed: #c7deed;
+  --color-brand-subtle: #edf6fb;
+  --color-brand-subtle-hover: #e1f0f8;
+  --color-brand-border-subtle: #4b8db6;
   --color-focus-ring: #0b6ea8;
 
   --color-success-foreground: #0b6b43;

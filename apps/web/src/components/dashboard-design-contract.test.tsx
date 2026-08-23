@@ -44,9 +44,18 @@ test("dashboard visual hierarchy uses restrained semantic surfaces rather than p
     assert.match(styles, new RegExp(`\\.dashboard-stat-card--${tone}`));
   }
   assert.match(dashboard, /status === "offline" \? "danger"/);
-  assert.match(styles, /\.dashboard-filter-bar[^\n]*background: var\(--color-surface-subtle\)/);
-  assert.match(styles, /\.dashboard-table-container th[^\n]*background: var\(--color-surface-selected\)/);
-  assert.match(styles, /\.dashboard-scheduler--active[^\n]*color-info-background/);
+  assert.match(dashboard, /className="dashboard-page-header"/);
+  assert.match(dashboard, /priority: "primary"/);
+  assert.match(dashboard, /priority: "secondary"/);
+  assert.match(dashboard, /dashboard-stat-card--\$\{priority\}-metric/);
+  assert.match(styles, /\.dashboard-page-header[^\n]*color-brand-subtle/);
+  assert.match(styles, /\.dashboard-filter-bar[^\n]*background: var\(--color-brand-subtle\)/);
+  assert.match(styles, /\.dashboard-table-container th[^\n]*background: var\(--color-brand-subtle\)/);
+  assert.match(styles, /\.dashboard-scheduler--active[^\n]*color-brand-subtle/);
   assert.match(styles, /\.dashboard-scheduler--danger[^\n]*color-danger-background/);
+  assert.match(styles, /\.dashboard-scheduler__panel::before/);
+  assert.doesNotMatch(styles, /dashboard-scheduler__panel \{[^\n]*border-inline-start/);
+  assert.match(styles, /dashboard-stat-card--primary-metric strong/);
+  assert.match(styles, /transition: background-color var\(--duration-fast\)/);
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}/i);
 });
