@@ -16,8 +16,8 @@ export function Alert({ variant = "info", title, children, action, icon, live, c
   </div>;
 }
 
-export function Card({ variant = "default", className, children, ...props }: HTMLAttributes<HTMLElement> & Readonly<{ variant?: "default" | "subtle" | "raised" }>) {
-  return <section {...props} className={["ui-card", `ui-card--${variant}`, className].filter(Boolean).join(" ")}>{children}</section>;
+export function Card({ as: Component = "section", variant = "default", className, children, ...props }: HTMLAttributes<HTMLElement> & Readonly<{ as?: "article" | "div" | "section"; variant?: "default" | "subtle" | "raised" }>) {
+  return <Component {...props} className={["ui-card", `ui-card--${variant}`, className].filter(Boolean).join(" ")}>{children}</Component>;
 }
 
 export function Spinner({ label = "Loading", className }: Readonly<{ label?: string; className?: string }>) { return <span className={["ui-spinner", className].filter(Boolean).join(" ")} role="status" aria-label={label} />; }

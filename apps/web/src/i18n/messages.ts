@@ -231,6 +231,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "dashboard.initialErrorText": { ru: "Повторите попытку позже.", uk: "Спробуйте пізніше.", en: "Please try again later." },
   "dashboard.retryAria": { ru: "Повторить загрузку данных автопарка", uk: "Повторити завантаження даних автопарку", en: "Retry loading fleet data" },
   "dashboard.table.vehicle": { ru: "Машина", uk: "Автомобіль", en: "Vehicle" },
+  "dashboard.table.label": { ru: "Машины автопарка", uk: "Автомобілі автопарку", en: "Fleet vehicles" },
   "dashboard.table.status": { ru: "Статус", uk: "Статус", en: "Status" },
   "dashboard.table.gps": { ru: "GPS", uk: "GPS", en: "GPS" },
   "dashboard.table.currentSpeed": { ru: "Текущая скорость", uk: "Поточна швидкість", en: "Current speed" },

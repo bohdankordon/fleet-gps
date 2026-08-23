@@ -7,6 +7,7 @@ import { getServerI18n } from "@/i18n/server";
 import { getAuthUser } from "@/lib/auth/auth-user";
 import "./globals.css";
 import "../styles/shell.css";
+import "../styles/dashboard.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 export async function generateMetadata(): Promise<Metadata> { const { t } = await getServerI18n(); return { title: t("document.title"), description: t("document.description") }; }

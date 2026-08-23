@@ -5,6 +5,7 @@ import type { SchedulerStatusResponse } from "@/lib/scheduler/scheduler-contract
 import { formatSchedulerInterval, formatSchedulerTimestamp, schedulerFailureCategoryLabel } from "@/lib/scheduler/scheduler-formatters";
 import { parseSchedulerRefreshPayload, schedulerInitialErrorLabel, schedulerStateLabel } from "@/lib/scheduler/scheduler-ui-model";
 import { useI18n } from "../i18n/client";
+import { Alert, Badge, Button, Card } from "./ui";
 
 type Props = Readonly<{ initialStatus: SchedulerStatusResponse | null; timezone: string }>;
 type Job = SchedulerStatusResponse["fleet"];
@@ -28,21 +29,26 @@ export function SchedulerStatus({ initialStatus, timezone }: Props) {
     finally { if (!abort.signal.aborted) setLoading(false); }
   }, []);
   useEffect(() => () => controller.current?.abort(), []);
-  if (!status) return <section className="scheduler-section" aria-labelledby="scheduler-heading"><div className="scheduler-heading"><div><p className="eyebrow">{t("scheduler.eyebrow")}</p><h2 id="scheduler-heading">{t("scheduler.title")}</h2></div><button type="button" onClick={refresh} disabled={loading}>{loading ? t("common.refreshing") : t("scheduler.refresh")}</button></div><p className="scheduler-error" role="alert">{t("scheduler.loadError")}</p></section>;
-  return <section className="scheduler-section" aria-labelledby="scheduler-heading">
-    <div className="scheduler-heading"><div><p className="eyebrow">{t("scheduler.eyebrow")}</p><h2 id="scheduler-heading">{t("scheduler.title")}</h2></div><button type="button" onClick={refresh} disabled={loading}>{loading ? t("common.refreshing") : t("scheduler.refresh")}</button></div>
-    {failed && <p className="scheduler-error" role="alert">{t("scheduler.loadError")}</p>}
-    {!status.enabled && <p className="scheduler-disabled">{t("scheduler.disabled")}</p>}
-    <div className="scheduler-grid">
-      <article className="scheduler-card"><h3>{t("scheduler.overall")}</h3><dl><Field label={t("scheduler.state")} value={schedulerStateLabel(status, locale)} /><Field label={t("scheduler.started")} value={formatSchedulerTimestamp(status.startedAt, timezone, locale)} /><Field label={t("scheduler.fleetInterval")} value={formatSchedulerInterval(status.fleetIntervalSeconds, locale)} /><Field label={t("scheduler.distanceInterval")} value={formatSchedulerInterval(status.runsIntervalSeconds, locale)} /><Field label={t("scheduler.generated")} value={formatSchedulerTimestamp(status.generatedAt, timezone, locale)} /></dl></article>
+  if (!status) return <section className="dashboard-scheduler" aria-labelledby="scheduler-heading"><SchedulerHeading loading={loading} onRefresh={refresh} /><Alert variant="danger" live="assertive" title={t("scheduler.loadError")} /></section>;
+  return <section className="dashboard-scheduler" aria-labelledby="scheduler-heading">
+    <SchedulerHeading loading={loading} onRefresh={refresh} />
+    {failed && <Alert variant="danger" live="assertive" title={t("scheduler.loadError")} />}
+    {!status.enabled && <Badge variant="neutral" className="dashboard-scheduler__disabled">{t("scheduler.disabled")}</Badge>}
+    <div className="dashboard-scheduler__grid">
+      <Card as="article" className="dashboard-scheduler__card"><h3>{t("scheduler.overall")}</h3><dl><Field label={t("scheduler.state")} value={schedulerStateLabel(status, locale)} /><Field label={t("scheduler.started")} value={formatSchedulerTimestamp(status.startedAt, timezone, locale)} /><Field label={t("scheduler.fleetInterval")} value={formatSchedulerInterval(status.fleetIntervalSeconds, locale)} /><Field label={t("scheduler.distanceInterval")} value={formatSchedulerInterval(status.runsIntervalSeconds, locale)} /><Field label={t("scheduler.generated")} value={formatSchedulerTimestamp(status.generatedAt, timezone, locale)} /></dl></Card>
       <JobCard title={t("scheduler.fleetJob")} job={status.fleet} timezone={timezone} />
       <JobCard title={t("scheduler.distanceJob")} job={status.runs} timezone={timezone} />
     </div>
   </section>;
 }
 
-function Field({ label, value }: Readonly<{ label: string; value: string | number }>) { return <div><dt>{label}</dt><dd>{value}</dd></div>; }
+function SchedulerHeading({ loading, onRefresh }: Readonly<{ loading: boolean; onRefresh: () => void }>) {
+  const { t } = useI18n();
+  return <div className="dashboard-scheduler__heading"><div><p className="dashboard-scheduler__eyebrow">{t("scheduler.eyebrow")}</p><h2 id="scheduler-heading">{t("scheduler.title")}</h2></div><Button type="button" variant="secondary" size="compact" onClick={onRefresh} loading={loading}>{loading ? t("common.refreshing") : t("scheduler.refresh")}</Button></div>;
+}
+
+function Field({ label, value }: Readonly<{ label: string; value: string | number }>) { return <div><dt>{label}</dt><dd className="ui-tabular-nums">{value}</dd></div>; }
 function JobCard({ title, job, timezone }: Readonly<{ title: string; job: Job; timezone: string }>) {
   const { locale, t } = useI18n();
-  return <article className="scheduler-card"><h3>{title}</h3>{job.consecutiveFailures > 0 && <p className="scheduler-warning">{t("scheduler.failuresWarning")}</p>}<dl><Field label={t("scheduler.state")} value={job.running ? t("scheduler.running") : t("scheduler.idle")} /><Field label={t("scheduler.lastAttempt")} value={formatSchedulerTimestamp(job.lastAttemptAt, timezone, locale)} /><Field label={t("scheduler.lastSuccess")} value={formatSchedulerTimestamp(job.lastSuccessAt, timezone, locale)} /><Field label={t("scheduler.lastFailure")} value={formatSchedulerTimestamp(job.lastFailureAt, timezone, locale)} /><Field label={t("scheduler.failureCategory")} value={schedulerFailureCategoryLabel(job.lastFailureCategory, locale)} /><Field label={t("scheduler.consecutiveFailures")} value={job.consecutiveFailures} /><Field label={t("scheduler.successfulRuns")} value={job.successfulRuns} /><Field label={t("scheduler.failedRuns")} value={job.failedRuns} /><Field label={t("scheduler.skippedOverlaps")} value={job.skippedOverlaps} /></dl></article>;
+  return <Card as="article" className="dashboard-scheduler__card"><div className="dashboard-scheduler__card-heading"><h3>{title}</h3><Badge variant={job.running ? "info" : "neutral"}>{job.running ? t("scheduler.running") : t("scheduler.idle")}</Badge></div>{job.consecutiveFailures > 0 && <Alert variant="warning" title={t("scheduler.failuresWarning")} />}<dl><Field label={t("scheduler.state")} value={job.running ? t("scheduler.running") : t("scheduler.idle")} /><Field label={t("scheduler.lastAttempt")} value={formatSchedulerTimestamp(job.lastAttemptAt, timezone, locale)} /><Field label={t("scheduler.lastSuccess")} value={formatSchedulerTimestamp(job.lastSuccessAt, timezone, locale)} /><Field label={t("scheduler.lastFailure")} value={formatSchedulerTimestamp(job.lastFailureAt, timezone, locale)} /><Field label={t("scheduler.failureCategory")} value={schedulerFailureCategoryLabel(job.lastFailureCategory, locale)} /><Field label={t("scheduler.consecutiveFailures")} value={job.consecutiveFailures} /><Field label={t("scheduler.successfulRuns")} value={job.successfulRuns} /><Field label={t("scheduler.failedRuns")} value={job.failedRuns} /><Field label={t("scheduler.skippedOverlaps")} value={job.skippedOverlaps} /></dl></Card>;
 }

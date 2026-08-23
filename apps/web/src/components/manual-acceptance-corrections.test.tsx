@@ -64,7 +64,7 @@ test("Disable is destructive while Enable and password reset are not", () => {
   assert.match(detail, /className="secondary-button"[\s\S]{0,160}setConfirm\("reset"\)/);
 });
 
-test("accepted correction hooks cover users, permissions, account, summary geometry, and Trips spacing", () => {
+test("accepted correction hooks cover users, permissions, account, dashboard summary semantics, and Trips spacing", () => {
   assert.match(source("src/app/admin/users/page.tsx"), /admin-users-hero/);
   const permissions = source("src/components/permission-selector.tsx");
   assert.match(permissions, /permission-copy/);
@@ -72,6 +72,8 @@ test("accepted correction hooks cover users, permissions, account, summary geome
   assert.match(permissions, /permission-helper/);
   assert.match(source("src/app/account/page.tsx"), /account-heading/);
   const css = source("src/app/globals.css");
-  for (const hook of ["summary-card-icon", "aspect-ratio:1", "grid-template-rows:minmax(2.5em,auto) auto", "trip-result-message", "danger-button", "grid-template-columns:16px minmax(0,1fr)", "input[type=\"checkbox\"]", "grid-template-rows:minmax(1.35em,auto) minmax(2.7em,auto)"]) assert.ok(css.includes(hook), hook);
+  for (const hook of ["trip-result-message", "danger-button", "grid-template-columns:16px minmax(0,1fr)", "input[type=\"checkbox\"]", "grid-template-rows:minmax(1.35em,auto) minmax(2.7em,auto)"]) assert.ok(css.includes(hook), hook);
+  assert.match(source("src/components/dashboard-client.tsx"), /dashboard-stat-card/);
+  assert.match(source("src/styles/dashboard.css"), /dashboard-summary-grid/);
   assert.match(source("src/components/vehicle-trips-client.tsx"), /trip-neutral trip-result-message/);
 });
