@@ -38,6 +38,8 @@ test("semantic text, status, and focus pairs meet their contrast targets", () =>
     ["color-text-inverse", "color-action-primary", 4.5], ["color-text-primary", "color-action-secondary", 4.5], ["color-text-inverse", "color-danger-foreground", 4.5],
     ["color-text-link", "color-canvas", 4.5], ["color-focus-ring", "color-canvas", 3], ["color-focus-ring", "color-surface", 3],
     ["color-success-foreground", "color-success-background", 4.5], ["color-warning-foreground", "color-warning-background", 4.5], ["color-danger-foreground", "color-danger-background", 4.5], ["color-info-foreground", "color-info-background", 4.5],
+    ["color-text-primary", "color-surface-selected", 4.5], ["color-text-secondary", "color-surface-selected", 4.5], ["color-text-secondary", "color-success-background", 4.5], ["color-text-secondary", "color-warning-background", 4.5], ["color-text-secondary", "color-danger-background", 4.5], ["color-text-secondary", "color-info-background", 4.5], ["color-text-secondary", "color-neutral-background", 4.5],
+    ["color-action-primary", "color-surface-selected", 4.5], ["color-neutral-foreground", "color-neutral-background", 4.5],
     ["color-text-tertiary", "color-surface", 4.5], ["color-text-disabled", "color-surface-subtle", 4.5],
   ];
   for (const [foreground, background, minimum] of pairs) {

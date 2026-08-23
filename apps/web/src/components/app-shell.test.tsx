@@ -36,6 +36,7 @@ test("shell navigation keeps semantic links, labelled landmarks, and permission-
   assert.match(navigation, /Taxi GPS/);
   assert.match(admin, /<nav className="admin-subnav" aria-label=\{t\("navigation\.adminLabel"\)\}/);
   assert.match(shellCss, /overflow-x: auto/);
+  assert.match(shellCss, /app-nav__list \{ display: flex; gap: var\(--space-1\); width: 100%; min-width: 0;/);
   assert.match(shellCss, /@media \(max-width: 639px\)/);
   assert.match(shellCss, /app-nav a\[aria-current="page"\]/);
 });

@@ -58,6 +58,9 @@ test("feedback primitives preserve semantic text and deliberate live-region cont
   for (const variant of ["neutral", "info", "success", "warning", "danger"] as const) assert.match(renderToStaticMarkup(<Badge variant={variant}>Status</Badge>), new RegExp(`ui-badge--${variant}`));
   for (const variant of ["default", "subtle", "raised"] as const) assert.match(renderToStaticMarkup(<Card variant={variant}>Content</Card>), new RegExp(`ui-card--${variant}`));
   assert.match(renderToStaticMarkup(<Card as="article">Operational group</Card>), /^<article /);
+  const styles = readFileSync("src/styles/components.css", "utf8");
+  assert.match(styles, /\.ui-badge[^\n]*border-radius: var\(--radius-md\)/);
+  assert.match(styles, /\.ui-badge[^\n]*gap: var\(--space-1\)/);
 });
 
 test("state and loading primitives expose accessible status and recovery actions", () => {

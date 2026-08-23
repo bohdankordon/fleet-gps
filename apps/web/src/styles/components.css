@@ -56,7 +56,8 @@
 .ui-field-help { color: var(--color-text-secondary); }
 .ui-field-error { color: var(--color-danger-foreground); font-weight: var(--font-weight-semibold); }
 
-.ui-badge { display: inline-flex; align-items: center; min-height: var(--space-6); border: 1px solid var(--color-neutral-border); border-radius: var(--radius-full); padding: 0 var(--space-2); color: var(--color-neutral-foreground); background: var(--color-neutral-background); font-size: var(--font-size-caption); font-weight: var(--font-weight-semibold); line-height: var(--line-height-caption); white-space: nowrap; }
+.ui-badge { display: inline-flex; align-items: center; gap: var(--space-1); min-height: var(--space-6); border: 1px solid var(--color-neutral-border); border-radius: var(--radius-md); padding: 0 var(--space-2); color: var(--color-neutral-foreground); background: var(--color-neutral-background); font-size: var(--font-size-caption); font-weight: var(--font-weight-medium); line-height: var(--line-height-caption); white-space: nowrap; }
+.ui-badge > svg { flex: 0 0 auto; width: var(--icon-size-compact); height: var(--icon-size-compact); }
 .ui-badge--info { border-color: var(--color-info-border); color: var(--color-info-foreground); background: var(--color-info-background); }
 .ui-badge--success { border-color: var(--color-success-border); color: var(--color-success-foreground); background: var(--color-success-background); }
 .ui-badge--warning { border-color: var(--color-warning-border); color: var(--color-warning-foreground); background: var(--color-warning-background); }

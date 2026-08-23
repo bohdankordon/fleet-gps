@@ -33,5 +33,20 @@ test("dashboard scheduler adopts shared feedback and action contracts while reta
   for (const primitive of ["Alert", "Badge", "Button", "Card"]) assert.match(scheduler, new RegExp(`\\b${primitive}\\b`));
   assert.match(scheduler, /fetch\("\/api\/system\/sync-status", \{ cache: "no-store", signal: abort\.signal \}\)/);
   assert.match(scheduler, /controller\.current\?\.abort\(\)/);
+  assert.match(scheduler, /Card as="section" variant="subtle" className=\{`dashboard-scheduler/);
+  assert.match(scheduler, /dashboard-scheduler__panel/);
   assert.match(styles, /\.dashboard-scheduler__grid/);
+});
+
+test("dashboard visual hierarchy uses restrained semantic surfaces rather than page-local colors", () => {
+  for (const tone of ["primary", "success", "danger", "info", "warning", "neutral"]) {
+    assert.match(dashboard, new RegExp(`tone: "${tone}"`));
+    assert.match(styles, new RegExp(`\\.dashboard-stat-card--${tone}`));
+  }
+  assert.match(dashboard, /status === "offline" \? "danger"/);
+  assert.match(styles, /\.dashboard-filter-bar[^\n]*background: var\(--color-surface-subtle\)/);
+  assert.match(styles, /\.dashboard-table-container th[^\n]*background: var\(--color-surface-selected\)/);
+  assert.match(styles, /\.dashboard-scheduler--active[^\n]*color-info-background/);
+  assert.match(styles, /\.dashboard-scheduler--danger[^\n]*color-danger-background/);
+  assert.doesNotMatch(styles, /#[0-9a-f]{3,8}/i);
 });
