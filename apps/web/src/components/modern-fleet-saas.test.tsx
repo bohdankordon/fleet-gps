@@ -34,7 +34,9 @@ test("dashboard and shared notices no longer use Unicode pseudo-icons", () => {
 
 test("shared CSS exposes the bounded token layer and no legacy language strip", () => {
   const css = readFileSync("src/app/globals.css", "utf8");
-  for (const token of ["color-canvas", "color-surface", "color-surface-muted", "color-text-primary", "color-text-muted", "color-line", "color-line-strong", "color-accent", "color-accent-hover", "color-accent-soft", "color-success", "color-warning", "color-danger", "color-focus-ring", "radius-sm", "radius-md", "radius-lg", "shadow-surface", "control-height"]) assert.ok(css.includes(`--${token}:`), token);
+  const tokens = readFileSync("src/styles/tokens.css", "utf8");
+  assert.match(css, /@import "\.\.\/styles\/tokens\.css"/);
+  for (const token of ["color-canvas", "color-surface", "color-surface-muted", "color-text-primary", "color-text-muted", "color-line", "color-line-strong", "color-accent", "color-accent-hover", "color-accent-soft", "color-success", "color-warning", "color-danger", "color-focus-ring", "radius-sm", "radius-md", "radius-lg", "shadow-surface", "control-height"]) assert.ok(tokens.includes(`--${token}:`), token);
   assert.doesNotMatch(css, /\.language-selector-shell/);
 });
 
