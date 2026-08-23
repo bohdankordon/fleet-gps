@@ -1,3 +1,12 @@
 "use client";
+
 import { useI18n } from "../i18n/client";
-export function InitialEventsError() { const { t } = useI18n(); return <div><header className="hero"><p className="eyebrow">{t("events.eyebrow")}</p><h1>{t("events.title")}</h1><p>{t("events.initialDescription")}</p></header><section className="empty" role="alert"><h2>{t("events.loadError")}</h2><p>{t("dashboard.initialErrorText")}</p><button type="button" onClick={() => window.location.reload()}>{t("common.retry")}</button></section></div>; }
+import { Button, ErrorState, PageHeader } from "./ui";
+
+export function InitialEventsError() {
+  const { t } = useI18n();
+  return <div className="events-page">
+    <PageHeader className="events-page-header" eyebrow={t("events.eyebrow")} title={t("events.title")} description={t("events.initialDescription")} />
+    <ErrorState title={t("events.loadError")} action={<Button onClick={() => window.location.reload()}>{t("common.retry")}</Button>}>{t("dashboard.initialErrorText")}</ErrorState>
+  </div>;
+}

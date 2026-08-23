@@ -87,6 +87,7 @@
 .ui-state p { color: var(--color-text-secondary); }
 .ui-state__action { margin-top: var(--space-2); }
 .ui-error-state { border-color: var(--color-danger-border); background: var(--color-danger-background); }
+.ui-load-more { display: flex; justify-content: center; margin-top: var(--space-5); }
 
 @keyframes ui-spin { to { transform: rotate(360deg); } }
 

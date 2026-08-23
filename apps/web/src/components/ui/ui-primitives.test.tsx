@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Alert, Badge, Button, Card, Checkbox, EmptyState, ErrorState, FormField, Input, Label, LinkButton, LoadingStatus, NativeSelect, Spinner } from ".";
+import { Alert, Badge, Button, Card, Checkbox, EmptyState, ErrorState, FormField, Input, Label, LinkButton, LoadMore, LoadingStatus, NativeSelect, Spinner } from ".";
 
 test("Button exposes semantic variants and preserves width content while loading", () => {
   for (const variant of ["primary", "secondary", "subtle", "destructive"] as const) {
@@ -74,6 +74,15 @@ test("state and loading primitives expose accessible status and recovery actions
   assert.match(spinner, /role="status"/);
   assert.match(spinner, /aria-label="Loading vehicles"/);
   assert.match(loading, /aria-live="polite"/);
+});
+
+test("LoadMore retains a native loading button and exposes a polite progress status", () => {
+  const html = renderToStaticMarkup(<LoadMore label="Load more" loadingLabel="Loading more rows" loading onLoadMore={() => undefined} />);
+  assert.match(html, /class="ui-load-more"/);
+  assert.match(html, /<button/);
+  assert.match(html, /aria-busy="true"/);
+  assert.match(html, /role="status"/);
+  assert.match(html, /Loading more rows/);
 });
 
 test("design tokens define the canonical visible focus contract", () => {
