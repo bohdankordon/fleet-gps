@@ -39,7 +39,7 @@ test("API config applies safe defaults, freezes config, and preserves the input 
     shutdownTimeoutMs: 50_000,
   });
   assert.deepEqual(config.alertIngestion, { enabled: false });
-  assert.deepEqual(config.positionHistoryMaintenance, { enabled: false });
+  assert.deepEqual(config.positionHistoryMaintenance, { enabled: false, windowBudget: 5_000 });
   assert.deepEqual(config.positionHistoryRetention, { enabled: false });
   assert.deepEqual(config.telegramNotifications, { enabled: false, botToken: null, chatId: null, dispatchIntervalMs: 60_000, batchSize: 20 });
   assert.deepEqual(env, before);
@@ -99,12 +99,30 @@ test("API config accepts an explicit alert-ingestion opt-in", () => {
   assert.deepEqual(config.alertIngestion, { enabled: true });
 });
 
-test("position-history maintenance is disabled when missing or false and enabled only by exact true", () => {
-  assert.deepEqual(parseApiConfig(valid()).positionHistoryMaintenance, { enabled: false });
-  assert.deepEqual(parseApiConfig({ ...valid(), POSITION_HISTORY_MAINTENANCE_ENABLED: "false" }).positionHistoryMaintenance, { enabled: false });
-  assert.deepEqual(parseApiConfig({ ...valid(), POSITION_HISTORY_MAINTENANCE_ENABLED: "true" }).positionHistoryMaintenance, { enabled: true });
+test("position-history maintenance requires an explicit bounded budget when enabled", () => {
+  assert.deepEqual(parseApiConfig(valid()).positionHistoryMaintenance, { enabled: false, windowBudget: 5_000 });
+  assert.deepEqual(
+    parseApiConfig({ ...valid(), POSITION_HISTORY_MAINTENANCE_ENABLED: "false", POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET: "2000" }).positionHistoryMaintenance,
+    { enabled: false, windowBudget: 2_000 },
+  );
+  for (const [value, expected] of [["1", 1], ["2000", 2_000], ["5000", 5_000]] as const) {
+    assert.deepEqual(
+      parseApiConfig({ ...valid(), POSITION_HISTORY_MAINTENANCE_ENABLED: "true", POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET: value }).positionHistoryMaintenance,
+      { enabled: true, windowBudget: expected },
+    );
+  }
+  for (const value of [undefined, "", "0", "5001", "-1", "1.5", "garbage", " 2000", "+1"]) {
+    const env = { ...valid(), POSITION_HISTORY_MAINTENANCE_ENABLED: "true" } as Record<string, string | undefined>;
+    if (value !== undefined) env.POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET = value;
+    assert.throws(() => parseApiConfig(env), (error: unknown) => {
+      assert.ok(error instanceof ApiConfigurationError);
+      assert.deepEqual(error.issues, ["POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET"]);
+      if (value !== undefined && value !== "") assert.equal(JSON.stringify(error).includes(value), false);
+      return true;
+    });
+  }
   for (const value of ["TRUE", "yes", "1", "   "]) {
-    assert.throws(() => parseApiConfig({ ...valid(), POSITION_HISTORY_MAINTENANCE_ENABLED: value }), (error: unknown) => {
+    assert.throws(() => parseApiConfig({ ...valid(), POSITION_HISTORY_MAINTENANCE_ENABLED: value, POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET: "2000" }), (error: unknown) => {
       assert.ok(error instanceof ApiConfigurationError);
       assert.deepEqual(error.issues, ["POSITION_HISTORY_MAINTENANCE_ENABLED"]);
       assert.equal(JSON.stringify(error).includes(value), false);
@@ -133,9 +151,11 @@ test("population and retention feature flags remain independent in all combinati
       const config = parseApiConfig({
         ...valid(),
         POSITION_HISTORY_MAINTENANCE_ENABLED: String(population),
+        POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET: "2000",
         POSITION_HISTORY_RETENTION_ENABLED: String(retention),
       });
       assert.equal(config.positionHistoryMaintenance.enabled, population);
+      assert.equal(config.positionHistoryMaintenance.windowBudget, 2_000);
       assert.equal(config.positionHistoryRetention?.enabled, retention);
     }
   }
@@ -327,6 +347,25 @@ test("complete production configuration passes without weakening safe feature de
   assert.equal(config.telegramNotifications.enabled, false);
   assert.equal(config.positionHistoryMaintenance.enabled, false);
   assert.equal(config.positionHistoryRetention?.enabled, false);
+});
+
+test("production maintenance preflight requires an explicit valid budget only when enabled", () => {
+  assert.throws(
+    () => parseApiConfig({ ...productionValid(), POSITION_HISTORY_MAINTENANCE_ENABLED: "true" }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiConfigurationError);
+      assert.deepEqual(error.issues, ["POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET"]);
+      return true;
+    },
+  );
+  assert.deepEqual(
+    parseApiConfig({
+      ...productionValid(),
+      POSITION_HISTORY_MAINTENANCE_ENABLED: "true",
+      POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET: "2000",
+    }).positionHistoryMaintenance,
+    { enabled: true, windowBudget: 2_000 },
+  );
 });
 
 test("production rejects malformed database URLs and obvious repository placeholders by field name only", () => {

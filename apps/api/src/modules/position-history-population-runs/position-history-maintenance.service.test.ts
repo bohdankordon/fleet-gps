@@ -10,7 +10,7 @@ import { POSITION_HISTORY_HORIZON_EXECUTION_LOCK_KEY } from "../position-history
 import type { PositionHistoryPopulationRunCreationService } from "./position-history-population-run-creation.service";
 import { PositionHistoryPopulationRunConflictError } from "./position-history-population-run.errors";
 import { POSITION_HISTORY_POPULATION_RUN_POLL_INTERVAL_MS } from "./position-history-population-run-poller.service";
-import { POSITION_HISTORY_MAINTENANCE_CRON, POSITION_HISTORY_MAINTENANCE_TIME_ZONE, POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET, PositionHistoryMaintenanceService } from "./position-history-maintenance.service";
+import { POSITION_HISTORY_MAINTENANCE_CRON, POSITION_HISTORY_MAINTENANCE_TIME_ZONE, PositionHistoryMaintenanceService } from "./position-history-maintenance.service";
 
 const now = new Date("2026-08-13T10:00:00.000Z");
 
@@ -28,6 +28,7 @@ function plan(eligibleRemaining = 1, overrides: Partial<PositionHistoryHorizonPl
 
 function subject(options: Readonly<{
   enabled?: boolean;
+  windowBudget?: number;
   active?: object | null;
   plannerResult?: PositionHistoryHorizonPlanResult;
   plannerFailure?: Error;
@@ -39,7 +40,7 @@ function subject(options: Readonly<{
   const database = { getClient: () => ({ positionHistoryPopulationRun: { findFirst: async () => { activeReads += 1; return options.active ?? null; } } }) } as unknown as DatabaseService;
   const horizon = { run: async (anchor: Date) => { plannerCalls.push(anchor); if (options.plannerFailure) throw options.plannerFailure; return options.plannerResult ?? plan(); } } as PositionHistoryHorizonService;
   const creation = { createRun: async (input: unknown) => { creationCalls.push(input); if (options.creationFailure) throw options.creationFailure; return {}; } } as PositionHistoryPopulationRunCreationService;
-  const config = { positionHistoryMaintenance: { enabled: options.enabled ?? true } } as ApiConfig;
+  const config = { positionHistoryMaintenance: { enabled: options.enabled ?? true, windowBudget: options.windowBudget ?? 5_000 } } as ApiConfig;
   return { service: new PositionHistoryMaintenanceService(config, database, horizon, creation), plannerCalls, creationCalls, activeReads: () => activeReads };
 }
 
@@ -78,19 +79,21 @@ test("existing Stage 14 planner receives the canonical anchor and its provider-e
   assert.deepEqual(item.creationCalls, []);
 });
 
-test("eligible planner truth creates exactly one pending-policy SYSTEM request without user identity or execution", async () => {
-  const item = subject({ plannerResult: plan(100) });
-  assert.deepEqual(await item.service.evaluate(now), { outcome: "CREATED", eligibleRemainingWindows: 100 });
-  assert.equal(item.creationCalls.length, 1);
-  assert.deepEqual(item.creationCalls[0], {
-    initiatorType: PositionHistoryPopulationRunInitiatorType.SYSTEM,
-    to: new Date("2026-08-11T02:00:00.000Z"),
-    windowBudget: 5_000,
-    excludeProviderDisabled: true,
-  });
-  assert.equal(JSON.stringify(item.creationCalls[0]).includes("requestedByUserId"), false);
-  assert.equal("worker" in item.service, false);
-  assert.equal("provider" in item.service, false);
+test("eligible planner truth creates exactly one pending-policy SYSTEM request with the configured budget", async () => {
+  for (const windowBudget of [1, 2_000, 5_000]) {
+    const item = subject({ plannerResult: plan(100), windowBudget });
+    assert.deepEqual(await item.service.evaluate(now), { outcome: "CREATED", eligibleRemainingWindows: 100 });
+    assert.equal(item.creationCalls.length, 1);
+    assert.deepEqual(item.creationCalls[0], {
+      initiatorType: PositionHistoryPopulationRunInitiatorType.SYSTEM,
+      to: new Date("2026-08-11T02:00:00.000Z"),
+      windowBudget,
+      excludeProviderDisabled: true,
+    });
+    assert.equal(JSON.stringify(item.creationCalls[0]).includes("requestedByUserId"), false);
+    assert.equal("worker" in item.service, false);
+    assert.equal("provider" in item.service, false);
+  }
 });
 
 test("the existing active-row conflict is a benign multi-instance race loss", async () => {
@@ -122,14 +125,15 @@ test("evaluator anchor rolls only at the Tuesday 02:00 UTC boundary", async () =
   assert.deepEqual(atBoundary.plannerCalls.map((value) => value.toISOString()), ["2026-08-18T02:00:00.000Z"]);
 });
 
-test("schedule and execution ownership constants preserve exact Stage 18B/18A architecture", () => {
+test("schedule and execution ownership constants preserve architecture while reading the configured budget", () => {
   assert.equal(POSITION_HISTORY_MAINTENANCE_CRON, "0 0 3 * * *");
   assert.equal(POSITION_HISTORY_MAINTENANCE_TIME_ZONE, "UTC");
-  assert.equal(POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET, 5_000);
   assert.equal(POSITION_HISTORY_POPULATION_RUN_POLL_INTERVAL_MS, 30_000);
   assert.equal(POSITION_HISTORY_HORIZON_EXECUTION_LOCK_KEY, 1706170003);
   const source = readFileSync("src/modules/position-history-population-runs/position-history-maintenance.service.ts", "utf8");
   assert.match(source, /@Cron\(POSITION_HISTORY_MAINTENANCE_CRON,[^\n]*timeZone: POSITION_HISTORY_MAINTENANCE_TIME_ZONE/);
+  assert.match(source, /windowBudget:\s*this\.config\.positionHistoryMaintenance\.windowBudget/);
+  assert.doesNotMatch(source, /POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET\s*=/);
   assert.doesNotMatch(source, /onModuleInit|onApplicationBootstrap|processRun|processNextAvailableRun|PositionHistoryHorizonPopulationService|EquGps|fetch\(/);
   assert.equal((source.match(/@Cron\(/g) ?? []).length, 1);
 });

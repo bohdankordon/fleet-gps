@@ -22,7 +22,7 @@ const disabledConfig: ApiConfig = Object.freeze({
   port: 3_000,
   database: Object.freeze({ url: "postgresql://unused:unused@127.0.0.1:1/unused", poolMax: 1, connectionTimeoutMs: 100, idleTimeoutMs: 1_000 }),
   syncScheduler: Object.freeze({ enabled: false, fleetIntervalSeconds: 60, runsIntervalSeconds: 300, shutdownTimeoutMs: 50_000 }),
-  alertIngestion: Object.freeze({ enabled: false }), positionHistoryMaintenance: Object.freeze({ enabled: false }),
+  alertIngestion: Object.freeze({ enabled: false }), positionHistoryMaintenance: Object.freeze({ enabled: false, windowBudget: 5_000 }),
   telegramNotifications: Object.freeze({ enabled: false, botToken: null, chatId: null, dispatchIntervalMs: 60_000, batchSize: 20 }),
   equGps: Object.freeze({ officialBaseUrl: "https://unused.invalid", webBaseUrl: "https://unused.invalid", email: "unused@example.invalid", password: "unused", requestTimeoutMs: 100, runsRequestTimeoutMs: 100 }),
 });
