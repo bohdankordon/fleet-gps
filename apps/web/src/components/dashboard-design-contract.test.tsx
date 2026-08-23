@@ -38,21 +38,31 @@ test("dashboard scheduler adopts shared feedback and action contracts while reta
   assert.match(styles, /\.dashboard-scheduler__grid/);
 });
 
-test("scheduler health overview preserves every factual field while prioritizing state and compact diagnostics", () => {
+test("scheduler health overview preserves every factual field while prioritizing readable semantic diagnostics", () => {
   for (const label of ["scheduler.started", "scheduler.fleetInterval", "scheduler.distanceInterval", "scheduler.generated", "scheduler.lastAttempt", "scheduler.lastSuccess", "scheduler.lastFailure", "scheduler.failureCategory", "scheduler.consecutiveFailures", "scheduler.successfulRuns", "scheduler.failedRuns", "scheduler.skippedOverlaps"]) assert.ok(scheduler.includes(`t("${label}")`), label);
   for (const section of ["scheduler.overall", "scheduler.fleetJob", "scheduler.distanceJob"]) assert.ok(scheduler.includes(`t("${section}")`), section);
   assert.match(scheduler, /schedulerStateLabel\(status, locale\)/);
   assert.equal((scheduler.match(/t\("scheduler\.refresh"\)/g) ?? []).length, 1);
-  assert.match(scheduler, /<dl>/);
+  assert.match(scheduler, /<dl className=\{\["dashboard-scheduler__metadata-group"/);
   assert.match(scheduler, /<dt>/);
   assert.match(scheduler, /<dd className="ui-tabular-nums">/);
+  assert.match(scheduler, /function MetadataGroups/);
+  assert.match(scheduler, /function MetadataGroup/);
+  assert.match(scheduler, /<MetadataGroup counters>/);
+  assert.ok((scheduler.match(/stacked/g) ?? []).length >= 5);
   assert.match(scheduler, /ClockIcon/);
   assert.match(scheduler, /FleetIcon/);
   assert.match(scheduler, /RouteIcon/);
   assert.match(styles, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /@media \(max-width: 1024px\)[\s\S]*dashboard-scheduler__grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /@media \(min-width: 768px\) and \(max-width: 1024px\)[\s\S]*dashboard-scheduler__panel:last-child \{ grid-column: span 2;/);
-  assert.match(styles, /@media \(max-width: 767px\)[\s\S]*dashboard-scheduler__panel dl \{ grid-template-columns: 1fr;/);
+  assert.match(styles, /dashboard-scheduler__metadata-groups \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); gap: var\(--space-3\)/);
+  assert.match(styles, /dashboard-scheduler__metadata-group--counters \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); column-gap: var\(--space-4\); row-gap: var\(--space-2\)/);
+  assert.match(styles, /dashboard-scheduler__field--stacked \{ grid-template-columns: 1fr; gap: var\(--space-1\)/);
+  assert.match(styles, /dashboard-scheduler__panel dd \{[^\n]*font-size: var\(--font-size-label\)/);
+  assert.match(styles, /@media \(max-width: 767px\)[\s\S]*dashboard-scheduler__metadata-groups, .dashboard-scheduler__metadata-group, .dashboard-scheduler__metadata-group--counters \{ grid-template-columns: 1fr;/);
+  assert.match(styles, /@media \(max-width: 767px\)[\s\S]*dashboard-scheduler__field \{ grid-template-columns: 1fr; gap: var\(--space-1\); \}/);
+  assert.match(styles, /dashboard-scheduler__metadata-group--counters .dashboard-scheduler__field \{ grid-template-columns: minmax\(0, 1fr\) auto;/);
   assert.doesNotMatch(styles, /dashboard-scheduler[^\n]*min-height/);
 });
 
