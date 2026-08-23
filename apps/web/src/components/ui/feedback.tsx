@@ -7,9 +7,10 @@ export function Badge({ variant = "neutral", className, children, ...props }: HT
 }
 
 type AlertVariant = Exclude<SemanticVariant, "neutral">;
-export function Alert({ variant = "info", title, children, action, live, className, ...props }: HTMLAttributes<HTMLDivElement> & Readonly<{ variant?: AlertVariant; title?: ReactNode; action?: ReactNode; live?: "polite" | "assertive" }>) {
+export function Alert({ variant = "info", title, children, action, icon, live, className, ...props }: HTMLAttributes<HTMLDivElement> & Readonly<{ variant?: AlertVariant; title?: ReactNode; action?: ReactNode; icon?: ReactNode; live?: "polite" | "assertive" }>) {
   const role = live === "assertive" ? "alert" : live === "polite" ? "status" : undefined;
   return <div {...props} className={["ui-alert", `ui-alert--${variant}`, className].filter(Boolean).join(" ")} role={role} aria-live={live}>
+    {icon ? <span className="ui-alert__icon" aria-hidden="true">{icon}</span> : null}
     <div className="ui-alert__content">{title ? <div className="ui-alert__title">{title}</div> : null}{children ? <div className="ui-alert__body">{children}</div> : null}</div>
     {action ? <div className="ui-alert__action">{action}</div> : null}
   </div>;

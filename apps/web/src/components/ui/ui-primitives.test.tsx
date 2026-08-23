@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Alert, Badge, Button, Checkbox, EmptyState, ErrorState, FormField, Input, Label, LinkButton, LoadingStatus, NativeSelect, Spinner } from ".";
+import { Alert, Badge, Button, Card, Checkbox, EmptyState, ErrorState, FormField, Input, Label, LinkButton, LoadingStatus, NativeSelect, Spinner } from ".";
 
 test("Button exposes semantic variants and preserves width content while loading", () => {
   for (const variant of ["primary", "secondary", "subtle", "destructive"] as const) {
     const html = renderToStaticMarkup(<Button variant={variant}>Save</Button>);
     assert.match(html, new RegExp(`ui-button--${variant}`));
   }
+  for (const size of ["compact", "default", "comfortable"] as const) assert.match(renderToStaticMarkup(<Button size={size}>Save</Button>), new RegExp(`ui-button--${size}`));
   const html = renderToStaticMarkup(<Button loading iconBefore={<span>+</span>}>Save changes</Button>);
   assert.match(html, /disabled=""/);
   assert.match(html, /aria-busy="true"/);
@@ -54,6 +55,8 @@ test("feedback primitives preserve semantic text and deliberate live-region cont
   assert.doesNotMatch(info, /role="alert"/);
   assert.match(urgent, /role="alert"/);
   assert.match(urgent, /aria-live="assertive"/);
+  for (const variant of ["neutral", "info", "success", "warning", "danger"] as const) assert.match(renderToStaticMarkup(<Badge variant={variant}>Status</Badge>), new RegExp(`ui-badge--${variant}`));
+  for (const variant of ["default", "subtle", "raised"] as const) assert.match(renderToStaticMarkup(<Card variant={variant}>Content</Card>), new RegExp(`ui-card--${variant}`));
 });
 
 test("state and loading primitives expose accessible status and recovery actions", () => {

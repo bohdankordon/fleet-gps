@@ -1,11 +1,35 @@
-# Taxi GPS design system
+# Taxi GPS Fluent visual specification
 
-Taxi GPS uses a Fluent 2-inspired enterprise web UI: restrained, data-dense, desktop-first, and predictable. WCAG 2.2 AA is the accessibility target; this foundation supports that target but is not a certification claim.
+Taxi GPS is a Fluent 2-inspired enterprise web UI for desktop-first fleet, GPS, and operations work. It is calm, precise, data-oriented, and restrained—not consumer-like or decorative. WCAG 2.2 AA is the accessibility target; these contracts support that target but are not a certification claim. Light theme only is implemented.
 
-Shared decisions live in semantic tokens in `apps/web/src/styles/tokens.css`. Use the locally owned primitives in `apps/web/src/components/ui` for standard controls, feedback, fields, and cards. Keep native HTML semantics first: `Button` is a button, `LinkButton` is an anchor, and `NativeSelect` remains a native select.
+## Palette and accessibility
 
-The approved scale is spacing 4/8/12/16/20/24/32/40/48px; radii 4/6/8/12px and full; controls 32/40/44px; and table rows 40/48px. Typography roles are caption 12px, label 14px, body 16px, section title 20px, page title 24px, and display 32px. Apply `ui-tabular-nums` to operational numeric data.
+All shared visual decisions use [semantic tokens](../apps/web/src/styles/tokens.css), never page-local color values. Canvas/surfaces are `#f5f7f9`, `#ffffff`, subtle `#f0f3f6`, hover `#f8fafc`, and selected `#e8f2f8`; raised is `#ffffff` with shallow elevation. Text is primary `#1b1b1b`, secondary `#424242`, tertiary `#616161`, disabled `#626262`, inverse `#ffffff`, and link `#0f5c91`. Borders are subtle `#e0e0e0`, default `#bdbdbd`, strong `#707070`, and interactive `#0f5c91`.
 
-Do not recreate standard control styling in page-local CSS. Add capability to the owned primitive when it is shared; retain page CSS only for page layout and genuinely local presentation. Existing pages remain on transitional aliases until their explicit migration.
+Taxi GPS action primary is `#0f5c91`, hover `#0b4c78`, pressed `#083b5d`. Secondary is white, then `#f0f3f6` / `#e8f2f8`; subtle is `#e8f2f8`, then `#d9eaf5` / `#c7deed`. Focus is `#0b6ea8`. Status foreground/background/border values are success `#0b6b43` / `#e8f5ee` / `#79b995`; warning `#805300` / `#fff4ce` / `#d6a700`; danger `#a4261b` / `#fff1f0` / `#d1342c`; info `#0c5a8c` / `#edf6fb` / `#5b9ec6`; neutral `#424242` / `#f0f3f6` / `#bdbdbd`.
 
-No full Fluent UI, shadcn, Material, or Carbon library is installed. Radix may be considered later only for complex overlays or dialogs. Dark theme is not implemented.
+Keyboard focus is a 3px `--color-focus-ring` outline with 2px offset. Use it for links, controls, and focusable custom elements. Error treatment pairs a programmatic invalid state and textual error with color. Placeholder text never substitutes for a label. Disabled and read-only are separate states.
+
+## Type, spacing, and density
+
+The font stack is Inter/system. Caption/metadata are 12px/16px regular; labels are 14px/20px semibold; body is 16px/24px regular; body-strong is 16px/24px semibold; section titles are 20px/28px semibold; page titles are 24px/32px semibold. Table headers are caption semibold with `0.02em` tracking; table body is body. Use `ui-tabular-nums` and right alignment for operational numbers. Card titles use section-title; help/error and badges use caption.
+
+Spacing is only 4, 8, 12, 16, 20, 24, 32, 40, or 48px. Use 8px for control internals and label-to-control, 16px between fields and inside cards, 12px in compact toolbars, 24px between related sections, 32px between page sections, and 40/48px only for large page separation. The default density is medium. Controls are compact 32px, default 40px, or comfortable 44px; compact is for dense filters/toolbars, comfortable is for touch-sensitive or high-priority standalone actions. Table rows are compact 40px or default 48px.
+
+Radii are 4px for small detail/status surfaces, 6px for controls, 8px for cards/default surfaces, 12px for larger elevated surfaces or future dialogs, and full only for actual pills or avatars. Ordinary buttons and inputs never use full radius.
+
+## Owned primitives
+
+Use local primitives from `apps/web/src/components/ui`; native HTML remains first. `Button` is a button and `LinkButton` is an anchor. Button variants are primary, secondary, subtle, and destructive; all use 14px semibold text, 8px icon gap, 16px default icon (compact) or 20px icon (default/comfortable), a 6px radius, and the fixed 32/40/44px height contract. Default/comfortable horizontal padding is 16px and compact is 12px. Loading preserves the control’s label width, uses `aria-busy`, and has no positional active effect. Destructive actions are reserved for genuinely destructive choices.
+
+Inputs and native selects are 40px tall with 12px inline padding, 6px radius, white background, default border, strong hover border, visible focus ring, and danger border plus explicit error text/semantics when invalid. Read-only uses the subtle surface and default cursor; disabled uses muted text and subtle surface. Checkbox retains the native input and has a 32px target area around a 16px visual. Future radio and switch controls follow the same label, focus, invalid, disabled, and target-area rules.
+
+Cards are structural, not universal wrappers: default is white with subtle border and 16px padding; subtle uses the subtle surface; raised adds the shallow surface shadow. Prefer a simple semantic section when no boundary or grouped task is needed. Badges are 24px-minimum, 12px semibold textual status indicators with 8px inline padding and full radius; their text is always meaningful independently of color. Alerts have a 1px semantic border, restrained semantic background, 14px title/body hierarchy, optional 20px currentColor decorative icon, and action at the trailing edge. Use `role="alert"` only for urgent changes needing interruption, `role="status"` for polite updates, and no live role for static/contextual information.
+
+## Tables, icons, motion, and elevation
+
+Future tables use a 40px header, 40px compact or 48px default rows, 16px horizontal/12px vertical cell padding, subtle dividers, surface-hover row hover, surface-selected row selection, and the canonical focus ring. Place row actions at the trailing edge; left-align text, right-align numeric/tabular data, use textual badges for status, and allow horizontal overflow before degrading desktop data. Sortable headers need native buttons and clear sort state; sticky headers, empty/loading states, pagination, and mobile fallbacks must be intentional per page. Do not add a table library solely for this contract.
+
+Current local currentColor SVG icons are consistent with this language: 20px default, 16px compact, stroke-based, and decorative with `aria-hidden`. Interactive icon-only controls require an accessible name. No existing icon materially violates this rule. Motion is limited to fast 100ms and normal 160ms using the standard ease; it is for small state feedback and future overlays only, and reduced-motion disables animation. Ordinary cards use border hierarchy; raised surfaces use the shallow surface shadow and future overlays may use the overlay shadow.
+
+Do not duplicate standard control styling in page-local CSS. Extend the owned primitive for a genuinely shared need. Existing pages use transition aliases until explicit migration; UI-1B does not migrate a page. No full Fluent UI, shadcn, Material, or Carbon library is installed. Radix may be selectively considered later only for complex overlays/dialogs.

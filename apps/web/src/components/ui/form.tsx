@@ -10,7 +10,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
 
 export function NativeSelect({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) { return <select {...props} className={classNames("ui-select", className)}>{children}</select>; }
 
-export function Checkbox({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) { return <input {...props} type="checkbox" className={classNames("ui-checkbox", className)} />; }
+export function Checkbox({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) { return <span className="ui-checkbox-target"><input {...props} type="checkbox" className={classNames("ui-checkbox", className)} /></span>; }
 
 export function FieldHelp({ id, className, children }: Readonly<{ id: string; className?: string; children: ReactNode }>) { return <p id={id} className={classNames("ui-field-help", className)}>{children}</p>; }
 
