@@ -17,6 +17,7 @@ export const AUDIT_EVENT_LABELS: Readonly<Record<AuditEventType, string>> = Obje
   SYSTEM_POPULATION_CREATED: translate(DEFAULT_LOCALE, "audit.event.SYSTEM_POPULATION_CREATED"),
   RETENTION_EXECUTED: translate(DEFAULT_LOCALE, "audit.event.RETENTION_EXECUTED"),
   AUTOMATIC_RETENTION_EXECUTED: translate(DEFAULT_LOCALE, "audit.event.AUTOMATIC_RETENTION_EXECUTED"),
+  SETTINGS_UPDATED: translate(DEFAULT_LOCALE, "audit.event.SETTINGS_UPDATED"),
 });
 
 export const AUDIT_TARGET_LABELS: Readonly<Record<AuditTargetType, string>> = Object.freeze({
@@ -24,6 +25,7 @@ export const AUDIT_TARGET_LABELS: Readonly<Record<AuditTargetType, string>> = Ob
   POSITION_HISTORY: translate(DEFAULT_LOCALE, "audit.target.POSITION_HISTORY"),
   POSITION_HISTORY_POPULATION_RUN: translate(DEFAULT_LOCALE, "audit.target.POSITION_HISTORY_POPULATION_RUN"),
   POSITION_HISTORY_RETENTION: translate(DEFAULT_LOCALE, "audit.target.POSITION_HISTORY_RETENTION"),
+  APPLICATION_SETTINGS: translate(DEFAULT_LOCALE, "audit.target.APPLICATION_SETTINGS"),
 });
 
 export function auditEventLabel(value: AuditEventType, locale: AppLocale = DEFAULT_LOCALE): string { return translate(locale, `audit.event.${value}`); }
@@ -58,5 +60,7 @@ export function auditDetailsLines(item: AuditReadItem, locale: AppLocale = DEFAU
     case "RETENTION_EXECUTED":
     case "AUTOMATIC_RETENTION_EXECUTED":
       return Object.freeze([t("audit.detail.canonicalAnchor", { value: formatAuditTimestamp(item.details.canonicalAnchor, locale) }), t("audit.detail.cutoff", { value: formatAuditTimestamp(item.details.policyCutoff, locale) }), t("audit.detail.deletedCheckpoints", { count: item.details.deletedCheckpoints }), t("audit.detail.deletedObservations", { count: item.details.deletedObservations }), t("audit.detail.remainingCheckpoints", { count: item.details.remainingFullyObsoleteCheckpoints }), t("audit.detail.remainingObservations", { count: item.details.remainingExecutableObservationCandidates }), t("audit.detail.stoppedByBudget", { value: yes(item.details.stoppedByBudget, locale) })]);
+    case "SETTINGS_UPDATED":
+      return Object.freeze(item.details.changes.map((change) => `${change.field}: ${String(change.previous)} → ${String(change.next)}`));
   }
 }

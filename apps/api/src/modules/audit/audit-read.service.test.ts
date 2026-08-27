@@ -22,8 +22,8 @@ function stored(eventType: AuditEventType, details: unknown, index = 1): StoredA
     eventType,
     actorType: system ? AuditActorType.SYSTEM : AuditActorType.USER,
     actorLoginSnapshot: system ? null : "operator",
-    targetType: userTarget ? AuditTargetType.USER : runTarget ? AuditTargetType.POSITION_HISTORY_POPULATION_RUN : eventType === AuditEventType.SHORT_POPULATION_EXECUTED ? AuditTargetType.POSITION_HISTORY : AuditTargetType.POSITION_HISTORY_RETENTION,
-    targetId: userTarget ? (eventType === AuditEventType.OWN_PASSWORD_CHANGED ? ACTOR_ID : TARGET_ID) : runTarget ? RUN_ID : null,
+    targetType: userTarget ? AuditTargetType.USER : runTarget ? AuditTargetType.POSITION_HISTORY_POPULATION_RUN : eventType === AuditEventType.SHORT_POPULATION_EXECUTED ? AuditTargetType.POSITION_HISTORY : eventType === AuditEventType.SETTINGS_UPDATED ? AuditTargetType.APPLICATION_SETTINGS : AuditTargetType.POSITION_HISTORY_RETENTION,
+    targetId: userTarget ? (eventType === AuditEventType.OWN_PASSWORD_CHANGED ? ACTOR_ID : TARGET_ID) : runTarget ? RUN_ID : eventType === AuditEventType.SETTINGS_UPDATED ? "1" : null,
     details,
     createdAt: new Date(AT.getTime() - index),
   };
@@ -41,15 +41,16 @@ const validRows: readonly StoredAuditReadRow[] = [
   stored(AuditEventType.RETENTION_EXECUTED, retention, 9),
   stored(AuditEventType.SYSTEM_POPULATION_CREATED, { to: AT.toISOString(), windowBudget: 5000, excludeProviderDisabled: true }, 10),
   stored(AuditEventType.AUTOMATIC_RETENTION_EXECUTED, retention, 11),
+  stored(AuditEventType.SETTINGS_UPDATED, { changes: [{ field: "timezone", previous: "Europe/Kyiv", next: "UTC" }] }, 12),
 ];
 
 function service(rows: readonly StoredAuditReadRow[], hasMore = false): AuditReadService {
   return new AuditReadService({ list: async () => ({ rows, hasMore }) } satisfies AuditReadRepository);
 }
 
-test("maps all 11 event types to safe actor, target, and validated available details", async () => {
+test("maps all audit event types to safe actor, target, and validated available details", async () => {
   const response = await service(validRows).list(parseAuditReadQuery({}));
-  assert.equal(response.items.length, 11);
+  assert.equal(response.items.length, 12);
   assert.deepEqual(response.items.map((item) => item.eventType), Object.values(AuditEventType));
   assert.equal(response.items.every((item) => item.details.status === "AVAILABLE"), true);
   assert.deepEqual(response.items[0]?.actor, { type: "USER", login: "operator" });

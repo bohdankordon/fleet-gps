@@ -5,7 +5,7 @@ import { AuditEventTable, AuditViewer } from "../../components/audit-viewer";
 import { AUDIT_EVENT_LABELS, auditDetailsLines } from "./audit-ui-model";
 import { auditItemsFixture } from "./audit-fixture";
 
-test("renders newest-first typed content, USER/SYSTEM actors, and all 11 Russian event labels", () => {
+test("renders newest-first typed content, USER/SYSTEM actors, and all Russian event labels", () => {
   const items = auditItemsFixture();
   const html = renderToStaticMarkup(<AuditEventTable items={items} />);
   for (const label of Object.values(AUDIT_EVENT_LABELS)) assert.equal(html.includes(label), true, label);

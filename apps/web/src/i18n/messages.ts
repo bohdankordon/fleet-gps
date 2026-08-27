@@ -39,6 +39,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "navigation.users": { ru: "Пользователи", uk: "Користувачі", en: "Users" },
   "navigation.audit": { ru: "Аудит", uk: "Аудит", en: "Audit" },
   "navigation.history": { ru: "История GPS", uk: "Історія GPS", en: "GPS history" },
+  "navigation.settings": { ru: "Настройки", uk: "Налаштування", en: "Settings" },
 
   "auth.login.title": { ru: "Вход", uk: "Вхід", en: "Sign in" },
   "auth.login.loginLabel": { ru: "Логин", uk: "Логін", en: "Login" },
@@ -178,6 +179,8 @@ export const MESSAGE_CATALOG = Object.freeze({
   "audit.event.SYSTEM_POPULATION_CREATED": { ru: "Автоматически создано дозаполнение истории", uk: "Автоматично створено дозаповнення історії", en: "Automatic history population created" },
   "audit.event.RETENTION_EXECUTED": { ru: "Выполнена ручная очистка GPS-истории", uk: "Виконано ручне очищення GPS-історії", en: "Manual GPS history cleanup executed" },
   "audit.event.AUTOMATIC_RETENTION_EXECUTED": { ru: "Выполнена автоматическая очистка GPS-истории", uk: "Виконано автоматичне очищення GPS-історії", en: "Automatic GPS history cleanup executed" },
+  "audit.event.SETTINGS_UPDATED": { ru: "Изменены бизнес-настройки", uk: "Змінено бізнес-налаштування", en: "Business settings updated" },
+  "audit.target.APPLICATION_SETTINGS": { ru: "Бизнес-настройки", uk: "Бізнес-налаштування", en: "Business settings" },
   "audit.detail.user": { ru: "Пользователь: {login}", uk: "Користувач: {login}", en: "User: {login}" },
   "audit.detail.role": { ru: "Роль: {role}", uk: "Роль: {role}", en: "Role: {role}" },
   "audit.detail.roleChange": { ru: "Роль: {previous} → {next}", uk: "Роль: {previous} → {next}", en: "Role: {previous} → {next}" },

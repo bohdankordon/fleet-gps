@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { AUTH_PERMISSIONS } from "../auth/auth-contract";
 
-export const AUDIT_EVENT_TYPES = ["USER_CREATED", "USER_ACCESS_CHANGED", "USER_DISABLED", "USER_ENABLED", "USER_PASSWORD_RESET", "OWN_PASSWORD_CHANGED", "SHORT_POPULATION_EXECUTED", "DURABLE_POPULATION_CREATED", "RETENTION_EXECUTED", "SYSTEM_POPULATION_CREATED", "AUTOMATIC_RETENTION_EXECUTED"] as const;
+export const AUDIT_EVENT_TYPES = ["USER_CREATED", "USER_ACCESS_CHANGED", "USER_DISABLED", "USER_ENABLED", "USER_PASSWORD_RESET", "OWN_PASSWORD_CHANGED", "SHORT_POPULATION_EXECUTED", "DURABLE_POPULATION_CREATED", "RETENTION_EXECUTED", "SYSTEM_POPULATION_CREATED", "AUTOMATIC_RETENTION_EXECUTED", "SETTINGS_UPDATED"] as const;
 export const AUDIT_ACTOR_TYPES = ["USER", "SYSTEM"] as const;
-export const AUDIT_TARGET_TYPES = ["USER", "POSITION_HISTORY", "POSITION_HISTORY_POPULATION_RUN", "POSITION_HISTORY_RETENTION"] as const;
+export const AUDIT_TARGET_TYPES = ["USER", "POSITION_HISTORY", "POSITION_HISTORY_POPULATION_RUN", "POSITION_HISTORY_RETENTION", "APPLICATION_SETTINGS"] as const;
 
 export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number];
 export type AuditActorType = (typeof AUDIT_ACTOR_TYPES)[number];
@@ -24,6 +24,7 @@ const details = <T extends z.ZodRawShape>(shape: T) => z.union([available(shape)
 const snapshot = { targetLoginSnapshot: z.string().regex(/^[A-Za-z0-9._-]{3,64}$/) };
 const population = { to: timestamp, windowBudget: positiveCount, excludeProviderDisabled: z.boolean() };
 const retention = { canonicalAnchor: timestamp, policyCutoff: timestamp, deletedCheckpoints: count, deletedObservations: count, remainingFullyObsoleteCheckpoints: count, remainingExecutableObservationCandidates: count, stoppedByBudget: z.boolean() };
+const settingsChange = z.object({ field: z.string().min(1).max(64), previous: z.union([z.string(), z.number().finite(), z.boolean(), z.null()]), next: z.union([z.string(), z.number().finite(), z.boolean(), z.null()]) }).strict();
 
 const auditItem = z.discriminatedUnion("eventType", [
   z.object({ ...common, eventType: z.literal("USER_CREATED"), target: target("USER", true), details: details({ ...snapshot, role, permissions: z.array(permission) }) }).strict(),
@@ -37,6 +38,7 @@ const auditItem = z.discriminatedUnion("eventType", [
   z.object({ ...common, eventType: z.literal("RETENTION_EXECUTED"), target: target("POSITION_HISTORY_RETENTION", false), details: details(retention) }).strict(),
   z.object({ ...common, eventType: z.literal("SYSTEM_POPULATION_CREATED"), target: target("POSITION_HISTORY_POPULATION_RUN", true), details: details(population) }).strict(),
   z.object({ ...common, eventType: z.literal("AUTOMATIC_RETENTION_EXECUTED"), target: target("POSITION_HISTORY_RETENTION", false), details: details(retention) }).strict(),
+  z.object({ ...common, eventType: z.literal("SETTINGS_UPDATED"), target: z.object({ type: z.literal("APPLICATION_SETTINGS"), id: z.literal("1") }).strict(), details: details({ changes: z.array(settingsChange).min(1).max(12) }) }).strict(),
 ]);
 
 const responseSchema = z.object({ items: z.array(auditItem).max(50), nextCursor: z.string().regex(/^[A-Za-z0-9_-]{1,512}$/).nullable(), hasMore: z.boolean() }).strict().refine((value) => value.hasMore === (value.nextCursor !== null));

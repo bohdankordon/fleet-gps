@@ -17,7 +17,8 @@ export type AuditReadDetails =
   | Readonly<{ status: "AVAILABLE" }>
   | Readonly<{ status: "AVAILABLE"; to: string; windowBudget: number; excludeProviderDisabled: boolean; committedWindows: number }>
   | Readonly<{ status: "AVAILABLE"; to: string; windowBudget: number; excludeProviderDisabled: boolean }>
-  | Readonly<{ status: "AVAILABLE"; canonicalAnchor: string; policyCutoff: string; deletedCheckpoints: number; deletedObservations: number; remainingFullyObsoleteCheckpoints: number; remainingExecutableObservationCandidates: number; stoppedByBudget: boolean }>;
+  | Readonly<{ status: "AVAILABLE"; canonicalAnchor: string; policyCutoff: string; deletedCheckpoints: number; deletedObservations: number; remainingFullyObsoleteCheckpoints: number; remainingExecutableObservationCandidates: number; stoppedByBudget: boolean }>
+  | Readonly<{ status: "AVAILABLE"; changes: readonly Readonly<{ field: string; previous: string | number | boolean | null; next: string | number | boolean | null }>[] }>;
 
 export type AuditReadItem = Readonly<{
   id: string;

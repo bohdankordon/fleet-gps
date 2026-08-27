@@ -3,7 +3,7 @@ import test from "node:test";
 import { AUDIT_EVENT_TYPES, AuditContractError, parseAuditReadResponse } from "./audit-contract";
 import { auditResponseFixture } from "./audit-fixture";
 
-test("accepts safe typed details for all 11 event types", () => {
+test("accepts safe typed details for all audit event types", () => {
   const parsed = parseAuditReadResponse(auditResponseFixture());
   assert.deepEqual(parsed.items.map((item) => item.eventType), AUDIT_EVENT_TYPES);
   assert.equal(parsed.items.every((item) => item.details.status === "AVAILABLE"), true);

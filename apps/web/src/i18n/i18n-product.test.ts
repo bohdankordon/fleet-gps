@@ -105,7 +105,7 @@ test("locale is cookie-only with no schema, migration, auth, audit, or external 
   const schema = readFileSync("../../apps/api/prisma/schema.prisma", "utf8");
   assert.doesNotMatch(schema, /\blocale\b|taxi_locale/i);
   const migrations = readdirSync("../../apps/api/prisma/migrations", { withFileTypes: true }).filter((entry) => entry.isDirectory());
-  assert.equal(migrations.length, 11);
+  assert.equal(migrations.length, 12);
   for (const migration of migrations) assert.doesNotMatch(readFileSync(join("../../apps/api/prisma/migrations", migration.name, "migration.sql"), "utf8"), /taxi_locale|\blocale\b/i);
   const preference = readFileSync("src/lib/preferences/locale-preference.ts", "utf8");
   assert.doesNotMatch(preference, /AuthUser|ApplicationSettings|AuditEvent|prisma|fetch\(/);

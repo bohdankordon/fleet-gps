@@ -21,6 +21,7 @@ export function auditItemsFixture(): readonly AuditReadItem[] {
     { ...common, id: id(3), eventType: "RETENTION_EXECUTED", target: { type: "POSITION_HISTORY_RETENTION", id: null }, details: retention },
     { id: id(2), createdAt: AT, eventType: "SYSTEM_POPULATION_CREATED", actor: { type: "SYSTEM" }, target: { type: "POSITION_HISTORY_POPULATION_RUN", id: RUN }, details: { status: "AVAILABLE", to: AT, windowBudget: 5000, excludeProviderDisabled: true } },
     { id: id(1), createdAt: AT, eventType: "AUTOMATIC_RETENTION_EXECUTED", actor: { type: "SYSTEM" }, target: { type: "POSITION_HISTORY_RETENTION", id: null }, details: retention },
+    { ...common, id: id(12), eventType: "SETTINGS_UPDATED", target: { type: "APPLICATION_SETTINGS", id: "1" }, details: { status: "AVAILABLE", changes: [{ field: "timezone", previous: "Europe/Kyiv", next: "UTC" }] } },
   ], nextCursor: null, hasMore: false }).items;
 }
 

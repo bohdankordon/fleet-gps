@@ -56,6 +56,10 @@ export type ShortPopulationExecutedAuditDetails = Readonly<{
   committedWindows: number;
 }>;
 
+export type SettingsUpdatedAuditDetails = Readonly<{
+  changes: readonly Readonly<{ field: string; previous: string | number | boolean | null; next: string | number | boolean | null }>[];
+}>;
+
 export type AuditEventSpec =
   | Readonly<{
       eventType: typeof AuditEventType.USER_CREATED;
@@ -126,6 +130,13 @@ export type AuditEventSpec =
       targetType: typeof AuditTargetType.POSITION_HISTORY_RETENTION;
       targetId: null;
       details: RetentionExecutedAuditDetails;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.SETTINGS_UPDATED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.APPLICATION_SETTINGS;
+      targetId: "1";
+      details: SettingsUpdatedAuditDetails;
     }>;
 
 export type AuditEventDetails = AuditEventSpec["details"];

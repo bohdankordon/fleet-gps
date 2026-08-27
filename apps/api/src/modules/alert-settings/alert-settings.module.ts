@@ -3,11 +3,13 @@ import { DatabaseModule } from "../database/database.module";
 import { AlertSettingsController } from "./alert-settings.controller";
 import { AlertSettingsRepository } from "./alert-settings.repository";
 import { AlertSettingsService } from "./alert-settings.service";
+import { SettingsChangeNotifier } from "./settings-change-notifier";
+import { RuntimeSettingsController } from "./runtime-settings.controller";
 
 @Module({
   imports: [DatabaseModule],
-  controllers: [AlertSettingsController],
-  providers: [AlertSettingsRepository, AlertSettingsService],
-  exports: [AlertSettingsService],
+  controllers: [AlertSettingsController, RuntimeSettingsController],
+  providers: [AlertSettingsRepository, AlertSettingsService, SettingsChangeNotifier],
+  exports: [AlertSettingsService, SettingsChangeNotifier],
 })
 export class AlertSettingsModule {}

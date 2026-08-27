@@ -44,12 +44,14 @@ function target(row: StoredAuditReadRow): AuditReadTarget {
       case AuditEventType.RETENTION_EXECUTED:
       case AuditEventType.AUTOMATIC_RETENTION_EXECUTED:
         return row.targetType === AuditTargetType.POSITION_HISTORY_RETENTION && row.targetId === null;
+      case AuditEventType.SETTINGS_UPDATED:
+        return row.targetType === AuditTargetType.APPLICATION_SETTINGS && row.targetId === "1";
       default:
         return false;
     }
   })();
   if (!valid) throw new AuditReadStateError();
-  return Object.freeze({ type: row.targetType, id });
+  return Object.freeze({ type: row.targetType, id: row.eventType === AuditEventType.SETTINGS_UPDATED ? "1" : id });
 }
 
 function details(row: StoredAuditReadRow): AuditReadDetails {

@@ -1,5 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import { AlertSettingsService, type AlertRulesSettings } from "../alert-settings";
+import { Injectable, Optional } from "@nestjs/common";
+import { AlertSettingsService, SettingsChangeNotifier, type AlertRulesSettings } from "../alert-settings";
 import { CityGeofenceService } from "../city-geofence";
 import type { SpeedingDetectionResult, SpeedingObservationInput, SpeedingRuleContext } from "./speeding-detector.types";
 import { normalizeSpeedingObservation } from "./speeding-detector.validation";
@@ -7,7 +7,7 @@ import { SpeedingDetectorStateMachine } from "./speeding-detector.state-machine"
 
 @Injectable()
 export class SpeedingDetectorService {
-  public constructor(private readonly alertSettings: AlertSettingsService, private readonly cityGeofence: CityGeofenceService, private readonly stateMachine: SpeedingDetectorStateMachine) {}
+  public constructor(private readonly alertSettings: AlertSettingsService, private readonly cityGeofence: CityGeofenceService, private readonly stateMachine: SpeedingDetectorStateMachine, @Optional() notifier?: SettingsChangeNotifier) { notifier?.subscribe((changes) => { if (changes.has("speeding")) this.clearAll(); }); }
 
   public async detect(input: SpeedingObservationInput): Promise<SpeedingDetectionResult> {
     const observation = normalizeSpeedingObservation(input);

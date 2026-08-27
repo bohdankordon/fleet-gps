@@ -93,6 +93,7 @@ enum AuditEventType {
   RETENTION_EXECUTED
   SYSTEM_POPULATION_CREATED
   AUTOMATIC_RETENTION_EXECUTED
+  SETTINGS_UPDATED
 }
 
 enum AuditActorType {
@@ -105,6 +106,7 @@ enum AuditTargetType {
   POSITION_HISTORY
   POSITION_HISTORY_POPULATION_RUN
   POSITION_HISTORY_RETENTION
+  APPLICATION_SETTINGS
 }
 
 model AuthUser {
@@ -380,6 +382,7 @@ model ApplicationSettings {
   positionFreshnessSeconds    Int      @default(300) @map("position_freshness_seconds")
   telegramChatId              String?  @map("telegram_chat_id") @db.VarChar(128)
   dailyReportMinuteOfDay      Int      @default(10) @map("daily_report_minute_of_day")
+  revision                    Int      @default(1) @map("revision")
   createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

@@ -23,10 +23,10 @@ import type { VehicleTrackRange } from "@/lib/vehicle-track/vehicle-track-range"
 import { useI18n } from "../i18n/client";
 
 const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs"; const workerState: FleetMapWorkerBootstrapState = { configured: false };
-type Props = Readonly<{ vehicleId: string; initialData: TripAnalysisResponse | null; initialRange: VehicleTrackRange; initialError: boolean }>;
+type Props = Readonly<{ vehicleId: string; initialData: TripAnalysisResponse | null; initialRange: VehicleTrackRange; initialError: boolean; timezone: string }>;
 function applyCamera(map: MapLibreMap, model: VehicleTrackPresentationModel): void { const camera = vehicleTrackCamera(model, null); if ("bounds" in camera) map.fitBounds(camera.bounds as [[number, number], [number, number]], { padding: camera.padding, maxZoom: camera.maxZoom, duration: 0 }); else map.jumpTo({ center: camera.center as [number, number], zoom: camera.zoom }); }
 
-export function VehicleTripsClient({ vehicleId, initialData, initialRange, initialError }: Props) {
+export function VehicleTripsClient({ vehicleId, initialData, initialRange, initialError, timezone }: Props) {
   const { locale, t } = useI18n();
   const [analysis, setAnalysis] = useState(initialData); const [range, setRange] = useState(initialRange); const [loading, setLoading] = useState(false); const [analysisError, setAnalysisError] = useState(initialError);
   const [interaction, setInteraction] = useState(initialTripAnalysisInteractionState); const selection = interaction.selection; const [trackLoading, setTrackLoading] = useState(false); const [model, setModel] = useState<VehicleTrackPresentationModel>(EMPTY_VEHICLE_TRACK_PRESENTATION);
@@ -52,7 +52,7 @@ export function VehicleTripsClient({ vehicleId, initialData, initialRange, initi
   }, [vehicleId]);
 
   useEffect(() => { const container = containerRef.current; if (!container || mapRef.current) return; const map = createFleetMapAfterWorkerBootstrap({ setWorkerUrl: maplibregl.setWorkerUrl, workerUrl: MAPLIBRE_WORKER_URL, state: workerState }, () => new maplibregl.Map({ container, style: fleetMapStyleUrl(), pitchWithRotate: false, dragRotate: false })); mapRef.current = map; map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right"); const onLoad = () => { ensureVehicleTrackLayers(map, modelRef.current, null); updateVehicleTrackMapData(map, modelRef.current, null); applyCamera(map, modelRef.current); }; const onError = () => setStyleError(true); map.on("load", onLoad); map.on("error", onError); return () => { map.off("load", onLoad); map.off("error", onError); map.remove(); mapRef.current = null; analysisController.current?.abort(); trackController.current?.abort(); }; }, []);
-  const choosePreset = (preset: TripAnalysisPreset) => { const next = createTripAnalysisPresetRange(preset, new Date()); if (next) void loadAnalysis(next); };
+  const choosePreset = (preset: TripAnalysisPreset) => { const next = createTripAnalysisPresetRange(preset, new Date(), timezone); if (next) void loadAnalysis(next); };
   const submit = (event: React.FormEvent) => { event.preventDefault(); const parsed = parseVehicleTrackCustomRange(draft); if (!parsed.range) { setFormError(vehicleTrackCustomRangeErrorCopy(parsed.error, locale)); return; } setFormError(null); void loadAnalysis(parsed.range); };
   const noObservations = analysis?.summary.rawObservationCount === 0; const noEvents = analysis && analysis.summary.rawObservationCount > 0 && analysis.summary.tripCount === 0 && analysis.summary.stopCount === 0;
   return <>

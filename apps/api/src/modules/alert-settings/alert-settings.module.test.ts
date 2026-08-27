@@ -10,6 +10,7 @@ import { AlertSettingsController } from "./alert-settings.controller";
 import { AlertSettingsModule } from "./alert-settings.module";
 import { AlertSettingsRepository } from "./alert-settings.repository";
 import { AlertSettingsService } from "./alert-settings.service";
+import { SettingsChangeNotifier } from "./settings-change-notifier";
 
 const config: ApiConfig = Object.freeze({ host: "127.0.0.1", port: 3000, database: Object.freeze({ url: "postgresql://user:password@example.test/db", poolMax: 1, connectionTimeoutMs: 100, idleTimeoutMs: 1_000 }), syncScheduler: Object.freeze({ enabled: false, fleetIntervalSeconds: 60, runsIntervalSeconds: 300, shutdownTimeoutMs: 50_000 }), alertIngestion: Object.freeze({ enabled: false }), positionHistoryMaintenance: Object.freeze({ enabled: false, windowBudget: 5_000 }), telegramNotifications: Object.freeze({ enabled: false, botToken: null, chatId: null, dispatchIntervalMs: 60_000, batchSize: 20 }), equGps: Object.freeze({ officialBaseUrl: "https://trace.example.test", webBaseUrl: "https://web.example.test", email: "user@example.test", password: "password", requestTimeoutMs: 1_000, runsRequestTimeoutMs: 45_000 }) });
 
@@ -21,7 +22,7 @@ test("compiles lazily with a fake database and exports only the service", async 
     assert.equal(module.get(AlertSettingsService), module.get(AlertSettingsService));
     assert.ok(module.get(AlertSettingsController));
     assert.throws(() => module.get(AlertSettingsRepository, { strict: true }));
-    assert.deepEqual(Reflect.getMetadata("exports", AlertSettingsModule), [AlertSettingsService]);
+    assert.deepEqual(Reflect.getMetadata("exports", AlertSettingsModule), [AlertSettingsService, SettingsChangeNotifier]);
     assert.equal(queries, 0);
   } finally { await module.close(); }
 });

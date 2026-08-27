@@ -19,6 +19,10 @@ function integerInRange(value: unknown, minimum: number, maximum: number): numbe
   return value;
 }
 
+export function validatePositionFreshnessSeconds(value: unknown): number { return integerInRange(value, 1, 86_400); }
+export function validateMinimumDailyDistanceMeters(value: unknown): number { return integerInRange(value, 0, 10_000_000); }
+export function validateRevision(value: unknown): number { return integerInRange(value, 1, 2_147_483_647); }
+
 export function validateTimezone(value: unknown): string {
   if (typeof value !== "string" || value.trim().length === 0) throw new AlertSettingsStateError("invalid");
   try {

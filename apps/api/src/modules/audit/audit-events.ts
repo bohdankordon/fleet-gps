@@ -13,6 +13,7 @@ import type {
   DurablePopulationCreatedAuditDetails,
   RetentionExecutedAuditDetails,
   ShortPopulationExecutedAuditDetails,
+  SettingsUpdatedAuditDetails,
   UserAccessChangedAuditDetails,
   UserCreatedAuditDetails,
 } from "./audit.types";
@@ -141,6 +142,26 @@ export function buildUserActor(userId: string, loginSnapshot: string): AuditUser
 
 export function buildSystemActor(): AuditSystemActor {
   return Object.freeze({ actorType: AuditActorType.SYSTEM, actorUserId: null, actorLoginSnapshot: null });
+}
+
+function settingsDetails(details: SettingsUpdatedAuditDetails): SettingsUpdatedAuditDetails {
+  if (!Array.isArray(details.changes) || details.changes.length === 0 || details.changes.length > 12) throw new AuditEventValidationError("settings changes must be a non-empty bounded array");
+  const changes = details.changes.map((change) => {
+    const item = object(change, "settings change");
+    exactKeys(item, ["field", "previous", "next"], "settings change");
+    const primitive = (value: unknown, label: string): string | number | boolean | null => {
+      if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      throw new AuditEventValidationError(`${label} must be a JSON primitive`);
+    };
+    return Object.freeze({ field: requiredString(item.field, "settings field", 64), previous: primitive(item.previous, "previous"), next: primitive(item.next, "next") });
+  });
+  if (new Set(changes.map((change) => change.field)).size !== changes.length) throw new AuditEventValidationError("settings fields cannot repeat");
+  return Object.freeze({ changes: Object.freeze(changes) });
+}
+
+export function buildSettingsUpdatedAuditEvent(actor: AuditUserActor, details: SettingsUpdatedAuditDetails): AuditEventSpec {
+  return Object.freeze({ eventType: AuditEventType.SETTINGS_UPDATED, actor: buildUserActor(actor.actorUserId, actor.actorLoginSnapshot), targetType: AuditTargetType.APPLICATION_SETTINGS, targetId: "1", details: settingsDetails(details) });
 }
 
 export function assertAuditActor(actorType: unknown, actorUserId: unknown, actorLoginSnapshot: unknown): AuditActor {
@@ -319,6 +340,9 @@ export function parseAuditEventDetails(eventType: unknown, value: unknown): Audi
     case AuditEventType.AUTOMATIC_RETENTION_EXECUTED:
       exactKeys(details, ["canonicalAnchor", "policyCutoff", "deletedCheckpoints", "deletedObservations", "remainingFullyObsoleteCheckpoints", "remainingExecutableObservationCandidates", "stoppedByBudget"], `${eventType} details`);
       return retentionDetails(details as RetentionExecutedAuditDetails);
+    case AuditEventType.SETTINGS_UPDATED:
+      exactKeys(details, ["changes"], "SETTINGS_UPDATED details");
+      return settingsDetails(details as SettingsUpdatedAuditDetails);
     default:
       throw new AuditEventValidationError("eventType is not implemented");
   }
@@ -380,6 +404,9 @@ export function parseAuditEventSpec(value: unknown): AuditEventSpec {
       if (event.targetType !== AuditTargetType.POSITION_HISTORY_RETENTION || event.targetId !== null) throw new AuditEventValidationError("AUTOMATIC_RETENTION_EXECUTED must target POSITION_HISTORY_RETENTION with a null targetId");
       parseSystemActor(event.actor);
       return buildAutomaticRetentionExecutedAuditEvent(parseRetentionDetails(event.details, AuditEventType.AUTOMATIC_RETENTION_EXECUTED));
+    case AuditEventType.SETTINGS_UPDATED:
+      if (event.targetType !== AuditTargetType.APPLICATION_SETTINGS || event.targetId !== "1") throw new AuditEventValidationError("SETTINGS_UPDATED must target the ApplicationSettings singleton");
+      return buildSettingsUpdatedAuditEvent(parseUserActor(event.actor), settingsDetails(event.details as SettingsUpdatedAuditDetails));
     default:
       throw new AuditEventValidationError("eventType is not implemented");
   }

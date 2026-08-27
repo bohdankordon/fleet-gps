@@ -1,12 +1,12 @@
-import { Injectable } from "@nestjs/common";
-import { AlertSettingsService, type AlertRulesSettings } from "../alert-settings";
+import { Injectable, Optional } from "@nestjs/common";
+import { AlertSettingsService, SettingsChangeNotifier, type AlertRulesSettings } from "../alert-settings";
 import type { InactivityDetectionResult, InactivityObservationInput, InactivityRuleContext } from "./inactivity-detector.types";
 import { InactivityDetectorStateMachine } from "./inactivity-detector.state-machine";
 import { normalizeInactivityObservation } from "./inactivity-detector.validation";
 
 @Injectable()
 export class InactivityDetectorService {
-  public constructor(private readonly alertSettings: AlertSettingsService, private readonly stateMachine: InactivityDetectorStateMachine) {}
+  public constructor(private readonly alertSettings: AlertSettingsService, private readonly stateMachine: InactivityDetectorStateMachine, @Optional() notifier?: SettingsChangeNotifier) { notifier?.subscribe((changes) => { if (changes.has("inactivity")) this.clearAll(); }); }
 
   public async detect(input: InactivityObservationInput): Promise<InactivityDetectionResult> {
     if (normalizeInactivityObservation(input) === null) return this.stateMachine.invalidResult(input);

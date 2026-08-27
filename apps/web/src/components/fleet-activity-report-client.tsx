@@ -9,11 +9,11 @@ import { formatObservedDistance, formatTripAnalysisDuration } from "@/lib/trip-a
 import type { VehicleTrackRange } from "@/lib/vehicle-track/vehicle-track-range";
 import { WarningIcon } from "./ui/icons";
 
-type Props = Readonly<{ initialDate: string; initialRange: VehicleTrackRange; initialData: FleetActivityReportResponse | null; initialError: boolean; now: Date; canOpenTrips: boolean }>;
+type Props = Readonly<{ initialDate: string; initialRange: VehicleTrackRange; initialData: FleetActivityReportResponse | null; initialError: boolean; now: Date; timezone: string; canOpenTrips: boolean }>;
 
-export function FleetActivityReportClient({ initialDate, initialRange, initialData: data, initialError, now, canOpenTrips }: Props) {
+export function FleetActivityReportClient({ initialDate, initialRange, initialData: data, initialError, now, timezone, canOpenTrips }: Props) {
   const { locale, t } = useI18n();
-  const navigation = createFleetActivityReportDateNavigation(now);
+  const navigation = createFleetActivityReportDateNavigation(now, timezone);
   const allNoGps = data !== null && data.summary.vehicleCount > 0 && data.summary.vehiclesWithGps === 0;
   const periodFrom = formatDateTime(locale, initialRange.from) ?? t("common.notAvailable");
   const periodTo = formatDateTime(locale, initialRange.to) ?? t("common.notAvailable");

@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createFleetActivityReportDateNavigation, FLEET_ACTIVITY_REPORT_DATE_FORM, fleetActivityReportDateHref } from "./fleet-activity-report-navigation";
 
-test("report date navigation uses Kyiv dates in canonical report URLs", () => {
-  const navigation = createFleetActivityReportDateNavigation(new Date("2026-08-11T22:30:00Z"));
+test("report date navigation uses supplied business-timezone dates in canonical report URLs", () => {
+  const navigation = createFleetActivityReportDateNavigation(new Date("2026-08-11T22:30:00Z"), "Europe/Kyiv");
   assert.deepEqual(navigation, { todayHref: "/reports?date=2026-08-12", yesterdayHref: "/reports?date=2026-08-11" });
   assert.equal(fleetActivityReportDateHref("2026-08-10"), "/reports?date=2026-08-10");
 });

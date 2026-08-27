@@ -27,15 +27,21 @@ This document is the primary living record of the project's development directio
 
 Natural retention also executed as SYSTEM work with the correct cutoff contract. It deleted one eligible historical observation, left no eligible rows, and showed no duplicate or stale execution. Production remained healthy, so this post-release gate is closed.
 
-## NOW — Feature development
+## DONE — Configurability & Magic Numbers Audit
 
-The current priority is functional product development from `main`. Several important product changes and features are expected next. Functional correctness and stable product behavior take precedence over redesign work while those requirements are defined and implemented.
+The shared business settings audit is complete.
 
-### Incoming feature queue
+## DONE — Global Business Settings Foundation
 
-- Detailed requirements to be added as the next feature stages are defined.
+Typed, global ADMIN-managed business settings are available at runtime.
 
-Update this queue as soon as requirements are accepted into scope; do not infer features that have not been specified.
+## NOW — Trip / Stop Settings Migration
+
+Move approved trip and stop policy constants into the same typed global-settings model.
+
+## NEXT — Per-user Telegram Notifications
+
+Design user-scoped Telegram notification preferences without reusing global Telegram settings.
 
 ## PARKED — Design direction experiments
 
