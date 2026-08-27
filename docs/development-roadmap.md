@@ -31,11 +31,11 @@ Natural retention also executed as SYSTEM work with the correct cutoff contract.
 
 The shared business settings audit is complete.
 
-## NOW — Global Business Settings Foundation — final remediation
+## DONE — Global Business Settings Foundation
 
-Finish dedicated API, UI, detector-reset, and timezone-contract acceptance coverage before closing Settings 1A.
+The typed, global ADMIN business-settings foundation is complete: revision-protected updates, durable audit entries, post-commit detector context resets, minimal authenticated runtime timezone reads, and the safe read-only geofence UI are covered by API and Web tests.
 
-## NEXT — Trip / Stop Settings Migration
+## NOW — Trip / Stop Settings Migration
 
 Move approved trip and stop policy constants into the same typed global-settings model.
 
