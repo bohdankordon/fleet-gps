@@ -1,7 +1,7 @@
 import type { AdminSettings } from "@/lib/admin-settings/admin-settings-contract";
 
 export type EditableAdminSettings = Omit<AdminSettings, "cityGeofence" | "updatedAt" | "revision">;
-export const numericAdminSettingsBounds = Object.freeze({ minimumDailyDistanceMeters: [0], positionFreshnessSeconds: [1], citySpeedLimitKph: [1, 200], outsideCitySpeedLimitKph: [1, 200], speedToleranceKph: [0, 50], speedingConfirmationUpdates: [1, 10], inactivityDistanceMeters: [0, 5000], inactivityDurationMinutes: [1, 1440] } as const);
+export const numericAdminSettingsBounds = Object.freeze({ minimumDailyDistanceMeters: [0], positionFreshnessSeconds: [1], citySpeedLimitKph: [1, 200], outsideCitySpeedLimitKph: [1, 200], speedToleranceKph: [0, 50], speedingConfirmationUpdates: [1, 10], inactivityDistanceMeters: [0, 5000], inactivityDurationMinutes: [1, 1440], tripMovementSpeedKph: [1, 200], tripMovementConfirmationSeconds: [1, 604800], tripStopConfirmationSeconds: [1, 604800], tripDataGapSeconds: [1, 604800] } as const);
 
 export function adminSettingsDraft(settings: AdminSettings): EditableAdminSettings {
   const { cityGeofence: _geofence, updatedAt: _updatedAt, revision: _revision, ...value } = settings;

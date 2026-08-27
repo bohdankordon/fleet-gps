@@ -14,7 +14,7 @@ The repository performs two bounded set-based reads: all persisted vehicles with
 
 Every persisted vehicle appears once, including provider-disabled vehicles and vehicles without observations. `hasGpsData` means `rawObservationCount > 0`. A missing observation set is displayed as **Нет GPS-данных** and is not interpreted as inactivity. Observations with zero confirmed trips remain GPS data.
 
-Fleet and row metrics are sums of Stage 15A results: trips and trip durations, GPS-observed trip distance, meaningful stops of at least five minutes and their durations, and GPS gaps. Distance is not road or odometer distance. Gaps remain unknown discontinuities.
+Fleet and row metrics are sums of Stage 15A results under one current global trip/stop policy snapshot: trips and trip durations, GPS-observed trip distance, meaningful stops and their durations, and GPS gaps. The policy is ADMIN-editable in Application Settings, so historical reports are recomputed using current policy rather than persisted historical trip snapshots. Distance is not road or odometer distance. Gaps remain unknown discontinuities.
 
 **Время поездок** is trip duration, not continuous moving time, because an accepted trip may include a short pause. The UI intentionally provides no utilization, driver score, average speed, revenue, or other unapproved business metrics.
 

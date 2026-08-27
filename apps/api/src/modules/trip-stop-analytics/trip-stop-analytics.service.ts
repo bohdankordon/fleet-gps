@@ -4,6 +4,7 @@ import { TRIP_STOP_ANALYTICS_MAX_RANGE_MS } from "./trip-stop-analytics.constant
 import { TripStopAnalyticsTargetError, TripStopAnalyticsVehicleNotFoundError } from "./trip-stop-analytics.errors";
 import { TRIP_STOP_ANALYTICS_REPOSITORY } from "./trip-stop-analytics.tokens";
 import type { TripStopAnalysisResult, TripStopAnalyticsRange, TripStopAnalyticsRepository } from "./trip-stop-analytics.types";
+import { TripStopAnalyticsPolicyService } from "./trip-stop-analytics-policy.service";
 
 function validTarget(vehicleId: string, range: TripStopAnalyticsRange): boolean {
   const from = range.from.getTime();
@@ -13,13 +14,13 @@ function validTarget(vehicleId: string, range: TripStopAnalyticsRange): boolean 
 
 @Injectable()
 export class TripStopAnalyticsService {
-  public constructor(@Inject(TRIP_STOP_ANALYTICS_REPOSITORY) private readonly repository: TripStopAnalyticsRepository) {}
+  public constructor(@Inject(TRIP_STOP_ANALYTICS_REPOSITORY) private readonly repository: TripStopAnalyticsRepository, private readonly policy: TripStopAnalyticsPolicyService) {}
 
   public async analyze(vehicleId: string, range: TripStopAnalyticsRange): Promise<TripStopAnalysisResult> {
     if (!validTarget(vehicleId, range)) throw new TripStopAnalyticsTargetError();
-    const snapshot = await this.repository.getSnapshot(vehicleId, range);
+    const [snapshot, policy] = await Promise.all([this.repository.getSnapshot(vehicleId, range), this.policy.getSnapshot()]);
     if (snapshot.vehicle === null) throw new TripStopAnalyticsVehicleNotFoundError();
-    const core = analyzeTripStopObservations(snapshot.observations, range);
+    const core = analyzeTripStopObservations(snapshot.observations, range, policy);
     return Object.freeze({
       vehicle: Object.freeze({ ...snapshot.vehicle }),
       range: core.range,
@@ -39,4 +40,3 @@ export class TripStopAnalyticsService {
     });
   }
 }
-

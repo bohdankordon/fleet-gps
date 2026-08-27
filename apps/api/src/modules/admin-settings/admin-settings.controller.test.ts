@@ -4,7 +4,7 @@ import { HttpException } from "@nestjs/common";
 import { AdminSettingsController } from "./admin-settings.controller";
 import { AdminSettingsError } from "./admin-settings.types";
 
-const settings = { timezone: "Europe/Kyiv", minimumDailyDistanceMeters: 500, positionFreshnessSeconds: 300, speedRuleEnabled: true, citySpeedLimitKph: 50, outsideCitySpeedLimitKph: 90, speedToleranceKph: 10, speedingConfirmationUpdates: 2, inactivityRuleEnabled: true, inactivityDistanceMeters: 300, inactivityDurationMinutes: 60, cityGeofence: { configured: false, ringCount: 0, pointCount: 0 }, updatedAt: "2026-08-01T00:00:00.000Z", revision: 7 } as const;
+const settings = { timezone: "Europe/Kyiv", minimumDailyDistanceMeters: 500, positionFreshnessSeconds: 300, speedRuleEnabled: true, citySpeedLimitKph: 50, outsideCitySpeedLimitKph: 90, speedToleranceKph: 10, speedingConfirmationUpdates: 2, inactivityRuleEnabled: true, inactivityDistanceMeters: 300, inactivityDurationMinutes: 60, tripMovementSpeedKph: 5, tripMovementConfirmationSeconds: 60, tripStopConfirmationSeconds: 300, tripDataGapSeconds: 300, cityGeofence: { configured: false, ringCount: 0, pointCount: 0 }, updatedAt: "2026-08-01T00:00:00.000Z", revision: 7 } as const;
 const request = { auth: { id: "00000000-0000-4000-8000-000000000001", login: "admin" } } as any;
 
 test("ADMIN settings controller exposes only its approved response contract including revision", async () => {

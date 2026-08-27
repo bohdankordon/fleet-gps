@@ -145,7 +145,7 @@ export function buildSystemActor(): AuditSystemActor {
 }
 
 function settingsDetails(details: SettingsUpdatedAuditDetails): SettingsUpdatedAuditDetails {
-  if (!Array.isArray(details.changes) || details.changes.length === 0 || details.changes.length > 12) throw new AuditEventValidationError("settings changes must be a non-empty bounded array");
+  if (!Array.isArray(details.changes) || details.changes.length === 0 || details.changes.length > 16) throw new AuditEventValidationError("settings changes must be a non-empty bounded array");
   const changes = details.changes.map((change) => {
     const item = object(change, "settings change");
     exactKeys(item, ["field", "previous", "next"], "settings change");

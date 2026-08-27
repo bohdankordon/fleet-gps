@@ -2,7 +2,7 @@ import { AUTH_COOKIE_NAME } from "../auth/auth-contract";
 import { rejectCrossOriginWrite } from "../auth/same-origin";
 import { boundedBodyStatus, readBoundedJson } from "../http/bounded-body";
 
-export const adminSettingsWriteKeys = ["revision", "timezone", "minimumDailyDistanceMeters", "positionFreshnessSeconds", "speedRuleEnabled", "citySpeedLimitKph", "outsideCitySpeedLimitKph", "speedToleranceKph", "speedingConfirmationUpdates", "inactivityRuleEnabled", "inactivityDistanceMeters", "inactivityDurationMinutes", "cityGeofenceGeoJson"] as const;
+export const adminSettingsWriteKeys = ["revision", "timezone", "minimumDailyDistanceMeters", "positionFreshnessSeconds", "speedRuleEnabled", "citySpeedLimitKph", "outsideCitySpeedLimitKph", "speedToleranceKph", "speedingConfirmationUpdates", "inactivityRuleEnabled", "inactivityDistanceMeters", "inactivityDurationMinutes", "tripMovementSpeedKph", "tripMovementConfirmationSeconds", "tripStopConfirmationSeconds", "tripDataGapSeconds", "cityGeofenceGeoJson"] as const;
 
 export async function forwardAdminSettingsToUpstream(request: Request, apiInternalBaseUrl: string, fetcher: typeof fetch = fetch): Promise<Response> {
   if (request.method === "PATCH") {

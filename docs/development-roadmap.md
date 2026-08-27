@@ -35,11 +35,11 @@ The shared business settings audit is complete.
 
 The typed, global ADMIN business-settings foundation is complete: revision-protected updates, durable audit entries, post-commit detector context resets, minimal authenticated runtime timezone reads, and the safe read-only geofence UI are covered by API and Web tests.
 
-## NOW — Trip / Stop Settings Migration
+## DONE — Trip / Stop Settings Migration
 
-Move approved trip and stop policy constants into the same typed global-settings model.
+Trip and stop analytics now use typed, revision-protected global ADMIN policy settings, with the current policy applied when historical analytics and reports are recomputed.
 
-## NEXT — Per-user Telegram Notifications
+## NOW — Per-user Telegram Notifications
 
 Design user-scoped Telegram notification preferences without reusing global Telegram settings.
 

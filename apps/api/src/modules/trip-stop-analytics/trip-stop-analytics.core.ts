@@ -1,9 +1,4 @@
-import {
-  DATA_GAP_SECONDS,
-  MOVEMENT_CONFIRMATION_SECONDS,
-  MOVEMENT_THRESHOLD_KPH,
-  STOP_CONFIRMATION_SECONDS,
-} from "./trip-stop-analytics.constants";
+import { DEFAULT_TRIP_STOP_ANALYTICS_POLICY, type TripStopAnalyticsPolicy } from "./trip-stop-analytics.constants";
 import type {
   DerivedDataGap,
   DerivedStop,
@@ -71,14 +66,14 @@ export function calculateObservedDistanceMeters(from: Pick<TripStopAnalyticsObse
   return 2 * EARTH_RADIUS_METERS * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function observedPathDistance(observations: readonly TripStopAnalyticsObservation[], startIndex: number, endIndex: number): number {
+function observedPathDistance(observations: readonly TripStopAnalyticsObservation[], startIndex: number, endIndex: number, policy: TripStopAnalyticsPolicy): number {
   let distance = 0;
   for (let index = startIndex + 1; index <= endIndex; index += 1) {
     const previous = observations[index - 1];
     const current = observations[index];
     if (!previous || !current) throw new Error("Invalid trip observation interval");
     const elapsed = current.observedAt.getTime() - previous.observedAt.getTime();
-    if (elapsed > 0 && elapsed <= DATA_GAP_SECONDS * 1_000) distance += calculateObservedDistanceMeters(previous, current);
+    if (elapsed > 0 && elapsed <= policy.tripDataGapSeconds * 1_000) distance += calculateObservedDistanceMeters(previous, current);
   }
   return distance;
 }
@@ -94,12 +89,12 @@ function candidateElapsed(observations: readonly TripStopAnalyticsObservation[],
   return latest.observedAt.getTime() - first.observedAt.getTime();
 }
 
-function signal(observation: TripStopAnalyticsObservation): "MOVEMENT" | "STOPPED" | "UNKNOWN" {
+function signal(observation: TripStopAnalyticsObservation, policy: TripStopAnalyticsPolicy): "MOVEMENT" | "STOPPED" | "UNKNOWN" {
   if (observation.speedKph === null || !Number.isFinite(observation.speedKph)) return "UNKNOWN";
-  return observation.speedKph >= MOVEMENT_THRESHOLD_KPH ? "MOVEMENT" : "STOPPED";
+  return observation.speedKph >= policy.tripMovementSpeedKph ? "MOVEMENT" : "STOPPED";
 }
 
-function createTrip(observations: readonly TripStopAnalyticsObservation[], range: TripStopAnalyticsRange, active: ActiveEvent, endIndex: number, endAt: Date, terminationReason: DerivedTripTerminationReason): DerivedTrip {
+function createTrip(observations: readonly TripStopAnalyticsObservation[], range: TripStopAnalyticsRange, policy: TripStopAnalyticsPolicy, active: ActiveEvent, endIndex: number, endAt: Date, terminationReason: DerivedTripTerminationReason): DerivedTrip {
   const start = observations[active.startIndex];
   const end = observations[endIndex];
   if (!start || !end) throw new Error("Invalid trip interval");
@@ -107,7 +102,7 @@ function createTrip(observations: readonly TripStopAnalyticsObservation[], range
     startAt: cloneDate(start.observedAt),
     endAt: cloneDate(endAt),
     durationSeconds: seconds(endAt.getTime() - start.observedAt.getTime()),
-    observedDistanceMeters: observedPathDistance(observations, active.startIndex, endIndex),
+    observedDistanceMeters: observedPathDistance(observations, active.startIndex, endIndex, policy),
     startPosition: position(start),
     endPosition: position(end),
     terminationReason,
@@ -134,7 +129,7 @@ function createStop(observations: readonly TripStopAnalyticsObservation[], range
   });
 }
 
-export function analyzeTripStopObservations(input: readonly TripStopAnalyticsObservation[], range: TripStopAnalyticsRange): TripStopAnalyticsCoreResult {
+export function analyzeTripStopObservations(input: readonly TripStopAnalyticsObservation[], range: TripStopAnalyticsRange, policy: TripStopAnalyticsPolicy = DEFAULT_TRIP_STOP_ANALYTICS_POLICY): TripStopAnalyticsCoreResult {
   validateRange(range);
   const observations = orderedInRange(input, range);
   const trips: DerivedTrip[] = [];
@@ -153,10 +148,10 @@ export function analyzeTripStopObservations(input: readonly TripStopAnalyticsObs
       const previous = observations[index - 1];
       if (!previous) throw new Error("Missing previous analytics observation");
       const gapMilliseconds = observation.observedAt.getTime() - previous.observedAt.getTime();
-      if (gapMilliseconds > DATA_GAP_SECONDS * 1_000) {
+      if (gapMilliseconds > policy.tripDataGapSeconds * 1_000) {
         gaps.push(Object.freeze({ fromObservedAt: cloneDate(previous.observedAt), toObservedAt: cloneDate(observation.observedAt), durationSeconds: seconds(gapMilliseconds) }));
         continuitySegmentCount += 1;
-        if (activeTrip !== null) trips.push(createTrip(observations, range, activeTrip, index - 1, previous.observedAt, "DATA_GAP"));
+        if (activeTrip !== null) trips.push(createTrip(observations, range, policy, activeTrip, index - 1, previous.observedAt, "DATA_GAP"));
         if (activeStop !== null) stops.push(createStop(observations, range, activeStop, index - 1, previous.observedAt, "DATA_GAP"));
         activeTrip = null;
         activeStop = null;
@@ -165,12 +160,12 @@ export function analyzeTripStopObservations(input: readonly TripStopAnalyticsObs
       }
     }
 
-    const evidence = signal(observation);
+    const evidence = signal(observation, policy);
     if (activeTrip !== null) {
       if (evidence === "STOPPED") {
         stopCandidate = candidateWith(stopCandidate, index);
-        if (candidateElapsed(observations, stopCandidate) >= STOP_CONFIRMATION_SECONDS * 1_000) {
-          trips.push(createTrip(observations, range, activeTrip, stopCandidate.startIndex, observations[stopCandidate.startIndex]!.observedAt, "STOP"));
+        if (candidateElapsed(observations, stopCandidate) >= policy.tripStopConfirmationSeconds * 1_000) {
+          trips.push(createTrip(observations, range, policy, activeTrip, stopCandidate.startIndex, observations[stopCandidate.startIndex]!.observedAt, "STOP"));
           activeTrip = null;
           activeStop = { startIndex: stopCandidate.startIndex };
           stopCandidate = null;
@@ -184,7 +179,7 @@ export function analyzeTripStopObservations(input: readonly TripStopAnalyticsObs
     if (activeStop !== null) {
       if (evidence === "MOVEMENT") {
         movementCandidate = candidateWith(movementCandidate, index);
-        if (candidateElapsed(observations, movementCandidate) >= MOVEMENT_CONFIRMATION_SECONDS * 1_000) {
+        if (candidateElapsed(observations, movementCandidate) >= policy.tripMovementConfirmationSeconds * 1_000) {
           stops.push(createStop(observations, range, activeStop, movementCandidate.startIndex, observations[movementCandidate.startIndex]!.observedAt, "MOVEMENT"));
           activeStop = null;
           activeTrip = { startIndex: movementCandidate.startIndex };
@@ -199,14 +194,14 @@ export function analyzeTripStopObservations(input: readonly TripStopAnalyticsObs
     if (evidence === "MOVEMENT") {
       stopCandidate = null;
       movementCandidate = candidateWith(movementCandidate, index);
-      if (candidateElapsed(observations, movementCandidate) >= MOVEMENT_CONFIRMATION_SECONDS * 1_000) {
+      if (candidateElapsed(observations, movementCandidate) >= policy.tripMovementConfirmationSeconds * 1_000) {
         activeTrip = { startIndex: movementCandidate.startIndex };
         movementCandidate = null;
       }
     } else if (evidence === "STOPPED") {
       movementCandidate = null;
       stopCandidate = candidateWith(stopCandidate, index);
-      if (candidateElapsed(observations, stopCandidate) >= STOP_CONFIRMATION_SECONDS * 1_000) {
+      if (candidateElapsed(observations, stopCandidate) >= policy.tripStopConfirmationSeconds * 1_000) {
         activeStop = { startIndex: stopCandidate.startIndex };
         stopCandidate = null;
       }
@@ -218,7 +213,7 @@ export function analyzeTripStopObservations(input: readonly TripStopAnalyticsObs
 
   const finalIndex = observations.length - 1;
   const finalObservation = observations[finalIndex];
-  if (finalObservation !== undefined && activeTrip !== null) trips.push(createTrip(observations, range, activeTrip, finalIndex, finalObservation.observedAt, "RANGE_END"));
+  if (finalObservation !== undefined && activeTrip !== null) trips.push(createTrip(observations, range, policy, activeTrip, finalIndex, finalObservation.observedAt, "RANGE_END"));
   if (finalObservation !== undefined && activeStop !== null) stops.push(createStop(observations, range, activeStop, finalIndex, finalObservation.observedAt, "RANGE_END"));
   const first = observations[0];
   const last = observations[finalIndex];

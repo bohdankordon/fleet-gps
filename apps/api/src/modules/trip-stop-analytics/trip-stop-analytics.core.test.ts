@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateObservedDistanceMeters, analyzeTripStopObservations } from "./trip-stop-analytics.core";
 import type { TripStopAnalyticsObservation } from "./trip-stop-analytics.types";
+import { DEFAULT_TRIP_STOP_ANALYTICS_POLICY } from "./trip-stop-analytics.constants";
 
 const origin = new Date("2026-08-01T00:00:00.000Z");
 
@@ -18,9 +19,29 @@ function at(second: number, speedKph: number | null, options: Partial<Omit<TripS
   };
 }
 
-function analyze(observations: readonly TripStopAnalyticsObservation[], toSecond = 1_000) {
-  return analyzeTripStopObservations(observations, { from: origin, to: new Date(origin.getTime() + toSecond * 1_000) });
+function analyze(observations: readonly TripStopAnalyticsObservation[], toSecond = 1_000, policy = DEFAULT_TRIP_STOP_ANALYTICS_POLICY) {
+  return analyzeTripStopObservations(observations, { from: origin, to: new Date(origin.getTime() + toSecond * 1_000) }, policy);
 }
+
+test("current global policy changes derived historical analytics without changing the observation fixture", () => {
+  const observations = [at(0, 6), at(60, 6)];
+  const defaultResult = analyze(observations, 120);
+  const higherThreshold = analyze(observations, 120, { ...DEFAULT_TRIP_STOP_ANALYTICS_POLICY, tripMovementSpeedKph: 7 });
+  assert.equal(defaultResult.trips.length, 1); assert.equal(higherThreshold.trips.length, 0);
+  assert.equal(observations[0]?.speedKph, 6); assert.equal(observations[1]?.speedKph, 6);
+});
+
+test("policy confirmation and continuity thresholds alter the same evidence deterministically", () => {
+  const movement = [at(0, 10), at(60, 10)];
+  assert.equal(analyze(movement, 120, { ...DEFAULT_TRIP_STOP_ANALYTICS_POLICY, tripMovementConfirmationSeconds: 60 }).trips.length, 1);
+  assert.equal(analyze(movement, 120, { ...DEFAULT_TRIP_STOP_ANALYTICS_POLICY, tripMovementConfirmationSeconds: 61 }).trips.length, 0);
+  const stopped = [at(0, 0), at(120, 0)];
+  assert.equal(analyze(stopped, 200, { ...DEFAULT_TRIP_STOP_ANALYTICS_POLICY, tripStopConfirmationSeconds: 120 }).stops.length, 1);
+  assert.equal(analyze(stopped, 200, { ...DEFAULT_TRIP_STOP_ANALYTICS_POLICY, tripStopConfirmationSeconds: 121 }).stops.length, 0);
+  const gapped = [at(0, 10), at(60, 10), at(180, 10)];
+  assert.equal(analyze(gapped, 240, { ...DEFAULT_TRIP_STOP_ANALYTICS_POLICY, tripDataGapSeconds: 120 }).gaps.length, 0);
+  assert.equal(analyze(gapped, 240, { ...DEFAULT_TRIP_STOP_ANALYTICS_POLICY, tripDataGapSeconds: 119 }).gaps.length, 1);
+});
 
 test("isolated movement evidence and 59 seconds do not confirm a trip", () => {
   assert.equal(analyze([at(0, 5)]).trips.length, 0);

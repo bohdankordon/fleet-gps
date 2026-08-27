@@ -25,7 +25,7 @@ test("audit foundation migration remains intact and additive settings migration 
   const directories = readdirSync(migrationsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
-  assert.deepEqual(directories.sort(), [...existingMigrationDirectories, "20260813185936_add_audit_trail_foundation", "20260827000000_global_business_settings"].sort());
+  assert.deepEqual(directories.sort(), [...existingMigrationDirectories, "20260813185936_add_audit_trail_foundation", "20260827000000_global_business_settings", "20260827010000_add_trip_stop_policy_settings"].sort());
 
   for (const directory of existingMigrationDirectories) {
     const files = readdirSync(`${migrationsRoot}/${directory}`);
