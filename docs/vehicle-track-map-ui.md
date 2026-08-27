@@ -16,7 +16,7 @@ The exact BFF preserves the Stage 11C contract: all persisted observations, at m
 
 ## Custom Europe/Kyiv period
 
-Minute-precision native inputs labelled `С` and `До` interpret wall-clock input in `Europe/Kyiv`, never the browser or server timezone. Successful values become canonical absolute UTC query parameters. The existing nonexistent and ambiguous DST-time rules are unchanged. Validation requires `from < to` and an absolute elapsed duration no longer than 7 days; the boundary is independent of civil-day length.
+Minute-precision native inputs labelled `С` and `До` are an explicit legacy absolute-input contract: they interpret wall-clock input in fixed `Europe/Kyiv`, never the browser or server timezone. Successful values become canonical absolute UTC query parameters. They do not represent business-day, Today, or Yesterday semantics; those business-calendar controls use runtime `ApplicationSettings.timezone`. The existing nonexistent and ambiguous DST-time rules are unchanged. Validation requires `from < to` and an absolute elapsed duration no longer than 7 days; the boundary is independent of civil-day length.
 
 The loaded range is separate from the editable draft. Presets and successful custom loads synchronize the draft. Incomplete or dirty edits do not alter the loaded range, manual refresh, mode, or URL. Manual refresh reloads the last successfully selected absolute interval.
 

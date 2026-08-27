@@ -3,6 +3,7 @@ import { parseVehicleTrackRange, type VehicleTrackRange } from "./vehicle-track-
 import { translate } from "../../i18n/core";
 import { DEFAULT_LOCALE, type AppLocale } from "../../i18n/locales";
 
+/** Legacy explicit-absolute-input contract, not business-calendar policy. */
 export const VEHICLE_TRACK_INPUT_TIMEZONE = "Europe/Kyiv";
 export type VehicleTrackDraftRange = Readonly<{ from: string; to: string }>;
 export type VehicleTrackCustomRangeError = "REQUIRED" | "INVALID" | "NONEXISTENT" | "AMBIGUOUS" | "ORDER" | "TOO_LONG";

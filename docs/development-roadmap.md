@@ -31,11 +31,11 @@ Natural retention also executed as SYSTEM work with the correct cutoff contract.
 
 The shared business settings audit is complete.
 
-## DONE — Global Business Settings Foundation
+## NOW — Global Business Settings Foundation — final remediation
 
-Typed, global ADMIN-managed business settings are available at runtime.
+Finish dedicated API, UI, detector-reset, and timezone-contract acceptance coverage before closing Settings 1A.
 
-## NOW — Trip / Stop Settings Migration
+## NEXT — Trip / Stop Settings Migration
 
 Move approved trip and stop policy constants into the same typed global-settings model.
 
