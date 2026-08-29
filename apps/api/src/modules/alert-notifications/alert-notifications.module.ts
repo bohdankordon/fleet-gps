@@ -6,14 +6,19 @@ import { AlertNotificationDispatcherService } from "./alert-notification-dispatc
 import { AlertNotificationMessageFormatter } from "./alert-notification-message.formatter";
 import { AlertNotificationOutboxRepository } from "./alert-notification-outbox.repository";
 import { AlertNotificationRecipientPlanner } from "./alert-notification-recipient-planner.service";
+import { RecipientDeliveryRepository } from "./recipient-delivery.repository";
+import { RecipientDeliveryDispatcherService } from "./recipient-delivery-dispatcher.service";
+import { TelegramLinkingModule } from "../telegram-linking/telegram-linking.module";
 import { TELEGRAM_NOTIFICATION_TRANSPORT } from "./alert-notification.tokens";
 import { TelegramBotNotificationTransport } from "./telegram-bot-notification.transport";
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, TelegramLinkingModule],
   providers: [
     AlertNotificationOutboxRepository,
     AlertNotificationRecipientPlanner,
+    RecipientDeliveryRepository,
+    RecipientDeliveryDispatcherService,
     AlertNotificationMessageFormatter,
     {
       provide: TelegramBotNotificationTransport,
@@ -23,6 +28,6 @@ import { TelegramBotNotificationTransport } from "./telegram-bot-notification.tr
     { provide: TELEGRAM_NOTIFICATION_TRANSPORT, useExisting: TelegramBotNotificationTransport },
     AlertNotificationDispatcherService,
   ],
-  exports: [AlertNotificationOutboxRepository, AlertNotificationDispatcherService, AlertNotificationRecipientPlanner],
+  exports: [AlertNotificationOutboxRepository, AlertNotificationDispatcherService, AlertNotificationRecipientPlanner, RecipientDeliveryDispatcherService],
 })
 export class AlertNotificationsModule {}

@@ -38,6 +38,11 @@ export type TelegramProductLinkingConfig = Readonly<{
 export type TelegramPerUserNotificationsConfig = Readonly<{
   enabled: boolean;
 }>;
+export type TelegramPerUserDispatchConfig = Readonly<{
+  enabled: boolean;
+  dispatchIntervalMs: number;
+  batchSize: number;
+}>;
 export type ApiConfig = Readonly<{
   host: string;
   port: number;
@@ -50,6 +55,7 @@ export type ApiConfig = Readonly<{
   telegramNotifications: TelegramNotificationsConfig;
   telegramProductLinking?: TelegramProductLinkingConfig;
   telegramPerUserNotifications?: TelegramPerUserNotificationsConfig;
+  telegramPerUserDispatch?: TelegramPerUserDispatchConfig;
 }>;
 
 export class ApiConfigurationError extends Error {
@@ -133,6 +139,9 @@ export function parseApiConfig(env: Environment): ApiConfig {
   const telegramBatchSize = parseInteger(env.TELEGRAM_NOTIFICATION_BATCH_SIZE, 20, 1, 100);
   const telegramProductLinkingEnabled = parseBoolean(env.TELEGRAM_PRODUCT_LINKING_ENABLED);
   const telegramPerUserNotificationsEnabled = parseBoolean(env.TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED);
+  const telegramPerUserDispatchEnabled = parseBoolean(env.TELEGRAM_PER_USER_DISPATCH_ENABLED);
+  const telegramPerUserDispatchIntervalMs = parseInteger(env.TELEGRAM_PER_USER_DISPATCH_INTERVAL_MS, 60_000, 1_000, 3_600_000);
+  const telegramPerUserDispatchBatchSize = parseInteger(env.TELEGRAM_PER_USER_DISPATCH_BATCH_SIZE, 20, 1, 100);
   const telegramProductBotUsername = productBotUsername(env.TELEGRAM_PRODUCT_BOT_USERNAME);
   const telegramProductBotToken = env.TELEGRAM_PRODUCT_BOT_TOKEN?.trim() || null;
   const telegramProductWebhookSecret = env.TELEGRAM_PRODUCT_WEBHOOK_SECRET?.trim() || null;
@@ -166,6 +175,10 @@ export function parseApiConfig(env: Environment): ApiConfig {
   if (telegramBatchSize === undefined) issues.push("TELEGRAM_NOTIFICATION_BATCH_SIZE");
   if (telegramProductLinkingEnabled === undefined) issues.push("TELEGRAM_PRODUCT_LINKING_ENABLED");
   if (telegramPerUserNotificationsEnabled === undefined) issues.push("TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED");
+  if (telegramPerUserDispatchEnabled === undefined) issues.push("TELEGRAM_PER_USER_DISPATCH_ENABLED");
+  if (telegramPerUserDispatchIntervalMs === undefined) issues.push("TELEGRAM_PER_USER_DISPATCH_INTERVAL_MS");
+  if (telegramPerUserDispatchBatchSize === undefined) issues.push("TELEGRAM_PER_USER_DISPATCH_BATCH_SIZE");
+  if (telegramPerUserDispatchEnabled === true && telegramProductBotToken === null) issues.push("TELEGRAM_PRODUCT_BOT_TOKEN");
   if (telegramProductBotUsername === undefined) issues.push("TELEGRAM_PRODUCT_BOT_USERNAME");
   if (telegramProductLinkingEnabled === true && telegramProductBotUsername === null) issues.push("TELEGRAM_PRODUCT_BOT_USERNAME");
   if (telegramProductLinkingEnabled === true && telegramProductBotToken === null) issues.push("TELEGRAM_PRODUCT_BOT_TOKEN");
@@ -192,6 +205,9 @@ export function parseApiConfig(env: Environment): ApiConfig {
     telegramBatchSize === undefined ||
     telegramProductLinkingEnabled === undefined ||
     telegramPerUserNotificationsEnabled === undefined ||
+    telegramPerUserDispatchEnabled === undefined ||
+    telegramPerUserDispatchIntervalMs === undefined ||
+    telegramPerUserDispatchBatchSize === undefined ||
     telegramProductBotUsername === undefined ||
     fleetIntervalSeconds === undefined ||
     runsIntervalSeconds === undefined ||
@@ -212,6 +228,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
       telegramNotifications: Object.freeze({ enabled: telegramNotificationsEnabled, botToken: telegramBotToken, chatId: telegramChatId, dispatchIntervalMs: telegramDispatchIntervalMs, batchSize: telegramBatchSize }),
       telegramProductLinking: Object.freeze({ enabled: telegramProductLinkingEnabled, botUsername: telegramProductBotUsername, botToken: telegramProductBotToken, webhookSecret: telegramProductWebhookSecret }),
       telegramPerUserNotifications: Object.freeze({ enabled: telegramPerUserNotificationsEnabled }),
+      telegramPerUserDispatch: Object.freeze({ enabled: telegramPerUserDispatchEnabled, dispatchIntervalMs: telegramPerUserDispatchIntervalMs, batchSize: telegramPerUserDispatchBatchSize }),
       equGps: Object.freeze(parseEquGpsConfig({
         officialBaseUrl: env.EQUGPS_BASE_URL ?? "",
         webBaseUrl: env.EQUGPS_WEB_BASE_URL ?? "",

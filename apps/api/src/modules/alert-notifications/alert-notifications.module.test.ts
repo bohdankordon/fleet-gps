@@ -16,6 +16,7 @@ import { AlertNotificationDispatcherService } from "./alert-notification-dispatc
 import { AlertNotificationMessageFormatter } from "./alert-notification-message.formatter";
 import { AlertNotificationOutboxRepository } from "./alert-notification-outbox.repository";
 import { AlertNotificationRecipientPlanner } from "./alert-notification-recipient-planner.service";
+import { RecipientDeliveryDispatcherService } from "./recipient-delivery-dispatcher.service";
 import { TELEGRAM_NOTIFICATION_TRANSPORT } from "./alert-notification.tokens";
 import { AlertNotificationsModule } from "./alert-notifications.module";
 import { TelegramBotNotificationTransport } from "./telegram-bot-notification.transport";
@@ -35,6 +36,7 @@ test("outbox module boots with no database writes, network calls, controller, sc
   try {
     assert.ok(module.get(AlertNotificationOutboxRepository));
     assert.ok(module.get(AlertNotificationRecipientPlanner));
+    assert.ok(module.get(RecipientDeliveryDispatcherService));
     assert.ok(module.get(AlertNotificationDispatcherService));
     assert.ok(module.get(AlertNotificationMessageFormatter));
     assert.ok(module.get(TelegramBotNotificationTransport));
@@ -42,10 +44,11 @@ test("outbox module boots with no database writes, network calls, controller, sc
     const providers = Reflect.getMetadata("providers", AlertNotificationsModule) as readonly unknown[];
     assert.equal(providers.includes(AlertNotificationOutboxRepository), true);
     assert.equal(providers.includes(AlertNotificationRecipientPlanner), true);
+    assert.equal(providers.includes(RecipientDeliveryDispatcherService), true);
     assert.equal(providers.includes(AlertNotificationMessageFormatter), true);
     assert.equal(providers.includes(AlertNotificationDispatcherService), true);
     assert.equal(providers.some((provider) => typeof provider === "object" && provider !== null && (provider as { provide?: unknown }).provide === TELEGRAM_NOTIFICATION_TRANSPORT), true);
-    assert.deepEqual(Reflect.getMetadata("exports", AlertNotificationsModule), [AlertNotificationOutboxRepository, AlertNotificationDispatcherService, AlertNotificationRecipientPlanner]);
+    assert.deepEqual(Reflect.getMetadata("exports", AlertNotificationsModule), [AlertNotificationOutboxRepository, AlertNotificationDispatcherService, AlertNotificationRecipientPlanner, RecipientDeliveryDispatcherService]);
     assert.equal(Reflect.getMetadata("controllers", AlertNotificationsModule) ?? undefined, undefined);
     assert.equal("onModuleInit" in AlertNotificationOutboxRepository.prototype, false);
     assert.equal("onModuleInit" in AlertNotificationDispatcherService.prototype, false);

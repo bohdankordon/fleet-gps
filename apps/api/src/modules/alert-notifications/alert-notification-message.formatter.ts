@@ -1,6 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import type { ClaimedAlertNotification } from "./alert-notification-outbox.types";
 
+export type AlertConfirmedMessageSource =
+  | Readonly<{ vehicleName: string; timezone: string; confirmedAt: Date; alertType: "SPEEDING"; speedZone: "CITY" | "OUTSIDE_CITY"; confirmationSpeedKph: number; speedThresholdKph: number }>
+  | Readonly<{ vehicleName: string; timezone: string; confirmedAt: Date; alertType: "INACTIVITY"; confirmationTraveledDistanceMeters: number; distanceThresholdMeters: number; durationThresholdMinutes: number }>;
+
 function vehicleDisplayName(value: string): string {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : "Транспортний засіб";
@@ -35,7 +39,7 @@ export class AlertNotificationFormatterError extends Error {
 
 @Injectable()
 export class AlertNotificationMessageFormatter {
-  public formatAlertConfirmed(notification: ClaimedAlertNotification): string {
+  public formatAlertConfirmed(notification: AlertConfirmedMessageSource): string {
     const vehicle = vehicleDisplayName(notification.vehicleName);
     const confirmedAt = formatKyivTime(notification.confirmedAt, notification.timezone);
     if (notification.alertType === "SPEEDING") {

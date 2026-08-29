@@ -52,3 +52,43 @@ then suppress stale rows. Its planned retry policy is at most 12 attempts over
 24 hours with exponential backoff capped at 60 minutes. Production cutover
 must ensure legacy global delivery and per-user delivery do not send the same
 alert simultaneously; that cutover is not implemented here.
+
+## Recipient dispatcher (2C-2)
+
+`TELEGRAM_PER_USER_DISPATCH_ENABLED` is a second, independent default-off
+gate. Planning may therefore run in shadow mode (`planning=true`,
+`dispatch=false`) and accumulate PENDING intent without a Telegram send. When
+dispatch is enabled, the product bot token is required but linking itself need
+not be enabled; the dispatcher uses only the current eligible connection chat
+ID, never the legacy global chat ID.
+
+Workers claim a bounded batch (default 20, maximum 100) with PostgreSQL
+`FOR UPDATE SKIP LOCKED`, moving due PENDING rows—or stale SENDING rows whose
+five-minute lease expired—to SENDING with a unique lease token. The claim and
+final state transitions are short database operations; no lock/transaction is
+held during message formatting or the Telegram HTTP request. A stale worker
+cannot finish a row reclaimed by another worker because final updates require
+its lease token. Claiming does not increment `attemptCount`; an actual
+Telegram send attempt does.
+
+Immediately before every send, the dispatcher reloads and authoritatively
+checks account security, ADMIN/both required permissions, complete CONNECTED
+connection with the same revision, persisted preferences and event toggle,
+vehicle scope, and vehicle enabled state. Any failure becomes terminal
+`SUPPRESSED` with a bounded category; suppression never revives after later
+relink or preference restoration. Revision mismatch specifically suppresses
+the old delivery and never moves it to the relinked identity.
+
+Successful sends are terminal SENT. Retryable network/timeout/429/5xx failures
+return to PENDING with 1, 2, 4, 8, 16, 32, then 60-minute delays; retries stop
+after 12 actual attempts or 24 hours since durable creation. Recipient-specific
+blocked/chat-not-found/deactivated failures are terminal FAILED and mark only
+the still-CONNECTED matching-revision connection BROKEN; this does not
+increment connection revision. Global/configuration failures cannot mark a
+user connection BROKEN. Delivery is at-least-once: a process crash after
+Telegram accepts a message but before SENT is persisted can produce a later
+duplicate after lease recovery.
+
+This dispatcher is additive. The legacy global outbox and its retry behavior
+remain unchanged, and 2D production cutover remains responsible for ensuring
+the two systems do not send the same alert at once.

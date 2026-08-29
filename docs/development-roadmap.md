@@ -47,14 +47,18 @@ Private-chat-only, self-service per-user Telegram linking is complete, including
 
 Account-owned notification preferences, revision protection, and preference-only vehicle scope are complete. This stage does not implement alert sending or authorization changes.
 
-## NOW — Telegram 2C — Recipient-aware delivery
+## DONE — Telegram 2C — Recipient-aware delivery
 
-2C-1 recipient planning is DONE: enabled, authorized users receive durable,
-revision-snapshotted PENDING delivery intent for newly confirmed alerts behind
-the default-off `TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED` gate. The remaining
-2C dispatcher, suppression, and bounded retry work is still NOW; it must not
-send legacy and per-user alerts simultaneously during a later production
-cutover.
+Recipient planning and dispatch are complete behind independent default-off
+planning and dispatch gates. Recipient sends are authorization-rechecked,
+lease-safe, bounded, and at-least-once; legacy global delivery remains active
+and unchanged.
+
+## NOW — Telegram 2D — Production bot cutover / legacy transition
+
+Plan and explicitly review production rollout, including the no-dual-send
+transition from legacy global delivery. Do not enable either per-user gate as
+part of ordinary development.
 
 ## LATER — Telegram 2D — Production bot/webhook cutover
 

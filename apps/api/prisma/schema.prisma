@@ -410,6 +410,7 @@ model AlertNotificationDelivery {
   attemptCount       Int                             @default(0) @map("attempt_count")
   nextAttemptAt      DateTime                        @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
   leaseUntil         DateTime?                       @map("lease_until") @db.Timestamptz(6)
+  leaseToken         String?                         @map("lease_token") @db.Uuid
   sentAt             DateTime?                       @map("sent_at") @db.Timestamptz(6)
   suppressedAt       DateTime?                       @map("suppressed_at") @db.Timestamptz(6)
   lastFailureCode    String?                         @map("last_failure_code") @db.VarChar(64)

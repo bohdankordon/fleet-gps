@@ -43,6 +43,7 @@ test("API config applies safe defaults, freezes config, and preserves the input 
   assert.deepEqual(config.positionHistoryRetention, { enabled: false });
   assert.deepEqual(config.telegramNotifications, { enabled: false, botToken: null, chatId: null, dispatchIntervalMs: 60_000, batchSize: 20 });
   assert.deepEqual(config.telegramPerUserNotifications, { enabled: false });
+  assert.deepEqual(config.telegramPerUserDispatch, { enabled: false, dispatchIntervalMs: 60_000, batchSize: 20 });
   assert.deepEqual(env, before);
   assert.equal(Object.isFrozen(config), true);
   assert.equal(Object.isFrozen(config.syncScheduler), true);
@@ -66,6 +67,13 @@ test("per-user Telegram recipient planning is independently opt-in and needs no 
   assert.deepEqual(parseApiConfig(valid()).telegramPerUserNotifications, { enabled: false });
   assert.deepEqual(parseApiConfig({ ...valid(), TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED: "true" }).telegramPerUserNotifications, { enabled: true });
   assert.throws(() => parseApiConfig({ ...valid(), TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED: "TRUE" }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes("TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED"));
+});
+
+test("per-user recipient dispatch is independently opt-in, bounded, and requires only the product bot token when enabled", () => {
+  assert.deepEqual(parseApiConfig(valid()).telegramPerUserDispatch, { enabled: false, dispatchIntervalMs: 60_000, batchSize: 20 });
+  assert.deepEqual(parseApiConfig({ ...valid(), TELEGRAM_PER_USER_DISPATCH_ENABLED: "true", TELEGRAM_PRODUCT_BOT_TOKEN: "product-token" }).telegramPerUserDispatch, { enabled: true, dispatchIntervalMs: 60_000, batchSize: 20 });
+  for (const [field, value] of [["TELEGRAM_PER_USER_DISPATCH_ENABLED", "TRUE"], ["TELEGRAM_PER_USER_DISPATCH_INTERVAL_MS", "999"], ["TELEGRAM_PER_USER_DISPATCH_BATCH_SIZE", "101"]] as const) assert.throws(() => parseApiConfig({ ...valid(), [field]: value }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes(field));
+  assert.throws(() => parseApiConfig({ ...valid(), TELEGRAM_PER_USER_DISPATCH_ENABLED: "true" }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes("TELEGRAM_PRODUCT_BOT_TOKEN"));
 });
 
 test("Telegram product linking enabled fails closed with field names only", () => {

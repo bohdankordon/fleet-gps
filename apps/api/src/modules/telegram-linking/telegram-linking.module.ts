@@ -5,5 +5,5 @@ import { AccountNotificationsController, AdminTelegramController, TelegramProduc
 import { TelegramLinkingService } from "./telegram-linking.service";
 import { TelegramLinkRateLimiter } from "./telegram-link-rate-limiter";
 import { TelegramProductBotHttpTransport, TELEGRAM_PRODUCT_BOT_TRANSPORT } from "./telegram-product-bot.transport";
-@Module({ imports: [DatabaseModule, AuditModule], controllers: [AccountNotificationsController, AdminTelegramController, TelegramProductWebhookController], providers: [TelegramLinkingService, TelegramLinkRateLimiter, TelegramProductBotHttpTransport, { provide: TELEGRAM_PRODUCT_BOT_TRANSPORT, useExisting: TelegramProductBotHttpTransport }], exports: [TelegramLinkingService] })
+@Module({ imports: [DatabaseModule, AuditModule], controllers: [AccountNotificationsController, AdminTelegramController, TelegramProductWebhookController], providers: [TelegramLinkingService, TelegramLinkRateLimiter, TelegramProductBotHttpTransport, { provide: TELEGRAM_PRODUCT_BOT_TRANSPORT, useExisting: TelegramProductBotHttpTransport }], exports: [TelegramLinkingService, TelegramProductBotHttpTransport, TELEGRAM_PRODUCT_BOT_TRANSPORT] })
 export class TelegramLinkingModule {}
