@@ -1,4 +1,11 @@
-# Per-user Telegram linking (2A)
+# Per-user Telegram notifications
+
+The accepted product path uses the dedicated `fleet_signal_bot` for secure
+per-user linking, account-owned preferences, recipient planning, and delivery.
+The production cutover is complete: legacy global PRODUCT delivery is disabled,
+while OPS Telegram remains a separate operational concern. The sections below
+retain the staged implementation boundaries because they define the security
+and data contracts of the resulting system.
 
 Telegram 2A creates a durable connection between one Taxi GPS account and one Telegram private chat. It does not send product alerts, create notification preferences, select vehicles, or change the existing legacy global alert dispatcher or OPS Telegram paths.
 
@@ -127,7 +134,8 @@ a Telegram call or an attempt increment. Deliveries created exactly at or
 after the boundary retain normal 2C-2 eligibility, lease, retry, and
 at-least-once semantics.
 
-Future operators must choose and record boundary `T` only after the legacy
+For any controlled cutover or replay of this procedure, operators must choose
+and record boundary `T` only after the legacy
 backlog is zero, no active or stale legacy SENDING row remains, previous
 schedulers have stopped, ingestion is paused, and recipient adoption is
 approved. The intended sequence is: legacy on; planning on with dispatch off;
@@ -136,7 +144,7 @@ restart one controlled deployment with legacy off, planning/dispatch on, and
 `TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE=T`; then resume ingestion. Shadow rows
 before `T` are suppressed and only post-`T` rows may send.
 
-After a future cutover, legacy outbox creation is disabled for new
+After cutover, legacy outbox creation is disabled for new
 confirmations; existing legacy rows are not automatically deleted or
 rewritten. Those rows are not an automatic legacy fallback. Before any
 per-user transport send, a legacy-only rollback may be possible only after explicit

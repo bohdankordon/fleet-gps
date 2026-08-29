@@ -1,58 +1,265 @@
-# eQuGPS API research
+# Taxi GPS
 
-Authentication, permissions, sessions, the access matrix, and operator account bootstrap are documented in [`docs/authentication.md`](docs/authentication.md). That document supersedes historical stage notes below that describe the dashboard as unauthenticated.
+Taxi GPS is an internal fleet and commercial-vehicle monitoring application.
+It is designed for company fleets, service and delivery vehicles, work
+vehicles, and mixed commercial fleets. The system synchronizes operational data
+from eQuGPS, stores an application-owned view in PostgreSQL, presents it through
+an authenticated Web application, evaluates fleet alerts, and delivers
+account-specific Telegram notifications.
 
-## Web dashboard
+## What it does
 
-The backend fleet-map read contract is documented in [`docs/fleet-map-api.md`](docs/fleet-map-api.md). Stage 9A adds only the PostgreSQL-backed API; it does not add a frontend map.
+The application gives operators a current fleet overview, vehicle details,
+maps, position history, trip/stop analysis, alert history, and a daily activity
+report. Background jobs can synchronize provider data, evaluate alerts,
+maintain stored history, and dispatch notifications without exposing provider
+credentials or the internal API to browsers.
 
-`apps/web` содержит Next.js dashboard. Браузер вызывает только локальный Next.js BFF, а Next server — Nest API через server-only `API_INTERNAL_BASE_URL`. Команды: `npm run web:dev`, `npm run web:build`, `npm run web:dashboard-smoke`. Dashboard не вызывает eQuGPS и не запускает sync; authentication пока отсутствует, поэтому доступ только локальный или из закрытой сети.
+Product behavior is driven by persisted settings and explicit feature gates.
+Normal reads use the local PostgreSQL data set; a dashboard or history request
+does not silently call the provider or start a synchronization job.
 
-## Этап 2A: локальная БД
+## Current features
 
-Локальный PostgreSQL запускается через `npm run db:up`; Prisma 7 schema и миграции находятся в `apps/api/prisma`. На этом этапе Prisma ещё не подключена к NestJS startup, поэтому `GET /api/health` не обращается к БД. Подробности и безопасные команды — в `docs/database.md`.
+- Local username/password authentication with opaque sessions, forced initial
+  password change, `ADMIN` and `USER` roles, and explicit USER permissions.
+- ADMIN account management, permission replacement, password reset, account
+  enable/disable controls, and a durable administrative audit trail.
+- Provider-backed fleet synchronization into a local vehicle registry, current
+  vehicle state, and daily statistics.
+- Permission-controlled dashboard, vehicle details, current fleet map, and
+  alert map built from allow-listed local data.
+- Stored GPS position history with an exact track for ranges up to 24 hours and
+  a deterministic sampled overview for ranges up to seven days.
+- Controlled history population, status, automatic maintenance, retention
+  planning, and bounded retention execution.
+- On-demand trip/stop analysis and a daily fleet activity report derived from
+  stored observations under the current global policy.
+- SPEEDING and INACTIVITY detection, durable alert events, query and summary
+  views, and recipient-aware notification planning.
+- Revision-protected global business settings for timezone, minimum daily
+  distance, position freshness, speeding, inactivity, and trip/stop policy.
+- Russian, Ukrainian, and English product localization with explicit
+  application timezone semantics.
+- Per-user Telegram linking, notification preferences, event-type controls,
+  `ALL` or `SELECTED` vehicle scope, recipient planning, and delivery.
+- Liveness/readiness endpoints, production monitoring, bounded logs, verified
+  backups, off-host recovery support, and source-controlled operational
+  runbooks.
 
-## Monorepo и этап 1A
+## Architecture
 
-Репозиторий использует npm workspaces: исследовательский TypeScript-код остаётся в корневом `src/`, минимальный NestJS backend находится в `apps/api`, а `apps/web`, `packages/equgps` и `packages/shared` пока являются placeholder-каталогами.
+```text
+Browser
+  -> Caddy (production HTTPS edge)
+  -> Next.js Web application and fixed BFF routes
+  -> NestJS API
+       -> PostgreSQL / Prisma
+       -> @taxi-gps/equgps provider adapters
+       -> Telegram Bot API
+```
 
-Research probes продолжают запускаться прежними командами `npm run api:*`. NestJS API запускается командой `npm run api:dev`; health endpoint доступен по `GET /api/health` на `127.0.0.1:3000` (порт можно задать через `PORT`). Для краткой локальной проверки без долгоживущего процесса: `npm run api:health-smoke`.
+The browser communicates only with the Next.js application. Next forwards
+narrow, validated requests to the internal NestJS API; the browser never calls
+eQuGPS or PostgreSQL directly. In production, only Caddy publishes host ports,
+while Web, API, and database traffic use isolated Compose networks.
 
-Этап 2A завершён: PostgreSQL запускается через Compose, а Prisma schema и versioned migrations находятся в `apps/api/prisma`. Prisma пока не является Nest provider. Frontend, Telegram и scheduler всё ещё не реализованы.
+Schedulers and bounded workers run inside the API process for provider sync,
+alert ingestion, position-history maintenance, retention, and notification
+delivery. The current operational model uses one active API replica; horizontal
+scaling requires shared coordination for process-local schedulers and limits.
 
-Минимальный диагностический TypeScript-клиент для безопасной проверки `GET /devices` eQuGPS API. Клиент выполняет только GET-запросы и не изменяет данные.
+## Repository structure
 
-## Требования
+```text
+apps/
+  api/                 NestJS API, Prisma schema/migrations, workers and CLIs
+  web/                 Next.js application, BFF routes and MapLibre UI
+packages/
+  equgps/              Typed eQuGPS integration boundary
+  shared/              Reserved shared-package boundary
+src/                   Standalone provider research/probe code
+ops/                   Preflight, monitoring, backup/restore and systemd assets
+caddy/                 Production and acceptance proxy configuration
+data/                  Reviewed source data used by controlled tooling
+docs/                  Product, architecture and operations documentation
+compose*.yaml          Development, test, acceptance and production topology
+dev.ps1                Safe Windows local-development helper
+```
 
-- Node.js 24.x;
-- npm.
+## Tech stack
 
-## Установка и запуск
+- Node.js 24 (`>=24.7.0 <25`), TypeScript 5.8, npm workspaces.
+- Next.js 16, React 19, Tailwind CSS 4, and MapLibre GL 6.
+- NestJS 11 with Nest Schedule for API and background work.
+- Prisma 7.9 with PostgreSQL 17.
+- Zod for external and BFF contract validation.
+- Docker and Docker Compose; Caddy 2.10 at the production edge.
+- Node's built-in test runner plus workspace-specific TypeScript and Web lint
+  validation.
 
-```bash
-npm install
+## Local development
+
+### Prerequisites
+
+- Node.js in the version range declared above and npm.
+- Docker with Docker Compose.
+- Windows PowerShell for the repository's `dev.ps1` helper.
+
+From a fresh checkout on Windows:
+
+```powershell
+npm ci
 Copy-Item .env.example .env
+npm run db:up
+npm run db:migrate:dev
+.\dev.ps1 start
 ```
 
-Заполните в `.env` как минимум `EQUGPS_EMAIL` и `EQUGPS_PASSWORD`; при необходимости измените URL, часовой пояс и таймаут.
+Review the local `.env` before startup. The checked-in
+[`.env.example`](.env.example) is the development template; `.env` is ignored
+and must not be committed. Supply the required local provider identity and
+password in `.env`; the development helper disables provider jobs, but API
+startup still validates required configuration. `db:migrate:dev` is the normal
+development command for applying or creating Prisma migrations. Production
+uses the separate, controlled migration procedure in the deployment runbook.
 
-Проверить конфигурацию без обращения к сети:
+The helper starts or reuses local PostgreSQL, then starts the API on
+`http://127.0.0.1:3000` and Web on `http://127.0.0.1:3001`. It deliberately
+forces provider schedulers, alert ingestion, automatic history work, legacy
+Telegram delivery, and OPS alerts off.
 
-```bash
-npm run api:config
+The helper supports exactly:
+
+```powershell
+.\dev.ps1 start
+.\dev.ps1 status
+.\dev.ps1 stop
 ```
 
-Выполнить безопасную проверку списка устройств:
+`stop` preserves the PostgreSQL named volume. Useful database commands include
+`npm run db:ps`, `npm run db:logs`, and `npm run db:down`. See
+[the database test harness](docs/test-database.md) for isolated integration
+tests; it does not use the development database or volume.
 
-```bash
-npm run api:devices
+## Configuration
+
+Configuration is supplied through environment variables, with separate
+templates for [development](.env.example) and
+[production](.env.production.example). Important groups include:
+
+- PostgreSQL connection and pool settings.
+- eQuGPS official/Web integration URLs, credentials, and timeouts.
+- the server-only Web-to-API URL and optional public map style.
+- explicit gates and bounds for synchronization, alert ingestion, history
+  maintenance, retention, and notification workers.
+- dedicated product Telegram bot/linking/webhook settings and separate OPS
+  alert controls.
+
+Application business policy is not a collection of production environment
+magic numbers. ADMIN users manage the revision-protected global settings for
+timezone, daily-distance and freshness thresholds, SPEEDING and INACTIVITY
+rules, and trip/stop detection. Do not place secrets in Git or expose
+server-only configuration through `NEXT_PUBLIC_*` variables.
+
+## Testing and validation
+
+The workspaces expose focused validation rather than one synthetic umbrella
+command for every subsystem:
+
+```powershell
+npm run api:typecheck
+npm run api:test
+npm run web:typecheck
+npm run web:lint
+npm run web:test
+npm run web:build
+npm run equgps:typecheck
+npm run equgps:test
 ```
 
-Также доступны `npm run typecheck` и `npm run build`.
+Root `npm run typecheck`, `npm run build`, and `npm test` validate the retained
+standalone provider/probe code. Database-backed tests use the explicit
+test-database harness documented in
+[docs/test-database.md](docs/test-database.md). Many operational and
+feature-specific smoke commands also exist; use the relevant focused
+documentation instead of running provider- or write-capable commands casually.
 
-## Безопасность
+## Telegram notifications
 
-- Используется только `GET /devices` с HTTP Basic Auth.
-- Скрипт выводит только `id`, `name`, `status`, `lastUpdate` и `groupId`.
-- В вывод не попадают `uniqueId`, телефон, contact, attributes, email, пароль, токены и заголовок `Authorization`.
-- Не добавляйте `.env` в Git: он уже исключён в `.gitignore`.
+Product Telegram notifications use the dedicated `fleet_signal_bot`. An
+eligible account can create a short-lived private-chat link, connect or
+disconnect Telegram, enable master notifications, choose SPEEDING and/or
+INACTIVITY, and select `ALL` or an allowed `SELECTED` vehicle set.
+
+Confirmed alerts are planned into per-user delivery records. The dispatcher
+rechecks the account, permissions, connection revision, preferences, event
+type, vehicle scope, and vehicle state before using the dedicated product bot.
+Delivery is durable, bounded, retry-aware, and at-least-once.
+
+The production cutover to per-user delivery is complete. Legacy global PRODUCT
+Telegram delivery is disabled and is not the active product path. OPS Telegram
+alerts remain a separate operational concern with their own enablement gate.
+See [Per-user Telegram notifications](docs/telegram-per-user-linking.md) for the
+security, data, planning, and delivery contracts.
+
+## Production and operations
+
+Production uses containerized Caddy, Web, API, and PostgreSQL services, plus
+explicit one-shot migration, backup, and restore jobs. Public liveness and
+database-backed readiness are available at `/api/health` and
+`/api/health/ready`. Host-level monitoring checks application, database, proxy,
+disk, and backup health; backup procedures include checksum verification,
+retention, scheduled jobs, and off-host recovery expectations.
+
+The root README intentionally does not reproduce deployment commands or secret
+configuration. Use the authoritative runbooks:
+
+- [Production deployment and operations](docs/deployment.md)
+- [Production security contract](docs/production-security.md)
+- [Production observability](docs/observability.md)
+- [Backup and restore operations](docs/backup-restore.md)
+
+## Documentation
+
+- [Development roadmap](docs/development-roadmap.md) — current accepted,
+  active, deferred, and operational work.
+- [Authentication and permissions](docs/authentication.md) and
+  [ADMIN user management](docs/admin-user-management.md).
+- [Fleet map API](docs/fleet-map-api.md),
+  [vehicle track API](docs/vehicle-track-api.md), and
+  [historical track UI](docs/vehicle-track-map-ui.md).
+- [Trip/stop analytics](docs/trip-stop-analytics.md) and
+  [fleet daily activity report](docs/fleet-daily-activity-report.md).
+- [Alert ingestion](docs/fleet-alert-ingestion.md) and
+  [audit trail](docs/audit-trail.md).
+- [Internationalization](docs/internationalization.md).
+
+## Project status
+
+The project has an immutable `v1.0.0` release. Active development on `main`
+contains accepted post-v1.0.0 product work, including completed per-user
+Telegram delivery; current production is therefore not described as running
+the `v1.0.0` source tree.
+
+The next roadmap item is a fresh design iteration based on current `main`. The
+old design experiment branches were retired and are not merge or reuse inputs.
+See the [development roadmap](docs/development-roadmap.md) for current status
+instead of treating proposed work as implemented functionality.
+
+## Security notes
+
+- There is no public registration, email recovery, OAuth, or default seeded
+  administrator. The first account is created through the interactive,
+  hidden-password bootstrap command documented in the authentication guide.
+- Nest authorization is authoritative. Sessions are opaque, only their hashes
+  are stored, and production cookies are host-only, `HttpOnly`, `Secure`, and
+  `SameSite=Lax`.
+- Browser traffic stays behind fixed Next.js BFF routes; provider credentials,
+  database credentials, Telegram secrets, internal identifiers, and raw
+  upstream payloads are not browser contracts.
+- Local automatic/provider-affecting work is disabled by default. Enable live
+  provider, history, Telegram, or operational behavior only through its
+  explicit gated procedure.
+- Never commit `.env`, credentials, tokens, backup secrets, or production host
+  details.
