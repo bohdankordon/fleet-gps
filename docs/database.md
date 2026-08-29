@@ -6,6 +6,8 @@ Dashboard API читает settings, машины, текущие состоян
 
 PostgreSQL запускается только через `compose.yaml`: `postgres:17-alpine`, named volume `postgres_data` и публикация `127.0.0.1:5433`. Проверка конфигурации: `npm run db:config`; запуск: `npm run db:up`; состояние: `npm run db:ps`; остановка без удаления данных: `npm run db:down`.
 
+Для настоящих интеграционных DB-тестов существует отдельный disposable harness: [`docs/test-database.md`](test-database.md). Он не читает development `DATABASE_URL` и никогда не использует volume `postgres_data`.
+
 `docker compose down -v` удаляет локальный volume с данными и намеренно не включён в штатные команды проекта.
 
 Prisma-команды: `npm run db:format`, `db:validate`, `db:generate`, `db:migrate:dev`, `db:migrate:deploy`, `db:migrate:status`, `db:smoke`. `migrate dev` создаёт миграции локально, `migrate deploy` применяет уже версионируемые миграции. `db:smoke` выполняет только чтение.

@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1
+# This image intentionally installs Linux dependencies from the lockfile. It
+# never mounts or copies the host's Windows node_modules directory.
+FROM node:24-slim
+
+WORKDIR /workspace
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Keep the npm ci layer cacheable while retaining workspace metadata.
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/equgps/package.json packages/equgps/package.json
+RUN npm ci
+
+# .dockerignore excludes host node_modules, generated Prisma output, and all
+# environment files. This copies the current (including uncommitted) source.
+COPY . .
+
+ENTRYPOINT ["node", "apps/api/scripts/linux-db-test-runner.cjs"]

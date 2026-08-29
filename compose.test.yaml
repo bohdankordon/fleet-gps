@@ -1,0 +1,46 @@
+name: taxi-gps-test
+
+# Disposable local PostgreSQL for integration tests only.  Always invoke this
+# file through .\test-db.ps1, which supplies the separate project identity and
+# rejects any DATABASE_URL other than the one below.
+services:
+  postgres-test:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: taxi_gps_test
+      POSTGRES_PASSWORD: taxi_gps_test_local_only
+      POSTGRES_DB: taxi_gps_test
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  # One-off only: `docker compose run` starts this Linux process. It has no
+  # host port and shares only this test project's private default network.
+  api-db-test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test-db-runner
+    environment:
+      DATABASE_URL: postgresql://taxi_gps_test:taxi_gps_test_local_only@postgres-test:5432/taxi_gps_test?schema=public
+      TEST_DATABASE: "1"
+      TEST_DATABASE_RUNNER: linux
+      SYNC_SCHEDULER_ENABLED: "false"
+      ALERT_INGESTION_ENABLED: "false"
+      POSITION_HISTORY_MAINTENANCE_ENABLED: "false"
+      POSITION_HISTORY_RETENTION_ENABLED: "false"
+      TELEGRAM_NOTIFICATIONS_ENABLED: "false"
+      TELEGRAM_PRODUCT_LINKING_ENABLED: "false"
+      OPS_ALERTS_ENABLED: "false"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+
+volumes:
+  postgres_test_data:
