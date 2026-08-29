@@ -1,6 +1,3 @@
-export const POSITION_HISTORY_RETENTION_POLICY_DAYS = 90;
-export const POSITION_HISTORY_RETENTION_ABSOLUTE_DAY_MS = 24 * 60 * 60 * 1_000;
-
 export type PositionHistoryRetentionCheckpointClass = "FULLY_OBSOLETE" | "BOUNDARY_OVERLAP" | "PROTECTED";
 
 export type PositionHistoryRetentionStatusCounts = Readonly<{

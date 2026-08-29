@@ -6,7 +6,7 @@ const timestamp = z.string().refine((value) => parseVehicleTrackTimestamp(value)
 const statusCounts = z.object({ pending: count, running: count, completed: count }).strict();
 
 export const positionHistoryRetentionPlanSchema = z.object({
-  policyDays: z.literal(90),
+  policyDays: z.number().int().positive(),
   canonicalAnchor: timestamp,
   policyCutoff: timestamp,
   observations: z.object({

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DashboardVehiclesResponse } from "@/lib/dashboard/dashboard-contract";
-import { formatDistance, formatGeneratedAt, formatSpeed, formatTimestamp, freshnessLabel, qualityLabel, sourceLabel, statusLabel } from "@/lib/dashboard/dashboard-formatters";
+import { dashboardTimezone, formatDistance, formatGeneratedAt, formatSpeed, formatTimestamp, freshnessLabel, qualityLabel, sourceLabel, statusLabel } from "@/lib/dashboard/dashboard-formatters";
 import { dashboardHistoryPath, shouldUpdateDashboardHistory, type DashboardNavigationReason } from "@/lib/dashboard/dashboard-navigation";
 import { parseDashboardQuery, serializeDashboardQuery, type DashboardActivity, type DashboardQuery, type DashboardStatus } from "@/lib/dashboard/dashboard-query";
 import { SchedulerStatus } from "@/components/scheduler-status";
@@ -36,7 +36,7 @@ export function DashboardClient({ initialData, initialQuery, initialSchedulerSta
   const retry = () => void request(query, error ? "retry" : "refresh");
   return <div className="dashboard-page">
     <Header data={data} />
-    <SchedulerStatus initialStatus={initialSchedulerStatus} timezone={data.timezone || "Europe/Kyiv"} />
+    <SchedulerStatus initialStatus={initialSchedulerStatus} timezone={dashboardTimezone(data)} />
     <section className="dashboard-filter-bar" aria-label={t("dashboard.filters.label")}>
       <FormField id="dashboard-search" label={t("dashboard.filters.search")}><Input type="search" value={query.search ?? ""} onChange={(event) => set("search", event.target.value || undefined)} placeholder={t("dashboard.filters.searchPlaceholder")} /></FormField>
       <FormField id="dashboard-status" label={t("dashboard.filters.status")}><NativeSelect value={query.status ?? ""} onChange={(event) => set("status", (event.target.value || undefined) as DashboardStatus | undefined)}><option value="">{t("common.all")}</option><option value="online">{t("dashboard.status.online")}</option><option value="offline">{t("dashboard.status.offline")}</option><option value="unknown">{t("dashboard.status.unknown")}</option></NativeSelect></FormField>

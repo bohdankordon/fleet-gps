@@ -1,9 +1,10 @@
 import { POSITION_HISTORY_BACKFILL_MAX_TARGET_MS } from "../position-history-backfill/position-history-backfill.constants";
 
 export const POSITION_HISTORY_ABSOLUTE_DAY_MS = 24 * 60 * 60 * 1_000;
-export const POSITION_HISTORY_HORIZON_POLICY_DAYS = 90;
+/** Shared operator/storage policy for the active horizon and retention cutoff. */
+export const POSITION_HISTORY_POLICY_DAYS = 90;
 export const POSITION_HISTORY_HORIZON_POLICY = Object.freeze({
-  days: POSITION_HISTORY_HORIZON_POLICY_DAYS,
-  durationMs: POSITION_HISTORY_HORIZON_POLICY_DAYS * POSITION_HISTORY_ABSOLUTE_DAY_MS,
+  days: POSITION_HISTORY_POLICY_DAYS,
+  durationMs: POSITION_HISTORY_POLICY_DAYS * POSITION_HISTORY_ABSOLUTE_DAY_MS,
   maximumTargetDurationMs: POSITION_HISTORY_BACKFILL_MAX_TARGET_MS,
 });

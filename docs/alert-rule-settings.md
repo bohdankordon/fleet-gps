@@ -3,6 +3,11 @@
 > Historical stage reference. The current authoritative settings ownership and
 > edit surface are recorded in [`docs/magic-numbers-final-reconciliation.md`](./magic-numbers-final-reconciliation.md).
 > Statements below describe the stage when this document was written.
+>
+> Current contract clarification: the revision-protected privileged
+> `PATCH /api/admin/settings` surface supports `cityGeofenceGeoJson`; the Web
+> ADMIN form deliberately shows the geofence as a read-only summary. This is
+> not a claim that the earlier Stage 6A surface offered an HTTP write path.
 
 `ApplicationSettings` remains the PostgreSQL singleton (`id = 1`) for application-wide rules. The defaults are persisted in the database: city limit 50 km/h, outside-city limit 90 km/h, tolerance 10 km/h, two speeding confirmations, inactivity distance 300 m, and inactivity duration 60 minutes. Operational `.env` is not a source of business rules.
 

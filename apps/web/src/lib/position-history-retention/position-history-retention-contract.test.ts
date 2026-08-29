@@ -3,11 +3,12 @@ import test from "node:test";
 import { positionHistoryRetentionPlanSchema } from "./position-history-retention-contract";
 import { positionHistoryRetentionFixture } from "./position-history-retention-fixture";
 
-test("accepts only the consistent aggregate retention DTO", () => {
+test("accepts a server-owned operator retention policy and a consistent aggregate DTO", () => {
   assert.equal(positionHistoryRetentionPlanSchema.safeParse(positionHistoryRetentionFixture()).success, true);
   const fixture = positionHistoryRetentionFixture();
+  assert.equal(positionHistoryRetentionPlanSchema.safeParse({ ...fixture, policyDays: 365 }).success, true);
   for (const invalid of [
-    { ...fixture, policyDays: 365 },
+    { ...fixture, policyDays: 0 },
     { ...fixture, observations: { ...fixture.observations, atOrAfterPolicyCutoff: 79 } },
     { ...fixture, checkpoints: { ...fixture.checkpoints, boundaryOverlap: 3 } },
     { ...fixture, externalDeviceId: 12 },

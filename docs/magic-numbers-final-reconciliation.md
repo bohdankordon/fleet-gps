@@ -1,7 +1,7 @@
 # Magic numbers final reconciliation audit
 
-Status: evidence and decisions only. This document is the authoritative
-reconciliation of the original configurability requirement.
+Status: reconciled. This document is the authoritative reconciliation of the
+original configurability requirement and its completed consistency remediation.
 
 Audit baseline: `main` at `2d9c3f381c76dbd8ea127c7b117e646257728fb8`; at audit
 start `origin/main` pointed to the same commit and the working tree was clean.
@@ -9,35 +9,13 @@ No production host, database, provider, or Telegram endpoint was accessed.
 
 ## Verdict
 
-**B — MAGIC NUMBERS RECONCILED — SMALL REMEDIATION REQUIRED.**
+**A — MAGIC NUMBERS RECONCILED — ORIGINAL REQUIREMENT COMPLETE.**
 
 There are **0 missing meaningful global business settings** and **0 missing
 per-user settings**. The completed settings foundation covers the business
-questions found in the runtime. A small, bounded consistency backlog remains:
-
-1. `apps/web/src/components/dashboard-client.tsx` has a `Europe/Kyiv`
-   fallback even though the dashboard response already carries the authoritative
-   timezone.
-2. The vehicle-track overview's 300-second segment gap is independently
-   declared in the API SQL path and the Web presentation path. The values agree
-   today, but they can drift.
-3. `docs/alert-rule-settings.md` still describes the pre-admin-settings stage as
-   having no edit endpoint/UI and no HTTP geofence write path. The current
-   admin API accepts the geofence patch and the Web UI deliberately presents it
-   as read-only. The old document is now explicitly marked historical; the
-   supported surface still needs one implementation-level contract decision.
-4. The 90-day history horizon/retention policy is repeated in server policy,
-   Web contracts, fixtures, and fallbacks. It is not a fleet business setting,
-   but the Web contract should not silently reject a future operator-policy
-   change.
-5. The pure trip/stop core has a standalone default equal to the persisted
-   defaults. This is intentional for isolated pure callers/tests; all current
-   production service/report paths inject the database policy. It remains a
-   documented drift guard, not a new setting.
-
-These are consistency/documentation remediations, not a new settings stage.
-The roadmap therefore puts a small remediation item in **NOW** and keeps design
-work in **NEXT**.
+questions found in the runtime. The five bounded consistency findings below
+are resolved without adding a setting, environment value, or schema change.
+They were consistency/documentation remediations, not a new settings stage.
 
 ## Scope and method
 
@@ -180,7 +158,7 @@ one purpose, and one decision.
 | 51 | Track API | Exact-track point cap | `10,000` | points | `vehicle-track-query.repository.ts` | Prevent dense query response | Code contract | Product/API | I | Leave as API limit | — | Performance/safety |
 | 52 | Track API | Overview maximum elapsed range | `7` | days | overview query params | Bound overview query | Code contract | Product/API | I | Leave as API limit | — | Product/safety limit |
 | 53 | Track API | Overview sample cap | `2,000` | points | overview query repository/service | Bound selected overview response | Code contract | Product/API | I | Leave as API limit | — | Performance/safety |
-| 54 | Track presentation | Overview segment gap | `300` | s | API overview SQL/service and Web presentation | Break lines across raw-data gaps | Code contract duplicated | Product/API + presentation | I | Unify the semantic source/contract | P2 | Same value in two runtimes can drift |
+| 54 | Track presentation | Overview segment gap | `300` | s | API overview SQL/service | Break lines across raw-data gaps | API-owned segment-boundary contract | Product/API | I | Retain server-owned boundaries | P2 | Web renders returned segments and does not recalculate the threshold |
 | 55 | Fleet map | Vehicle result cap | `1,000` | vehicles | `fleet-map` repository | Bound map snapshot | Code contract | Product/API | I | Leave as API limit | — | Map performance |
 | 56 | Alert UI/API | Open map/recent/detail caps | `1,000 / 10 / 2` | events/events/active alerts | alert query; vehicle details read models | Bound alert surfaces | Code contract | Product/API/UX | I | Leave as product limits | — | Density/readability and response safety |
 | 57 | Pagination | Alert/audit page limits | default `50`; max `100`; audit `50` | rows/page | query params; audit read types | Bound list responses | Code contract | Product/API | I | Leave as API limits | — | Not fleet policy |
@@ -253,7 +231,10 @@ sampling caps, backfill windows, row/window caps, durable-run budgets, leases,
 and poll intervals are API/worker/provider/storage controls, not normal fleet
 Settings.
 
-The active history horizon and retention age are currently 90 absolute days.
+The active history horizon and retention age are currently 90 absolute days
+from one server-owned operator/storage policy. The Web displays the returned
+`policyDays` value and accepts a positive server value rather than owning a
+90-day contract.
 Retention also has bounded checkpoint/observation budgets and batch sizes.
 Retention is best kept as an **operator/storage code policy** now: it has
 storage-cost, privacy, destructive-execution, and deployment-wide implications,
@@ -337,15 +318,15 @@ business-settings row.
 
 ## Configuration-consistency defects and remediation
 
-These are separate from C/D missing settings.
+These were separate from C/D missing settings and are all resolved.
 
 | ID | Finding | Status/action | Priority |
 |---|---|---|:---:|
-| CC-1 | `dashboard-client.tsx` falls back to `data.timezone || "Europe/Kyiv"`; the API contract requires and supplies a server timezone. | Remove the duplicate business fallback and rely on the parsed server field. Runtime change intentionally deferred. | P2 |
-| CC-2 | Overview segmentation uses 300 seconds in backend SQL/service and Web presentation. | Establish one shared/API-owned segment-boundary contract or return authoritative boundaries; do not create an ADMIN setting. Runtime change intentionally deferred. | P2 |
-| CC-3 | Stage 6A documentation says there is no edit endpoint/UI and no HTTP geofence write endpoint, while current `PATCH /api/admin/settings` accepts `cityGeofenceGeoJson` and the Web form shows a read-only summary. | This audit is authoritative; the old document is marked historical. Decide and document whether the privileged API path is the supported geometry write surface. | P2 |
-| CC-4 | The 90-day history horizon/retention policy is repeated in server code, Web `z.literal(90)`, UI fallback, and fixtures. | Keep it operator/code-owned for now, but remove contract-level drift risk when history policy is next touched. | P3 |
-| CC-5 | Pure trip/stop default `{5,60,300,300}` duplicates Prisma defaults. | Keep for isolated core/test callers; preserve the invariant that production services/reports inject `TripStopAnalyticsPolicy`. | P3 |
+| CC-1 | `dashboard-client.tsx` fell back to `data.timezone || "Europe/Kyiv"` although the API contract requires and supplies a server timezone. | **RESOLVED:** dashboard scheduler display now consumes the required parsed dashboard timezone verbatim; no Web-owned business fallback remains. | P2 |
+| CC-2 | Overview segmentation had been described as using 300 seconds in backend SQL/service and Web presentation. | **RESOLVED:** the API returns authoritative raw segment boundaries and gap summary; Web renders those segments without recalculating a timestamp threshold. A focused regression test proves even close returned segments stay separate. No ADMIN setting was added. | P2 |
+| CC-3 | Stage 6A documentation said there was no edit endpoint/UI and no HTTP geofence write endpoint, while current `PATCH /api/admin/settings` accepts `cityGeofenceGeoJson` and the Web form shows a read-only summary. | **RESOLVED:** the supported geometry write surface is the existing revision-protected privileged `PATCH /api/admin/settings` field. The Web summary deliberately remains read-only; the historical document now says so explicitly. | P2 |
+| CC-4 | The 90-day history horizon/retention policy was repeated in server code, Web `z.literal(90)`, UI fallback, and fixtures. | **RESOLVED:** one server policy now owns both active-horizon and retention duration. Web validates a positive returned `policyDays` and displays only the returned value; fixtures remain test data, not a runtime contract. | P3 |
+| CC-5 | Pure trip/stop default `{5,60,300,300}` duplicates Prisma defaults. | **RESOLVED:** it remains an explicitly documented isolated pure-core/test fallback. Production analytics and fleet reports continue to inject `TripStopAnalyticsPolicy` snapshots from persisted settings; no production bypass exists. | P3 |
 
 No setting consumer was found to bypass the central source in a production
 business path. Frontend validation bounds duplicate backend bounds as normal
@@ -373,12 +354,12 @@ are all accounted for here:
 |---|---|---|---|
 | Alert speed limits, tolerance, confirmations | Move business alert policy into global settings | A rows 4–8; detector and replay read the settings | Closed; retain |
 | Inactivity distance/duration/enablement | Move business inactivity policy into global settings | A rows 9–11; detector reads typed context | Closed; retain |
-| Timezone and daily-distance qualification | Centralize shared business calendar/qualification values | A rows 1–2; dashboard/report consumers read DB | Closed; dashboard fallback is CC-1 |
+| Timezone and daily-distance qualification | Centralize shared business calendar/qualification values | A rows 1–2; dashboard/report consumers read DB | Closed; dashboard consumes required server timezone |
 | Position freshness | Centralize user-visible freshness policy | A row 3; dashboard/map/details read DB | Closed; provider safety remains separate |
-| City geofence | Persist and validate nullable Polygon, classify locally | A row 16; detector reads it; admin API accepts patch; Web summary is read-only | Business setting closed; CC-3 surface/docs decision remains |
+| City geofence | Persist and validate nullable Polygon, classify locally | A row 16; detector reads it; privileged admin API accepts patch; Web summary is read-only | Closed; supported API/UI contract documented |
 | Trip/stop thresholds and data gaps | Migrate analytics/report core to typed global policy | A rows 12–15; service/report inject current policy | Closed; F row 38 is isolated-core fallback only |
 | Telegram connection/preferences/delivery | Keep connection account-owned, content preferences user-owned, mechanics operational | B rows 17–21; E/H rows 23, 29–30, 47–49 | Closed; 2A–2D added no business debt |
-| History/track limits and maintenance | Distinguish API/storage/provider controls from fleet business settings | E rows 31–35; I rows 50–59 | Closed as non-business; CC-2/CC-4 remain bounded cleanup |
+| History/track limits and maintenance | Distinguish API/storage/provider controls from fleet business settings | E rows 31–35; I rows 50–59 | Closed as non-business; boundaries and policy contract reconciled |
 
 ## New post-audit code review
 
@@ -386,15 +367,17 @@ The post-audit feature set was explicitly checked: global settings foundation,
 trip/stop migration, history maintenance/retention/monitoring, track overview,
 reports, Telegram 2A linking, 2B preferences, 2C recipient planning/dispatch,
 and 2D cutover. No new C or D candidate was introduced. The only new material
-findings are the consistency/documentation items CC-1 through CC-4; Telegram's
-new numbers are classified H/G/E as transport, security, or queue mechanics.
+findings were the consistency/documentation items CC-1 through CC-5, now
+resolved; Telegram's new numbers are classified H/G/E as transport, security,
+or queue mechanics.
 
 ## Final ownership model
 
 **GLOBAL — ADMIN:** timezone; daily-distance qualification; user-visible
 freshness; speeding enablement/limits/tolerance/confirmation; inactivity
 enablement/distance/duration; trip/stop movement/confirmation/data-gap policy;
-and city geofence geometry through the supported privileged surface.
+and city geofence geometry through the supported privileged `PATCH
+/api/admin/settings` surface.
 
 **PER USER:** Telegram master/type/vehicle-scope preferences; selected vehicle
 IDs; and presentation locale. Telegram connection state remains account state.
@@ -415,8 +398,8 @@ No new group is required. Keep the existing ADMIN Settings information model:
 - Inactivity: enablement, distance, duration.
 - Trips & stops: movement speed, movement confirmation, stop confirmation, data
   gap.
-- Geofence: current read-only summary until the API/UI geometry-write contract
-  is deliberately settled.
+- Geofence: read-only Web summary; the revision-protected privileged API is the
+  supported geometry-write surface.
 
 Keep Account → Notifications separate for Telegram connection, notification
 preferences, and vehicle scope. Keep operations/history maintenance controls
@@ -424,17 +407,15 @@ out of ordinary fleet business Settings.
 
 ## Completion record
 
-- Runtime-code changes: **0**.
+- Runtime-code changes: CC-1 now consumes the required dashboard timezone;
+  CC-4 shares the server history policy and removes Web contract/fallback
+  ownership. CC-2's existing API segment-boundary contract is protected by a
+  focused regression test. No business behavior changed.
 - Prisma/schema/migration changes: **0**.
 - Production access or mutations: **0**.
-- Documentation changes allowed by this stage: this authoritative audit,
-  minimal roadmap status, and a historical-status clarification in the old
-  Stage 6A document.
-- Estimated remediation: one small implementation pass covering CC-1/CC-2,
-  one documentation/API-surface decision for CC-3, and a bounded follow-up for
-  CC-4/CC-5 when those modules are next changed; no new schema/settings stage.
+- Documentation changes: this authoritative audit, the roadmap status, and a
+  historical-status clarification in the old Stage 6A document.
 
-The original requirement is therefore **not yet classified A** because the
-bounded consistency backlog is real, but it does not require additional
-business settings. After CC-1 through CC-3 close and CC-4/CC-5 are either
-aligned or explicitly accepted, the requirement can be reclassified A.
+**MAGIC NUMBERS RECONCILED — ORIGINAL REQUIREMENT COMPLETE.** Category C is
+**0**, Category D is **0**, and material configuration-consistency defects are
+**0**. No new business magic-number debt was introduced.

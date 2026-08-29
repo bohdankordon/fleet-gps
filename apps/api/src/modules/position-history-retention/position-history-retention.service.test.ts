@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { POSITION_HISTORY_ABSOLUTE_DAY_MS, POSITION_HISTORY_POLICY_DAYS } from "../position-history-horizon/position-history-horizon.policy";
 import { PositionHistoryRetentionService } from "./position-history-retention.service";
 import type { PositionHistoryRetentionFacts, PositionHistoryRetentionRepository } from "./position-history-retention.types";
 
@@ -17,16 +18,16 @@ const facts: PositionHistoryRetentionFacts = {
 const lock = { runExclusive: async <T>(work: () => Promise<T>) => work() };
 const audit = { appendWithDatabase: async () => ({ id: "audit" }) };
 
-test("reuses the Stage 18C anchor and subtracts exactly 90 absolute UTC days", async () => {
+test("reuses the shared history policy for the retention cutoff", async () => {
   const cutoffs: string[] = [];
   const repository = { inspect: async (cutoff: Date) => { cutoffs.push(cutoff.toISOString()); return facts; } } as PositionHistoryRetentionRepository;
   const service = new PositionHistoryRetentionService(repository, { now: () => new Date("1999-01-01T00:00:00Z") }, lock as never, audit as never);
   const plan = await service.getRetentionPlan(new Date("2026-08-13T10:15:16.789Z"));
-  assert.equal(plan.policyDays, 90);
+  assert.equal(plan.policyDays, POSITION_HISTORY_POLICY_DAYS);
   assert.equal(plan.canonicalAnchor, "2026-08-11T02:00:00.000Z");
   assert.equal(plan.policyCutoff, "2026-05-13T02:00:00.000Z");
   assert.deepEqual(cutoffs, [plan.policyCutoff]);
-  assert.equal(Date.parse(plan.canonicalAnchor) - Date.parse(plan.policyCutoff), 90 * 24 * 60 * 60 * 1_000);
+  assert.equal(Date.parse(plan.canonicalAnchor) - Date.parse(plan.policyCutoff), POSITION_HISTORY_POLICY_DAYS * POSITION_HISTORY_ABSOLUTE_DAY_MS);
   assert.equal(plan.safety.hasBoundaryOverlap, true);
   assert.equal(plan.safety.boundaryOverlapCheckpointCount, 2);
   assert.equal(plan.safety.policyEligibleObservationCount, 5);

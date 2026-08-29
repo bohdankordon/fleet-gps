@@ -5,6 +5,8 @@ import { DEFAULT_LOCALE, DISPLAY_TIMEZONE, type AppLocale } from "../../i18n/loc
 
 export function formatDistance(value: number | null, locale: AppLocale = DEFAULT_LOCALE): string { return value === null ? translate(locale, "common.noData") : `${formatNumber(locale, value / 1_000, { minimumFractionDigits: 0, maximumFractionDigits: 1 })} ${translate(locale, "unit.kilometre")}`; }
 export function formatSpeed(value: number | null, locale: AppLocale = DEFAULT_LOCALE): string { return value === null ? translate(locale, "common.noData") : `${formatNumber(locale, value, { maximumFractionDigits: 1 })} ${translate(locale, "unit.kilometresPerHour")}`; }
+/** The dashboard API requires this server-owned setting; callers must not invent a browser fallback. */
+export function dashboardTimezone(data: Pick<DashboardVehiclesResponse, "timezone">): string { return data.timezone; }
 export function formatTimestamp(value: string | null, timezone: string, locale: AppLocale = DEFAULT_LOCALE): string { return timezone === DISPLAY_TIMEZONE ? (formatDateTime(locale, value) ?? translate(locale, "common.noData")) : translate(locale, "common.noData"); }
 export function formatGeneratedAt(value: string | null, timezone: string, locale: AppLocale = DEFAULT_LOCALE): string { return formatTimestamp(value, timezone, locale); }
 export function statusLabel(value: DashboardVehiclesResponse["vehicles"][number]["status"], locale: AppLocale = DEFAULT_LOCALE): string { return translate(locale, `dashboard.status.${value}`); }

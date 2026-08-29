@@ -1,9 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { canonicalPositionHistoryMaintenanceAnchor } from "../position-history-population-runs/position-history-maintenance-anchor";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
+import { POSITION_HISTORY_ABSOLUTE_DAY_MS, POSITION_HISTORY_POLICY_DAYS } from "../position-history-horizon/position-history-horizon.policy";
 import { AuditEventRepository, buildAutomaticRetentionExecutedAuditEvent, buildRetentionExecutedAuditEvent, type AuditUserActor, type RetentionExecutedAuditDetails } from "../audit";
 import { POSITION_HISTORY_RETENTION_CLOCK, POSITION_HISTORY_RETENTION_REPOSITORY } from "./position-history-retention.tokens";
-import { POSITION_HISTORY_RETENTION_ABSOLUTE_DAY_MS, POSITION_HISTORY_RETENTION_CHECKPOINT_BATCH_SIZE, POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET, POSITION_HISTORY_RETENTION_OBSERVATION_BATCH_SIZE, POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET, POSITION_HISTORY_RETENTION_POLICY_DAYS, PositionHistoryRetentionExecutionError, type PositionHistoryRetentionClock, type PositionHistoryRetentionExecutionRequest, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPlan, type PositionHistoryRetentionRepository } from "./position-history-retention.types";
+import { POSITION_HISTORY_RETENTION_CHECKPOINT_BATCH_SIZE, POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET, POSITION_HISTORY_RETENTION_OBSERVATION_BATCH_SIZE, POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET, PositionHistoryRetentionExecutionError, type PositionHistoryRetentionClock, type PositionHistoryRetentionExecutionRequest, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPlan, type PositionHistoryRetentionRepository } from "./position-history-retention.types";
 
 type RetentionAuditContext = Readonly<{ actorType: "USER"; actor: AuditUserActor }> | Readonly<{ actorType: "SYSTEM" }>;
 
@@ -19,10 +20,10 @@ export class PositionHistoryRetentionService {
   public async getRetentionPlan(now: Date = this.clock.now()): Promise<PositionHistoryRetentionPlan> {
     if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new Error("Invalid retention planning instant");
     const canonicalAnchor = canonicalPositionHistoryMaintenanceAnchor(now);
-    const policyCutoff = new Date(canonicalAnchor.getTime() - POSITION_HISTORY_RETENTION_POLICY_DAYS * POSITION_HISTORY_RETENTION_ABSOLUTE_DAY_MS);
+    const policyCutoff = new Date(canonicalAnchor.getTime() - POSITION_HISTORY_POLICY_DAYS * POSITION_HISTORY_ABSOLUTE_DAY_MS);
     const facts = await this.repository.inspect(policyCutoff);
     return Object.freeze({
-      policyDays: POSITION_HISTORY_RETENTION_POLICY_DAYS,
+      policyDays: POSITION_HISTORY_POLICY_DAYS,
       canonicalAnchor: canonicalAnchor.toISOString(),
       policyCutoff: policyCutoff.toISOString(),
       observations: Object.freeze({
