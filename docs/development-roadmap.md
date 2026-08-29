@@ -73,17 +73,13 @@ and Git history rather than this roadmap.
 
 ## NEXT — Design direction experiments
 
-Telegram feature work has stabilized, so the next product-development stage is
-to resume comparison of the following preserved experiment branches:
+The old DeepSeek design experiment branches were intentionally retired without
+being merged or selected for reuse. Future design work starts as a fresh
+iteration from current `main`, not from either deleted branch.
 
-- `design/deepseek-frontend-rethink` — `92760a904343a65e93a4fceb5104912496633dbf`
-- `design/deepseek-soft-ui-rethink` — `7515c5c935b1b1297800c29a228d186b8f125df4`
-
-Neither experiment is merged into `main`, neither is accepted as the final
-direction, and no final design has been selected. The next stage should select
-one direction, adapt it to the completed feature set, preserve API and business
-behavior, and complete authenticated desktop and mobile UI acceptance. It does
-not require maintaining both experimental visual systems.
+The next stage should establish a direction for the completed feature set,
+preserve API and business behavior, and complete authenticated desktop and
+mobile UI acceptance.
 
 ## LATER — Final production hardening
 
