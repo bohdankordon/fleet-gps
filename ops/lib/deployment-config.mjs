@@ -95,6 +95,26 @@ function validOptionalDispatcherBatchSize(value) {
   return value === undefined || /^[0-9]+$/.test(value) && Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 100;
 }
 
+function webConfigurationIssues(env) {
+  const issues = [];
+  try {
+    const internalUrl = new URL(env.API_INTERNAL_BASE_URL ?? "");
+    if ((internalUrl.protocol !== "http:" && internalUrl.protocol !== "https:") || internalUrl.username || internalUrl.password || internalUrl.search || internalUrl.hash) issues.push("API_INTERNAL_BASE_URL");
+  } catch {
+    issues.push("API_INTERNAL_BASE_URL");
+  }
+  const mapStyle = env.NEXT_PUBLIC_MAP_STYLE_URL?.trim() ?? "";
+  if (mapStyle !== "") {
+    try {
+      const mapUrl = new URL(mapStyle);
+      if (mapUrl.protocol !== "https:" || mapUrl.origin !== "https://tiles.openfreemap.org" || mapUrl.username || mapUrl.password || mapUrl.search || mapUrl.hash) issues.push("NEXT_PUBLIC_MAP_STYLE_URL");
+    } catch {
+      issues.push("NEXT_PUBLIC_MAP_STYLE_URL");
+    }
+  }
+  return issues;
+}
+
 export function validateDeploymentEnvironment(env, { repositoryRoot = process.cwd() } = {}) {
   const issues = [];
   const invalid = (...fields) => issues.push(...fields);
@@ -144,6 +164,8 @@ export function validateDeploymentEnvironment(env, { repositoryRoot = process.cw
   } catch {
     invalid("SITE_ADDRESS");
   }
+
+  invalid(...webConfigurationIssues(env));
 
   const imageTag = env.APP_IMAGE_TAG ?? "";
   if (!/^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/.test(imageTag) || imageTag.toLowerCase() === "latest") invalid("APP_IMAGE_TAG");

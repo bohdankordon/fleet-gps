@@ -52,23 +52,19 @@ try {
 run(process.execPath, [`--env-file=${envFile}`, path.join(repositoryRoot, "ops", "validate-env.mjs")], controlledEnv, "Stage 22 deployment validation");
 process.stdout.write("production preflight: Stage 22 deployment fields passed using the explicit env file\n");
 
-const npmExecPath = process.env.npm_execpath;
-if (!npmExecPath) fail("must be started through npm");
-run(process.execPath, [npmExecPath, "run", "equgps:build"], controlledEnv, "eQuGPS package build");
-run(process.execPath, [npmExecPath, "run", "api:build"], controlledEnv, "API build");
-run(
-  process.execPath,
-  [`--env-file=${envFile}`, "--experimental-transform-types", path.join(repositoryRoot, "src", "scripts", "production-check.ts")],
-  controlledEnv,
-  "Stage 21 application production configuration validation",
-);
-process.stdout.write("production preflight: Stage 21 application configuration passed using the explicit env file\n");
-
-run(
-  dockerCommand(),
-  ["compose", "-f", "compose.production.yaml", "--env-file", envFile, "config", "--quiet"],
-  controlledEnv,
-  "Docker Compose production configuration validation",
-);
+const docker = dockerCommand();
+const composeArgs = ["compose", "-f", "compose.production.yaml", "--env-file", envFile];
+run(docker, [...composeArgs, "config", "--quiet"], controlledEnv, "Docker Compose production configuration validation");
 process.stdout.write("production preflight: Compose configuration passed using the same explicit env file\n");
+
+// Source compilation belongs to the pinned image build. Validate the actual
+// compiled API configuration parser and its @taxi-gps/equgps dependency from
+// that runtime image instead of relying on undeclared host devDependencies.
+run(
+  docker,
+  [...composeArgs, "run", "--rm", "--no-deps", "--entrypoint", "node", "api", "apps/api/dist/scripts/production-config-check.js"],
+  controlledEnv,
+  "compiled API production configuration validation",
+);
+process.stdout.write("production preflight: compiled API configuration and runtime artifacts passed using the explicit env file\n");
 process.stdout.write("production preflight: valid\n");

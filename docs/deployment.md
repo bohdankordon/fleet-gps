@@ -38,7 +38,7 @@ Stage 21 security decisions (Origin/Host checks, cookies, CORS-off, limiter).
 
     - One Linux server / VM.
     - Docker Engine + Docker Compose v2 (docker compose).
-    - Node.js 24 for any host-side tooling (image builds use node:24-slim).
+    - Node.js 24 for dependency-free host operational tooling (image builds use node:24-slim).
     - An operator-controlled public domain and DNS A/AAAA record for Caddy TLS.
 
 No Kubernetes, Redis, cloud-vendor services, CI/CD platform or monitoring stack
@@ -77,13 +77,14 @@ Stage 22 deployment fields:
     BACKUP_RETENTION_WEEKLY strict positive decimal; default 8
 
 Never print .env.production contents, never copy it into an image, and never
-commit it. Run the canonical pre-deploy configuration gate (it prints only
-field names, never credential values):
+commit it. Build or pull the pinned images, then run the canonical pre-deploy
+configuration gate (it prints only field names, never credential values):
 
     npm run production:check -- --env-file .env.production
 
-This exact file is loaded explicitly for the Stage 21 application parsers and
-is passed unchanged to `docker compose config`; npm does not implicitly load
+This exact file is loaded explicitly for host deployment validation, passed
+unchanged to `docker compose config`, and supplied by Compose to the compiled
+API parser in the pinned runtime image; npm does not implicitly load
 `.env.production`. The gate also requires an HTTPS SITE_ADDRESS with no
 credentials/path/query/hash, a safe exact APP_IMAGE_TAG other than `latest`, an
 absolute off-repository BACKUP_DIR, and exact decoded DATABASE_URL equality with
@@ -113,6 +114,12 @@ in browser output by Next.js, changing the approved map style requires building
 a new web image under a new exact immutable APP_IMAGE_TAG. Blank still builds
 the OpenFreeMap Positron default; only HTTPS tiles.openfreemap.org is accepted.
 
+The API Docker builder performs a clean `npm ci` from the lockfile, then runs
+`equgps:build` and `api:build`. This is the canonical eQuGPS compilation and API
+source-build proof. The runtime image contains only production dependencies plus
+the compiled eQuGPS and API output; `/opt/taxi-gps` is a source and operational
+orchestration tree and intentionally needs neither `node_modules` nor `tsc`.
+
 ## Canonical production configuration gate
 
 Before touching a running system, run all production configuration checks with
@@ -121,40 +128,47 @@ request):
 
     npm run production:check -- --env-file .env.production
 
-This one command validates Stage 22 deployment consistency, builds the parser
-dependencies, runs the Stage 21 application production configuration parser,
-and runs `docker compose -f compose.production.yaml --env-file .env.production
-config --quiet` against that same explicit file.
+This one command validates Stage 22 deployment consistency, runs `docker
+compose -f compose.production.yaml --env-file .env.production config --quiet`,
+and executes the compiled Stage 21 API production configuration parser inside
+the already-built pinned API runtime image. The image check loads the compiled
+`@taxi-gps/equgps` package, so a missing or broken required runtime artifact
+fails before deployment. It creates only a temporary `--rm --no-deps` check
+container and performs no database, provider, or Telegram request. Host
+`node_modules`, TypeScript, and other devDependencies are not part of this
+runtime-preflight contract.
 
 ## Clean install / deployment sequence
 
 1.  Verify the exact Git release/tag and check it out.
-2.  Create .env.production (0600) and run the canonical explicit-env production
-    configuration gate above.
+2.  Create .env.production (0600).
 3.  If upgrading a running stack, confirm current health first.
 4.  Create a pre-deploy backup (see docs/backup-restore.md) and REQUIRE success.
 5.  Verify the pre-deploy backup checksum before any migration.
-6.  Build (or pull) the exact immutable application release images.
-7.  Run the one-shot migration and REQUIRE success:
+6.  Build (or pull) the exact immutable application release images. Building
+    the API image is the eQuGPS and API source-compilation gate.
+7.  Run the canonical explicit-env production configuration gate above. It
+    validates the pinned API runtime image without starting dependencies.
+8.  Run the one-shot migration and REQUIRE success:
 
         docker compose -f compose.production.yaml --env-file .env.production \
           --profile migrate run --rm migrate
 
     If migration fails, STOP the deployment. Do not continue to application
     startup, and do not run prisma migrate dev or migrate reset.
-8.  Start PostgreSQL and the API, then verify API readiness:
+9.  Start PostgreSQL and the API, then verify API readiness:
 
         docker compose -f compose.production.yaml --env-file .env.production up -d postgres api
         docker compose -f compose.production.yaml --env-file .env.production exec api \
           node -e "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{console.log(r.status);process.exit(r.ok?0:1)})"
 
-9.  Start web, verify web health, then start Caddy and verify the public edge:
+10. Start web, verify web health, then start Caddy and verify the public edge:
 
         docker compose -f compose.production.yaml --env-file .env.production up -d web caddy
         curl -fsS https://<domain>/api/health | ...
 
-10. Perform read-only / auth smoke checks (login and a representative read).
-11. Keep the initial automatic flags false (see below) and observe before
+11. Perform read-only / auth smoke checks (login and a representative read).
+12. Keep the initial automatic flags false (see below) and observe before
     intentionally enabling any automatic job.
 
 A one-shot migrate is a separate, profile-gated job. docker compose up never

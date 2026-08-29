@@ -14,6 +14,8 @@ const valid = Object.freeze({
   SITE_ADDRESS: "https://taxi.example.test",
   APP_IMAGE_TAG: "v1.0.0-e5a0f41",
   BACKUP_DIR: safeBackupDirectory,
+  API_INTERNAL_BASE_URL: "http://api:3000",
+  NEXT_PUBLIC_MAP_STYLE_URL: "https://tiles.openfreemap.org/styles/liberty",
   TELEGRAM_NOTIFICATIONS_ENABLED: "false",
   TELEGRAM_PRODUCT_LINKING_ENABLED: "false",
   TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED: "false",
@@ -56,6 +58,12 @@ test("SITE_ADDRESS is an HTTPS origin without credentials, query, or hash", () =
 test("APP_IMAGE_TAG requires an exact safe non-latest release tag", () => {
   assert.deepEqual(issues({ APP_IMAGE_TAG: "latest" }), ["APP_IMAGE_TAG"]);
   assert.deepEqual(issues({ APP_IMAGE_TAG: "release with spaces" }), ["APP_IMAGE_TAG"]);
+});
+
+test("Web production configuration remains validated before image use", () => {
+  assert.deepEqual(issues({ API_INTERNAL_BASE_URL: "" }), ["API_INTERNAL_BASE_URL"]);
+  assert.deepEqual(issues({ API_INTERNAL_BASE_URL: "https://user:secret@api.test/path?token=x" }), ["API_INTERNAL_BASE_URL"]);
+  assert.deepEqual(issues({ NEXT_PUBLIC_MAP_STYLE_URL: "https://example.test/style" }), ["NEXT_PUBLIC_MAP_STYLE_URL"]);
 });
 
 test("BACKUP_DIR must be absolute and outside the checkout", () => {
