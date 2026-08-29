@@ -56,9 +56,13 @@ and unchanged.
 
 ## NOW — Telegram 2D — Production bot cutover / legacy transition
 
-Plan and explicitly review production rollout, including the no-dual-send
-transition from legacy global delivery. Do not enable either per-user gate as
-part of ordinary development.
+Production preflight is DONE. Source/release wiring and cutover-safety
+foundation are DONE: production Compose/preflight supports deploy-dark startup,
+legacy and per-user dispatch are mutually exclusive, and a dispatch-not-before
+boundary makes historical shadow rows terminally unsendable. Dark deployment
+with all new gates OFF is NEXT; linking/adoption, shadow planning, and the
+controlled cutover follow later. Do not enable either per-user gate as part of
+ordinary development.
 
 ## LATER — Telegram 2D — Production bot/webhook cutover
 

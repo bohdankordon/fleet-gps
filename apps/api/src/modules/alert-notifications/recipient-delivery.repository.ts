@@ -11,7 +11,7 @@ type RawClaim = Readonly<{ id: string; notificationId: string; userId: string; c
 type DeliveryForRecheck = Prisma.AlertNotificationDeliveryGetPayload<{ include: { notification: { include: { alertEvent: { include: { vehicle: true } } } }; user: { include: { permissions: true; telegramConnection: true; notificationPreferences: { include: { vehicles: true } } } } } }>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const failureCodes = new Set<RecipientDeliveryFailureCode>(["ACCOUNT_DISABLED", "ACCOUNT_SECURITY_RESTRICTED", "PERMISSION_REVOKED", "CONNECTION_MISSING", "CONNECTION_NOT_CONNECTED", "CONNECTION_REVISION_CHANGED", "MASTER_DISABLED", "EVENT_TYPE_DISABLED", "VEHICLE_SCOPE_CHANGED", "VEHICLE_DISABLED", "NETWORK", "TIMEOUT", "HTTP_429", "HTTP_4XX", "HTTP_5XX", "INVALID_RESPONSE", "MAX_ATTEMPTS", "MAX_AGE"]);
+const failureCodes = new Set<RecipientDeliveryFailureCode>(["ACCOUNT_DISABLED", "ACCOUNT_SECURITY_RESTRICTED", "PERMISSION_REVOKED", "CONNECTION_MISSING", "CONNECTION_NOT_CONNECTED", "CONNECTION_REVISION_CHANGED", "MASTER_DISABLED", "EVENT_TYPE_DISABLED", "VEHICLE_SCOPE_CHANGED", "VEHICLE_DISABLED", "CUTOVER_BOUNDARY", "NETWORK", "TIMEOUT", "HTTP_429", "HTTP_4XX", "HTTP_5XX", "INVALID_RESPONSE", "MAX_ATTEMPTS", "MAX_AGE"]);
 
 function uuid(value: string, label: string): string { if (!UUID.test(value)) throw new TypeError(`Invalid ${label}`); return value; }
 function failureCode(value: RecipientDeliveryFailureCode): RecipientDeliveryFailureCode { if (!failureCodes.has(value)) throw new TypeError("Invalid recipient delivery failure code"); return value; }

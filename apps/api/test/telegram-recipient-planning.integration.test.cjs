@@ -4,6 +4,9 @@ const test = require("node:test");
 const { createTestPgClient, createTestPrismaClient, resetTestDatabase } = require("../test-support/isolated-postgres.cjs");
 const { AlertNotificationRecipientPlanner } = require("../dist/modules/alert-notifications/alert-notification-recipient-planner.service");
 const { PrismaAlertEventsRepository } = require("../dist/modules/alert-events/prisma-alert-events.repository");
+const { RecipientDeliveryRepository } = require("../dist/modules/alert-notifications/recipient-delivery.repository");
+const { RecipientDeliveryDispatcherService } = require("../dist/modules/alert-notifications/recipient-delivery-dispatcher.service");
+const { AlertNotificationMessageFormatter } = require("../dist/modules/alert-notifications/alert-notification-message.formatter");
 
 let prisma;
 let externalDeviceId = 9_300_000;
@@ -13,6 +16,7 @@ const disabledConfig = Object.freeze({ telegramPerUserNotifications: Object.free
 
 function planner(config = enabledConfig) { return new AlertNotificationRecipientPlanner(config); }
 function repository(client, config = enabledConfig) { return new PrismaAlertEventsRepository({ getClient: () => client }, planner(config)); }
+function recipientDispatcher(transport, config) { return new RecipientDeliveryDispatcherService(new RecipientDeliveryRepository({ getClient: () => prisma }), new AlertNotificationMessageFormatter(), transport, config); }
 function command(vehicleId, type = "SPEEDING") {
   return type === "SPEEDING"
     ? { type, vehicleId, observedAt: new Date("2026-08-29T12:00:00.000Z"), zone: "CITY", speedKph: 75, speedThresholdKph: 60 }
@@ -53,6 +57,19 @@ test("feature gate defaults off while legacy confirmed-alert outbox remains unch
   assert.equal(await prisma.alertNotification.count(), 0);
   assert.equal(await prisma.alertNotificationDelivery.count(), 0);
   assert.equal(await prisma.alertNotificationOutbox.count({ where: { alertEventId: eventId, kind: "ALERT_CONFIRMED" } }), 1);
+});
+
+test("shadow-planned delivery remains unsent under legacy mode and is terminally suppressed by a later cutover boundary", async () => {
+  await prisma.applicationSettings.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
+  const fleetVehicle = await vehicle(); await user("shadow", { permissions: ["events.view", "vehicles.view"] });
+  const eventId = await confirm(fleetVehicle.id);
+  const delivery = (await deliveries(eventId))[0]; const boundary = new Date(Date.now() + 60_000);
+  assert.equal(await prisma.alertNotificationOutbox.count({ where: { alertEventId: eventId, kind: "ALERT_CONFIRMED" } }), 1);
+  assert.equal(delivery.status, "PENDING");
+  let sends = 0;
+  const result = await recipientDispatcher({ sendAlertConfirmed: async () => { sends += 1; } }, Object.freeze({ telegramPerUserDispatch: Object.freeze({ enabled: true, dispatchIntervalMs: 60_000, batchSize: 20, dispatchNotBefore: boundary }) })).dispatchBatch(20);
+  const after = await prisma.alertNotificationDelivery.findUnique({ where: { id: delivery.id } });
+  assert.deepEqual([result.suppressed, sends, after.status, after.lastFailureCode, after.attemptCount], [1, 0, "SUPPRESSED", "CUTOVER_BOUNDARY", 0]);
 });
 
 test("eligible users receive independent PENDING deliveries with retry defaults and no sensitive identity copy", async () => {

@@ -14,6 +14,10 @@ const valid = Object.freeze({
   SITE_ADDRESS: "https://taxi.example.test",
   APP_IMAGE_TAG: "v1.0.0-e5a0f41",
   BACKUP_DIR: safeBackupDirectory,
+  TELEGRAM_NOTIFICATIONS_ENABLED: "false",
+  TELEGRAM_PRODUCT_LINKING_ENABLED: "false",
+  TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED: "false",
+  TELEGRAM_PER_USER_DISPATCH_ENABLED: "false",
 });
 
 function issues(overrides) {
@@ -67,6 +71,15 @@ test("optional retention values default when absent and otherwise require strict
     assert.deepEqual(issues({ BACKUP_RETENTION_DAILY: value }), ["BACKUP_RETENTION_DAILY"]);
     assert.deepEqual(issues({ BACKUP_RETENTION_WEEKLY: value }), ["BACKUP_RETENTION_WEEKLY"]);
   }
+});
+
+test("Telegram production wiring requires explicit safe modes and enforces cutover prerequisites without secrets", () => {
+  for (const field of ["TELEGRAM_NOTIFICATIONS_ENABLED", "TELEGRAM_PRODUCT_LINKING_ENABLED", "TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED", "TELEGRAM_PER_USER_DISPATCH_ENABLED"]) assert.deepEqual(issues({ [field]: undefined }), [field]);
+  assert.deepEqual(issues({ TELEGRAM_PRODUCT_LINKING_ENABLED: "true" }), ["TELEGRAM_PRODUCT_BOT_TOKEN", "TELEGRAM_PRODUCT_BOT_USERNAME", "TELEGRAM_PRODUCT_WEBHOOK_SECRET"]);
+  assert.deepEqual(issues({ TELEGRAM_PER_USER_DISPATCH_ENABLED: "true" }), ["TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE", "TELEGRAM_PRODUCT_BOT_TOKEN"]);
+  assert.deepEqual(issues({ TELEGRAM_PER_USER_DISPATCH_ENABLED: "true", TELEGRAM_PRODUCT_BOT_TOKEN: "PRODUCT_TOKEN_SENTINEL", TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE: "tomorrow" }), ["TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE"]);
+  assert.deepEqual(issues({ TELEGRAM_NOTIFICATIONS_ENABLED: "true", TELEGRAM_BOT_TOKEN: "legacy", TELEGRAM_CHAT_ID: "legacy-chat", TELEGRAM_PER_USER_DISPATCH_ENABLED: "true", TELEGRAM_PRODUCT_BOT_TOKEN: "product", TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE: "2026-08-30T14:05:00Z" }), ["TELEGRAM_NOTIFICATIONS_ENABLED", "TELEGRAM_PER_USER_DISPATCH_ENABLED"]);
+  assert.deepEqual(issues({ TELEGRAM_NOTIFICATIONS_ENABLED: "false", TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED: "true", TELEGRAM_PER_USER_DISPATCH_ENABLED: "true", TELEGRAM_PRODUCT_BOT_TOKEN: "product", TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE: "2026-08-30T14:05:00+02:00" }), []);
 });
 
 test("OPS_ALERTS_ENABLED is independent from product Telegram notifications", () => {

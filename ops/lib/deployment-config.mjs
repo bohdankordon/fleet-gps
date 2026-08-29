@@ -67,6 +67,34 @@ export function parseOpsAlertsEnabled(value) {
   return undefined;
 }
 
+function parseRequiredBoolean(value) {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
+}
+
+function validAbsoluteInstant(value) {
+  const match = typeof value === "string" ? /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|([+-])(\d{2}):(\d{2}))$/.exec(value) : null;
+  if (!match) return false;
+  const year = Number(match[1]); const month = Number(match[2]); const day = Number(match[3]); const hour = Number(match[4]); const minute = Number(match[5]); const second = Number(match[6]);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+  if (month < 1 || month > 12 || day < 1 || day > days || hour > 23 || minute > 59 || second > 59) return false;
+  if (match[7] !== "Z") {
+    const offsetHour = Number(match[9]); const offsetMinute = Number(match[10]);
+    if (offsetHour > 14 || offsetMinute > 59 || (offsetHour === 14 && offsetMinute !== 0)) return false;
+  }
+  return Number.isFinite(Date.parse(value));
+}
+
+function validOptionalDispatcherInteger(value) {
+  return value === undefined || /^[0-9]+$/.test(value) && Number.isInteger(Number(value)) && Number(value) >= 1_000 && Number(value) <= 3_600_000;
+}
+
+function validOptionalDispatcherBatchSize(value) {
+  return value === undefined || /^[0-9]+$/.test(value) && Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 100;
+}
+
 export function validateDeploymentEnvironment(env, { repositoryRoot = process.cwd() } = {}) {
   const issues = [];
   const invalid = (...fields) => issues.push(...fields);
@@ -134,6 +162,29 @@ export function validateDeploymentEnvironment(env, { repositoryRoot = process.cw
     if ((env.TELEGRAM_BOT_TOKEN ?? "").trim() === "") invalid("TELEGRAM_BOT_TOKEN");
     if ((env.TELEGRAM_CHAT_ID ?? "").trim() === "") invalid("TELEGRAM_CHAT_ID");
   }
+
+  const telegramFlags = Object.fromEntries([
+    "TELEGRAM_NOTIFICATIONS_ENABLED",
+    "TELEGRAM_PRODUCT_LINKING_ENABLED",
+    "TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED",
+    "TELEGRAM_PER_USER_DISPATCH_ENABLED",
+  ].map((field) => [field, parseRequiredBoolean(env[field])]));
+  for (const [field, value] of Object.entries(telegramFlags)) if (value === undefined) invalid(field);
+  const legacyEnabled = telegramFlags.TELEGRAM_NOTIFICATIONS_ENABLED;
+  const linkingEnabled = telegramFlags.TELEGRAM_PRODUCT_LINKING_ENABLED;
+  const dispatchEnabled = telegramFlags.TELEGRAM_PER_USER_DISPATCH_ENABLED;
+  if (legacyEnabled === true && dispatchEnabled === true) invalid("TELEGRAM_NOTIFICATIONS_ENABLED", "TELEGRAM_PER_USER_DISPATCH_ENABLED");
+  if (linkingEnabled === true) {
+    for (const field of ["TELEGRAM_PRODUCT_BOT_USERNAME", "TELEGRAM_PRODUCT_BOT_TOKEN", "TELEGRAM_PRODUCT_WEBHOOK_SECRET"]) if ((env[field] ?? "").trim() === "") invalid(field);
+  }
+  if (dispatchEnabled === true) {
+    if ((env.TELEGRAM_PRODUCT_BOT_TOKEN ?? "").trim() === "") invalid("TELEGRAM_PRODUCT_BOT_TOKEN");
+    if (!validAbsoluteInstant(env.TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE)) invalid("TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE");
+  } else if (env.TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE !== undefined && env.TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE !== "" && !validAbsoluteInstant(env.TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE)) {
+    invalid("TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE");
+  }
+  if (!validOptionalDispatcherInteger(env.TELEGRAM_PER_USER_DISPATCH_INTERVAL_MS)) invalid("TELEGRAM_PER_USER_DISPATCH_INTERVAL_MS");
+  if (!validOptionalDispatcherBatchSize(env.TELEGRAM_PER_USER_DISPATCH_BATCH_SIZE)) invalid("TELEGRAM_PER_USER_DISPATCH_BATCH_SIZE");
 
   if (issues.length > 0) throw new DeploymentConfigurationError(issues);
   return Object.freeze({ valid: true });

@@ -9,8 +9,8 @@ const { TelegramProductTransportError } = require("../dist/modules/telegram-link
 const { recipientDeliveryRetryDelayMs } = require("../dist/modules/alert-notifications/recipient-delivery-retry.policy");
 
 let prisma; let device = 9_400_000; let identity = 6_000_000_000n;
-const enabled = Object.freeze({ telegramPerUserDispatch: Object.freeze({ enabled: true, dispatchIntervalMs: 60_000, batchSize: 20 }) });
-const disabled = Object.freeze({ telegramPerUserDispatch: Object.freeze({ enabled: false, dispatchIntervalMs: 60_000, batchSize: 20 }) });
+const enabled = Object.freeze({ telegramPerUserDispatch: Object.freeze({ enabled: true, dispatchIntervalMs: 60_000, batchSize: 20, dispatchNotBefore: null }) });
+const disabled = Object.freeze({ telegramPerUserDispatch: Object.freeze({ enabled: false, dispatchIntervalMs: 60_000, batchSize: 20, dispatchNotBefore: null }) });
 function repository(client = prisma) { return new RecipientDeliveryRepository({ getClient: () => client }); }
 function dispatcher(transport, config = enabled, client = prisma) { return new RecipientDeliveryDispatcherService(repository(client), new AlertNotificationMessageFormatter(), transport, config); }
 async function reset() { const client = await createTestPgClient(); try { await resetTestDatabase(client); } finally { await client.end(); } }
@@ -29,6 +29,16 @@ async function seed(options = {}) {
 test.before(async () => { prisma = createTestPrismaClient(); }); test.after(async () => { await prisma.$disconnect(); }); test.beforeEach(reset);
 
 test("dispatch gate off leaves PENDING rows untouched and makes zero send calls", async () => { const value = await seed(); let sends = 0; const result = await dispatcher({ sendAlertConfirmed: async () => { sends += 1; } }, disabled).dispatchBatch(20); assert.deepEqual(result, { claimed: 0, sent: 0, retryScheduled: 0, suppressed: 0, failed: 0, lostLease: 0 }); assert.equal(sends, 0); assert.equal((await prisma.alertNotificationDelivery.findUnique({ where: { id: value.delivery.id } })).status, "PENDING"); });
+
+test("cutover boundary terminally suppresses pre-boundary shadow rows but permits rows at the exact boundary", async () => {
+  const boundary = new Date(Date.now() - 1_000); const before = await seed(); const at = await seed();
+  await prisma.alertNotificationDelivery.update({ where: { id: before.delivery.id }, data: { createdAt: new Date(boundary.getTime() - 1) } });
+  await prisma.alertNotificationDelivery.update({ where: { id: at.delivery.id }, data: { createdAt: boundary } });
+  let sends = 0;
+  const result = await dispatcher({ sendAlertConfirmed: async () => { sends += 1; } }, Object.freeze({ telegramPerUserDispatch: Object.freeze({ enabled: true, dispatchIntervalMs: 60_000, batchSize: 20, dispatchNotBefore: boundary }) })).dispatchBatch(20);
+  const beforeRow = await prisma.alertNotificationDelivery.findUnique({ where: { id: before.delivery.id } }); const atRow = await prisma.alertNotificationDelivery.findUnique({ where: { id: at.delivery.id } });
+  assert.deepEqual([result.suppressed, result.sent, sends, beforeRow.status, beforeRow.attemptCount, beforeRow.lastFailureCode, atRow.status, atRow.attemptCount], [1, 1, 1, "SUPPRESSED", 0, "CUTOVER_BOUNDARY", "SENT", 1]);
+});
 
 test("successful delivery is SENT with one actual attempt, while stale eligibility is terminally SUPPRESSED", async () => {
   const sent = await seed(); const suppressed = await seed(); await prisma.authUser.update({ where: { id: suppressed.user.id }, data: { disabled: true } }); let sends = 0;

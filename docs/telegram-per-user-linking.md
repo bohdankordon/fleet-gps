@@ -92,3 +92,48 @@ duplicate after lease recovery.
 This dispatcher is additive. The legacy global outbox and its retry behavior
 remain unchanged, and 2D production cutover remains responsible for ensuring
 the two systems do not send the same alert at once.
+
+## Production wiring and cutover safety (2D-0)
+
+Production Compose passes the complete new-product configuration only to the
+API: `TELEGRAM_PRODUCT_LINKING_ENABLED`, `TELEGRAM_PRODUCT_BOT_USERNAME`,
+`TELEGRAM_PRODUCT_BOT_TOKEN`, `TELEGRAM_PRODUCT_WEBHOOK_SECRET`, the planning
+and dispatch gates, and their operational settings. Web receives only the
+shared `TELEGRAM_PRODUCT_WEBHOOK_SECRET` at server runtime for the fixed
+webhook ingress. It is never a `NEXT_PUBLIC_*` variable, and the product bot
+token is never passed to Web. The API and Web webhook values must be the same
+logical secret.
+
+The deploy-dark configuration is legacy delivery on with product linking,
+per-user planning, and per-user dispatch all explicitly off. Product bot
+credentials can remain absent in that mode. Linking needs the product bot
+username, token, and webhook secret when enabled. Per-user dispatch needs the
+product bot token and an explicit `TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE`
+absolute ISO-8601 UTC/offset instant. The API and release preflight reject
+malformed timestamps, unsafe dispatcher settings, and a configuration where
+legacy `TELEGRAM_NOTIFICATIONS_ENABLED` and per-user dispatch are both true.
+Shadow planning therefore remains valid while legacy delivery is active, but
+dual dispatch is never a valid startup state.
+
+The cutover boundary protects shadow rows without a mandatory 24-hour wait.
+When per-user dispatch claims a delivery created before the configured
+boundary, it terminally marks it `SUPPRESSED` with `CUTOVER_BOUNDARY`, without
+a Telegram call or an attempt increment. Deliveries created exactly at or
+after the boundary retain normal 2C-2 eligibility, lease, retry, and
+at-least-once semantics.
+
+Future operators must choose and record boundary `T` only after the legacy
+backlog is zero, no active or stale legacy SENDING row remains, previous
+schedulers have stopped, ingestion is paused, and recipient adoption is
+approved. The intended sequence is: legacy on; planning on with dispatch off;
+observe shadow rows; pause planning and ingestion; drain legacy; choose `T`;
+restart one controlled deployment with legacy off, planning/dispatch on, and
+`TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE=T`; then resume ingestion. Shadow rows
+before `T` are suppressed and only post-`T` rows may send.
+
+Legacy outbox creation remains unchanged, including after a future cutover;
+those rows are not an automatic legacy fallback. Before any per-user transport
+send, a legacy-only rollback may be possible only after explicit
+reconciliation. After a per-user transport may have succeeded, never
+automatically re-enable legacy delivery: the existing at-least-once ambiguity
+still applies.

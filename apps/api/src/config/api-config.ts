@@ -42,6 +42,7 @@ export type TelegramPerUserDispatchConfig = Readonly<{
   enabled: boolean;
   dispatchIntervalMs: number;
   batchSize: number;
+  dispatchNotBefore: Date | null;
 }>;
 export type ApiConfig = Readonly<{
   host: string;
@@ -108,6 +109,28 @@ function productBotUsername(value: string | undefined): string | null | undefine
   return /^[A-Za-z][A-Za-z0-9_]{4,31}bot$/i.test(normalized) ? normalized : undefined;
 }
 
+const absoluteInstantPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|([+-])(\d{2}):(\d{2}))$/;
+
+function daysInMonth(year: number, month: number): number {
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  return [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+}
+
+function absoluteInstant(value: string | undefined): Date | null | undefined {
+  if (value === undefined || value.trim() === "") return null;
+  const normalized = value.trim();
+  const match = absoluteInstantPattern.exec(normalized);
+  if (!match) return undefined;
+  const year = Number(match[1]); const month = Number(match[2]); const day = Number(match[3]); const hour = Number(match[4]); const minute = Number(match[5]); const second = Number(match[6]);
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month) || hour > 23 || minute > 59 || second > 59) return undefined;
+  if (match[7] !== "Z") {
+    const offsetHour = Number(match[9]); const offsetMinute = Number(match[10]);
+    if (offsetHour > 14 || offsetMinute > 59 || (offsetHour === 14 && offsetMinute !== 0)) return undefined;
+  }
+  const timestamp = Date.parse(normalized);
+  return Number.isFinite(timestamp) ? new Date(timestamp) : undefined;
+}
+
 const equGpsIssueNames: Readonly<Record<string, string>> = Object.freeze({
   officialBaseUrl: "EQUGPS_BASE_URL",
   webBaseUrl: "EQUGPS_WEB_BASE_URL",
@@ -142,6 +165,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
   const telegramPerUserDispatchEnabled = parseBoolean(env.TELEGRAM_PER_USER_DISPATCH_ENABLED);
   const telegramPerUserDispatchIntervalMs = parseInteger(env.TELEGRAM_PER_USER_DISPATCH_INTERVAL_MS, 60_000, 1_000, 3_600_000);
   const telegramPerUserDispatchBatchSize = parseInteger(env.TELEGRAM_PER_USER_DISPATCH_BATCH_SIZE, 20, 1, 100);
+  const telegramPerUserDispatchNotBefore = absoluteInstant(env.TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE);
   const telegramProductBotUsername = productBotUsername(env.TELEGRAM_PRODUCT_BOT_USERNAME);
   const telegramProductBotToken = env.TELEGRAM_PRODUCT_BOT_TOKEN?.trim() || null;
   const telegramProductWebhookSecret = env.TELEGRAM_PRODUCT_WEBHOOK_SECRET?.trim() || null;
@@ -179,6 +203,9 @@ export function parseApiConfig(env: Environment): ApiConfig {
   if (telegramPerUserDispatchIntervalMs === undefined) issues.push("TELEGRAM_PER_USER_DISPATCH_INTERVAL_MS");
   if (telegramPerUserDispatchBatchSize === undefined) issues.push("TELEGRAM_PER_USER_DISPATCH_BATCH_SIZE");
   if (telegramPerUserDispatchEnabled === true && telegramProductBotToken === null) issues.push("TELEGRAM_PRODUCT_BOT_TOKEN");
+  if (telegramPerUserDispatchNotBefore === undefined || (telegramPerUserDispatchEnabled === true && telegramPerUserDispatchNotBefore === null)) issues.push("TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE");
+  if (telegramNotificationsEnabled === true && telegramPerUserDispatchEnabled === true) issues.push("TELEGRAM_NOTIFICATIONS_ENABLED", "TELEGRAM_PER_USER_DISPATCH_ENABLED");
+  if (production && telegramPerUserDispatchEnabled === true && obviousPlaceholder(telegramProductBotToken)) issues.push("TELEGRAM_PRODUCT_BOT_TOKEN");
   if (telegramProductBotUsername === undefined) issues.push("TELEGRAM_PRODUCT_BOT_USERNAME");
   if (telegramProductLinkingEnabled === true && telegramProductBotUsername === null) issues.push("TELEGRAM_PRODUCT_BOT_USERNAME");
   if (telegramProductLinkingEnabled === true && telegramProductBotToken === null) issues.push("TELEGRAM_PRODUCT_BOT_TOKEN");
@@ -208,6 +235,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
     telegramPerUserDispatchEnabled === undefined ||
     telegramPerUserDispatchIntervalMs === undefined ||
     telegramPerUserDispatchBatchSize === undefined ||
+    telegramPerUserDispatchNotBefore === undefined ||
     telegramProductBotUsername === undefined ||
     fleetIntervalSeconds === undefined ||
     runsIntervalSeconds === undefined ||
@@ -228,7 +256,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
       telegramNotifications: Object.freeze({ enabled: telegramNotificationsEnabled, botToken: telegramBotToken, chatId: telegramChatId, dispatchIntervalMs: telegramDispatchIntervalMs, batchSize: telegramBatchSize }),
       telegramProductLinking: Object.freeze({ enabled: telegramProductLinkingEnabled, botUsername: telegramProductBotUsername, botToken: telegramProductBotToken, webhookSecret: telegramProductWebhookSecret }),
       telegramPerUserNotifications: Object.freeze({ enabled: telegramPerUserNotificationsEnabled }),
-      telegramPerUserDispatch: Object.freeze({ enabled: telegramPerUserDispatchEnabled, dispatchIntervalMs: telegramPerUserDispatchIntervalMs, batchSize: telegramPerUserDispatchBatchSize }),
+      telegramPerUserDispatch: Object.freeze({ enabled: telegramPerUserDispatchEnabled, dispatchIntervalMs: telegramPerUserDispatchIntervalMs, batchSize: telegramPerUserDispatchBatchSize, dispatchNotBefore: telegramPerUserDispatchNotBefore }),
       equGps: Object.freeze(parseEquGpsConfig({
         officialBaseUrl: env.EQUGPS_BASE_URL ?? "",
         webBaseUrl: env.EQUGPS_WEB_BASE_URL ?? "",

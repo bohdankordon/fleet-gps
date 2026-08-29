@@ -21,6 +21,10 @@ export class RecipientDeliveryDispatcherService {
       const claimed = await this.repository.claimNext(1, randomUUID()); if (claimed.length === 0) break;
       const delivery = claimed[0]!; result = { ...result, claimed: result.claimed + 1 };
       try {
+        const boundary = this.config.telegramPerUserDispatch?.dispatchNotBefore;
+        if (boundary !== null && boundary !== undefined && delivery.createdAt.getTime() < boundary.getTime()) {
+          await this.repository.markSuppressed(delivery.id, delivery.leaseToken, "CUTOVER_BOUNDARY"); result = { ...result, suppressed: result.suppressed + 1 }; continue;
+        }
         const recheck = await this.repository.recheck(delivery.id, delivery.leaseToken);
         if (recheck.kind === "LOST_LEASE") { result = { ...result, lostLease: result.lostLease + 1 }; continue; }
         if (recheck.kind === "SUPPRESS") { await this.repository.markSuppressed(delivery.id, delivery.leaseToken, recheck.code); result = { ...result, suppressed: result.suppressed + 1 }; continue; }
