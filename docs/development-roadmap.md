@@ -15,11 +15,11 @@ This document is the primary living record of the project's development directio
 ## Current state
 
 - Canonical feature-development branch: `main`.
-- Current `main` at this update: `31486806ce342c3fc9afb07e02818f14a2104d57`.
-- Production release: `v1.0.0`.
+- Accepted Telegram 2D production source: `e59268fe471d22426359bec419a9a03a244d2909` (`sha-e59268fe471d`).
+- Immutable baseline release: `v1.0.0`.
 - `v1.0.0` annotated tag object: `82fdee34c7eaff7a07fabd47e38fd6a32bbcc6c8`.
 - `v1.0.0` peeled commit: `9bbd9b98c148b2ffed0078078d175d778c67f7ba`.
-- `v1.0.0` is immutable. Normal feature development continues from `main`.
+- `v1.0.0` and `v1.0.0-rc.4` remain immutable. Normal feature development continues from `main`.
 
 ## DONE — Post-release scheduled history soak
 
@@ -51,31 +51,39 @@ Account-owned notification preferences, revision protection, and preference-only
 
 Recipient planning and dispatch are complete behind independent default-off
 planning and dispatch gates. Recipient sends are authorization-rechecked,
-lease-safe, bounded, and at-least-once; legacy global delivery remains active
-and unchanged.
+lease-safe, bounded, and at-least-once. The production transition from legacy
+global delivery is recorded under Telegram 2D.
 
-## NOW — Telegram 2D — Production bot cutover / legacy transition
+## DONE — Telegram 2D — Production bot cutover / legacy transition
 
-Production preflight is DONE. Source/release wiring and cutover-safety
-foundation are DONE: production Compose/preflight supports deploy-dark startup,
-legacy and per-user dispatch are mutually exclusive, and a dispatch-not-before
-boundary makes historical shadow rows terminally unsendable. Dark deployment
-with all new gates OFF is NEXT; linking/adoption, shadow planning, and the
-controlled cutover follow later. Do not enable either per-user gate as part of
-ordinary development.
+**PER-USER TELEGRAM DELIVERY ACCEPTED IN PRODUCTION.** Production runs the
+accepted `e59268fe471d22426359bec419a9a03a244d2909` source/image with alert
+ingestion, secure product linking, recipient planning, and per-user dispatch
+enabled. Legacy global product delivery is disabled. The dedicated product bot
+is `fleet_signal_bot`, and the cutover boundary is
+`2026-08-29T19:39:17.339Z`.
 
-## LATER — Telegram 2D — Production bot/webhook cutover
+The intended initial account is connected at connection revision 1 with master
+and SPEEDING notifications enabled, INACTIVITY disabled, ALL vehicle scope, and
+preference revision 4. Three natural post-cutover SPEEDING deliveries were
+accepted as SENT on their first attempts, with no duplicates, failed/stale
+delivery, or post-cutover legacy outbox creation. Production remains healthy on
+17 migrations. Detailed operational evidence remains in the focused technical
+and Git history rather than this roadmap.
 
-Configure and verify the product bot and public webhook separately from application development.
+## NEXT — Design direction experiments
 
-## PARKED — Design direction experiments
-
-Redesign work is intentionally paused while feature development continues. The following published experiment branches are preserved for later comparison and reference:
+Telegram feature work has stabilized, so the next product-development stage is
+to resume comparison of the following preserved experiment branches:
 
 - `design/deepseek-frontend-rethink` — `92760a904343a65e93a4fceb5104912496633dbf`
 - `design/deepseek-soft-ui-rethink` — `7515c5c935b1b1297800c29a228d186b8f125df4`
 
-Neither experiment is merged into `main`, neither is accepted as the final direction, and no final design has been selected. Feature work should prioritize functional correctness rather than maintaining both experimental visual systems. After the important features stabilize, design work can resume and the selected direction should be adapted to the final feature set.
+Neither experiment is merged into `main`, neither is accepted as the final
+direction, and no final design has been selected. The next stage should select
+one direction, adapt it to the completed feature set, preserve API and business
+behavior, and complete authenticated desktop and mobile UI acceptance. It does
+not require maintaining both experimental visual systems.
 
 ## LATER — Final production hardening
 

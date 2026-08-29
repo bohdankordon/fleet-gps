@@ -222,6 +222,18 @@ Application logs go to stdout/stderr. Compose configures bounded json-file
 rotation (10m x 5). No ELK/Loki/Prometheus/Grafana (Stage 23). No arbitrary
 CPU/RAM limits are set: Stage 24 release-candidate/soak informs final sizing.
 
+## Production acceptance soak
+
+For an ordinary low-risk deployment, approximately 10 minutes of healthy
+acceptance observation is a practical default, not a universal minimum or
+maximum. Extend the soak when the change itself needs time-based evidence, such
+as migrations or data transformation, queue and retry semantics, a first
+external integration or cutover, an authentication or security boundary, a
+stateful operational change, or investigation of a defect whose behavior can
+only be established over time. Choose the observation period from the actual
+risk and acceptance evidence rather than applying one fixed duration to every
+deployment.
+
 ## Rollback runbook
 
 Failure BEFORE migration: keep or revert to the previous application release
