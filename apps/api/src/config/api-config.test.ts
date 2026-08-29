@@ -42,6 +42,7 @@ test("API config applies safe defaults, freezes config, and preserves the input 
   assert.deepEqual(config.positionHistoryMaintenance, { enabled: false, windowBudget: 5_000 });
   assert.deepEqual(config.positionHistoryRetention, { enabled: false });
   assert.deepEqual(config.telegramNotifications, { enabled: false, botToken: null, chatId: null, dispatchIntervalMs: 60_000, batchSize: 20 });
+  assert.deepEqual(config.telegramPerUserNotifications, { enabled: false });
   assert.deepEqual(env, before);
   assert.equal(Object.isFrozen(config), true);
   assert.equal(Object.isFrozen(config.syncScheduler), true);
@@ -49,6 +50,7 @@ test("API config applies safe defaults, freezes config, and preserves the input 
   assert.equal(Object.isFrozen(config.positionHistoryMaintenance), true);
   assert.equal(Object.isFrozen(config.positionHistoryRetention), true);
   assert.equal(Object.isFrozen(config.telegramNotifications), true);
+  assert.equal(Object.isFrozen(config.telegramPerUserNotifications!), true);
   assert.equal(Object.isFrozen(config.database), true);
   assert.equal(Object.isFrozen(config.equGps), true);
 });
@@ -58,6 +60,12 @@ test("Telegram product linking is opt-in, normalizes a bot username, and never r
   assert.deepEqual(disabled.telegramProductLinking, { enabled: false, botUsername: null, botToken: null, webhookSecret: null });
   const enabled = parseApiConfig({ ...valid(), TELEGRAM_PRODUCT_LINKING_ENABLED: "true", TELEGRAM_PRODUCT_BOT_USERNAME: " @TaxiGpsTestBot ", TELEGRAM_PRODUCT_BOT_TOKEN: " product-token ", TELEGRAM_PRODUCT_WEBHOOK_SECRET: " webhook-secret " });
   assert.deepEqual(enabled.telegramProductLinking, { enabled: true, botUsername: "TaxiGpsTestBot", botToken: "product-token", webhookSecret: "webhook-secret" });
+});
+
+test("per-user Telegram recipient planning is independently opt-in and needs no delivery credentials", () => {
+  assert.deepEqual(parseApiConfig(valid()).telegramPerUserNotifications, { enabled: false });
+  assert.deepEqual(parseApiConfig({ ...valid(), TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED: "true" }).telegramPerUserNotifications, { enabled: true });
+  assert.throws(() => parseApiConfig({ ...valid(), TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED: "TRUE" }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes("TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED"));
 });
 
 test("Telegram product linking enabled fails closed with field names only", () => {
@@ -360,6 +368,7 @@ test("complete production configuration passes without weakening safe feature de
   assert.equal(config.syncScheduler.enabled, false);
   assert.equal(config.alertIngestion.enabled, false);
   assert.equal(config.telegramNotifications.enabled, false);
+  assert.equal(config.telegramPerUserNotifications?.enabled, false);
   assert.equal(config.positionHistoryMaintenance.enabled, false);
   assert.equal(config.positionHistoryRetention?.enabled, false);
 });
@@ -394,7 +403,7 @@ test("production rejects malformed database URLs and obvious repository placehol
 });
 
 test("production strict booleans fail closed while missing dangerous flags stay disabled", () => {
-  for (const field of ["SYNC_SCHEDULER_ENABLED", "ALERT_INGESTION_ENABLED", "TELEGRAM_NOTIFICATIONS_ENABLED", "POSITION_HISTORY_MAINTENANCE_ENABLED", "POSITION_HISTORY_RETENTION_ENABLED"] as const) {
+  for (const field of ["SYNC_SCHEDULER_ENABLED", "ALERT_INGESTION_ENABLED", "TELEGRAM_NOTIFICATIONS_ENABLED", "TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED", "POSITION_HISTORY_MAINTENANCE_ENABLED", "POSITION_HISTORY_RETENTION_ENABLED"] as const) {
     assert.throws(() => parseApiConfig({ ...productionValid(), [field]: "TRUE" }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes(field));
   }
   const config = parseApiConfig(productionValid());

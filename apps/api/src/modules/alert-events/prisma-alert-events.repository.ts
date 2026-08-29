@@ -1,6 +1,7 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { AlertEventSpeedZone, AlertEventStatus, AlertEventType, AlertNotificationKind, Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database";
+import { type AlertNotificationRecipientPlanning, AlertNotificationRecipientPlanner } from "../alert-notifications/alert-notification-recipient-planner.service";
 import type { AlertEventRecord, AlertEventType as DomainAlertEventType, InactivityAlertEventRecord, OpenAlertEventCommand, SpeedingAlertEventRecord, UpdateAlertEventCommand } from "./alert-events.types";
 import { AlertEventPersistenceStateError, AlertEventUniqueConflictError, type AlertEventsRepository, type ConditionalAlertEventMutation, type RegisterAlertEventConfirmationInput, type RegisterAlertEventConfirmationResult } from "./alert-events.repository";
 
@@ -84,7 +85,7 @@ function confirmationAsUpdate(command: OpenAlertEventCommand): UpdateAlertEventC
 
 @Injectable()
 export class PrismaAlertEventsRepository implements AlertEventsRepository {
-  public constructor(private readonly database: DatabaseService) {}
+  public constructor(private readonly database: DatabaseService, @Inject(AlertNotificationRecipientPlanner) private readonly recipientPlanner: AlertNotificationRecipientPlanning = { plan: async (): Promise<void> => {} }) {}
 
   public async registerConfirmation(input: RegisterAlertEventConfirmationInput): Promise<RegisterAlertEventConfirmationResult> {
     const client = this.database.getClient();
@@ -131,6 +132,7 @@ export class PrismaAlertEventsRepository implements AlertEventsRepository {
     const created = await this.createOpenWithClient(transaction, input);
     await transaction.alertEventConfirmation.create({ data: { dedupeKey: input.dedupeKey, eventId: created.id, observedAt: input.command.observedAt } });
     await transaction.alertNotificationOutbox.create({ data: { alertEventId: created.id, kind: AlertNotificationKind.ALERT_CONFIRMED } });
+    await this.recipientPlanner.plan(transaction, created);
     return Object.freeze({ outcome: "CREATED", event: created });
   }
 

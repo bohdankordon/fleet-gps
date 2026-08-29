@@ -19,3 +19,36 @@ Each Taxi GPS account may save its own future-notification preferences independe
 Users with `vehicles.view` may choose ALL vehicles or SELECTED vehicles (at least one selection is required for SELECTED). Selections remain stored while ALL is active and survive operational vehicle disablement. They are a preference only: they grant no fleet, event, trip, report, history, or future-delivery authorization. Accounts without `vehicles.view` can still edit their master and event-type choices, but are shown no vehicle metadata and cannot edit vehicle scope or arbitrary IDs.
 
 Disconnect, relink, and ADMIN force-disconnect preserve preferences. Telegram 2B still sends no per-user alert: recipient eligibility, fan-out, durable delivery rows, dispatch, and retries are Telegram 2C work.
+
+## Recipient planning foundation (2C-1)
+
+`TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED` is a separate, default-off feature
+gate. It neither needs product-bot credentials nor changes the legacy global
+`AlertNotificationOutbox` / `TELEGRAM_CHAT_ID` delivery path. While enabled,
+each newly confirmed alert creates one logical `AlertNotification`
+(`alertEventId`, `ALERT_CONFIRMED`) in the same transaction as the alert,
+confirmation receipt, and legacy outbox record. The unique event/kind key and
+the delivery unique (`notificationId`, `userId`) make replay and concurrent
+planning idempotent. A notification with zero eligible recipients is valid.
+
+Each eligible user receives one `PENDING` `AlertNotificationDelivery`, with
+only delivery metadata and a snapshot of `TelegramConnection.connectionRevision`.
+No Telegram identifiers, formatted message content, or link tokens are copied
+into these rows. Creation-time eligibility requires a non-disabled account
+without a pending password change; ADMIN or both `events.view` and
+`vehicles.view`; a structurally complete CONNECTED private-chat connection;
+persisted enabled preferences; the matching SPEEDING/INACTIVITY toggle; and
+ALL scope or a matching SELECTED vehicle relation. The vehicle must also be
+currently not administratively disabled. Selected vehicles are preferences,
+never authorization, so they cannot overcome missing `vehicles.view`.
+
+2C-1 sends no alert and does not rewrite or delete pending rows when later
+preferences, permissions, account state, connection state, or vehicle scope
+change. In particular, a relink increases the connection revision but old
+deliveries retain their original revision. The future 2C-2 dispatcher must
+immediately re-check account state, both permissions, CONNECTED status and the
+same revision, preferences/type/scope, and vehicle operational eligibility;
+then suppress stale rows. Its planned retry policy is at most 12 attempts over
+24 hours with exponential backoff capped at 60 minutes. Production cutover
+must ensure legacy global delivery and per-user delivery do not send the same
+alert simultaneously; that cutover is not implemented here.

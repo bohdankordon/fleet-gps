@@ -49,7 +49,12 @@ Account-owned notification preferences, revision protection, and preference-only
 
 ## NOW — Telegram 2C — Recipient-aware delivery
 
-Add recipient eligibility, authorized per-user fan-out, durable delivery rows, dispatch, and retries over connected private chats.
+2C-1 recipient planning is DONE: enabled, authorized users receive durable,
+revision-snapshotted PENDING delivery intent for newly confirmed alerts behind
+the default-off `TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED` gate. The remaining
+2C dispatcher, suppression, and bounded retry work is still NOW; it must not
+send legacy and per-user alerts simultaneously during a later production
+cutover.
 
 ## LATER — Telegram 2D — Production bot/webhook cutover
 
