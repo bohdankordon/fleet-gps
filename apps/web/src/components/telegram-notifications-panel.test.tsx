@@ -19,3 +19,15 @@ test("Telegram link is transient, validated, safely opened, and survives a faile
   assert.match(source, /setState\(\{ status: "LINK_PENDING"/);
   assert.match(source, /AlertDialog open=\{confirmDisconnect\}/);
 });
+
+test("Telegram connection changes and preference controls stay local until explicit Save", () => {
+  const connect = source.slice(source.indexOf("async function connect"), source.indexOf("async function disconnect"));
+  const save = source.slice(source.indexOf("async function savePreferences"), source.indexOf("const expiry"));
+  assert.equal(source.includes("useEffect("), false);
+  assert.equal(connect.includes("/api/account/notifications/preferences"), false);
+  assert.equal(connect.includes("savePreferences"), false);
+  assert.equal((source.match(/fetch\("\/api\/account\/notifications\/preferences"/g) ?? []).length, 1);
+  assert.match(save, /method: "PATCH"/);
+  for (const control of ["enabled: event.currentTarget.checked", "speedingEnabled: event.currentTarget.checked", "inactivityEnabled: event.currentTarget.checked", 'vehicleScope: "ALL"', 'vehicleScope: "SELECTED"', "function selectVehicle"]) assert.ok(source.includes(control), control);
+  assert.match(source, /onClick=\{\(\) => void savePreferences\(\)\}/);
+});

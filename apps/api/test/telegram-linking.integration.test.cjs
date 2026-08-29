@@ -89,6 +89,25 @@ test("notification preferences are lazy, revisioned, atomic, and independent fro
   const client = await createTestPgClient(); try { const tables = await client.query("SELECT to_regclass('public.user_notification_preferences') AS prefs, to_regclass('public.user_notification_vehicles') AS selections, to_regclass('public.alert_notification_delivery') AS delivery"); assert.equal(tables.rows[0].prefs, "user_notification_preferences"); assert.equal(tables.rows[0].selections, "user_notification_vehicles"); assert.equal(tables.rows[0].delivery, null); } finally { await client.end(); }
 });
 
+test("linking and reads keep preferences virtual until explicit revisioned saves", async () => {
+  const account = await user("preference-independence"); const linking = service(prisma); const allowed = ["vehicles.view"];
+  const counts = async () => Object.freeze({ preferences: await prisma.userNotificationPreferences.count({ where: { userId: account.id } }), selections: await prisma.userNotificationVehicle.count({ where: { userId: account.id } }) });
+  const virtual = await linking.preferences(account.id, allowed);
+  assert.deepEqual([virtual.enabled, virtual.speedingEnabled, virtual.inactivityEnabled, virtual.vehicleScope, virtual.revision], [false, true, true, "ALL", 0]);
+  assert.deepEqual(await counts(), { preferences: 0, selections: 0 });
+  const issued = await tokenFor(account); assert.equal(await linking.consume(inbound(issued.raw)), "LINKED");
+  assert.deepEqual(await counts(), { preferences: 0, selections: 0 });
+  const afterLinkRead = await linking.preferences(account.id, allowed);
+  assert.deepEqual([afterLinkRead.enabled, afterLinkRead.speedingEnabled, afterLinkRead.inactivityEnabled, afterLinkRead.vehicleScope, afterLinkRead.revision], [false, true, true, "ALL", 0]);
+  assert.deepEqual(await counts(), { preferences: 0, selections: 0 });
+  const vehicle = await prisma.vehicle.create({ data: { externalDeviceId: 9_100_002, name: "Synthetic independence vehicle" } });
+  const first = await linking.updatePreferences(account.id, allowed, { expectedRevision: 0, enabled: true, speedingEnabled: true, inactivityEnabled: true, vehicleScope: "ALL", selectedVehicleIds: [] });
+  const second = await linking.updatePreferences(account.id, allowed, { expectedRevision: 1, enabled: false, speedingEnabled: true, inactivityEnabled: false, vehicleScope: "ALL", selectedVehicleIds: [] });
+  const third = await linking.updatePreferences(account.id, allowed, { expectedRevision: 2, enabled: true, speedingEnabled: true, inactivityEnabled: false, vehicleScope: "SELECTED", selectedVehicleIds: [vehicle.id] });
+  assert.deepEqual([first.revision, second.revision, third.revision], [1, 2, 3]);
+  assert.deepEqual(await counts(), { preferences: 1, selections: 1 });
+});
+
 test("persists only a SHA-256 token hash, revokes replacements, and leaves an existing connection active", async () => {
   const account = await user("token");
   const before = Date.now(); const first = await tokenFor(account); const after = Date.now();
