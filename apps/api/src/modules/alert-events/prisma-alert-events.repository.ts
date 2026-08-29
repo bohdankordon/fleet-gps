@@ -1,4 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
+import type { ApiConfig } from "../../config/api-config";
+import { API_CONFIG } from "../../config/api-config.tokens";
 import { AlertEventSpeedZone, AlertEventStatus, AlertEventType, AlertNotificationKind, Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database";
 import { type AlertNotificationRecipientPlanning, AlertNotificationRecipientPlanner } from "../alert-notifications/alert-notification-recipient-planner.service";
@@ -8,6 +10,8 @@ import { AlertEventPersistenceStateError, AlertEventUniqueConflictError, type Al
 const MAX_REGISTRATION_ATTEMPTS = 8;
 const MAX_OPTIMISTIC_ATTEMPTS = 8;
 const TRANSACTION_TIMEOUT_MS = 30_000;
+
+type LegacyOutboxCreationConfig = Readonly<{ telegramNotifications: Readonly<Pick<ApiConfig["telegramNotifications"], "enabled">> }>;
 
 const alertEventSelect = {
   id: true,
@@ -85,7 +89,11 @@ function confirmationAsUpdate(command: OpenAlertEventCommand): UpdateAlertEventC
 
 @Injectable()
 export class PrismaAlertEventsRepository implements AlertEventsRepository {
-  public constructor(private readonly database: DatabaseService, @Inject(AlertNotificationRecipientPlanner) private readonly recipientPlanner: AlertNotificationRecipientPlanning = { plan: async (): Promise<void> => {} }) {}
+  public constructor(
+    private readonly database: DatabaseService,
+    @Inject(API_CONFIG) private readonly config: LegacyOutboxCreationConfig,
+    @Inject(AlertNotificationRecipientPlanner) private readonly recipientPlanner: AlertNotificationRecipientPlanning = { plan: async (): Promise<void> => {} },
+  ) {}
 
   public async registerConfirmation(input: RegisterAlertEventConfirmationInput): Promise<RegisterAlertEventConfirmationResult> {
     const client = this.database.getClient();
@@ -131,7 +139,9 @@ export class PrismaAlertEventsRepository implements AlertEventsRepository {
 
     const created = await this.createOpenWithClient(transaction, input);
     await transaction.alertEventConfirmation.create({ data: { dedupeKey: input.dedupeKey, eventId: created.id, observedAt: input.command.observedAt } });
-    await transaction.alertNotificationOutbox.create({ data: { alertEventId: created.id, kind: AlertNotificationKind.ALERT_CONFIRMED } });
+    if (this.config.telegramNotifications.enabled) {
+      await transaction.alertNotificationOutbox.create({ data: { alertEventId: created.id, kind: AlertNotificationKind.ALERT_CONFIRMED } });
+    }
     await this.recipientPlanner.plan(transaction, created);
     return Object.freeze({ outcome: "CREATED", event: created });
   }

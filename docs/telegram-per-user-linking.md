@@ -26,8 +26,13 @@ Disconnect, relink, and ADMIN force-disconnect preserve preferences. Telegram 2B
 gate. It neither needs product-bot credentials nor changes the legacy global
 `AlertNotificationOutbox` / `TELEGRAM_CHAT_ID` delivery path. While enabled,
 each newly confirmed alert creates one logical `AlertNotification`
-(`alertEventId`, `ALERT_CONFIRMED`) in the same transaction as the alert,
-confirmation receipt, and legacy outbox record. The unique event/kind key and
+(`alertEventId`, `ALERT_CONFIRMED`) in the same transaction as the alert and
+confirmation receipt. The legacy outbox intent is created in that transaction
+only when `TELEGRAM_NOTIFICATIONS_ENABLED=true`; with it false, no new legacy
+intent is created and later re-enabling legacy affects only future
+confirmations. Existing legacy rows are neither deleted nor rewritten, and the
+legacy dispatcher remains independently disabled while that gate is false. The
+per-user planning gate remains separate. The unique event/kind key and
 the delivery unique (`notificationId`, `userId`) make replay and concurrent
 planning idempotent. A notification with zero eligible recipients is valid.
 
@@ -131,9 +136,10 @@ restart one controlled deployment with legacy off, planning/dispatch on, and
 `TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE=T`; then resume ingestion. Shadow rows
 before `T` are suppressed and only post-`T` rows may send.
 
-Legacy outbox creation remains unchanged, including after a future cutover;
-those rows are not an automatic legacy fallback. Before any per-user transport
-send, a legacy-only rollback may be possible only after explicit
+After a future cutover, legacy outbox creation is disabled for new
+confirmations; existing legacy rows are not automatically deleted or
+rewritten. Those rows are not an automatic legacy fallback. Before any
+per-user transport send, a legacy-only rollback may be possible only after explicit
 reconciliation. After a per-user transport may have succeeded, never
 automatically re-enable legacy delivery: the existing at-least-once ambiguity
 still applies.

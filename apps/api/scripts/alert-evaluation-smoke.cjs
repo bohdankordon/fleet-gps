@@ -59,7 +59,7 @@ async function main() {
         const cityGeofence = new CityGeofenceService(alertSettings);
         const speedingDetector = new SpeedingDetectorService(alertSettings, cityGeofence, new SpeedingDetectorStateMachine());
         const inactivityDetector = new InactivityDetectorService(alertSettings, new InactivityDetectorStateMachine());
-        const repository = new PrismaAlertEventsRepository(database);
+        const repository = new PrismaAlertEventsRepository(database, { telegramNotifications: { enabled: true } });
         const lifecycle = new AlertEventsLifecycleService(repository);
         const processor = new AlertEventProcessorService(lifecycle);
         const evaluation = new AlertEvaluationService(speedingDetector, inactivityDetector, processor);

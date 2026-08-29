@@ -11,11 +11,14 @@ const { AlertNotificationMessageFormatter } = require("../dist/modules/alert-not
 let prisma;
 let externalDeviceId = 9_300_000;
 let telegramIdentity = 5_000_000_000n;
-const enabledConfig = Object.freeze({ telegramPerUserNotifications: Object.freeze({ enabled: true }) });
-const disabledConfig = Object.freeze({ telegramPerUserNotifications: Object.freeze({ enabled: false }) });
+function config({ legacy = true, planning = true } = {}) {
+  return Object.freeze({ telegramNotifications: Object.freeze({ enabled: legacy }), telegramPerUserNotifications: Object.freeze({ enabled: planning }) });
+}
+const enabledConfig = config();
+const disabledConfig = config({ planning: false });
 
 function planner(config = enabledConfig) { return new AlertNotificationRecipientPlanner(config); }
-function repository(client, config = enabledConfig) { return new PrismaAlertEventsRepository({ getClient: () => client }, planner(config)); }
+function repository(client, runtimeConfig = enabledConfig) { return new PrismaAlertEventsRepository({ getClient: () => client }, runtimeConfig, planner(runtimeConfig)); }
 function recipientDispatcher(transport, config) { return new RecipientDeliveryDispatcherService(new RecipientDeliveryRepository({ getClient: () => prisma }), new AlertNotificationMessageFormatter(), transport, config); }
 function command(vehicleId, type = "SPEEDING") {
   return type === "SPEEDING"
@@ -57,6 +60,44 @@ test("feature gate defaults off while legacy confirmed-alert outbox remains unch
   assert.equal(await prisma.alertNotification.count(), 0);
   assert.equal(await prisma.alertNotificationDelivery.count(), 0);
   assert.equal(await prisma.alertNotificationOutbox.count({ where: { alertEventId: eventId, kind: "ALERT_CONFIRMED" } }), 1);
+});
+
+test("legacy outbox creation and recipient planning remain independent across the four runtime modes", async () => {
+  const modes = [
+    { legacy: true, planning: false, outbox: 1, notification: 0, delivery: 0 },
+    { legacy: true, planning: true, outbox: 1, notification: 1, delivery: 1 },
+    { legacy: false, planning: true, outbox: 0, notification: 1, delivery: 1 },
+    { legacy: false, planning: false, outbox: 0, notification: 0, delivery: 0 },
+  ];
+  for (const mode of modes) {
+    await reset();
+    const fleetVehicle = await vehicle();
+    await user(`matrix-${mode.legacy}-${mode.planning}`, { role: "ADMIN" });
+    const eventId = await confirm(fleetVehicle.id, "SPEEDING", prisma, config(mode));
+    assert.equal(await prisma.alertEvent.count({ where: { id: eventId } }), 1);
+    assert.equal(await prisma.alertNotificationOutbox.count({ where: { alertEventId: eventId, kind: "ALERT_CONFIRMED" } }), mode.outbox);
+    assert.equal(await prisma.alertNotification.count({ where: { alertEventId: eventId, kind: "ALERT_CONFIRMED" } }), mode.notification);
+    assert.equal((await deliveries(eventId)).length, mode.delivery);
+  }
+});
+
+test("legacy re-enable affects only future confirmations and never backfills a disabled-period event", async () => {
+  const fleetVehicle = await vehicle();
+  const firstEventId = await confirm(fleetVehicle.id, "SPEEDING", prisma, config({ legacy: false, planning: false }));
+  const secondVehicle = await vehicle();
+  const secondEventId = await confirm(secondVehicle.id, "SPEEDING", prisma, config({ legacy: true, planning: false }));
+  assert.equal(await prisma.alertNotificationOutbox.count({ where: { alertEventId: firstEventId, kind: "ALERT_CONFIRMED" } }), 0);
+  assert.equal(await prisma.alertNotificationOutbox.count({ where: { alertEventId: secondEventId, kind: "ALERT_CONFIRMED" } }), 1);
+});
+
+test("legacy-disabled planning still records a zero-recipient INACTIVITY notification", async () => {
+  const fleetVehicle = await vehicle();
+  await user("inactivity-disabled", { role: "ADMIN", inactivityEnabled: false });
+  const eventId = await confirm(fleetVehicle.id, "INACTIVITY", prisma, config({ legacy: false, planning: true }));
+  assert.equal(await prisma.alertEvent.count({ where: { id: eventId } }), 1);
+  assert.equal(await prisma.alertNotificationOutbox.count({ where: { alertEventId: eventId, kind: "ALERT_CONFIRMED" } }), 0);
+  assert.equal(await prisma.alertNotification.count({ where: { alertEventId: eventId, kind: "ALERT_CONFIRMED" } }), 1);
+  assert.equal((await deliveries(eventId)).length, 0);
 });
 
 test("shadow-planned delivery remains unsent under legacy mode and is terminally suppressed by a later cutover boundary", async () => {

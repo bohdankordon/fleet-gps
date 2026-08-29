@@ -44,7 +44,7 @@ async function main() {
     try {
       await prisma.$transaction(async (transaction) => {
         await transaction.vehicle.create({ data: { id: vehicleId, externalDeviceId: randomInt(1_500_000_000, 2_000_000_000), name: "alert-event-processing-smoke", disabled: true } });
-        const repository = new PrismaAlertEventsRepository({ getClient: () => transaction });
+        const repository = new PrismaAlertEventsRepository({ getClient: () => transaction }, { telegramNotifications: { enabled: true } });
         const lifecycle = new AlertEventsLifecycleService(repository);
         const processor = new AlertEventProcessorService(lifecycle);
 

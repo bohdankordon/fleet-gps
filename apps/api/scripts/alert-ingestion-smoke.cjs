@@ -47,7 +47,7 @@ async function main() {
         const speedingDetector = new SpeedingDetectorService(alertSettings, new CityGeofenceService(alertSettings), new SpeedingDetectorStateMachine());
         const inactivityDetector = new InactivityDetectorService(alertSettings, new InactivityDetectorStateMachine());
         assert.equal(settings.speedingConfirmationUpdates, 2, "smoke requires two-update speeding confirmation");
-        const events = new PrismaAlertEventsRepository(database);
+        const events = new PrismaAlertEventsRepository(database, { telegramNotifications: { enabled: true } });
         const productionProcessor = new AlertEventProcessorService(new AlertEventsLifecycleService(events));
         let injectedEventFailure = true; const processingOrder = [];
         const faultingProcessor = {
