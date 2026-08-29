@@ -66,6 +66,7 @@ test("account linking routes derive identity from the authenticated session and 
   const user = principal(AuthRole.USER, "00000000-0000-4000-8000-000000000001"); const admin = principal(AuthRole.ADMIN, "00000000-0000-4000-8000-000000000002"); const mustChange = principal(AuthRole.USER, "00000000-0000-4000-8000-000000000003", true);
   const app = await appWith({
     status: async (userId: string) => { calls.push(`status:${userId}`); return { status: "CONNECTED", pendingExpiresAt: null }; },
+    preferences: async (userId: string) => { calls.push(`preferences:${userId}`); return { enabled: false, speedingEnabled: true, inactivityEnabled: true, vehicleScope: "ALL", selectedVehicleIds: [], revision: 0, canSelectVehicles: false, vehicles: [] }; },
     createLink: async (userId: string) => { calls.push(`link:${userId}`); if (userId === "rate-id") throw new TelegramLinkingError("RATE_LIMITED"); return { status: "LINK_PENDING", expiresAt: "2026-08-29T00:10:00.000Z", telegramUrl: "https://t.me/TaxiGpsTestBot?start=abc_DEF-123" }; },
     disconnect: async (_actor: unknown, _userId: string, targetId?: string) => { calls.push(`disconnect:${targetId ?? _userId}`); return { status: "NOT_CONNECTED", pendingExpiresAt: null }; },
   }, { [token("u")]: user, [token("a")]: admin, [token("m")]: mustChange, [token("r")]: principal(AuthRole.USER, "rate-id") });
@@ -75,7 +76,7 @@ test("account linking routes derive identity from the authenticated session and 
     assert.equal((await request("/api/account/notifications", "GET", token("m"))).status, 403);
     const status = await request("/api/account/notifications?userId=other", "GET", token("u"));
     assert.equal(status.status, 200); const statusBody = await status.json() as Record<string, unknown>;
-    assert.deepEqual(statusBody, { status: "CONNECTED", pendingExpiresAt: null });
+    assert.deepEqual(statusBody, { status: "CONNECTED", pendingExpiresAt: null, preferences: { enabled: false, speedingEnabled: true, inactivityEnabled: true, vehicleScope: "ALL", selectedVehicleIds: [], revision: 0, canSelectVehicles: false, vehicles: [] } });
     for (const forbidden of ["telegramUserId", "telegramChatId", "tokenHash", "secret"]) assert.equal(JSON.stringify(statusBody).includes(forbidden), false);
     const link = await request("/api/account/notifications/telegram/link", "POST", token("u"));
     const linkText = await link.text(); if (link.status !== 201) assert.fail(linkText); const linkBody = JSON.parse(linkText) as Record<string, string>;
@@ -84,7 +85,7 @@ test("account linking routes derive identity from the authenticated session and 
     assert.equal((await request("/api/account/notifications/telegram/link", "POST", token("r"))).status, 429);
     const disconnect = await request("/api/account/notifications/telegram/disconnect", "POST", token("u")); if (disconnect.status !== 201) assert.fail(await disconnect.text());
     assert.equal((await request("/api/account/notifications/telegram/disconnect", "POST", token("m"))).status, 403);
-    assert.deepEqual(calls, [`status:${user.id}`, `link:${user.id}`, "link:rate-id", `disconnect:${user.id}`]);
+    assert.deepEqual(calls, [`status:${user.id}`, `preferences:${user.id}`, `link:${user.id}`, "link:rate-id", `disconnect:${user.id}`]);
     assert.equal((await request(`/api/admin/users/${user.id}/telegram/disconnect`, "POST", token("u"))).status, 403);
     assert.equal((await request(`/api/admin/users/${user.id}/telegram/disconnect`, "POST", token("a"), JSON.stringify({ unwanted: true }))).status, 400);
     assert.equal((await request(`/api/admin/users/${user.id}/telegram/disconnect`, "POST", token("a"), "{}")).status, 201);

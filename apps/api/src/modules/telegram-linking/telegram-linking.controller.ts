@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpException, Param, Post, Req } from "@nestjs/common";
+import { Body, Controller, Get, Headers, HttpCode, HttpException, Param, Patch, Post, Req } from "@nestjs/common";
 import { AdminOnly, AuthenticatedOnly, Public } from "../auth/auth.decorators";
 import type { AuthenticatedRequest } from "../auth/auth.types";
 import { buildUserActor } from "../audit";
-import { TelegramLinkingError, TelegramLinkingService, type TelegramInbound } from "./telegram-linking.service";
+import { NotificationPreferencesError, TelegramLinkingError, TelegramLinkingService, type TelegramInbound } from "./telegram-linking.service";
 
 function error(error: unknown): never {
+  if (error instanceof NotificationPreferencesError) { const status = error.code === "CONFLICT" ? 409 : error.code === "FORBIDDEN" ? 403 : 400; throw new HttpException({ statusCode: status, error: error.code }, status); }
   if (!(error instanceof TelegramLinkingError)) throw error;
   const status = error.code === "RATE_LIMITED" ? 429 : error.code === "DISABLED" ? 409 : 403;
   throw new HttpException({ statusCode: status, error: error.code }, status);
@@ -22,7 +23,8 @@ function inbound(value: unknown): TelegramInbound | null {
 @Controller("account/notifications") @AuthenticatedOnly()
 export class AccountNotificationsController {
   public constructor(private readonly telegram: TelegramLinkingService) {}
-  @Get() public status(@Req() request: AuthenticatedRequest) { return this.telegram.status(request.auth!.id); }
+  @Get() public async status(@Req() request: AuthenticatedRequest) { const [connection, preferences] = await Promise.all([this.telegram.status(request.auth!.id), this.telegram.preferences(request.auth!.id, request.auth!.permissions)]); return Object.freeze({ ...connection, preferences }); }
+  @Patch("preferences") public async preferences(@Req() request: AuthenticatedRequest, @Body() body: unknown) { try { return await this.telegram.updatePreferences(request.auth!.id, request.auth!.permissions, body); } catch (cause) { return error(cause); } }
   @Post("telegram/link") public async link(@Req() request: AuthenticatedRequest) { try { return await this.telegram.createLink(request.auth!.id); } catch (cause) { return error(cause); } }
   @Post("telegram/disconnect") public async disconnect(@Req() request: AuthenticatedRequest) { try { return await this.telegram.disconnect(buildUserActor(request.auth!.id, request.auth!.login), request.auth!.id); } catch (cause) { return error(cause); } }
 }

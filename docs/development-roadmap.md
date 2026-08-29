@@ -43,13 +43,13 @@ Trip and stop analytics now use typed, revision-protected global ADMIN policy se
 
 Private-chat-only, self-service per-user Telegram linking is complete, including secure one-time links, transactional connection lifecycle, account recovery/disconnect UI, and ADMIN security disconnect. It does not deliver product alerts or notification preferences.
 
-## NOW — Telegram 2B — User preferences & vehicle scope
+## DONE — Telegram 2B — User preferences & vehicle scope
 
-Add notification preferences and preference-only vehicle selection without changing authorization.
+Account-owned notification preferences, revision protection, and preference-only vehicle scope are complete. This stage does not implement alert sending or authorization changes.
 
-## NEXT — Telegram 2C — Recipient-aware delivery
+## NOW — Telegram 2C — Recipient-aware delivery
 
-Add authorized per-user delivery over connected private chats.
+Add recipient eligibility, authorized per-user fan-out, durable delivery rows, dispatch, and retries over connected private chats.
 
 ## LATER — Telegram 2D — Production bot/webhook cutover
 

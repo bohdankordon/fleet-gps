@@ -17,6 +17,15 @@ test("account linking BFF forwards only the session cookie to its fixed internal
   } finally { /* no process state */ }
 });
 
+test("account preferences PATCH forwards only its JSON body and session cookie", async () => {
+  const body = JSON.stringify({ expectedRevision: 4, enabled: true, speedingEnabled: false, inactivityEnabled: true, vehicleScope: "ALL", selectedVehicleIds: [] });
+  const source = new Request("http://web.test/api/account/notifications/preferences", { method: "PATCH", headers: { cookie: "taxi_session=session-token", origin: "http://web.test", "content-type": "application/json", authorization: "Bearer no" }, body });
+  let call: { url: string; init?: RequestInit } | undefined;
+  const response = await forwardTelegramAccountToUpstream(source, "/api/account/notifications/preferences", "http://api.test", async (url, init) => { call = { url: String(url), init }; return Response.json({ revision: 5 }); });
+  assert.equal(response.status, 200); assert.equal(call?.url, "http://api.test/api/account/notifications/preferences");
+  const headers = new Headers(call?.init?.headers); assert.equal(headers.get("cookie"), "taxi_session=session-token"); assert.equal(headers.get("content-type"), "application/json"); assert.equal(headers.get("authorization"), null); assert.equal(call?.init?.body, body);
+});
+
 test("account linking BFF preserves authorization outcomes but masks internal failure bodies", async () => {
   try {
     assert.equal((await forwardTelegramAccountToUpstream(request("GET"), "/api/account/notifications", "http://api.test", async () => Response.json({ error: "Unauthorized" }, { status: 401 }))).status, 401);

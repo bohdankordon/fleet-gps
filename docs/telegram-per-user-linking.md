@@ -11,3 +11,11 @@ Product linking configuration is separate from legacy delivery: `TELEGRAM_PRODUC
 The link-creation guard is deliberately process-local: five requests per Taxi GPS user in ten minutes. This is safe under the current single-API-replica deployment assumption and must be replaced with shared limiting before horizontal API scaling.
 
 Future Telegram delivery must apply existing Taxi GPS authorization: alert/event content requires `events.view`; vehicle-scoped content must additionally respect `vehicles.view` (and `trips.view` or `reports.view` for those product surfaces). Vehicle selection in 2B is a notification preference, never an ACL.
+
+## Per-user notification preferences (2B)
+
+Each Taxi GPS account may save its own future-notification preferences independently of its Telegram connection. The implicit default is master notifications **off**, with SPEEDING and INACTIVITY enabled and vehicle scope **ALL**. The first successful save creates a durable, revisioned row; subsequent changes require the current revision and reject stale writes rather than silently overwriting another change.
+
+Users with `vehicles.view` may choose ALL vehicles or SELECTED vehicles (at least one selection is required for SELECTED). Selections remain stored while ALL is active and survive operational vehicle disablement. They are a preference only: they grant no fleet, event, trip, report, history, or future-delivery authorization. Accounts without `vehicles.view` can still edit their master and event-type choices, but are shown no vehicle metadata and cannot edit vehicle scope or arbitrary IDs.
+
+Disconnect, relink, and ADMIN force-disconnect preserve preferences. Telegram 2B still sends no per-user alert: recipient eligibility, fan-out, durable delivery rows, dispatch, and retries are Telegram 2C work.

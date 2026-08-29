@@ -8,8 +8,10 @@ function sessionCookie(request: Request): string | null {
 export async function forwardTelegramAccountToUpstream(request: Request, path: string, apiInternalBaseUrl: string, fetcher: typeof fetch = fetch): Promise<Response> {
   if (request.method !== "GET") { const rejected = rejectCrossOriginWrite(request); if (rejected) return rejected; }
   const headers = new Headers({ Accept: "application/json" }); const token = sessionCookie(request); if (token) headers.set("Cookie", token);
+  const body = request.method === "GET" ? undefined : await request.text();
+  if (body !== undefined) headers.set("Content-Type", "application/json");
   try {
-    const upstream = await fetcher(`${apiInternalBaseUrl}${path}`, { method: request.method, headers, cache: "no-store" });
+    const upstream = await fetcher(`${apiInternalBaseUrl}${path}`, { method: request.method, headers, body, cache: "no-store" });
     const responseHeaders = { "Content-Type": "application/json", "Cache-Control": "no-store" };
     if (upstream.status >= 500) return Response.json({ statusCode: upstream.status, error: "Internal Server Error" }, { status: upstream.status, headers: responseHeaders });
     return new Response(await upstream.text(), { status: upstream.status, headers: responseHeaders });

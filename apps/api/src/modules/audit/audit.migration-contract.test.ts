@@ -21,11 +21,11 @@ const existingMigrationDirectories = [
   "20260813120000_add_position_history_population_runs",
 ];
 
-test("audit foundation migration remains intact and additive settings migration is present", () => {
+test("audit foundation migration remains intact and later additive migrations are present", () => {
   const directories = readdirSync(migrationsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
-  assert.deepEqual(directories.sort(), [...existingMigrationDirectories, "20260813185936_add_audit_trail_foundation", "20260827000000_global_business_settings", "20260827010000_add_trip_stop_policy_settings", "20260828010000_add_telegram_user_linking"].sort());
+  assert.deepEqual(directories.sort(), [...existingMigrationDirectories, "20260813185936_add_audit_trail_foundation", "20260827000000_global_business_settings", "20260827010000_add_trip_stop_policy_settings", "20260828010000_add_telegram_user_linking", "20260829000000_add_user_notification_preferences"].sort());
 
   for (const directory of existingMigrationDirectories) {
     const files = readdirSync(`${migrationsRoot}/${directory}`);

@@ -104,6 +104,11 @@ enum TelegramConnectionStatus {
   DISCONNECTED
 }
 
+enum NotificationVehicleScope {
+  ALL
+  SELECTED
+}
+
 enum AuditActorType {
   USER
   SYSTEM
@@ -136,8 +141,36 @@ model AuthUser {
   auditEvents                   AuditEvent[]                  @relation("AuditEventActor")
   telegramConnection            TelegramConnection?
   telegramLinkTokens            TelegramLinkToken[]
+  notificationPreferences       UserNotificationPreferences?
 
   @@map("auth_users")
+}
+
+model UserNotificationPreferences {
+  userId            String                   @id @map("user_id") @db.Uuid
+  enabled           Boolean                  @default(false) @map("enabled")
+  speedingEnabled   Boolean                  @default(true) @map("speeding_enabled")
+  inactivityEnabled Boolean                  @default(true) @map("inactivity_enabled")
+  vehicleScope      NotificationVehicleScope @default(ALL) @map("vehicle_scope")
+  revision          Int                      @default(1) @map("revision")
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user              AuthUser                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicles          UserNotificationVehicle[]
+
+  @@map("user_notification_preferences")
+}
+
+model UserNotificationVehicle {
+  userId    String                      @map("user_id") @db.Uuid
+  vehicleId String                      @map("vehicle_id") @db.Uuid
+  createdAt DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  preference UserNotificationPreferences @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  vehicle   Vehicle                     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, vehicleId])
+  @@index([vehicleId], map: "user_notification_vehicles_vehicle_idx")
+  @@map("user_notification_vehicles")
 }
 
 model TelegramConnection {
@@ -254,6 +287,7 @@ model Vehicle {
   positionBackfillCheckpoints VehiclePositionBackfillCheckpoint[]
   alertEvents                 AlertEvent[]
   alertEvaluationObservations AlertEvaluationObservation[]
+  notificationSelections      UserNotificationVehicle[]
 
   @@map("vehicles")
 }

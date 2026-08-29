@@ -57,7 +57,36 @@ test("migrated Telegram schema has the intended real PostgreSQL contract and no 
     const legacy = await client.query("SELECT to_regclass('public.application_settings') AS settings, to_regclass('public.alert_notification_outbox') AS outbox, to_regclass('public.telegram_notification_preferences') AS preferences");
     assert.equal(legacy.rows[0].settings, "application_settings"); assert.equal(legacy.rows[0].outbox, "alert_notification_outbox"); assert.equal(legacy.rows[0].preferences, null);
     assert.equal((await client.query("SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='telegram_webhook_receipts' AND column_name ILIKE '%payload%'")).rowCount, 0);
+    const preferenceColumns = await client.query("SELECT table_name, column_name, udt_name, column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ANY($1::text[])", [["user_notification_preferences", "user_notification_vehicles"]]);
+    const preferenceColumn = (table, name) => preferenceColumns.rows.find((row) => row.table_name === table && row.column_name === name);
+    assert.equal(preferenceColumn("user_notification_preferences", "vehicle_scope").udt_name, "NotificationVehicleScope");
+    assert.match(preferenceColumn("user_notification_preferences", "enabled").column_default, /false/);
+    assert.match(preferenceColumn("user_notification_preferences", "speeding_enabled").column_default, /true/);
+    assert.match(preferenceColumn("user_notification_preferences", "inactivity_enabled").column_default, /true/);
+    assert.match(preferenceColumn("user_notification_preferences", "revision").column_default, /1/);
+    const preferenceConstraints = await client.query("SELECT conname, contype, pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid = ANY($1::regclass[])", [["user_notification_preferences", "user_notification_vehicles"]]);
+    for (const name of ["user_notification_preferences_pkey", "user_notification_preferences_user_fkey", "user_notification_vehicles_pkey", "user_notification_vehicles_user_fkey", "user_notification_vehicles_preference_fkey", "user_notification_vehicles_vehicle_fkey"]) assert.ok(preferenceConstraints.rows.some((row) => row.conname === name), name);
+    for (const row of preferenceConstraints.rows.filter((row) => row.contype === "f")) assert.match(row.definition, /ON DELETE CASCADE/);
+    const preferenceIndexes = await client.query("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'user_notification_vehicles'");
+    assert.ok(preferenceIndexes.rows.some((row) => row.indexname === "user_notification_vehicles_vehicle_idx"));
+    const enumValues = await client.query("SELECT enumlabel FROM pg_enum WHERE enumtypid = 'public.\"NotificationVehicleScope\"'::regtype ORDER BY enumsortorder");
+    assert.deepEqual(enumValues.rows.map((row) => row.enumlabel), ["ALL", "SELECTED"]);
   } finally { await client.end(); }
+});
+
+test("notification preferences are lazy, revisioned, atomic, and independent from Telegram connection lifecycle", async () => {
+  const account = await user("preferences"); const linking = service(prisma); const allowed = ["vehicles.view"];
+  const initial = await linking.preferences(account.id, allowed);
+  assert.deepEqual({ enabled: initial.enabled, speedingEnabled: initial.speedingEnabled, inactivityEnabled: initial.inactivityEnabled, vehicleScope: initial.vehicleScope, revision: initial.revision }, { enabled: false, speedingEnabled: true, inactivityEnabled: true, vehicleScope: "ALL", revision: 0 });
+  const vehicle = await prisma.vehicle.create({ data: { externalDeviceId: 9_100_001, name: "Synthetic preference vehicle" } });
+  const saved = await linking.updatePreferences(account.id, allowed, { expectedRevision: 0, enabled: true, speedingEnabled: false, inactivityEnabled: true, vehicleScope: "SELECTED", selectedVehicleIds: [vehicle.id] });
+  assert.deepEqual([saved.revision, saved.vehicleScope, saved.selectedVehicleIds], [1, "SELECTED", [vehicle.id]]);
+  await assert.rejects(() => linking.updatePreferences(account.id, allowed, { expectedRevision: 0, enabled: false, speedingEnabled: true, inactivityEnabled: true, vehicleScope: "ALL", selectedVehicleIds: [] }), /CONFLICT/);
+  await assert.rejects(() => linking.updatePreferences(account.id, allowed, { expectedRevision: 1, enabled: true, speedingEnabled: true, inactivityEnabled: true, vehicleScope: "SELECTED", selectedVehicleIds: [] }), /INVALID_INPUT/);
+  const withoutVehicles = await linking.preferences(account.id, []); assert.deepEqual([withoutVehicles.canSelectVehicles, withoutVehicles.selectedVehicleIds, withoutVehicles.vehicles], [false, [], []]);
+  const issued = await tokenFor(account); await linking.consume(inbound(issued.raw)); await linking.disconnect(actor(account), account.id);
+  const afterDisconnect = await linking.preferences(account.id, allowed); assert.deepEqual([afterDisconnect.enabled, afterDisconnect.vehicleScope, afterDisconnect.selectedVehicleIds], [true, "SELECTED", [vehicle.id]]);
+  const client = await createTestPgClient(); try { const tables = await client.query("SELECT to_regclass('public.user_notification_preferences') AS prefs, to_regclass('public.user_notification_vehicles') AS selections, to_regclass('public.alert_notification_delivery') AS delivery"); assert.equal(tables.rows[0].prefs, "user_notification_preferences"); assert.equal(tables.rows[0].selections, "user_notification_vehicles"); assert.equal(tables.rows[0].delivery, null); } finally { await client.end(); }
 });
 
 test("persists only a SHA-256 token hash, revokes replacements, and leaves an existing connection active", async () => {
