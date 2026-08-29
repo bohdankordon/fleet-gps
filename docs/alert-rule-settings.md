@@ -1,5 +1,9 @@
 # Alert rule settings (Stage 6A.1)
 
+> Historical stage reference. The current authoritative settings ownership and
+> edit surface are recorded in [`docs/magic-numbers-final-reconciliation.md`](./magic-numbers-final-reconciliation.md).
+> Statements below describe the stage when this document was written.
+
 `ApplicationSettings` remains the PostgreSQL singleton (`id = 1`) for application-wide rules. The defaults are persisted in the database: city limit 50 km/h, outside-city limit 90 km/h, tolerance 10 km/h, two speeding confirmations, inactivity distance 300 m, and inactivity duration 60 minutes. Operational `.env` is not a source of business rules.
 
 The effective speeding thresholds are computed at read time, never stored separately: city `citySpeedLimitKph + speedToleranceKph` and outside-city `outsideCitySpeedLimitKph + speedToleranceKph`. With defaults they are 60 and 100 km/h.

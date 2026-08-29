@@ -71,6 +71,15 @@ delivery, or post-cutover legacy outbox creation. Production remains healthy on
 17 migrations. Detailed operational evidence remains in the focused technical
 and Git history rather than this roadmap.
 
+## NOW — Close final configurability consistency remediation
+
+The final reconciliation found no missing global or per-user business settings,
+but a small bounded set of consistency/documentation items must close before
+design work resumes: the Web timezone fallback, duplicated vehicle-track gap
+semantics, the current geofence API/UI contract, and history-policy contract
+duplication. Track the decisions and implementation scope in
+[`docs/magic-numbers-final-reconciliation.md`](./magic-numbers-final-reconciliation.md).
+
 ## NEXT — Design direction experiments
 
 The old DeepSeek design experiment branches were intentionally retired without
