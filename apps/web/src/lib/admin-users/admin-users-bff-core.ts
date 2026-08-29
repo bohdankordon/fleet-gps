@@ -2,7 +2,7 @@ import { AUTH_COOKIE_NAME } from "../auth/auth-contract";
 import { rejectCrossOriginWrite } from "../auth/same-origin";
 import { boundedBodyStatus, readBoundedJson } from "../http/bounded-body";
 
-export type AdminUsersPath = "/api/admin/users" | `/api/admin/users/${string}`;
+export type AdminUsersPath = "/api/admin/users" | `/api/admin/users/${string}` | `/api/admin/users/${string}/telegram/disconnect`;
 
 function authCookie(request: Request): string | null {
   return request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${AUTH_COOKIE_NAME}=`))?.slice(AUTH_COOKIE_NAME.length + 1) ?? null;

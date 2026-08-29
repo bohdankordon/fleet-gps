@@ -25,8 +25,9 @@ import { PositionHistoryHorizonExecutionModule } from "./modules/position-histor
 import { PositionHistoryMaintenanceModule, PositionHistoryPopulationRunModule } from "./modules/position-history-population-runs";
 import { PositionHistoryRetentionModule } from "./modules/position-history-retention";
 import { AdminSettingsModule } from "./modules/admin-settings/admin-settings.module";
+import { TelegramLinkingModule } from "./modules/telegram-linking";
 
 @Module({
-  imports: [ApiConfigModule, AuthModule, AdminSettingsModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, FleetMapModule, VehicleDetailsModule, VehicleTrackModule, TripStopAnalyticsModule, FleetActivityReportModule, PositionHistoryStatusModule, PositionHistoryHorizonExecutionModule, PositionHistoryPopulationRunModule, PositionHistoryMaintenanceModule, PositionHistoryRetentionModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule, AlertEventsModule, AlertEvaluationModule, AlertNotificationsModule, AlertNotificationSchedulerModule],
+  imports: [ApiConfigModule, AuthModule, AdminSettingsModule, TelegramLinkingModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, FleetMapModule, VehicleDetailsModule, VehicleTrackModule, TripStopAnalyticsModule, FleetActivityReportModule, PositionHistoryStatusModule, PositionHistoryHorizonExecutionModule, PositionHistoryPopulationRunModule, PositionHistoryMaintenanceModule, PositionHistoryRetentionModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule, AlertEventsModule, AlertEvaluationModule, AlertNotificationsModule, AlertNotificationSchedulerModule],
 })
 export class AppModule {}

@@ -53,6 +53,21 @@ test("API config applies safe defaults, freezes config, and preserves the input 
   assert.equal(Object.isFrozen(config.equGps), true);
 });
 
+test("Telegram product linking is opt-in, normalizes a bot username, and never requires linking secrets while disabled", () => {
+  const disabled = parseApiConfig(valid());
+  assert.deepEqual(disabled.telegramProductLinking, { enabled: false, botUsername: null, botToken: null, webhookSecret: null });
+  const enabled = parseApiConfig({ ...valid(), TELEGRAM_PRODUCT_LINKING_ENABLED: "true", TELEGRAM_PRODUCT_BOT_USERNAME: " @TaxiGpsTestBot ", TELEGRAM_PRODUCT_BOT_TOKEN: " product-token ", TELEGRAM_PRODUCT_WEBHOOK_SECRET: " webhook-secret " });
+  assert.deepEqual(enabled.telegramProductLinking, { enabled: true, botUsername: "TaxiGpsTestBot", botToken: "product-token", webhookSecret: "webhook-secret" });
+});
+
+test("Telegram product linking enabled fails closed with field names only", () => {
+  const secret = "private-product-secret";
+  for (const [field, value] of [["TELEGRAM_PRODUCT_BOT_USERNAME", "not valid"], ["TELEGRAM_PRODUCT_BOT_TOKEN", ""], ["TELEGRAM_PRODUCT_WEBHOOK_SECRET", ""]] as const) {
+    try { parseApiConfig({ ...valid(), TELEGRAM_PRODUCT_LINKING_ENABLED: "true", TELEGRAM_PRODUCT_BOT_USERNAME: "TaxiGpsTestBot", TELEGRAM_PRODUCT_BOT_TOKEN: "product-token", TELEGRAM_PRODUCT_WEBHOOK_SECRET: secret, [field]: value }); assert.fail("expected configuration error"); }
+    catch (error) { assert.ok(error instanceof ApiConfigurationError); assert.ok(error.issues.includes(field)); assert.equal(`${error.message} ${JSON.stringify(error)}`.includes(secret), false); }
+  }
+});
+
 test("API config accepts valid scheduler values at both interval bounds", () => {
   const lower = parseApiConfig({
     ...valid(),

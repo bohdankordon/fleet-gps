@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import test from "node:test";
 import { AuthRole } from "../../generated/prisma/enums";
 import type { AuditUserActor } from "../audit";
@@ -315,8 +316,19 @@ test("one advisory lock serializes concurrent enabled-ADMIN reductions so zero i
 
 test("advisory lock key and ordering remain fixed", () => {
   assert.equal(ADMIN_CARDINALITY_ADVISORY_LOCK_KEY, 1_706_170_002);
-  const source = readFileSync("src/modules/auth/admin-users.service.ts", "utf8");
+  const source = readFileSync(resolve(__dirname, "../../../src/modules/auth/admin-users.service.ts"), "utf8");
   assert.match(source, /\$executeRaw`SELECT pg_advisory_xact_lock/);
   assert.doesNotMatch(source, /\$queryRaw`SELECT pg_advisory_xact_lock/);
   assert.ok(source.indexOf("lockAdminCardinality(transaction)") < source.indexOf("enabledAdmins = await transaction.authUser.count"));
+});
+
+test("admin user projection exposes only a safe Telegram connection state", async () => {
+  const connected = { ...row(targetId, AuthRole.USER), permissions: [], telegramConnection: { status: "CONNECTED" as const, telegramUserId: 4_000_000_001n, telegramChatId: 4_000_000_002n } };
+  const service = new AdminUsersService({ getClient: () => ({ authUser: { findMany: async () => [connected], findUnique: async () => connected } }) } as unknown as DatabaseService, DEFAULT_ADMIN_USER_SECURITY, { append: async () => ({}) } as never);
+  const [listed] = await service.list(); const detail = await service.detail(targetId);
+  for (const value of [listed!, detail]) {
+    assert.equal(value.telegramStatus, "CONNECTED");
+    const serialized = JSON.stringify(value);
+    for (const forbidden of ["telegramUserId", "telegramChatId", "4000000001", "4000000002"]) assert.equal(serialized.includes(forbidden), false);
+  }
 });

@@ -24,7 +24,7 @@ export class AdminUsersError extends Error {
   public constructor(public readonly code: AdminUsersErrorCode) { super(code); this.name = "AdminUsersError"; }
 }
 
-type UserWithPermissions = AuthUser & Readonly<{ permissions: readonly Readonly<{ key: string }>[] }>;
+type UserWithPermissions = AuthUser & Readonly<{ permissions: readonly Readonly<{ key: string }>[]; telegramConnection?: Readonly<{ status: "CONNECTED" | "BROKEN" | "DISCONNECTED" }> | null }>;
 
 function safeUser(user: UserWithPermissions): SafeAdminUser {
   return Object.freeze({
@@ -34,6 +34,7 @@ function safeUser(user: UserWithPermissions): SafeAdminUser {
     disabled: user.disabled,
     mustChangePassword: user.mustChangePassword,
     permissions: user.role === AuthRole.USER ? resolvePermissions(user.permissions.map(({ key }) => key)) : Object.freeze([]),
+    telegramStatus: user.telegramConnection?.status ?? "NOT_CONNECTED",
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   });
@@ -80,12 +81,12 @@ export class AdminUsersService {
   public constructor(private readonly database: DatabaseService, @Inject(ADMIN_USER_SECURITY) private readonly security: AdminUserSecurity, private readonly audit: AuditEventRepository) {}
 
   public async list(): Promise<readonly SafeAdminUser[]> {
-    const users = await this.database.getClient().authUser.findMany({ orderBy: [{ normalizedLogin: "asc" }, { id: "asc" }], include: { permissions: true } });
+    const users = await this.database.getClient().authUser.findMany({ orderBy: [{ normalizedLogin: "asc" }, { id: "asc" }], include: { permissions: true, telegramConnection: { select: { status: true } } } });
     return Object.freeze(users.map(safeUser));
   }
 
   public async detail(userId: string): Promise<SafeAdminUser> {
-    const user = await this.database.getClient().authUser.findUnique({ where: { id: userId }, include: { permissions: true } });
+    const user = await this.database.getClient().authUser.findUnique({ where: { id: userId }, include: { permissions: true, telegramConnection: { select: { status: true } } } });
     if (!user) throw new AdminUsersError("NOT_FOUND");
     return safeUser(user);
   }

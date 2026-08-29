@@ -94,6 +94,14 @@ enum AuditEventType {
   SYSTEM_POPULATION_CREATED
   AUTOMATIC_RETENTION_EXECUTED
   SETTINGS_UPDATED
+  TELEGRAM_LINKED
+  TELEGRAM_DISCONNECTED
+}
+
+enum TelegramConnectionStatus {
+  CONNECTED
+  BROKEN
+  DISCONNECTED
 }
 
 enum AuditActorType {
@@ -126,8 +134,48 @@ model AuthUser {
   sessions                      AuthSession[]
   positionHistoryPopulationRuns PositionHistoryPopulationRun[]
   auditEvents                   AuditEvent[]                  @relation("AuditEventActor")
+  telegramConnection            TelegramConnection?
+  telegramLinkTokens            TelegramLinkToken[]
 
   @@map("auth_users")
+}
+
+model TelegramConnection {
+  id                 String                   @id @default(uuid()) @map("id") @db.Uuid
+  userId             String                   @unique @map("user_id") @db.Uuid
+  telegramUserId     BigInt?                  @unique @map("telegram_user_id")
+  telegramChatId     BigInt?                  @unique @map("telegram_chat_id")
+  status             TelegramConnectionStatus @default(DISCONNECTED) @map("status")
+  connectionRevision Int                      @default(1) @map("connection_revision")
+  linkedAt           DateTime?                @map("linked_at") @db.Timestamptz(6)
+  brokenAt           DateTime?                @map("broken_at") @db.Timestamptz(6)
+  createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user               AuthUser                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("telegram_connections")
+}
+
+model TelegramLinkToken {
+  id        String   @id @default(uuid()) @map("id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash Bytes    @unique @map("token_hash") @db.ByteA
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt], map: "telegram_link_tokens_user_expiry_idx")
+  @@map("telegram_link_tokens")
+}
+
+model TelegramWebhookReceipt {
+  id        String   @id @default(uuid()) @map("id") @db.Uuid
+  updateId  BigInt   @unique @map("update_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("telegram_webhook_receipts")
 }
 
 model AuditEvent {

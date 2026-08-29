@@ -137,6 +137,13 @@ export type AuditEventSpec =
       targetType: typeof AuditTargetType.APPLICATION_SETTINGS;
       targetId: "1";
       details: SettingsUpdatedAuditDetails;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.TELEGRAM_LINKED | typeof AuditEventType.TELEGRAM_DISCONNECTED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.USER;
+      targetId: string;
+      details: Readonly<Record<string, never>>;
     }>;
 
 export type AuditEventDetails = AuditEventSpec["details"];

@@ -233,6 +233,13 @@ export function buildOwnPasswordChangedAuditEvent(actor: AuditUserActor): AuditE
   return Object.freeze({ eventType: AuditEventType.OWN_PASSWORD_CHANGED, actor: validatedActor, targetType: AuditTargetType.USER, targetId: validatedActor.actorUserId, details: Object.freeze({}) });
 }
 
+export function buildTelegramLinkedAuditEvent(actor: AuditUserActor, targetId: string): AuditEventSpec {
+  return Object.freeze({ eventType: AuditEventType.TELEGRAM_LINKED, actor: buildUserActor(actor.actorUserId, actor.actorLoginSnapshot), targetType: AuditTargetType.USER, targetId: requiredUuid(targetId, "targetId"), details: Object.freeze({}) });
+}
+export function buildTelegramDisconnectedAuditEvent(actor: AuditUserActor, targetId: string): AuditEventSpec {
+  return Object.freeze({ eventType: AuditEventType.TELEGRAM_DISCONNECTED, actor: buildUserActor(actor.actorUserId, actor.actorLoginSnapshot), targetType: AuditTargetType.USER, targetId: requiredUuid(targetId, "targetId"), details: Object.freeze({}) });
+}
+
 export function buildShortPopulationExecutedAuditEvent(actor: AuditUserActor, details: ShortPopulationExecutedAuditDetails): AuditEventSpec {
   return Object.freeze({
     eventType: AuditEventType.SHORT_POPULATION_EXECUTED,
@@ -329,6 +336,10 @@ export function parseAuditEventDetails(eventType: unknown, value: unknown): Audi
     case AuditEventType.OWN_PASSWORD_CHANGED:
       exactKeys(details, [], "OWN_PASSWORD_CHANGED details");
       return Object.freeze({});
+    case AuditEventType.TELEGRAM_LINKED:
+    case AuditEventType.TELEGRAM_DISCONNECTED:
+      exactKeys(details, [], `${eventType} details`);
+      return Object.freeze({});
     case AuditEventType.SHORT_POPULATION_EXECUTED:
       exactKeys(details, ["to", "windowBudget", "excludeProviderDisabled", "committedWindows"], "SHORT_POPULATION_EXECUTED details");
       return shortPopulationDetails(details as ShortPopulationExecutedAuditDetails);
@@ -384,6 +395,14 @@ export function parseAuditEventSpec(value: unknown): AuditEventSpec {
       if (target.targetId !== target.actor.actorUserId) throw new AuditEventValidationError("OWN_PASSWORD_CHANGED actor and target must match");
       return buildOwnPasswordChangedAuditEvent(target.actor);
     }
+    case AuditEventType.TELEGRAM_LINKED:
+      if (event.targetType !== AuditTargetType.USER) throw new AuditEventValidationError("TELEGRAM_LINKED must target USER");
+      exactKeys(object(event.details, "details"), [], "TELEGRAM_LINKED details");
+      return buildTelegramLinkedAuditEvent(parseUserActor(event.actor), event.targetId as string);
+    case AuditEventType.TELEGRAM_DISCONNECTED:
+      if (event.targetType !== AuditTargetType.USER) throw new AuditEventValidationError("TELEGRAM_DISCONNECTED must target USER");
+      exactKeys(object(event.details, "details"), [], "TELEGRAM_DISCONNECTED details");
+      return buildTelegramDisconnectedAuditEvent(parseUserActor(event.actor), event.targetId as string);
     case AuditEventType.SHORT_POPULATION_EXECUTED: {
       if (event.targetType !== AuditTargetType.POSITION_HISTORY || event.targetId !== null) throw new AuditEventValidationError("SHORT_POPULATION_EXECUTED must target POSITION_HISTORY with a null targetId");
       const details = object(event.details, "details");

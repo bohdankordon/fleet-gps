@@ -39,9 +39,21 @@ The typed, global ADMIN business-settings foundation is complete: revision-prote
 
 Trip and stop analytics now use typed, revision-protected global ADMIN policy settings, with the current policy applied when historical analytics and reports are recomputed.
 
-## NOW — Per-user Telegram Notifications
+## DONE — Telegram 2A — Connection & secure linking
 
-Design user-scoped Telegram notification preferences without reusing global Telegram settings.
+Private-chat-only, self-service per-user Telegram linking is complete, including secure one-time links, transactional connection lifecycle, account recovery/disconnect UI, and ADMIN security disconnect. It does not deliver product alerts or notification preferences.
+
+## NOW — Telegram 2B — User preferences & vehicle scope
+
+Add notification preferences and preference-only vehicle selection without changing authorization.
+
+## NEXT — Telegram 2C — Recipient-aware delivery
+
+Add authorized per-user delivery over connected private chats.
+
+## LATER — Telegram 2D — Production bot/webhook cutover
+
+Configure and verify the product bot and public webhook separately from application development.
 
 ## PARKED — Design direction experiments
 

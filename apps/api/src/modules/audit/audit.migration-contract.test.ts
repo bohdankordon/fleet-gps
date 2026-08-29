@@ -25,7 +25,7 @@ test("audit foundation migration remains intact and additive settings migration 
   const directories = readdirSync(migrationsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
-  assert.deepEqual(directories.sort(), [...existingMigrationDirectories, "20260813185936_add_audit_trail_foundation", "20260827000000_global_business_settings", "20260827010000_add_trip_stop_policy_settings"].sort());
+  assert.deepEqual(directories.sort(), [...existingMigrationDirectories, "20260813185936_add_audit_trail_foundation", "20260827000000_global_business_settings", "20260827010000_add_trip_stop_policy_settings", "20260828010000_add_telegram_user_linking"].sort());
 
   for (const directory of existingMigrationDirectories) {
     const files = readdirSync(`${migrationsRoot}/${directory}`);
@@ -47,7 +47,7 @@ test("Stage 20A migration declares the exact approved audit enums", () => {
     "RETENTION_EXECUTED",
     "SYSTEM_POPULATION_CREATED",
   "AUTOMATIC_RETENTION_EXECUTED",
-    "SETTINGS_UPDATED",
+    "SETTINGS_UPDATED", "TELEGRAM_LINKED", "TELEGRAM_DISCONNECTED",
   ]);
   assert.deepEqual(Object.values(AuditActorType), ["USER", "SYSTEM"]);
   assert.deepEqual(Object.values(AuditTargetType), [

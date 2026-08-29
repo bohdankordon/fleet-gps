@@ -14,7 +14,7 @@ const retention = { canonicalAnchor: AT.toISOString(), policyCutoff: "2026-05-13
 
 function stored(eventType: AuditEventType, details: unknown, index = 1): StoredAuditReadRow {
   const system = eventType === AuditEventType.SYSTEM_POPULATION_CREATED || eventType === AuditEventType.AUTOMATIC_RETENTION_EXECUTED;
-  const userTargetEvents: readonly AuditEventType[] = [AuditEventType.USER_CREATED, AuditEventType.USER_ACCESS_CHANGED, AuditEventType.USER_DISABLED, AuditEventType.USER_ENABLED, AuditEventType.USER_PASSWORD_RESET, AuditEventType.OWN_PASSWORD_CHANGED];
+  const userTargetEvents: readonly AuditEventType[] = [AuditEventType.USER_CREATED, AuditEventType.USER_ACCESS_CHANGED, AuditEventType.USER_DISABLED, AuditEventType.USER_ENABLED, AuditEventType.USER_PASSWORD_RESET, AuditEventType.OWN_PASSWORD_CHANGED, AuditEventType.TELEGRAM_LINKED, AuditEventType.TELEGRAM_DISCONNECTED];
   const userTarget = userTargetEvents.includes(eventType);
   const runTarget = eventType === AuditEventType.DURABLE_POPULATION_CREATED || eventType === AuditEventType.SYSTEM_POPULATION_CREATED;
   return {
@@ -42,6 +42,8 @@ const validRows: readonly StoredAuditReadRow[] = [
   stored(AuditEventType.SYSTEM_POPULATION_CREATED, { to: AT.toISOString(), windowBudget: 5000, excludeProviderDisabled: true }, 10),
   stored(AuditEventType.AUTOMATIC_RETENTION_EXECUTED, retention, 11),
   stored(AuditEventType.SETTINGS_UPDATED, { changes: [{ field: "timezone", previous: "Europe/Kyiv", next: "UTC" }] }, 12),
+  stored(AuditEventType.TELEGRAM_LINKED, {}, 13),
+  stored(AuditEventType.TELEGRAM_DISCONNECTED, {}, 14),
 ];
 
 function service(rows: readonly StoredAuditReadRow[], hasMore = false): AuditReadService {
@@ -50,7 +52,7 @@ function service(rows: readonly StoredAuditReadRow[], hasMore = false): AuditRea
 
 test("maps all audit event types to safe actor, target, and validated available details", async () => {
   const response = await service(validRows).list(parseAuditReadQuery({}));
-  assert.equal(response.items.length, 12);
+  assert.equal(response.items.length, 14);
   assert.deepEqual(response.items.map((item) => item.eventType), Object.values(AuditEventType));
   assert.equal(response.items.every((item) => item.details.status === "AVAILABLE"), true);
   assert.deepEqual(response.items[0]?.actor, { type: "USER", login: "operator" });

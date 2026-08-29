@@ -23,7 +23,7 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
   const [user, setUser] = useState(initialUser);
   const [role, setRole] = useState(user.role);
   const [permissions, setPermissions] = useState<readonly AuthPermission[]>(user.permissions);
-  const [confirm, setConfirm] = useState<"demote" | "disable" | "reset" | null>(null);
+  const [confirm, setConfirm] = useState<"demote" | "disable" | "reset" | "telegram" | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -74,9 +74,19 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
     finally { setBusy(false); }
   }
 
+  async function disconnectTelegram(): Promise<void> {
+    setBusy(true); setError(null);
+    try {
+      const value = await mutate(`/api/admin/users/${user.id}/telegram/disconnect`, "POST");
+      if (typeof value !== "object" || value === null || (value as Record<string, unknown>).status !== "NOT_CONNECTED") throw new AdminUserRequestError(null);
+      setUser((current) => ({ ...current, telegramStatus: "NOT_CONNECTED" })); setConfirm(null); router.refresh();
+    } catch (cause) { setError(localizedError(cause)); }
+    finally { setBusy(false); }
+  }
+
   if (secret) return <OneTimePassword password={secret} title={t("admin.user.newTemporaryPassword")} onDone={() => setSecret(null)} />;
-  const closeConfirmation = (kind: "demote" | "disable" | "reset") => (open: boolean) => { if (open) setConfirm(kind); else setConfirm(null); };
-  const dialogError = (kind: "demote" | "disable" | "reset") => confirm === kind && error ? <Alert variant="danger" live="assertive" title={error} /> : null;
+  const closeConfirmation = (kind: "demote" | "disable" | "reset" | "telegram") => (open: boolean) => { if (open) setConfirm(kind); else setConfirm(null); };
+  const dialogError = (kind: "demote" | "disable" | "reset" | "telegram") => confirm === kind && error ? <Alert variant="danger" live="assertive" title={error} /> : null;
   const demoting = user.role === "ADMIN" && role === "USER";
 
   return <div className="admin-user-detail">
@@ -87,6 +97,7 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
         <div><dt>{t("admin.user.passwordChangeRequired")}</dt><dd>{user.mustChangePassword ? t("common.yes") : t("common.no")}</dd></div>
         <div><dt>{t("admin.user.createdAt")}</dt><dd>{formatDateTime(locale, user.createdAt) ?? "—"}</dd></div>
         <div><dt>{t("admin.user.updatedAt")}</dt><dd>{formatDateTime(locale, user.updatedAt) ?? "—"}</dd></div>
+        <div><dt>{t("admin.user.telegramStatus")}</dt><dd>{t(`admin.user.telegram.${user.telegramStatus}`)}</dd></div>
       </dl>
       {self && <p className="admin-note">{t("admin.user.selfProtection")}</p>}
     </section>
@@ -100,6 +111,7 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
       <div className="admin-actions">
         {user.disabled ? <Button disabled={busy} onClick={() => void lifecycle("enable")}>{t("admin.user.enable")}</Button> : <AlertDialog open={confirm === "disable"} onOpenChange={closeConfirmation("disable")} trigger={<Button variant="destructive" disabled={busy}>{t("admin.user.disable")}</Button>} title={t("admin.user.confirmDisable")} description={t("admin.user.disablePrompt")} cancelLabel={t("common.cancel")} confirmLabel={t("admin.user.confirmDisable")} destructive loading={busy} onConfirm={() => void lifecycle("disable")}>{dialogError("disable")}</AlertDialog>}
         <AlertDialog open={confirm === "reset"} onOpenChange={closeConfirmation("reset")} trigger={<Button variant="secondary" disabled={busy}>{t("admin.user.resetPassword")}</Button>} title={t("admin.user.confirmReset")} description={t("admin.user.resetPrompt")} cancelLabel={t("common.cancel")} confirmLabel={t("admin.user.confirmReset")} loading={busy} onConfirm={() => void reset()}>{dialogError("reset")}</AlertDialog>
+        {(user.telegramStatus === "CONNECTED" || user.telegramStatus === "BROKEN") && <AlertDialog open={confirm === "telegram"} onOpenChange={closeConfirmation("telegram")} trigger={<Button variant="destructive" disabled={busy}>{t("admin.user.disconnectTelegram")}</Button>} title={t("admin.user.confirmDisconnectTelegram")} description={t("admin.user.disconnectTelegramPrompt")} cancelLabel={t("common.cancel")} confirmLabel={t("admin.user.disconnectTelegram")} destructive loading={busy} onConfirm={() => void disconnectTelegram()}>{dialogError("telegram")}</AlertDialog>}
       </div>
     </section>}
     {error && confirm === null && <p className="admin-error" role="alert">{error}</p>}

@@ -35,6 +35,8 @@ function target(row: StoredAuditReadRow): AuditReadTarget {
       case AuditEventType.USER_ENABLED:
       case AuditEventType.USER_PASSWORD_RESET:
       case AuditEventType.OWN_PASSWORD_CHANGED:
+      case AuditEventType.TELEGRAM_LINKED:
+      case AuditEventType.TELEGRAM_DISCONNECTED:
         return row.targetType === AuditTargetType.USER && id !== null;
       case AuditEventType.SHORT_POPULATION_EXECUTED:
         return row.targetType === AuditTargetType.POSITION_HISTORY && row.targetId === null;

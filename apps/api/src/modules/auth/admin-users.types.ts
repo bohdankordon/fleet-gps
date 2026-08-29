@@ -8,6 +8,7 @@ export type SafeAdminUser = Readonly<{
   disabled: boolean;
   mustChangePassword: boolean;
   permissions: readonly Permission[];
+  telegramStatus: "NOT_CONNECTED" | "CONNECTED" | "BROKEN" | "DISCONNECTED";
   createdAt: Date;
   updatedAt: Date;
 }>;

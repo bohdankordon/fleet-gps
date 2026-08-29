@@ -29,6 +29,12 @@ export type TelegramNotificationsConfig = Readonly<{
   dispatchIntervalMs: number;
   batchSize: number;
 }>;
+export type TelegramProductLinkingConfig = Readonly<{
+  enabled: boolean;
+  botUsername: string | null;
+  botToken: string | null;
+  webhookSecret: string | null;
+}>;
 export type ApiConfig = Readonly<{
   host: string;
   port: number;
@@ -39,6 +45,7 @@ export type ApiConfig = Readonly<{
   positionHistoryMaintenance: PositionHistoryMaintenanceConfig;
   positionHistoryRetention?: PositionHistoryRetentionConfig;
   telegramNotifications: TelegramNotificationsConfig;
+  telegramProductLinking?: TelegramProductLinkingConfig;
 }>;
 
 export class ApiConfigurationError extends Error {
@@ -85,6 +92,12 @@ function parseBoolean(value: string | undefined): boolean | undefined {
   return undefined;
 }
 
+function productBotUsername(value: string | undefined): string | null | undefined {
+  if (value === undefined || value.trim() === "") return null;
+  const normalized = value.trim().replace(/^@/, "");
+  return /^[A-Za-z][A-Za-z0-9_]{4,31}bot$/i.test(normalized) ? normalized : undefined;
+}
+
 const equGpsIssueNames: Readonly<Record<string, string>> = Object.freeze({
   officialBaseUrl: "EQUGPS_BASE_URL",
   webBaseUrl: "EQUGPS_WEB_BASE_URL",
@@ -114,6 +127,10 @@ export function parseApiConfig(env: Environment): ApiConfig {
   const telegramChatId = env.TELEGRAM_CHAT_ID?.trim() || null;
   const telegramDispatchIntervalMs = parseInteger(env.TELEGRAM_NOTIFICATION_DISPATCH_INTERVAL_MS, 60_000, 1_000, 3_600_000);
   const telegramBatchSize = parseInteger(env.TELEGRAM_NOTIFICATION_BATCH_SIZE, 20, 1, 100);
+  const telegramProductLinkingEnabled = parseBoolean(env.TELEGRAM_PRODUCT_LINKING_ENABLED);
+  const telegramProductBotUsername = productBotUsername(env.TELEGRAM_PRODUCT_BOT_USERNAME);
+  const telegramProductBotToken = env.TELEGRAM_PRODUCT_BOT_TOKEN?.trim() || null;
+  const telegramProductWebhookSecret = env.TELEGRAM_PRODUCT_WEBHOOK_SECRET?.trim() || null;
   const fleetIntervalSeconds = parseInteger(env.FLEET_SYNC_INTERVAL_SECONDS, 60, 15, 3_600);
   const runsIntervalSeconds = parseInteger(env.RUNS_SYNC_INTERVAL_SECONDS, 300, 60, 3_600);
   const shutdownTimeoutMs = parseInteger(env.SYNC_SCHEDULER_SHUTDOWN_TIMEOUT_MS, 50_000, 1_000, 120_000);
@@ -142,6 +159,12 @@ export function parseApiConfig(env: Environment): ApiConfig {
   if (production && telegramNotificationsEnabled === true && obviousPlaceholder(telegramChatId)) issues.push("TELEGRAM_CHAT_ID");
   if (telegramDispatchIntervalMs === undefined) issues.push("TELEGRAM_NOTIFICATION_DISPATCH_INTERVAL_MS");
   if (telegramBatchSize === undefined) issues.push("TELEGRAM_NOTIFICATION_BATCH_SIZE");
+  if (telegramProductLinkingEnabled === undefined) issues.push("TELEGRAM_PRODUCT_LINKING_ENABLED");
+  if (telegramProductBotUsername === undefined) issues.push("TELEGRAM_PRODUCT_BOT_USERNAME");
+  if (telegramProductLinkingEnabled === true && telegramProductBotUsername === null) issues.push("TELEGRAM_PRODUCT_BOT_USERNAME");
+  if (telegramProductLinkingEnabled === true && telegramProductBotToken === null) issues.push("TELEGRAM_PRODUCT_BOT_TOKEN");
+  if (telegramProductLinkingEnabled === true && telegramProductWebhookSecret === null) issues.push("TELEGRAM_PRODUCT_WEBHOOK_SECRET");
+  if (production && telegramProductLinkingEnabled === true && (obviousPlaceholder(telegramProductBotToken) || obviousPlaceholder(telegramProductWebhookSecret))) issues.push("TELEGRAM_PRODUCT_WEBHOOK_SECRET");
   if (fleetIntervalSeconds === undefined) issues.push("FLEET_SYNC_INTERVAL_SECONDS");
   if (runsIntervalSeconds === undefined) issues.push("RUNS_SYNC_INTERVAL_SECONDS");
   if (shutdownTimeoutMs === undefined) issues.push("SYNC_SCHEDULER_SHUTDOWN_TIMEOUT_MS");
@@ -161,6 +184,8 @@ export function parseApiConfig(env: Environment): ApiConfig {
     telegramNotificationsEnabled === undefined ||
     telegramDispatchIntervalMs === undefined ||
     telegramBatchSize === undefined ||
+    telegramProductLinkingEnabled === undefined ||
+    telegramProductBotUsername === undefined ||
     fleetIntervalSeconds === undefined ||
     runsIntervalSeconds === undefined ||
     shutdownTimeoutMs === undefined
@@ -178,6 +203,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
       positionHistoryMaintenance: Object.freeze({ enabled: positionHistoryMaintenanceEnabled, windowBudget: positionHistoryMaintenanceWindowBudget }),
       positionHistoryRetention: Object.freeze({ enabled: positionHistoryRetentionEnabled }),
       telegramNotifications: Object.freeze({ enabled: telegramNotificationsEnabled, botToken: telegramBotToken, chatId: telegramChatId, dispatchIntervalMs: telegramDispatchIntervalMs, batchSize: telegramBatchSize }),
+      telegramProductLinking: Object.freeze({ enabled: telegramProductLinkingEnabled, botUsername: telegramProductBotUsername, botToken: telegramProductBotToken, webhookSecret: telegramProductWebhookSecret }),
       equGps: Object.freeze(parseEquGpsConfig({
         officialBaseUrl: env.EQUGPS_BASE_URL ?? "",
         webBaseUrl: env.EQUGPS_WEB_BASE_URL ?? "",
