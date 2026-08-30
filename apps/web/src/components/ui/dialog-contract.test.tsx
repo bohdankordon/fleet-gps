@@ -19,8 +19,8 @@ test("Taxi GPS AlertDialog gives cancellation initial focus and composes a textu
   assert.match(dialog, /kind="alertdialog"/);
   assert.match(dialog, /const cancelRef = useRef<HTMLButtonElement>\(null\)/);
   assert.match(dialog, /ref=\{cancelRef\} variant="secondary"/);
-  assert.match(dialog, /variant=\{destructive \? "destructive" : "primary"\}/);
-  assert.match(dialog, /loading=\{loading\}/);
+  assert.match(dialog, /variant=\{destructive \? "destructive" : "default"\}/);
+  assert.match(dialog, /aria-busy=\{loading \|\| undefined\}/);
 });
 
 test("dialog styling uses the owned Fluent surface, motion, responsive, and focus-compatible token contract", () => {

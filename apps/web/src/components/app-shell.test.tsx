@@ -2,15 +2,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AppShell } from "./app-shell";
 import { LinkButton, PageHeader } from "./ui";
 
 test("AppShell owns one stable main landmark and keyboard skip target", () => {
-  const html = renderToStaticMarkup(<AppShell skipLabel="Skip to main content" navigation={<header>Navigation</header>}><p>Page content</p></AppShell>);
-  assert.match(html, /<a[^>]*class="app-shell__skip-link"[^>]*href="#app-main"/);
-  assert.match(html, /<main[^>]*id="app-main"[^>]*tabindex="-1"/i);
-  assert.equal((html.match(/<main\b/g) ?? []).length, 1);
-  assert.ok(html.includes("Skip to main content"));
+  const shell = readFileSync("src/components/app-shell.tsx", "utf8");
+  assert.match(shell, /className="app-shell__skip-link" href="#app-main"/);
+  assert.match(shell, /<main id="app-main" className="app-shell__main" tabIndex=\{-1\}>/);
+  assert.match(shell, /<SidebarProvider>/);
+  assert.match(shell, /<AppSidebar \/>/);
+  assert.match(shell, /<Topbar \/>/);
 });
 
 test("PageHeader composes operational heading, metadata, actions, and secondary navigation", () => {
@@ -23,24 +23,25 @@ test("PageHeader composes operational heading, metadata, actions, and secondary 
   assert.match(html, /<a[^>]*href="\/admin\/users"/);
 });
 
-test("shell navigation keeps semantic links, labelled landmarks, and permission-aware source", () => {
-  const navigation = readFileSync("src/components/app-navigation.tsx", "utf8");
-  const admin = readFileSync("src/components/admin-subnavigation.tsx", "utf8");
+test("shell navigation uses the Base UI sidebar, mobile trigger, and permission-aware source", () => {
+  const sidebar = readFileSync("src/components/app-sidebar.tsx", "utf8");
+  const topbar = readFileSync("src/components/topbar.tsx", "utf8");
   const layout = readFileSync("src/app/layout.tsx", "utf8");
   const shellCss = readFileSync("src/styles/shell.css", "utf8");
   assert.match(layout, /<AppShell skipLabel=\{t\("navigation\.skipToMain"\)\}/);
-  assert.match(navigation, /<nav className="app-nav" aria-label=\{t\("navigation\.primaryLabel"\)\}/);
-  assert.match(navigation, /navigationFor\(user, locale\)\.map\(\(item\) => <Link/);
-  assert.match(navigation, /aria-current=\{isActiveAppNavigationPath/);
-  assert.match(navigation, /app-nav__list" tabIndex=\{0\}/);
-  assert.match(navigation, /Taxi GPS/);
-  assert.match(admin, /<nav className="admin-subnav" aria-label=\{t\("navigation\.adminLabel"\)\}/);
-  assert.match(shellCss, /overflow-x: auto/);
-  assert.match(shellCss, /app-nav__list \{ display: flex; gap: var\(--space-1\); width: 100%; min-width: 0;/);
+  assert.match(layout, /TooltipProvider/);
+  assert.match(sidebar, /<Sidebar collapsible="icon">/);
+  assert.match(sidebar, /navigationFor\(user, locale\)/);
+  assert.match(sidebar, /adminNavigationFor\(user, locale\)/);
+  assert.match(sidebar, /aria-current=\{active \? "page" : undefined\}/);
+  assert.match(sidebar, /if \(isMobile\) setOpenMobile\(false\)/);
+  assert.match(sidebar, /tooltip=\{item\.label\}/);
+  assert.match(topbar, /<SidebarTrigger className="size-11 md:size-7" aria-label=\{t\("navigation\.toggleSidebar"\)\}/);
+  assert.match(topbar, /<LanguageSelector \/>/);
   assert.match(shellCss, /@media \(max-width: 639px\)/);
-  assert.match(shellCss, /app-nav a\[aria-current="page"\]/);
-  assert.match(shellCss, /app-nav a\[aria-current="page"\][^\n]*color-brand-subtle/);
-  assert.match(shellCss, /\.app-brand svg[^\n]*color-brand-subtle/);
+  assert.match(shellCss, /\.app-shell__main/);
+  assert.match(shellCss, /\[data-sidebar="menu-button"\] \{ min-height: 44px;/);
+  assert.doesNotMatch(shellCss, /app-nav/);
 });
 
 test("route content delegates its main landmark to AppShell rather than nesting main elements", () => {

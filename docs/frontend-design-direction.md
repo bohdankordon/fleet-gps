@@ -1,7 +1,7 @@
 # Frontend design direction
 
-Status: defined on current `main`; implementation intentionally deferred to the
-next stage.
+Status: Slice 1 foundation and authenticated application shell implemented on
+current `main`. The next implementation slice is Fleet overview redesign.
 
 This brief is the authoritative UX and visual direction for the completed Taxi
 GPS / fleet-monitoring product. It starts from `main` at
@@ -693,9 +693,27 @@ from `main`, changes presentation code only unless a separately approved
 contract change is documented, has focused tests, leaves the working tree
 clean, and is independently reviewable.
 
+## Design-system implementation policy
+
+The generic UI layer is now **shadcn/ui** under `apps/web/src/components/ui`.
+New shadcn components use **Base UI** primitives, the official **Mira** style,
+and its semantic Tailwind 4 token model. The application is light-first and
+does not expose a dark-mode feature.
+
+For any generic interface need, first use an official shadcn component; next
+compose from available shadcn components; create a custom generic component
+only where neither is suitable. Install official components only when they are
+needed by the active slice. Product and fleet-specific components remain
+source-owned outside that generic layer.
+
+Existing CSS tokens and the legacy Radix dialog remain temporary compatibility
+surfaces for screens that have not yet migrated. They are migration targets,
+not a second generic design-system authority. New UI must use the shadcn
+semantic tokens and Base UI-backed components.
+
 | Slice | Scope | Safety and acceptance gate |
 | --- | --- | --- |
-| 1 — Shell foundation | Design tokens cleanup, AppShell, persistent sidebar, topbar, responsive drawer/rail, PageHeader, status and state primitives. | Existing auth/permission routes still land correctly; keyboard navigation, locale, logout, focus, loading/error states, and current smoke tests remain green. This is the first active implementation substage after brief acceptance. |
+| 1 — Shell foundation | **Done.** Design tokens, AppShell, persistent sidebar, topbar, responsive drawer/rail, PageHeader, and selected shadcn primitives. | Existing auth/permission routes still land correctly; keyboard navigation, locale, logout, focus, loading/error states, and current smoke tests remain green. |
 | 2 — Fleet overview | Compact fleet header, filter/sort bar, summary strip, dense table, mobile fleet rows, selection contract. | Existing dashboard queries/history, scheduler status, freshness labels, disabled inclusion, and current data fields remain unchanged; add focused desktop/mobile component tests. |
 | 3 — Map workspace | List/map split, shared selection, selected vehicle context panel, map controls/legend, tablet/mobile sheet. | MapLibre worker/style, geofence, alert overlays, refresh fallback, marker semantics, and map permissions remain intact; verify list-to-marker and marker-to-list paths. |
 | 4 — Vehicle detail | Above-fold current state, context actions, local navigation, summary/events hierarchy, responsive stack. | Existing detail data, deep links, stale/no-position semantics, and permission handling remain unchanged. |

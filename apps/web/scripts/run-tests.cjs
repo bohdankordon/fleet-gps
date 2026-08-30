@@ -10,5 +10,5 @@ function collect(directory) {
 }
 
 const tests = collect(path.resolve(__dirname, "../.test-dist"));
-const result = spawnSync(process.execPath, ["--test", ...tests], { stdio: "inherit" });
+const result = spawnSync(process.execPath, ["--require", path.resolve(__dirname, "register-test-alias.cjs"), "--test", ...tests], { stdio: "inherit" });
 process.exitCode = result.status ?? 1;

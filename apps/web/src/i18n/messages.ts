@@ -72,6 +72,10 @@ export const MESSAGE_CATALOG = Object.freeze({
   "language.changeError": { ru: "Не удалось изменить язык.", uk: "Не вдалося змінити мову.", en: "The language could not be changed." },
 
   "navigation.primaryLabel": { ru: "Основная навигация", uk: "Основна навігація", en: "Primary navigation" },
+  "navigation.primaryWork": { ru: "Работа", uk: "Робота", en: "Operations" },
+  "navigation.account": { ru: "Учётная запись", uk: "Обліковий запис", en: "Account" },
+  "navigation.accountMenu": { ru: "Меню учётной записи", uk: "Меню облікового запису", en: "Account menu" },
+  "navigation.toggleSidebar": { ru: "Открыть или свернуть боковую панель", uk: "Відкрити або згорнути бічну панель", en: "Toggle sidebar" },
   "navigation.skipToMain": { ru: "Перейти к содержимому", uk: "Перейти до вмісту", en: "Skip to main content" },
   "navigation.scrollHint": { ru: "Навигация прокручивается по горизонтали при необходимости", uk: "Навігація прокручується горизонтально за потреби", en: "Navigation scrolls horizontally when needed" },
   "navigation.adminLabel": { ru: "Администрирование", uk: "Адміністрування", en: "Administration" },

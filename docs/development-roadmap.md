@@ -90,12 +90,19 @@ The current design-direction stage is documentation-only and is defined in
 audits the completed feature set, selects the target shell and UX system, and
 preserves API and business behavior.
 
-**NEXT SUBSTAGE AFTER BRIEF ACCEPTANCE — Slice 1: design tokens + application
-shell + navigation + core primitives.** The implementation must start from
-current `main`, remain presentation-only, be independently reviewable, and
-complete focused desktop/mobile/accessibility checks before the next slice.
-The overall design direction remains **NOW** until the implementation slices
-and authenticated acceptance are complete; it is not marked DONE here.
+**DONE — Slice 1: shadcn foundation + application shell.** The Web application
+now uses shadcn/ui as its preferred generic UI layer, with Base UI-backed
+components, the Mira style, semantic tokens, responsive Sidebar/Sheet
+navigation, and a compact authenticated top bar. Legacy Radix remains only for
+the untouched dialog consumer while dependent screen migrations are pending.
+This was presentation-only: no API, schema, migration, provider, scheduler, or
+Telegram behavior changed.
+
+**NEXT SUBSTAGE — Slice 2: Fleet overview redesign.** Redesign the Fleet
+overview inside the accepted shell while preserving its existing data,
+filtering, scheduler, freshness, and route contracts. The overall frontend
+design direction remains **NOW** until all implementation slices and
+authenticated acceptance are complete; it is not marked DONE here.
 
 ## LATER — Final production hardening
 
