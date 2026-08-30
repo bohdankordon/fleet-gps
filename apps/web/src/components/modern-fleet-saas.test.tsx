@@ -14,16 +14,14 @@ test("source-owned icons share one decorative currentColor SVG contract", () => 
   assert.doesNotMatch(html, /aria-label|role="img"/);
 });
 
-test("application shell owns locale and account controls without legacy horizontal navigation", () => {
+test("header owns authenticated and unauthenticated locale access without the legacy strip", () => {
   const layout = readFileSync("src/app/layout.tsx", "utf8");
-  const topbar = readFileSync("src/components/topbar.tsx", "utf8");
-  const sidebar = readFileSync("src/components/app-sidebar.tsx", "utf8");
+  const navigation = readFileSync("src/components/app-navigation.tsx", "utf8");
   assert.doesNotMatch(layout, /LanguageSelector|language-selector-shell/);
-  assert.match(topbar, /<LanguageSelector \/>/);
-  assert.match(topbar, /DropdownMenu/);
-  assert.match(topbar, /<DropdownMenuGroup><DropdownMenuLabel>\{user\.login\}<\/DropdownMenuLabel><\/DropdownMenuGroup>/);
-  assert.match(topbar, /<DropdownMenuItem nativeButton render=\{<LogoutButton/);
-  assert.match(sidebar, /SidebarProvider|Sidebar/);
+  assert.match(navigation, /app-header app-header-login/);
+  assert.match(navigation, /app-header-tools/);
+  assert.match(navigation, /<LanguageSelector \/>/);
+  assert.match(navigation, /className="account-link"/);
 });
 
 test("dashboard and shared notices no longer use Unicode pseudo-icons", () => {
@@ -42,10 +40,8 @@ test("shared CSS exposes the bounded token layer and no legacy language strip", 
   assert.doesNotMatch(css, /\.language-selector-shell/);
 });
 
-test("shadcn foundation uses Base UI while the legacy Radix dialog remains temporarily", () => {
+test("visual polish keeps component libraries out except the owned-dialog behavioral dependency", () => {
   const packages = `${readFileSync("package.json", "utf8")}\n${readFileSync("../../package.json", "utf8")}`;
   assert.match(packages, /"@radix-ui\/react-dialog": "\^1\.1\.23"/);
-  assert.match(packages, /"@base-ui\/react"/);
-  assert.match(packages, /"shadcn"/);
-  assert.match(readFileSync("src/components/ui/sidebar.tsx", "utf8"), /@base-ui\/react/);
+  assert.doesNotMatch(packages, /@mui|shadcn|lucide|heroicons|fontawesome|react-icons/i);
 });

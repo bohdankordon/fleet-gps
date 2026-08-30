@@ -81,12 +81,13 @@ test("all ten major surface groups expose source-controlled copy in ru, uk, and 
 test("selector is header-integrated, native, single-POST, non-retrying, and route-stable", () => {
   const selector = readFileSync("src/components/language-selector.tsx", "utf8");
   const layout = readFileSync("src/app/layout.tsx", "utf8");
-  const topbar = readFileSync("src/components/topbar.tsx", "utf8");
+  const navigation = readFileSync("src/components/app-navigation.tsx", "utf8");
   assert.doesNotMatch(layout, /LanguageSelector|language-selector-shell/);
-  assert.match(layout, /<AppShell skipLabel/);
+  assert.match(layout, /<AppNavigation/);
   assert.match(layout, /<AuthProvider/);
-  assert.match(topbar, /app-topbar--public/);
-  assert.match(topbar, /<LanguageSelector \/>/);
+  assert.match(navigation, /app-header-tools/);
+  assert.match(navigation, /pathname === "\/login"[^]*<LanguageSelector/);
+  assert.match(navigation, /<LanguageSelector \/>\{user && <Link className="account-link"/);
   for (const expected of ["Русский", "Українська", "English"]) assert.ok(readFileSync("src/i18n/locales.ts", "utf8").includes(expected));
   assert.match(selector, /<select aria-label=\{t\("language\.label"\)\} value=\{locale\}/);
   assert.doesNotMatch(selector, /aria-pressed|role="listbox"/);

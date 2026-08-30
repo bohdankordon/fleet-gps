@@ -85,36 +85,19 @@ The old DeepSeek design experiment branches were intentionally retired without
 being merged or selected for reuse. Future design work starts as a fresh
 iteration from current `main`, not from either deleted branch.
 
-The current design-direction stage is documentation-only and is defined in
-[`docs/frontend-design-direction.md`](./frontend-design-direction.md). It
-audits the completed feature set, selects the target shell and UX system, and
-preserves API and business behavior.
+The rejected shadcn/Base UI/Mira implementation has been retired and the
+frontend has been reset logically to its pre-shadcn baseline without rewriting
+history. Ant Design 6 migration and redesign is the new active direction,
+defined in
+[`docs/frontend-design-direction.md`](./frontend-design-direction.md), while
+preserving API and business behavior.
 
-**DONE — Slice 1: shadcn foundation + application shell.** The Web application
-now uses shadcn/ui as its preferred generic UI layer, with Base UI-backed
-components, the Mira style, semantic tokens, responsive Sidebar/Sheet
-navigation, and a compact authenticated top bar. Legacy Radix remains only for
-the untouched dialog consumer while dependent screen migrations are pending.
-This was presentation-only: no API, schema, migration, provider, scheduler, or
-Telegram behavior changed.
-
-**DONE — Slice 2: Fleet overview redesign.** Fleet is now a compact Mira
-operational screen: a shadcn/Base UI toolbar and dense table on desktop, a
-deliberate compact list on mobile, local presentation-only ordering, and
-contract-backed status/freshness display. Existing server filtering,
-authorization, timezone, refresh, route, provider-disabled, and scheduler
-behavior remain intact. The response has no open-alert or selected-map handoff
-field, so those remain on their existing screens pending a separately reviewed
-data-contract decision. This was presentation-only: no API, schema, migration,
-provider, scheduler, or Telegram behavior changed. A focused visual
-composition remediation has subsequently consolidated the page into one
-operational workspace and is ready for renewed human visual acceptance.
-
-**NEXT SUBSTAGE — Slice 3: Map / fleet-map interaction redesign.** Redesign
-the Map workspace and its Fleet handoff inside the accepted shell only after
-that renewed Fleet visual acceptance. The overall frontend design direction
-remains **NOW** until all implementation slices and authenticated acceptance
-are complete; it is not marked DONE here.
+**NEXT SUBSTAGE — Ant Design Foundation + AppShell + Fleet.** The implementation
+must start from current `main`, remain presentation-only, be independently
+reviewable, and complete focused desktop/mobile/accessibility checks before the
+next slice. The overall frontend redesign remains **NOW** until the migration,
+redesign slices, and authenticated acceptance are complete; it is not marked
+DONE here.
 
 ## LATER — Final production hardening
 

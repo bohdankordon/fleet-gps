@@ -4,16 +4,16 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Alert, Badge, Button, Card, Checkbox, EmptyState, ErrorState, FormField, Input, Label, LinkButton, LoadMore, LoadingStatus, NativeSelect, Spinner } from ".";
 
-test("Button exposes shadcn variants and preserves width content while loading", () => {
-  for (const variant of ["default", "secondary", "ghost", "destructive"] as const) {
+test("Button exposes semantic variants and preserves width content while loading", () => {
+  for (const variant of ["primary", "secondary", "subtle", "destructive"] as const) {
     const html = renderToStaticMarkup(<Button variant={variant}>Save</Button>);
-    assert.match(html, /data-slot="button"/);
+    assert.match(html, new RegExp(`ui-button--${variant}`));
   }
-  for (const size of ["sm", "default", "lg"] as const) assert.match(renderToStaticMarkup(<Button size={size}>Save</Button>), /data-slot="button"/);
+  for (const size of ["compact", "default", "comfortable"] as const) assert.match(renderToStaticMarkup(<Button size={size}>Save</Button>), new RegExp(`ui-button--${size}`));
   const html = renderToStaticMarkup(<Button loading iconBefore={<span>+</span>}>Save changes</Button>);
   assert.match(html, /disabled=""/);
   assert.match(html, /aria-busy="true"/);
-  assert.match(html, /data-icon="inline-start"/);
+  assert.match(html, /ui-button__spinner/);
   assert.match(html, />Save changes</);
 });
 

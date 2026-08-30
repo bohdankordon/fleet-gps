@@ -1,7 +1,8 @@
 # Frontend design direction
 
-Status: Slices 1–2 are implemented on current `main`. The next implementation
-slice is Map / fleet-map interaction redesign.
+Status: the rejected shadcn/Base UI/Mira experiment is retired. Ant Design 6 is
+the selected primary component and design system for the next implementation
+stage.
 
 This brief is the authoritative UX and visual direction for the completed Taxi
 GPS / fleet-monitoring product. It starts from `main` at
@@ -283,11 +284,6 @@ Table behavior:
   inline system panel or a collapsible “data service status” section. It must
   not push the vehicle list below the first viewport on ordinary desktop use.
 
-The current Fleet response deliberately does not include open-alert state or a
-map-selection handoff. Slice 2 therefore keeps alert triage and selected-map
-interaction on their existing surfaces rather than extending the data contract
-for presentation alone.
-
 ## Map direction
 
 MapLibre is a work tool and should receive most of the usable height on map
@@ -479,6 +475,24 @@ purple only where it gives a distinct existing alert/data meaning, and gray for
 neutral/unknown/disabled. Every status remains understandable in grayscale.
 
 ## Design system direction
+
+The shadcn/Base UI/Mira implementation experiment was rejected after human
+visual acceptance and has been retired. The selected primary frontend
+component and design system is now **Ant Design 6**. The visual direction
+remains professional, calm, structured, dense, operational fleet SaaS.
+
+The permanent component rule is:
+
+1. use an official Ant Design component first;
+2. compose Ant Design components when no single component covers the need;
+3. create a custom domain-specific component where appropriate;
+4. create a custom generic component only when Ant Design genuinely has no
+   suitable solution.
+
+Do not create parallel generic Button, Input, Select, Table, or similar
+implementations without a strong reason. The previously human-selected Fleet
+mockup remains useful as a visual composition reference, not as a fictional
+data contract. Implementation must use real application data only.
 
 ### Typography
 
@@ -693,32 +707,15 @@ longer strings and formats from the beginning:
 
 ## Incremental implementation strategy
 
-Implementation starts only after this brief is accepted. Every slice starts
-from `main`, changes presentation code only unless a separately approved
-contract change is documented, has focused tests, leaves the working tree
-clean, and is independently reviewable.
-
-## Design-system implementation policy
-
-The generic UI layer is now **shadcn/ui** under `apps/web/src/components/ui`.
-New shadcn components use **Base UI** primitives, the official **Mira** style,
-and its semantic Tailwind 4 token model. The application is light-first and
-does not expose a dark-mode feature.
-
-For any generic interface need, first use an official shadcn component; next
-compose from available shadcn components; create a custom generic component
-only where neither is suitable. Install official components only when they are
-needed by the active slice. Product and fleet-specific components remain
-source-owned outside that generic layer.
-
-Existing CSS tokens and the legacy Radix dialog remain temporary compatibility
-surfaces for screens that have not yet migrated. They are migration targets,
-not a second generic design-system authority. New UI must use the shadcn
-semantic tokens and Base UI-backed components.
+The rejected implementation has been reset logically to the pre-shadcn
+frontend baseline. The next implementation substage is **Ant Design Foundation
++ AppShell + Fleet**. Every slice starts from `main`, changes presentation code
+only unless a separately approved contract change is documented, has focused
+tests, leaves the working tree clean, and is independently reviewable.
 
 | Slice | Scope | Safety and acceptance gate |
 | --- | --- | --- |
-| 1 — Shell foundation | **Done.** Design tokens, AppShell, persistent sidebar, topbar, responsive drawer/rail, PageHeader, and selected shadcn primitives. | Existing auth/permission routes still land correctly; keyboard navigation, locale, logout, focus, loading/error states, and current smoke tests remain green. |
+| 1 — Shell foundation | Design tokens cleanup, AppShell, persistent sidebar, topbar, responsive drawer/rail, PageHeader, status and state primitives. | Existing auth/permission routes still land correctly; keyboard navigation, locale, logout, focus, loading/error states, and current smoke tests remain green. This is the first active implementation substage after brief acceptance. |
 | 2 — Fleet overview | Compact fleet header, filter/sort bar, summary strip, dense table, mobile fleet rows, selection contract. | Existing dashboard queries/history, scheduler status, freshness labels, disabled inclusion, and current data fields remain unchanged; add focused desktop/mobile component tests. |
 | 3 — Map workspace | List/map split, shared selection, selected vehicle context panel, map controls/legend, tablet/mobile sheet. | MapLibre worker/style, geofence, alert overlays, refresh fallback, marker semantics, and map permissions remain intact; verify list-to-marker and marker-to-list paths. |
 | 4 — Vehicle detail | Above-fold current state, context actions, local navigation, summary/events hierarchy, responsive stack. | Existing detail data, deep links, stale/no-position semantics, and permission handling remain unchanged. |
@@ -727,15 +724,6 @@ semantic tokens and Base UI-backed components.
 | 7 — Administration and account | Business settings grouping, GPS history progressive disclosure, user management hierarchy, Account and Telegram notification form. | Preserve revision conflicts, permissions, dangerous-action confirmations, Telegram linking/preferences/delivery, and remove only stale presentation copy. |
 | 8 — Responsive/accessibility consolidation | Cross-screen 1440/1280/768/390 tuning, keyboard/focus/contrast audit, long-string and reduced-motion pass. | Run the acceptance matrix across representative authenticated states; fix layout/accessibility defects without changing business semantics. |
 | 9 — Authenticated acceptance and release handoff | Local authenticated acceptance, focused Web tests/typecheck/lint/build as appropriate, review, production preflight and deployment as a separately authorized stage. | No deployment is part of this brief. Release only after the repository is clean, behavior is accepted, and production actions are explicitly authorized. |
-
-Fleet composition principle: treat Fleet as one operational workspace: concise
-page metadata, one neutral toolbar, and one primary table/list surface. During
-healthy operation, diagnostic state is a low-emphasis disclosure within that
-metadata rather than a competing panel. Use spacing, typography, and restrained
-separators before adding containers or rounded surfaces.
-The human-approved Fleet visual reference is the durable composition guide for
-this screen; its hierarchy is implemented only with current contract-backed
-data, never invented mockup values.
 
 ## Screen acceptance matrix
 
