@@ -79,15 +79,23 @@ environment values, or migrations were needed. The original magic-number
 configurability requirement is complete. See
 [`docs/magic-numbers-final-reconciliation.md`](./magic-numbers-final-reconciliation.md).
 
-## NOW — Design direction experiments
+## NOW — Fresh frontend design direction
 
 The old DeepSeek design experiment branches were intentionally retired without
 being merged or selected for reuse. Future design work starts as a fresh
 iteration from current `main`, not from either deleted branch.
 
-The next stage should establish a direction for the completed feature set,
-preserve API and business behavior, and complete authenticated desktop and
-mobile UI acceptance.
+The current design-direction stage is documentation-only and is defined in
+[`docs/frontend-design-direction.md`](./frontend-design-direction.md). It
+audits the completed feature set, selects the target shell and UX system, and
+preserves API and business behavior.
+
+**NEXT SUBSTAGE AFTER BRIEF ACCEPTANCE — Slice 1: design tokens + application
+shell + navigation + core primitives.** The implementation must start from
+current `main`, remain presentation-only, be independently reviewable, and
+complete focused desktop/mobile/accessibility checks before the next slice.
+The overall design direction remains **NOW** until the implementation slices
+and authenticated acceptance are complete; it is not marked DONE here.
 
 ## LATER — Final production hardening
 
