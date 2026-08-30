@@ -1,7 +1,7 @@
 # Frontend design direction
 
-Status: Slice 1 foundation and authenticated application shell implemented on
-current `main`. The next implementation slice is Fleet overview redesign.
+Status: Slices 1–2 are implemented on current `main`. The next implementation
+slice is Map / fleet-map interaction redesign.
 
 This brief is the authoritative UX and visual direction for the completed Taxi
 GPS / fleet-monitoring product. It starts from `main` at
@@ -282,6 +282,11 @@ Table behavior:
 - Keep scheduler status available, but reduce it to an operationally useful
   inline system panel or a collapsible “data service status” section. It must
   not push the vehicle list below the first viewport on ordinary desktop use.
+
+The current Fleet response deliberately does not include open-alert state or a
+map-selection handoff. Slice 2 therefore keeps alert triage and selected-map
+interaction on their existing surfaces rather than extending the data contract
+for presentation alone.
 
 ## Map direction
 

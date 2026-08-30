@@ -98,10 +98,19 @@ the untouched dialog consumer while dependent screen migrations are pending.
 This was presentation-only: no API, schema, migration, provider, scheduler, or
 Telegram behavior changed.
 
-**NEXT SUBSTAGE — Slice 2: Fleet overview redesign.** Redesign the Fleet
-overview inside the accepted shell while preserving its existing data,
-filtering, scheduler, freshness, and route contracts. The overall frontend
-design direction remains **NOW** until all implementation slices and
+**DONE — Slice 2: Fleet overview redesign.** Fleet is now a compact Mira
+operational screen: a shadcn/Base UI toolbar and dense table on desktop, a
+deliberate compact list on mobile, local presentation-only ordering, and
+contract-backed status/freshness display. Existing server filtering,
+authorization, timezone, refresh, route, provider-disabled, and scheduler
+behavior remain intact. The response has no open-alert or selected-map handoff
+field, so those remain on their existing screens pending a separately reviewed
+data-contract decision. This was presentation-only: no API, schema, migration,
+provider, scheduler, or Telegram behavior changed.
+
+**NEXT SUBSTAGE — Slice 3: Map / fleet-map interaction redesign.** Redesign
+the Map workspace and its Fleet handoff inside the accepted shell. The overall
+frontend design direction remains **NOW** until all implementation slices and
 authenticated acceptance are complete; it is not marked DONE here.
 
 ## LATER — Final production hardening
