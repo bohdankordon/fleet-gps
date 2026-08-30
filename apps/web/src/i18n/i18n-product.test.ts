@@ -85,12 +85,11 @@ test("selector is header-integrated, native, single-POST, non-retrying, and rout
   assert.doesNotMatch(layout, /LanguageSelector|language-selector-shell/);
   assert.match(layout, /<AppNavigation/);
   assert.match(layout, /<AuthProvider/);
-  assert.match(navigation, /app-header-tools/);
+  assert.match(navigation, /taxi-header/);
   assert.match(navigation, /pathname === "\/login"[^]*<LanguageSelector/);
-  assert.match(navigation, /<LanguageSelector \/>\{user && <Link className="account-link"/);
+  assert.match(navigation, /<LanguageSelector \/>\{user \? <AccountMenu/);
   for (const expected of ["Русский", "Українська", "English"]) assert.ok(readFileSync("src/i18n/locales.ts", "utf8").includes(expected));
-  assert.match(selector, /<select aria-label=\{t\("language\.label"\)\} value=\{locale\}/);
-  assert.doesNotMatch(selector, /aria-pressed|role="listbox"/);
+  assert.match(selector, /<Select aria-label=\{t\("language\.label"\)\} value=\{locale\}/);
   assert.match(selector, /disabled=\{pending\}/);
   assert.match(selector, /router\.refresh\(\)/);
   assert.equal((selector.match(/fetch\("\/api\/preferences\/locale"/g) ?? []).length, 1);

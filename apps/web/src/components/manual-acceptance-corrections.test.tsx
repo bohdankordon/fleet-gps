@@ -53,7 +53,7 @@ test("Fleet vehicle identities are semantic links to the existing detail route",
   const dashboard = source("src/components/dashboard-client.tsx");
   assert.match(dashboard, /import Link from "next\/link"/);
   assert.ok((dashboard.match(/href=\{`\/vehicles\/\$\{vehicle\.id\}`\}/g) ?? []).length >= 2);
-  assert.match(dashboard, /className="vehicle-detail-link"/);
+  assert.match(dashboard, /<Table<Vehicle>/);
 });
 
 test("Disable is destructive while Enable and password reset are not", () => {
@@ -73,7 +73,7 @@ test("accepted correction hooks cover users, permissions, account, dashboard sum
   assert.match(source("src/app/account/page.tsx"), /account-heading/);
   const css = source("src/app/globals.css");
   for (const hook of ["trip-result-message", "danger-button", "grid-template-columns:16px minmax(0,1fr)", "input[type=\"checkbox\"]", "grid-template-rows:minmax(1.35em,auto) minmax(2.7em,auto)"]) assert.ok(css.includes(hook), hook);
-  assert.match(source("src/components/dashboard-client.tsx"), /dashboard-stat-card/);
-  assert.match(source("src/styles/dashboard.css"), /dashboard-summary-grid/);
+  assert.match(source("src/components/dashboard-client.tsx"), /<Statistic/);
+  assert.match(source("src/components/dashboard-client.tsx"), /<Table<Vehicle>/);
   assert.match(source("src/components/vehicle-trips-client.tsx"), /trip-neutral trip-result-message/);
 });

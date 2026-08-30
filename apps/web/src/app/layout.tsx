@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { AntdRegistry } from "@ant-design/nextjs-registry";
+import { AntDesignProvider } from "@/components/ant-design-provider";
 import { AppNavigation } from "@/components/app-navigation";
 import { AppShell } from "@/components/app-shell";
 import { AuthProvider } from "@/components/auth-provider";
@@ -11,4 +13,4 @@ import "../styles/dashboard.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 export async function generateMetadata(): Promise<Metadata> { const { t } = await getServerI18n(); return { title: t("document.title"), description: t("document.description") }; }
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { const [user, { locale, t }] = await Promise.all([getAuthUser(), getServerI18n()]); return <html lang={locale}><body><I18nProvider locale={locale}><AuthProvider user={user}><AppShell skipLabel={t("navigation.skipToMain")} navigation={<AppNavigation />}>{children}</AppShell></AuthProvider></I18nProvider></body></html>; }
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { const [user, { locale, t }] = await Promise.all([getAuthUser(), getServerI18n()]); return <html lang={locale}><body><AntdRegistry><AntDesignProvider locale={locale}><I18nProvider locale={locale}><AuthProvider user={user}><AppShell skipLabel={t("navigation.skipToMain")} navigation={<AppNavigation />}>{children}</AppShell></AuthProvider></I18nProvider></AntDesignProvider></AntdRegistry></body></html>; }

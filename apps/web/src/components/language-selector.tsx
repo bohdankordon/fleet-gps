@@ -2,9 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Select } from "antd";
 import { useI18n } from "../i18n/client";
 import { NATIVE_LOCALE_NAMES, SUPPORTED_LOCALES, type AppLocale } from "../i18n/locales";
-import { ChevronDownIcon, GlobeIcon } from "./ui/icons";
 
 export function LanguageSelector() {
   const router = useRouter();
@@ -34,14 +34,8 @@ export function LanguageSelector() {
     }
   }
 
-  return <div className="language-selector">
-    <div className="language-selector-control">
-      <GlobeIcon className="language-selector-globe" size={18} />
-      <select aria-label={t("language.label")} value={locale} disabled={pending} onChange={(event) => { void change(event.currentTarget.value as AppLocale); }}>
-        {SUPPORTED_LOCALES.map((value) => <option value={value} key={value}>{NATIVE_LOCALE_NAMES[value]}</option>)}
-      </select>
-      <ChevronDownIcon className="language-selector-chevron" size={16} />
-    </div>
-    {error && <span className="language-selector-error" role="alert">{t("language.changeError")}</span>}
+  return <div>
+    <Select aria-label={t("language.label")} value={locale} disabled={pending} onChange={(value) => { void change(value as AppLocale); }} options={SUPPORTED_LOCALES.map((value) => ({ value, label: NATIVE_LOCALE_NAMES[value] }))} />
+    {error && <span role="alert">{t("language.changeError")}</span>}
   </div>;
 }

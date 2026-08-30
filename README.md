@@ -90,7 +90,7 @@ dev.ps1                Safe Windows local-development helper
 ## Tech stack
 
 - Node.js 24 (`>=24.7.0 <25`), TypeScript 5.8, npm workspaces.
-- Next.js 16, React 19, Tailwind CSS 4, and MapLibre GL 6.
+- Next.js 16, React 19, Tailwind CSS 4, Ant Design 6, and MapLibre GL 6.
 - NestJS 11 with Nest Schedule for API and background work.
 - Prisma 7.9 with PostgreSQL 17.
 - Zod for external and BFF contract validation.

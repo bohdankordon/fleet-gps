@@ -72,6 +72,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "language.changeError": { ru: "Не удалось изменить язык.", uk: "Не вдалося змінити мову.", en: "The language could not be changed." },
 
   "navigation.primaryLabel": { ru: "Основная навигация", uk: "Основна навігація", en: "Primary navigation" },
+  "navigation.openMenu": { ru: "Открыть навигацию", uk: "Відкрити навігацію", en: "Open navigation" },
   "navigation.skipToMain": { ru: "Перейти к содержимому", uk: "Перейти до вмісту", en: "Skip to main content" },
   "navigation.scrollHint": { ru: "Навигация прокручивается по горизонтали при необходимости", uk: "Навігація прокручується горизонтально за потреби", en: "Navigation scrolls horizontally when needed" },
   "navigation.adminLabel": { ru: "Администрирование", uk: "Адміністрування", en: "Administration" },
@@ -327,6 +328,8 @@ export const MESSAGE_CATALOG = Object.freeze({
   "dashboard.refreshingData": { ru: "Обновление данных…", uk: "Оновлення даних…", en: "Refreshing data…" },
   "dashboard.emptyTitle": { ru: "Ничего не найдено", uk: "Нічого не знайдено", en: "Nothing found" },
   "dashboard.emptyText": { ru: "Измените фильтры, чтобы увидеть машины.", uk: "Змініть фільтри, щоб побачити автомобілі.", en: "Change the filters to see vehicles." },
+  "dashboard.emptyFleetTitle": { ru: "Нет машин", uk: "Немає автомобілів", en: "No vehicles" },
+  "dashboard.emptyFleetText": { ru: "В доступном автопарке пока нет машин.", uk: "У доступному автопарку ще немає автомобілів.", en: "There are no vehicles in the available fleet yet." },
   "dashboard.initialErrorText": { ru: "Повторите попытку позже.", uk: "Спробуйте пізніше.", en: "Please try again later." },
   "dashboard.retryAria": { ru: "Повторить загрузку данных автопарка", uk: "Повторити завантаження даних автопарку", en: "Retry loading fleet data" },
   "dashboard.table.vehicle": { ru: "Машина", uk: "Автомобіль", en: "Vehicle" },
