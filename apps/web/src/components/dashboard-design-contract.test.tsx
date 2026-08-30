@@ -35,7 +35,15 @@ test("Fleet preserves separate connectivity, freshness, and provider-disabled la
 
 test("Fleet keeps the scheduler as an available compact diagnostic", () => {
   assert.match(dashboard, /<details className="fleet-service-status">/);
-  assert.match(dashboard, /<SchedulerStatus initialStatus=\{initialSchedulerStatus\}/);
+  assert.match(dashboard, /<SchedulerStatus initialStatus=\{schedulerStatus\}/);
   assert.match(styles, /\.fleet-service-status/);
   assert.match(scheduler, /fetch\("\/api\/system\/sync-status", \{ cache: "no-store", signal: abort\.signal \}\)/);
+});
+
+test("Fleet composes metadata, one toolbar, and the data surface without a summary card", () => {
+  assert.match(dashboard, /<FleetHeader data=\{data\} schedulerStatus=\{initialSchedulerStatus\}/);
+  assert.match(dashboard, /<FleetToolbar[\s\S]*query=\{query\}/);
+  assert.doesNotMatch(dashboard, /<FleetSummary/);
+  assert.doesNotMatch(styles, /\.fleet-summary/);
+  assert.match(styles, /\.fleet-toolbar \{[\s\S]*border-top:[\s\S]*border-bottom:/);
 });

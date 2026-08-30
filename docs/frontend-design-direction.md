@@ -728,6 +728,12 @@ semantic tokens and Base UI-backed components.
 | 8 — Responsive/accessibility consolidation | Cross-screen 1440/1280/768/390 tuning, keyboard/focus/contrast audit, long-string and reduced-motion pass. | Run the acceptance matrix across representative authenticated states; fix layout/accessibility defects without changing business semantics. |
 | 9 — Authenticated acceptance and release handoff | Local authenticated acceptance, focused Web tests/typecheck/lint/build as appropriate, review, production preflight and deployment as a separately authorized stage. | No deployment is part of this brief. Release only after the repository is clean, behavior is accepted, and production actions are explicitly authorized. |
 
+Fleet composition principle: treat Fleet as one operational workspace: concise
+page metadata, one neutral toolbar, and one primary table/list surface. During
+healthy operation, diagnostic state is a low-emphasis disclosure within that
+metadata rather than a competing panel. Use spacing, typography, and restrained
+separators before adding containers or rounded surfaces.
+
 ## Screen acceptance matrix
 
 The matrix is a target acceptance checklist for the implementation stages. The

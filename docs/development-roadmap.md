@@ -106,12 +106,15 @@ authorization, timezone, refresh, route, provider-disabled, and scheduler
 behavior remain intact. The response has no open-alert or selected-map handoff
 field, so those remain on their existing screens pending a separately reviewed
 data-contract decision. This was presentation-only: no API, schema, migration,
-provider, scheduler, or Telegram behavior changed.
+provider, scheduler, or Telegram behavior changed. A focused visual
+composition remediation has subsequently consolidated the page into one
+operational workspace and is awaiting renewed human visual acceptance.
 
 **NEXT SUBSTAGE — Slice 3: Map / fleet-map interaction redesign.** Redesign
-the Map workspace and its Fleet handoff inside the accepted shell. The overall
-frontend design direction remains **NOW** until all implementation slices and
-authenticated acceptance are complete; it is not marked DONE here.
+the Map workspace and its Fleet handoff inside the accepted shell only after
+that renewed Fleet visual acceptance. The overall frontend design direction
+remains **NOW** until all implementation slices and authenticated acceptance
+are complete; it is not marked DONE here.
 
 ## LATER — Final production hardening
 

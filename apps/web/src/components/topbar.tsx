@@ -9,7 +9,7 @@ import { LanguageSelector } from "./language-selector";
 import { LogoutButton } from "./logout-button";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Button } from "./ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { SidebarTrigger } from "./ui/sidebar";
 
 type Translator = ReturnType<typeof useI18n>["t"];
@@ -37,11 +37,11 @@ export function Topbar() {
           <Avatar size="sm"><AvatarFallback>{user.login.slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuLabel>{user.login}</DropdownMenuLabel>
+          <DropdownMenuGroup><DropdownMenuLabel>{user.login}</DropdownMenuLabel></DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem render={<Link href="/account" />}><User size={16} strokeWidth={1.8} aria-hidden="true" />{t("navigation.account")}</DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem render={<LogoutButton className="w-full justify-start" />}><LogOut size={16} strokeWidth={1.8} aria-hidden="true" />{t("auth.logout.submit")}</DropdownMenuItem>
+          <DropdownMenuItem nativeButton render={<LogoutButton className="w-full justify-start" />}><LogOut size={16} strokeWidth={1.8} aria-hidden="true" />{t("auth.logout.submit")}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

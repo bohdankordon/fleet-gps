@@ -21,6 +21,8 @@ test("application shell owns locale and account controls without legacy horizont
   assert.doesNotMatch(layout, /LanguageSelector|language-selector-shell/);
   assert.match(topbar, /<LanguageSelector \/>/);
   assert.match(topbar, /DropdownMenu/);
+  assert.match(topbar, /<DropdownMenuGroup><DropdownMenuLabel>\{user\.login\}<\/DropdownMenuLabel><\/DropdownMenuGroup>/);
+  assert.match(topbar, /<DropdownMenuItem nativeButton render=\{<LogoutButton/);
   assert.match(sidebar, /SidebarProvider|Sidebar/);
 });
 
