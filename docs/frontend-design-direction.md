@@ -733,6 +733,9 @@ page metadata, one neutral toolbar, and one primary table/list surface. During
 healthy operation, diagnostic state is a low-emphasis disclosure within that
 metadata rather than a competing panel. Use spacing, typography, and restrained
 separators before adding containers or rounded surfaces.
+The human-approved Fleet visual reference is the durable composition guide for
+this screen; its hierarchy is implemented only with current contract-backed
+data, never invented mockup values.
 
 ## Screen acceptance matrix
 

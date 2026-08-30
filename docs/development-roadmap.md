@@ -108,7 +108,7 @@ field, so those remain on their existing screens pending a separately reviewed
 data-contract decision. This was presentation-only: no API, schema, migration,
 provider, scheduler, or Telegram behavior changed. A focused visual
 composition remediation has subsequently consolidated the page into one
-operational workspace and is awaiting renewed human visual acceptance.
+operational workspace and is ready for renewed human visual acceptance.
 
 **NEXT SUBSTAGE — Slice 3: Map / fleet-map interaction redesign.** Redesign
 the Map workspace and its Fleet handoff inside the accepted shell only after

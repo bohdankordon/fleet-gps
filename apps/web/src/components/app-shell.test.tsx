@@ -8,7 +8,7 @@ test("AppShell owns one stable main landmark and keyboard skip target", () => {
   const shell = readFileSync("src/components/app-shell.tsx", "utf8");
   assert.match(shell, /className="app-shell__skip-link" href="#app-main"/);
   assert.match(shell, /<main id="app-main" className="app-shell__main" tabIndex=\{-1\}>/);
-  assert.match(shell, /<SidebarProvider>/);
+  assert.match(shell, /<SidebarProvider/);
   assert.match(shell, /<AppSidebar \/>/);
   assert.match(shell, /<Topbar \/>/);
 });

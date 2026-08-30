@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { AppSidebar } from "./app-sidebar";
 import { Topbar } from "./topbar";
 import { SidebarProvider } from "./ui/sidebar";
 
 export function AppShell({ children, skipLabel }: Readonly<{ children: ReactNode; skipLabel: string }>) {
-  return <SidebarProvider>
+  return <SidebarProvider style={{ "--sidebar-width": "14rem" } as CSSProperties}>
     <a className="app-shell__skip-link" href="#app-main">{skipLabel}</a>
     <AppSidebar />
     <div className="app-shell">

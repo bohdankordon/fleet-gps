@@ -1,6 +1,7 @@
 import * as React from "react"
 
-const MOBILE_BREAKPOINT = 768
+// The persistent navigation becomes a drawer before it crowds data-dense views.
+const MOBILE_BREAKPOINT = 1024
 
 const mediaQuery = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`
 
