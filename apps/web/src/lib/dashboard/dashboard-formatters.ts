@@ -21,6 +21,11 @@ export function formatFleetMetadataTimestamp(value: string | null, timezone: str
     return year && month && day && hour && minute ? `${year}-${month}-${day}, ${hour}:${minute}` : translate(locale, "common.noData");
   } catch { return translate(locale, "common.noData"); }
 }
+/** Fleet GPS rows use the same fixed operational minute format, while absence remains a presentation concern. */
+export function formatFleetGpsTimestamp(value: string | null, timezone: string, locale: AppLocale = DEFAULT_LOCALE): string | null {
+  const formatted = formatFleetMetadataTimestamp(value, timezone, locale);
+  return formatted === translate(locale, "common.noData") ? null : formatted;
+}
 export function formatFleetServiceDate(value: string, locale: AppLocale = DEFAULT_LOCALE): string { return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : translate(locale, "common.noData"); }
 export function statusLabel(value: DashboardVehiclesResponse["vehicles"][number]["status"], locale: AppLocale = DEFAULT_LOCALE): string { return translate(locale, `dashboard.status.${value}`); }
 export function sourceLabel(value: DashboardVehiclesResponse["vehicles"][number]["dailyDistanceSource"], locale: AppLocale = DEFAULT_LOCALE): string { return value === null ? translate(locale, "common.noData") : translate(locale, `dashboard.format.source.${value}`); }

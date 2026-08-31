@@ -27,6 +27,7 @@ test("Fleet uses native Ant Design controls while preserving the dashboard reque
 
 test("Fleet desktop table and mobile list preserve operational data without pagination or row selection", () => {
   assert.match(dashboard, /<Table<Vehicle>/);
+  assert.match(dashboard, /className="fleet-table"/);
   assert.match(dashboard, /rowKey="id"/);
   assert.match(dashboard, /pagination=\{false\}/);
   assert.doesNotMatch(dashboard, /rowSelection=/);
@@ -58,13 +59,14 @@ test("Fleet keeps one collapsible filter surface below the summary and directly 
   for (const control of ["<Input", "<Select", "<Checkbox", "<StableLoadingButton", "type=\"primary\""]) assert.ok(dashboard.includes(control), control);
   assert.equal((dashboard.match(/function FleetToolbar/g) ?? []).length, 1);
   assert.ok(dashboard.indexOf("<Summary data={data} />") < dashboard.indexOf("<FleetToolbar query={query}"));
-  assert.ok(dashboard.indexOf("<FleetToolbar query={query}") < dashboard.indexOf("{screens.md ? <Table<Vehicle>"));
+  assert.ok(dashboard.indexOf("<FleetToolbar query={query}") < dashboard.indexOf("{screens.md ? <FleetTable"));
   assert.match(dashboard, /<section className="fleet-toolbar" aria-label=/);
   assert.match(dashboard, /import \{[^}]*\bCollapse\b/);
   assert.match(dashboard, /useState<string\[\]>\(\[\]\)/);
   assert.match(dashboard, /<Collapse ghost size="small" activeKey=\{activeKeys\}/);
   assert.match(dashboard, /items=\{\[\{ key: "filters", label: filterHeader, extra: reset, children: filters \}\]\}/);
-  assert.match(dashboard, /const reset = <Button size="small" styles=\{\{ root: \{ minHeight: 0 \} \}\} disabled=\{activeFilterCount === 0\}/);
+  assert.match(dashboard, /const reset = <ConfigProvider theme=\{\{ token: \{ colorPrimaryBorder: token\.colorTextQuaternary \}, components: \{ Button: \{ defaultHoverBg: token\.colorFillQuaternary, defaultHoverBorderColor: token\.colorTextTertiary, defaultHoverColor: token\.colorText, defaultActiveBg: token\.colorFillTertiary, defaultActiveBorderColor: token\.colorTextSecondary, defaultActiveColor: token\.colorText \} \} \}\}><Button type="default" size="small"/);
+  assert.match(dashboard, /disabled=\{activeFilterCount === 0\}/);
   assert.doesNotMatch(dashboard, /const reset = activeFilterCount > 0 \?/);
   assert.doesNotMatch(dashboard, /<Button type="link"[^>]*>\{t\("dashboard\.toolbar\.resetFilters"\)\}/);
   assert.match(dashboard, /event\.stopPropagation\(\); onResetFilters\(\);/);
@@ -116,6 +118,50 @@ test("Fleet keeps every accepted KPI metric and table presentation", () => {
   assert.doesNotMatch(dashboard, /dashboard\.eyebrow/);
 });
 
+test("Fleet operational table improves scanability without changing its data or interaction contract", () => {
+  assert.match(dashboard, /<ConfigProvider theme=\{\{ components: \{ Table: \{ cellPaddingInlineMD: token\.paddingSM, headerBg: token\.colorBorderSecondary, headerColor: token\.colorTextHeading, headerSplitColor: token\.colorBorderSecondary, rowHoverBg: token\.colorFillTertiary \} \} \}\}>/);
+  assert.match(dashboard, /sticky=\{\{ offsetHeader: 0 \}\}/);
+  assert.match(dashboard, /styles=\{\{ header: \{ cell: headerCellStyle \} \}\}/);
+  assert.match(dashboard, /backgroundColor: token\.colorBorderSecondary/);
+  assert.match(dashboard, /fontSize: token\.fontSize, fontWeight: token\.fontWeightStrong/);
+  assert.match(dashboard, /paddingBlock: token\.paddingSM/);
+  assert.match(dashboard, /<CarOutlined \/>/);
+  assert.match(dashboard, /aria-hidden><CarOutlined/);
+  assert.match(dashboard, /className="fleet-vehicle-link fleet-table__vehicle-link" href=\{`\/vehicles\/\$\{vehicle\.id\}`\}/);
+  assert.match(dashboard, /className="fleet-vehicle-link" href=\{`\/vehicles\/\$\{vehicle\.id\}`\}/);
+  assert.match(dashboard, /<\/Link>\{vehicle\.disabled \? <Tag className="fleet-table__disabled-tag" color="default" variant="filled">/);
+  assert.match(dashboard, /tableLayout="auto"/);
+  assert.match(dashboard, /className: "fleet-table__vehicle-column", width: "1%", minWidth: 240/);
+  assert.match(dashboard, /className="fleet-table__vehicle-name" ellipsis=\{\{ tooltip: vehicle\.name \}\}/);
+  assert.equal((dashboard.match(/align: "right"/g) ?? []).length, 2);
+  assert.equal((dashboard.match(/onCell: centeredFleetCell/g) ?? []).length, 7);
+  assert.match(dashboard, /const centeredFleetCell = \(\) => \(\{ style: \{ verticalAlign: "middle" \} \}\)/);
+  assert.match(dashboard, /className="fleet-table__vehicle-identity"><Text className="fleet-table__vehicle-icon"/);
+  assert.match(dashboard, /function OptionalMetric/);
+  assert.match(dashboard, /value === null \? "—" : formatted/);
+  assert.match(dashboard, /function FleetGpsCell/);
+  assert.match(dashboard, /formatFleetGpsTimestamp\(vehicle\.fixTime, timezone, locale\)/);
+  assert.match(dashboard, /<time dateTime=\{vehicle\.fixTime\}>\{timestamp\}<\/time> : "—"/);
+  assert.match(dashboard, /freshnessLabel\(vehicle\.positionFreshness, locale\)/);
+  assert.match(dashboard, /vehicle\.dailyDistanceSource === null && vehicle\.dailyDistanceQuality === null\) return <Text type="secondary">—<\/Text>/);
+  assert.match(dashboard, /vehicle\.dailyDistanceMeters === null \? t\("common\.noData"\)/);
+  assert.match(dashboard, /pagination=\{false\}/);
+  assert.doesNotMatch(dashboard, /rowSelection=|actions:/);
+});
+
+test("Fleet operational columns use one verified user-facing concept in every locale", () => {
+  for (const copy of [
+    '"dashboard.table.vehicle": { ru: "Автомобиль", uk: "Автомобіль", en: "Vehicle" }',
+    '"dashboard.table.currentSpeed": { ru: "Скорость", uk: "Швидкість", en: "Speed" }',
+    '"dashboard.table.dailyDistance": { ru: "Пробег за день", uk: "Пробіг за день", en: "Daily distance" }',
+    '"dashboard.table.sourceQuality": { ru: "Данные пробега", uk: "Дані пробігу", en: "Distance data" }',
+    '"dashboard.table.activity": { ru: "Минимальный пробег", uk: "Мінімальний пробіг", en: "Minimum distance" }',
+  ]) assert.ok(messages.includes(copy), copy);
+  assert.doesNotMatch(messages, /Джерело \/ якість|Источник \/ качество|Source \/ quality/);
+  assert.match(dashboard, /vehicle\.dailyDistanceSource === null && vehicle\.dailyDistanceQuality === null/);
+  assert.match(dashboard, /vehicle\.belowMinimumDistance \? <Tag color="error">/);
+});
+
 test("Fleet metadata owns punctuation and one fixed generated timestamp", () => {
   for (const key of ["serviceDate", "timezone", "vehicles", "generated"]) assert.doesNotMatch(messages, new RegExp(`dashboard\\.metadata\\.${key}": \\{[^\\n]*: "[^"]*:`));
   assert.match(dashboard, /function MetadataItem/);
@@ -148,15 +194,21 @@ test("Fleet toolbar copy owns one colon and keeps the approved filter labels", (
 test("Scheduler details use three native Card groups with aligned Descriptions", () => {
   assert.match(scheduler, /import \{ Alert, Badge, Card, Collapse/);
   assert.match(scheduler, /<Row gutter=\{\[16, 16\]\}>/);
-  assert.match(scheduler, /<Card size="small" title=\{t\("scheduler\.overall"\)\}>/);
-  assert.match(scheduler, /<Card size="small" title=\{title\} extra=\{<Badge/);
-  assert.match(scheduler, /<Descriptions size="small" column=\{1\} colon/);
+  assert.match(scheduler, /<Card className="scheduler-diagnostic-card" size="small" title=\{t\("scheduler\.overall"\)\} styles=\{schedulerCardStyles\}>/);
+  assert.match(scheduler, /<Card className="scheduler-diagnostic-card" size="small" title=\{title\} extra=\{<Badge/);
+  assert.match(scheduler, /const schedulerCardStyles = \{ header: \{ paddingInline: 16 \}, body: \{ padding: "12px 16px 16px" \} \} as const/);
+  assert.match(scheduler, /<Descriptions className="scheduler-diagnostic-values" size="small" column=\{1\} colon layout="horizontal"/);
+  assert.match(scheduler, /label: \{ color: token\.colorTextSecondary, width: "56%" \}/);
+  assert.match(scheduler, /content: \{ color: token\.colorText, textAlign: "right", fontVariantNumeric: "tabular-nums" \}/);
 });
 
 test("Fleet-specific CSS uses owned layout classes without Ant Design internals", () => {
-  for (const ownedClass of ["fleet-toolbar__filters", "fleet-toolbar__filter-controls", "fleet-toolbar__list-controls", "fleet-toolbar__labeled-select", "stable-loading-button"]) assert.ok(styles.includes(ownedClass), ownedClass);
+  for (const ownedClass of ["fleet-toolbar__filters", "fleet-toolbar__filter-controls", "fleet-toolbar__list-controls", "fleet-toolbar__labeled-select", "stable-loading-button", "fleet-vehicle-link", "fleet-table__vehicle-identity", "fleet-table__vehicle-icon", "fleet-table__vehicle-copy", "fleet-table__vehicle-link", "fleet-table__vehicle-name", "fleet-table__disabled-tag", "fleet-table__numeric"]) assert.ok(styles.includes(ownedClass), ownedClass);
   assert.match(styles, /fleet-toolbar \{ display: grid; gap: 12px; min-width: 0; border: 1px solid; \}/);
   assert.match(styles, /fleet-toolbar__search \{ flex: 1 1 240px; min-width: 160px; \}/);
+  assert.match(styles, /fleet-vehicle-link \{[^}]*text-decoration-line: underline;[^}]*\}/);
+  assert.match(styles, /fleet-vehicle-link:hover, \.fleet-vehicle-link:focus-visible \{ text-decoration-line: underline; text-decoration-thickness: 2px; \}/);
+  assert.match(styles, /fleet-table__disabled-tag \{ justify-self: start; \}/);
   assert.match(styles, /@media \(max-width: 575px\)/);
   assert.doesNotMatch(styles, /block-size: 36px|fleet-toolbar__zones|fleet-toolbar__intrinsic-select|fleet-refresh-/);
   assert.doesNotMatch(styles, /\.ant-/);

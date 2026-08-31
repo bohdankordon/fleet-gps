@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Badge, Card, Collapse, Col, Descriptions, Grid, Row, Space } from "antd";
+import { Alert, Badge, Card, Collapse, Col, Descriptions, Grid, Row, Space, theme } from "antd";
+import type { DescriptionsProps } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import Text from "antd/es/typography/Text";
 import type { SchedulerStatusResponse } from "@/lib/scheduler/scheduler-contract";
@@ -60,7 +61,7 @@ function SchedulerDetails({ status, timezone, failed }: Readonly<{ status: Sched
   return <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
     {failed ? <Alert type="error" showIcon message={t("scheduler.loadError")} /> : null}
     <Row gutter={[16, 16]}>
-      <Col xs={24} lg={8}><Card size="small" title={t("scheduler.overall")}><Descriptions size="small" column={1} colon items={[{ key: "started", label: t("scheduler.started"), children: formatSchedulerTimestamp(status.startedAt, timezone, locale) }, { key: "fleet", label: t("scheduler.fleetInterval"), children: formatSchedulerInterval(status.fleetIntervalSeconds, locale) }, { key: "distance", label: t("scheduler.distanceInterval"), children: formatSchedulerInterval(status.runsIntervalSeconds, locale) }, { key: "generated", label: t("scheduler.generated"), children: formatSchedulerTimestamp(status.generatedAt, timezone, locale) }]} /></Card></Col>
+      <Col xs={24} lg={8}><Card className="scheduler-diagnostic-card" size="small" title={t("scheduler.overall")} styles={schedulerCardStyles}><SchedulerDescriptions items={[{ key: "started", label: t("scheduler.started"), children: formatSchedulerTimestamp(status.startedAt, timezone, locale) }, { key: "fleet", label: t("scheduler.fleetInterval"), children: formatSchedulerInterval(status.fleetIntervalSeconds, locale) }, { key: "distance", label: t("scheduler.distanceInterval"), children: formatSchedulerInterval(status.runsIntervalSeconds, locale) }, { key: "generated", label: t("scheduler.generated"), children: formatSchedulerTimestamp(status.generatedAt, timezone, locale) }]} /></Card></Col>
       <JobDetails title={t("scheduler.fleetJob")} job={status.fleet} timezone={timezone} />
       <JobDetails title={t("scheduler.distanceJob")} job={status.runs} timezone={timezone} />
     </Row>
@@ -70,5 +71,12 @@ function SchedulerDetails({ status, timezone, failed }: Readonly<{ status: Sched
 function JobDetails({ title, job, timezone }: Readonly<{ title: string; job: Job; timezone: string }>) {
   const { locale, t } = useI18n();
   const state = job.running ? t("scheduler.running") : t("scheduler.idle");
-  return <Col xs={24} lg={8}><Card size="small" title={title} extra={<Badge status={job.consecutiveFailures > 0 ? "warning" : job.running ? "processing" : "default"} text={state} />}>{job.consecutiveFailures > 0 ? <Alert type="warning" showIcon message={t("scheduler.failuresWarning")} style={{ marginBottom: 16 }} /> : null}<Descriptions size="small" column={1} colon items={[{ key: "lastAttempt", label: t("scheduler.lastAttempt"), children: formatSchedulerTimestamp(job.lastAttemptAt, timezone, locale) }, { key: "lastSuccess", label: t("scheduler.lastSuccess"), children: formatSchedulerTimestamp(job.lastSuccessAt, timezone, locale) }, { key: "lastFailure", label: t("scheduler.lastFailure"), children: formatSchedulerTimestamp(job.lastFailureAt, timezone, locale) }, { key: "failureCategory", label: t("scheduler.failureCategory"), children: schedulerFailureCategoryLabel(job.lastFailureCategory, locale) }, { key: "consecutive", label: t("scheduler.consecutiveFailures"), children: job.consecutiveFailures }, { key: "success", label: t("scheduler.successfulRuns"), children: job.successfulRuns }, { key: "failed", label: t("scheduler.failedRuns"), children: job.failedRuns }, { key: "skipped", label: t("scheduler.skippedOverlaps"), children: job.skippedOverlaps }]} /></Card></Col>;
+  return <Col xs={24} lg={8}><Card className="scheduler-diagnostic-card" size="small" title={title} extra={<Badge status={job.consecutiveFailures > 0 ? "warning" : job.running ? "processing" : "default"} text={state} />} styles={schedulerCardStyles}>{job.consecutiveFailures > 0 ? <Alert type="warning" showIcon message={t("scheduler.failuresWarning")} style={{ marginBottom: 16 }} /> : null}<SchedulerDescriptions items={[{ key: "lastAttempt", label: t("scheduler.lastAttempt"), children: formatSchedulerTimestamp(job.lastAttemptAt, timezone, locale) }, { key: "lastSuccess", label: t("scheduler.lastSuccess"), children: formatSchedulerTimestamp(job.lastSuccessAt, timezone, locale) }, { key: "lastFailure", label: t("scheduler.lastFailure"), children: formatSchedulerTimestamp(job.lastFailureAt, timezone, locale) }, { key: "failureCategory", label: t("scheduler.failureCategory"), children: schedulerFailureCategoryLabel(job.lastFailureCategory, locale) }, { key: "consecutive", label: t("scheduler.consecutiveFailures"), children: job.consecutiveFailures }, { key: "success", label: t("scheduler.successfulRuns"), children: job.successfulRuns }, { key: "failed", label: t("scheduler.failedRuns"), children: job.failedRuns }, { key: "skipped", label: t("scheduler.skippedOverlaps"), children: job.skippedOverlaps }]} /></Card></Col>;
+}
+
+const schedulerCardStyles = { header: { paddingInline: 16 }, body: { padding: "12px 16px 16px" } } as const;
+
+function SchedulerDescriptions({ items }: Readonly<{ items: NonNullable<DescriptionsProps["items"]> }>) {
+  const { token } = theme.useToken();
+  return <Descriptions className="scheduler-diagnostic-values" size="small" column={1} colon layout="horizontal" styles={{ label: { color: token.colorTextSecondary, width: "56%" }, content: { color: token.colorText, textAlign: "right", fontVariantNumeric: "tabular-nums" } }} items={items} />;
 }

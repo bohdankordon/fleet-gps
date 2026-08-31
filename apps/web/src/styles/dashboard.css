@@ -16,6 +16,15 @@
 .stable-loading-button__sizer { visibility: hidden; pointer-events: none; }
 .stable-loading-button > .stable-loading-button__control { width: 100%; }
 .fleet-summary-card { height: 100%; }
+.fleet-table__vehicle-identity { display: inline-grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 8px; width: max-content; min-width: 216px; max-width: 316px; white-space: nowrap; }
+.fleet-table__vehicle-icon { font-size: 16px; }
+.fleet-table__vehicle-copy { display: grid; min-width: 0; }
+.fleet-vehicle-link { font-weight: 600; text-decoration-line: underline; text-decoration-thickness: from-font; }
+.fleet-vehicle-link:hover, .fleet-vehicle-link:focus-visible { text-decoration-line: underline; text-decoration-thickness: 2px; }
+.fleet-table__vehicle-link { display: block; min-width: 0; max-width: 100%; }
+.fleet-table__vehicle-name { display: block; max-width: 100%; color: inherit; white-space: nowrap; }
+.fleet-table__disabled-tag { justify-self: start; }
+.fleet-table__numeric { font-variant-numeric: tabular-nums; white-space: nowrap; }
 @media (max-width: 575px) {
   .fleet-toolbar__filter-controls, .fleet-toolbar__list-controls { flex-wrap: wrap; }
   .fleet-toolbar__search { flex-basis: 100%; min-width: 0; }

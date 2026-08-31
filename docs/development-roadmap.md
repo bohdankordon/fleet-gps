@@ -96,7 +96,8 @@ preserving API and business behavior.
 closed on native Ant Design 6. Search, Sort, and Refresh remain always visible;
 optional filters are collapsed by default with an active-count indicator.
 Reset remains mounted at the far right, disabled at defaults and enabled when
-an optional filter is active.
+an optional filter is active. The operational Table uses clear linked vehicle
+identity and a compact neutral disabled-vehicle indicator.
 
 **NOW — Map redesign.** Map is the next behavior-preserving frontend slice.
 
