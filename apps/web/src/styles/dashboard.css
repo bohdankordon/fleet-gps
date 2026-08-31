@@ -1,13 +1,22 @@
 .fleet-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
 .fleet-page > * { min-width: 0; }
-.fleet-toolbar__search { width: 100%; }
-.fleet-toolbar__intrinsic-select { display: inline-grid; min-width: 0; }
-.fleet-toolbar__intrinsic-select > * { grid-area: 1 / 1; }
-.fleet-toolbar__select-sizer { display: grid; visibility: hidden; padding-inline: 11px 40px; }
-.fleet-toolbar__select-sizer > span { grid-area: 1 / 1; white-space: nowrap; }
-.fleet-toolbar__intrinsic-select > :last-child { width: 100%; }
-.fleet-toolbar__zones { width: 100%; }
-.fleet-toolbar__zone--view { margin-inline-start: auto; }
+.fleet-toolbar { display: grid; gap: 12px; min-width: 0; border: 1px solid; }
+.fleet-toolbar__filter-controls, .fleet-toolbar__list-controls { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.fleet-toolbar__filter-controls { flex-wrap: wrap; }
+.fleet-toolbar__list-controls { flex-wrap: nowrap; }
+.fleet-toolbar__filters { min-width: 0; border-top: 1px solid; }
+.fleet-toolbar__search { flex: 1 1 240px; min-width: 160px; }
+.fleet-toolbar__labeled-select { display: inline-grid; flex: none; min-width: 0; max-width: 100%; }
+.fleet-toolbar__labeled-select > * { grid-area: 1 / 1; }
+.fleet-toolbar__select-sizer { display: inline-grid; visibility: hidden; padding-inline: var(--fleet-toolbar-select-padding-start) var(--fleet-toolbar-select-padding-end); font-size: var(--fleet-toolbar-select-font-size); white-space: nowrap; }
+.fleet-toolbar__select-sizer > * { grid-area: 1 / 1; }
+.fleet-toolbar__select-control { width: 100%; min-width: 0; }
+.stable-loading-button { display: inline-grid; flex: none; }
+.stable-loading-button > * { grid-area: 1 / 1; }
+.stable-loading-button__sizer { visibility: hidden; pointer-events: none; }
+.stable-loading-button > .stable-loading-button__control { width: 100%; }
 .fleet-summary-card { height: 100%; }
-@media (max-width: 1000px) { .fleet-toolbar__zone--view { margin-inline-start: 0; } }
-@media (max-width: 575px) { .fleet-toolbar__search { width: 100%; min-width: 0; } .fleet-toolbar__intrinsic-select { max-width: 100%; } .fleet-toolbar__zones { gap: 8px; } }
+@media (max-width: 575px) {
+  .fleet-toolbar__filter-controls, .fleet-toolbar__list-controls { flex-wrap: wrap; }
+  .fleet-toolbar__search { flex-basis: 100%; min-width: 0; }
+}

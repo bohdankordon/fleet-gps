@@ -92,13 +92,13 @@ defined in
 [`docs/frontend-design-direction.md`](./frontend-design-direction.md), while
 preserving API and business behavior.
 
-**Ant Design Fleet final human-selected toolbar, summary, and scheduler refinement implemented — human acceptance pending.**
-The native Fleet foundation remains presentation-only and is ready for
-authenticated desktop/mobile review. The overall frontend redesign remains
-**NOW** until its migration slices and human acceptance are complete.
+**DONE — Ant Design Fleet.** The human-selected Fleet interface is accepted and
+closed on native Ant Design 6. Search, Sort, and Refresh remain always visible;
+optional filters are collapsed by default with an active-count indicator.
+Reset remains mounted at the far right, disabled at defaults and enabled when
+an optional filter is active.
 
-**NEXT — Map**, only after the native Ant Design foundation and Fleet receive
-human visual acceptance.
+**NOW — Map redesign.** Map is the next behavior-preserving frontend slice.
 
 ## LATER — Final production hardening
 

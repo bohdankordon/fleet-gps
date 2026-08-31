@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Badge, Button, Card, Collapse, Col, Descriptions, Grid, Row, Space } from "antd";
+import { Alert, Badge, Card, Collapse, Col, Descriptions, Grid, Row, Space } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import Text from "antd/es/typography/Text";
 import type { SchedulerStatusResponse } from "@/lib/scheduler/scheduler-contract";
 import { formatSchedulerInterval, formatSchedulerTimestamp, schedulerFailureCategoryLabel } from "@/lib/scheduler/scheduler-formatters";
 import { parseSchedulerRefreshPayload, schedulerStateLabel } from "@/lib/scheduler/scheduler-ui-model";
+import { StableLoadingButton } from "./stable-loading-button";
 import { useI18n } from "../i18n/client";
 
 type Props = Readonly<{ initialStatus: SchedulerStatusResponse | null; timezone: string }>;
@@ -45,7 +46,7 @@ export function SchedulerStatus({ initialStatus, timezone }: Props) {
 
   useEffect(() => () => controller.current?.abort(), []);
 
-  const refreshAction = <span onClick={(event) => event.stopPropagation()}><Button aria-label={t("scheduler.refresh")} icon={<ReloadOutlined />} loading={loading} onClick={() => { void refresh(); }}>{screens.sm ? t("scheduler.refresh") : null}</Button></span>;
+  const refreshAction = <span onClick={(event) => event.stopPropagation()}><StableLoadingButton idleLabel={t("scheduler.refresh")} loadingLabel={t("scheduler.refreshing")} loading={loading} icon={<ReloadOutlined />} showLabel={Boolean(screens.sm)} onClick={() => { void refresh(); }} /></span>;
   const state = status ? schedulerStateLabel(status, locale) : t("scheduler.loadError");
   const badgeStatus = failed || !status ? "error" : status.enabled ? "processing" : "default";
   const label = <Space align="center" size="small" wrap><Text strong>{t("scheduler.title")}</Text><Badge status={badgeStatus} text={state} /></Space>;
