@@ -6,7 +6,7 @@
 .fleet-toolbar__select-sizer { display: grid; visibility: hidden; padding-inline: 11px 40px; }
 .fleet-toolbar__select-sizer > span { grid-area: 1 / 1; white-space: nowrap; }
 .fleet-toolbar__intrinsic-select > :last-child { width: 100%; }
-.fleet-toolbar__zones { width: 100%; column-gap: 32px; row-gap: 16px; }
+.fleet-toolbar__zones { width: 100%; }
 .fleet-toolbar__zone--view { margin-inline-start: auto; }
 .fleet-summary-card { height: 100%; }
 @media (max-width: 1000px) { .fleet-toolbar__zone--view { margin-inline-start: 0; } }

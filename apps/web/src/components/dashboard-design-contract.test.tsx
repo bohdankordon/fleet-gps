@@ -50,19 +50,20 @@ test("Fleet scheduler is collapsed by default, expands for degraded status, and 
   assert.match(scheduler, /schedulerStateLabel\(status, locale\)/);
 });
 
-test("Fleet keeps the selected final toolbar, local sort, and every current KPI metric", () => {
+test("Fleet keeps the selected Panel 4 toolbar, local sort, and every current KPI metric", () => {
   for (const control of ["<Input", "<Select", "<Checkbox", "type=\"primary\""]) assert.ok(dashboard.includes(control), control);
   assert.equal((dashboard.match(/function FleetToolbar/g) ?? []).length, 1);
-  assert.match(dashboard, /<Flex className="fleet-toolbar" vertical gap="middle"/);
-  assert.match(dashboard, /className="fleet-toolbar__zones"/);
-  assert.match(dashboard, /dashboard\.toolbar\.filters"\)}:<\/Text>/);
-  assert.match(dashboard, /dashboard\.toolbar\.view"\)}:<\/Text>/);
+  assert.match(dashboard, /<Flex className="fleet-toolbar" vertical gap="small"/);
+  assert.match(dashboard, /<div>\{search\}<\/div><Flex className="fleet-toolbar__zones" gap="middle" wrap="wrap" align="center">/);
+  assert.match(dashboard, /<Space className="fleet-toolbar__zone" size="small" wrap><Text type="secondary">\{t\("dashboard\.toolbar\.filters"\)\}<\/Text>\{status\}\{activity\}\{disabled\}<\/Space>/);
+  assert.match(dashboard, /<Space className="fleet-toolbar__zone fleet-toolbar__zone--view" size="small" wrap><Text type="secondary">\{t\("dashboard\.toolbar\.view"\)\}<\/Text>\{ordering\}\{refresh\}<\/Space>/);
   assert.match(dashboard, /const disabled = <Checkbox checked=\{query\.includeDisabled !== false\}/);
   assert.match(dashboard, />\{t\("dashboard\.filters\.showDisabled"\)\}<\/Checkbox>/);
-  assert.match(dashboard, /loading=\{loading\} onClick=\{onRefresh\}>\{t\("common\.refresh"\)\}<\/Button>/);
+  assert.match(dashboard, /loading=\{loading\} onClick=\{onRefresh\}>\{loading \? t\("common\.refreshing"\) : t\("common\.refresh"\)\}<\/Button>/);
   assert.match(dashboard, /ariaLabel=\{t\("dashboard\.filters\.status"\)\}/);
   assert.match(dashboard, /fleet-toolbar__select-sizer/);
   assert.match(dashboard, /popupMatchSelectWidth/);
+  assert.doesNotMatch(dashboard, /ToolbarVariant|ToolbarLabSwitcher|toolbarVariant|<Segmented/);
   assert.match(dashboard, /sortFleetVehicles\(data\.vehicles, sort, locale\)/);
   assert.match(fleetOverviewModel, /export type FleetSort = "name" \| "freshness" \| "speed"/);
   assert.match(fleetOverviewModel, /Sorting is intentionally local: filtering and authorization remain server-owned/);
@@ -97,7 +98,7 @@ test("Scheduler details use three native Card groups with aligned Descriptions",
 
 test("Fleet-specific CSS uses owned layout classes without Ant Design internals", () => {
   assert.match(styles, /fleet-toolbar__intrinsic-select/);
-  assert.match(styles, /fleet-toolbar__zones \{ width: 100%; column-gap: 32px; row-gap: 16px; \}/);
+  assert.match(styles, /fleet-toolbar__zones \{ width: 100%; \}/);
   assert.doesNotMatch(styles, /fleet-toolbar-lab/);
   assert.doesNotMatch(styles, /\.ant-/);
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}/i);
