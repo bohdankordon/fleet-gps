@@ -1,4 +1,13 @@
 .fleet-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
 .fleet-page > * { min-width: 0; }
-.fleet-toolbar__search { flex: 1 1 280px; min-width: 260px; max-width: 300px; }
-.fleet-toolbar__select { flex: 0 1 190px; min-width: 170px; }
+.fleet-toolbar__search { width: 100%; }
+.fleet-toolbar__intrinsic-select { display: inline-grid; min-width: 0; }
+.fleet-toolbar__intrinsic-select > * { grid-area: 1 / 1; }
+.fleet-toolbar__select-sizer { display: grid; visibility: hidden; padding-inline: 11px 40px; }
+.fleet-toolbar__select-sizer > span { grid-area: 1 / 1; white-space: nowrap; }
+.fleet-toolbar__intrinsic-select > :last-child { width: 100%; }
+.fleet-toolbar__zones { width: 100%; column-gap: 32px; row-gap: 16px; }
+.fleet-toolbar__zone--view { margin-inline-start: auto; }
+.fleet-summary-card { height: 100%; }
+@media (max-width: 1000px) { .fleet-toolbar__zone--view { margin-inline-start: 0; } }
+@media (max-width: 575px) { .fleet-toolbar__search { width: 100%; min-width: 0; } .fleet-toolbar__intrinsic-select { max-width: 100%; } .fleet-toolbar__zones { gap: 8px; } }

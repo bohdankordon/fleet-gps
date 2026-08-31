@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Badge, Button, Collapse, Col, Descriptions, Flex, Grid, Row, Space } from "antd";
+import { Alert, Badge, Button, Card, Collapse, Col, Descriptions, Grid, Row, Space } from "antd";
 import { ReloadOutlined } from "@ant-design/icons";
 import Text from "antd/es/typography/Text";
 import type { SchedulerStatusResponse } from "@/lib/scheduler/scheduler-contract";
@@ -51,15 +51,15 @@ export function SchedulerStatus({ initialStatus, timezone }: Props) {
   const label = <Space align="center" size="small" wrap><Text strong>{t("scheduler.title")}</Text><Badge status={badgeStatus} text={state} /></Space>;
   const details = status ? <SchedulerDetails status={status} timezone={timezone} failed={failed} /> : <Alert type="error" showIcon message={t("scheduler.loadError")} />;
 
-  return <Collapse size="small" activeKey={activeKeys} onChange={(keys) => setActiveKeys(Array.isArray(keys) ? keys.map(String) : [String(keys)])} items={[{ key: "details", label, extra: refreshAction, children: details }]} />;
+  return <Collapse className="scheduler-status" size="small" styles={{ header: { alignItems: "center" }, title: { display: "flex", alignItems: "center" }, icon: { alignSelf: "center" } }} activeKey={activeKeys} onChange={(keys) => setActiveKeys(Array.isArray(keys) ? keys.map(String) : [String(keys)])} items={[{ key: "details", label, extra: refreshAction, children: details }]} />;
 }
 
 function SchedulerDetails({ status, timezone, failed }: Readonly<{ status: SchedulerStatusResponse; timezone: string; failed: boolean }>) {
   const { locale, t } = useI18n();
   return <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
     {failed ? <Alert type="error" showIcon message={t("scheduler.loadError")} /> : null}
-    <Row gutter={[24, 16]}>
-      <Col xs={24} lg={8}><Flex vertical gap="small"><Text strong>{t("scheduler.overall")}</Text><Descriptions size="small" column={1} items={[{ key: "started", label: t("scheduler.started"), children: formatSchedulerTimestamp(status.startedAt, timezone, locale) }, { key: "fleet", label: t("scheduler.fleetInterval"), children: formatSchedulerInterval(status.fleetIntervalSeconds, locale) }, { key: "distance", label: t("scheduler.distanceInterval"), children: formatSchedulerInterval(status.runsIntervalSeconds, locale) }, { key: "generated", label: t("scheduler.generated"), children: formatSchedulerTimestamp(status.generatedAt, timezone, locale) }]} /></Flex></Col>
+    <Row gutter={[16, 16]}>
+      <Col xs={24} lg={8}><Card size="small" title={t("scheduler.overall")}><Descriptions size="small" column={1} colon items={[{ key: "started", label: t("scheduler.started"), children: formatSchedulerTimestamp(status.startedAt, timezone, locale) }, { key: "fleet", label: t("scheduler.fleetInterval"), children: formatSchedulerInterval(status.fleetIntervalSeconds, locale) }, { key: "distance", label: t("scheduler.distanceInterval"), children: formatSchedulerInterval(status.runsIntervalSeconds, locale) }, { key: "generated", label: t("scheduler.generated"), children: formatSchedulerTimestamp(status.generatedAt, timezone, locale) }]} /></Card></Col>
       <JobDetails title={t("scheduler.fleetJob")} job={status.fleet} timezone={timezone} />
       <JobDetails title={t("scheduler.distanceJob")} job={status.runs} timezone={timezone} />
     </Row>
@@ -69,5 +69,5 @@ function SchedulerDetails({ status, timezone, failed }: Readonly<{ status: Sched
 function JobDetails({ title, job, timezone }: Readonly<{ title: string; job: Job; timezone: string }>) {
   const { locale, t } = useI18n();
   const state = job.running ? t("scheduler.running") : t("scheduler.idle");
-  return <Col xs={24} lg={8}><Flex vertical gap="small"><Space><Text strong>{title}</Text><Badge status={job.consecutiveFailures > 0 ? "warning" : job.running ? "processing" : "default"} text={state} /></Space>{job.consecutiveFailures > 0 ? <Alert type="warning" showIcon message={t("scheduler.failuresWarning")} /> : null}<Descriptions size="small" column={1} items={[{ key: "lastAttempt", label: t("scheduler.lastAttempt"), children: formatSchedulerTimestamp(job.lastAttemptAt, timezone, locale) }, { key: "lastSuccess", label: t("scheduler.lastSuccess"), children: formatSchedulerTimestamp(job.lastSuccessAt, timezone, locale) }, { key: "lastFailure", label: t("scheduler.lastFailure"), children: formatSchedulerTimestamp(job.lastFailureAt, timezone, locale) }, { key: "failureCategory", label: t("scheduler.failureCategory"), children: schedulerFailureCategoryLabel(job.lastFailureCategory, locale) }, { key: "consecutive", label: t("scheduler.consecutiveFailures"), children: job.consecutiveFailures }, { key: "success", label: t("scheduler.successfulRuns"), children: job.successfulRuns }, { key: "failed", label: t("scheduler.failedRuns"), children: job.failedRuns }, { key: "skipped", label: t("scheduler.skippedOverlaps"), children: job.skippedOverlaps }]} /></Flex></Col>;
+  return <Col xs={24} lg={8}><Card size="small" title={title} extra={<Badge status={job.consecutiveFailures > 0 ? "warning" : job.running ? "processing" : "default"} text={state} />}>{job.consecutiveFailures > 0 ? <Alert type="warning" showIcon message={t("scheduler.failuresWarning")} style={{ marginBottom: 16 }} /> : null}<Descriptions size="small" column={1} colon items={[{ key: "lastAttempt", label: t("scheduler.lastAttempt"), children: formatSchedulerTimestamp(job.lastAttemptAt, timezone, locale) }, { key: "lastSuccess", label: t("scheduler.lastSuccess"), children: formatSchedulerTimestamp(job.lastSuccessAt, timezone, locale) }, { key: "lastFailure", label: t("scheduler.lastFailure"), children: formatSchedulerTimestamp(job.lastFailureAt, timezone, locale) }, { key: "failureCategory", label: t("scheduler.failureCategory"), children: schedulerFailureCategoryLabel(job.lastFailureCategory, locale) }, { key: "consecutive", label: t("scheduler.consecutiveFailures"), children: job.consecutiveFailures }, { key: "success", label: t("scheduler.successfulRuns"), children: job.successfulRuns }, { key: "failed", label: t("scheduler.failedRuns"), children: job.failedRuns }, { key: "skipped", label: t("scheduler.skippedOverlaps"), children: job.skippedOverlaps }]} /></Card></Col>;
 }

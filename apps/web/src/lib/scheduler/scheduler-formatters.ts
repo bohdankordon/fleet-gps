@@ -1,12 +1,19 @@
 import { translate } from "../../i18n/core";
-import { formatDateTime, formatNumber } from "../../i18n/formatting";
+import { formatNumber } from "../../i18n/formatting";
 import { DEFAULT_LOCALE, type AppLocale } from "../../i18n/locales";
 
 export const schedulerNoDataLabel = translate(DEFAULT_LOCALE, "common.noData");
 
 export function formatSchedulerTimestamp(value: string | null, timezone: string | null | undefined, locale: AppLocale = DEFAULT_LOCALE): string {
   if (!value || !timezone) return translate(locale, "common.noData");
-  return formatDateTime(locale, value, { dateStyle: "short", timeStyle: "medium" }) ?? translate(locale, "common.noData");
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return translate(locale, "common.noData");
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(date);
+    const valueFor = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value;
+    const [year, month, day, hour, minute, second] = [valueFor("year"), valueFor("month"), valueFor("day"), valueFor("hour"), valueFor("minute"), valueFor("second")];
+    return year && month && day && hour && minute && second ? `${year}-${month}-${day}, ${hour}:${minute}:${second}` : translate(locale, "common.noData");
+  } catch { return translate(locale, "common.noData"); }
 }
 
 export function formatSchedulerInterval(seconds: number, locale: AppLocale = DEFAULT_LOCALE): string {
