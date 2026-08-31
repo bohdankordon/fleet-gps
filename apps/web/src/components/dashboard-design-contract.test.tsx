@@ -37,7 +37,8 @@ test("Fleet desktop table and mobile list preserve operational data without pagi
   assert.match(dashboard, /<FleetMobileList/);
   assert.match(dashboard, /<Listy<Vehicle>/);
   for (const value of ["dashboard.table.gps", "dashboard.mobile.speed", "dashboard.mobile.distance", "dashboard.table.sourceQuality", "dashboard.table.activity", "dashboard.emptyFleetTitle", "dashboard.emptyTitle"]) assert.ok(dashboard.includes(`t("${value}")`));
-  assert.ok((dashboard.match(/href=\{`\/vehicles\/\$\{vehicle\.id\}`\}/g) ?? []).length >= 2);
+  assert.match(dashboard, /href=\{`\/vehicles\/\$\{vehicle\.id\}`\}/);
+  assert.equal((dashboard.match(/<VehicleIdentityLine vehicle=\{vehicle\}/g) ?? []).length, 2);
 });
 
 test("Fleet scheduler is collapsed by default, expands for degraded status, and retains all diagnostics without repeating generated time", () => {
@@ -125,18 +126,21 @@ test("Fleet operational table improves scanability without changing its data or 
   assert.match(dashboard, /backgroundColor: token\.colorBorderSecondary/);
   assert.match(dashboard, /fontSize: token\.fontSize, fontWeight: token\.fontWeightStrong/);
   assert.match(dashboard, /paddingBlock: token\.paddingSM/);
-  assert.match(dashboard, /<CarOutlined \/>/);
-  assert.match(dashboard, /aria-hidden><CarOutlined/);
-  assert.match(dashboard, /className="fleet-vehicle-link fleet-table__vehicle-link" href=\{`\/vehicles\/\$\{vehicle\.id\}`\}/);
-  assert.match(dashboard, /className="fleet-vehicle-link" href=\{`\/vehicles\/\$\{vehicle\.id\}`\}/);
-  assert.match(dashboard, /<\/Link>\{vehicle\.disabled \? <Tag className="fleet-table__disabled-tag" color="default" variant="filled">/);
+  assert.match(dashboard, /CarOutlined, ReloadOutlined, SearchOutlined/);
+  assert.match(dashboard, /function VehicleIdentityLine[\s\S]*?<CarOutlined className="fleet-vehicle-link__car" style=\{\{ color: token\.colorTextTertiary \}\} aria-hidden \/><VehicleDetailLink vehicle=\{vehicle\} table=\{table\} \/><\/span>/);
+  assert.match(dashboard, /function VehicleDetailLink[\s\S]*?<Link className=\{`fleet-vehicle-link \$\{table \? "fleet-table__vehicle-link" : "fleet-mobile__vehicle-link"\}`\} href=\{`\/vehicles\/\$\{vehicle\.id\}`\}/);
+  assert.match(dashboard, /<Link[^>]*><Text className="fleet-vehicle-link__name" style=\{\{ color: "inherit" \}\}/);
+  assert.match(dashboard, /\{vehicle\.name\}<\/Text><\/Link>/);
+  assert.match(dashboard, /<VehicleIdentityLine vehicle=\{vehicle\} table \/>\{vehicle\.disabled \? <Tag className="fleet-table__disabled-tag" color="default" variant="filled">/);
+  assert.match(dashboard, /<VehicleIdentityLine vehicle=\{vehicle\} \/>\{vehicle\.disabled \? <Tag>/);
+  assert.doesNotMatch(dashboard, /onRow=/);
   assert.match(dashboard, /tableLayout="auto"/);
   assert.match(dashboard, /className: "fleet-table__vehicle-column", width: "1%", minWidth: 240/);
-  assert.match(dashboard, /className="fleet-table__vehicle-name" ellipsis=\{\{ tooltip: vehicle\.name \}\}/);
+  assert.match(dashboard, /className="fleet-vehicle-link__name" style=\{\{ color: "inherit" \}\} ellipsis=\{\{ tooltip: vehicle\.name \}\}/);
   assert.equal((dashboard.match(/align: "right"/g) ?? []).length, 2);
   assert.equal((dashboard.match(/onCell: centeredFleetCell/g) ?? []).length, 7);
   assert.match(dashboard, /const centeredFleetCell = \(\) => \(\{ style: \{ verticalAlign: "middle" \} \}\)/);
-  assert.match(dashboard, /className="fleet-table__vehicle-identity"><Text className="fleet-table__vehicle-icon"/);
+  assert.match(dashboard, /className="fleet-table__vehicle-identity"><VehicleIdentityLine vehicle=\{vehicle\} table \/>/);
   assert.match(dashboard, /function OptionalMetric/);
   assert.match(dashboard, /value === null \? "—" : formatted/);
   assert.match(dashboard, /function FleetGpsCell/);
@@ -203,11 +207,13 @@ test("Scheduler details use three native Card groups with aligned Descriptions",
 });
 
 test("Fleet-specific CSS uses owned layout classes without Ant Design internals", () => {
-  for (const ownedClass of ["fleet-toolbar__filters", "fleet-toolbar__filter-controls", "fleet-toolbar__list-controls", "fleet-toolbar__labeled-select", "stable-loading-button", "fleet-vehicle-link", "fleet-table__vehicle-identity", "fleet-table__vehicle-icon", "fleet-table__vehicle-copy", "fleet-table__vehicle-link", "fleet-table__vehicle-name", "fleet-table__disabled-tag", "fleet-table__numeric"]) assert.ok(styles.includes(ownedClass), ownedClass);
+  for (const ownedClass of ["fleet-toolbar__filters", "fleet-toolbar__filter-controls", "fleet-toolbar__list-controls", "fleet-toolbar__labeled-select", "stable-loading-button", "fleet-vehicle-link", "fleet-table__vehicle-identity", "fleet-vehicle-identity-line", "fleet-mobile__vehicle-identity", "fleet-vehicle-link__car", "fleet-vehicle-link__name", "fleet-table__disabled-tag", "fleet-table__numeric"]) assert.ok(styles.includes(ownedClass), ownedClass);
   assert.match(styles, /fleet-toolbar \{ display: grid; gap: 12px; min-width: 0; border: 1px solid; \}/);
   assert.match(styles, /fleet-toolbar__search \{ flex: 1 1 240px; min-width: 160px; \}/);
-  assert.match(styles, /fleet-vehicle-link \{[^}]*text-decoration-line: underline;[^}]*\}/);
-  assert.match(styles, /fleet-vehicle-link:hover, \.fleet-vehicle-link:focus-visible \{ text-decoration-line: underline; text-decoration-thickness: 2px; \}/);
+  assert.match(styles, /fleet-vehicle-identity-line \{[^}]*display: inline-flex;[^}]*width: max-content;[^}]*max-width: 100%;[^}]*\}/);
+  assert.match(styles, /fleet-vehicle-link \{[^}]*display: inline-block; width: max-content;[^}]*max-width: calc\(100% - 22px\);[^}]*\}/);
+  assert.match(styles, /fleet-vehicle-link__name \{[^}]*text-decoration-line: underline;[^}]*\}/);
+  assert.match(styles, /fleet-vehicle-link:hover \.fleet-vehicle-link__name, \.fleet-vehicle-link:focus-visible \.fleet-vehicle-link__name \{ text-decoration-thickness: 2px; \}/);
   assert.match(styles, /fleet-table__disabled-tag \{ justify-self: start; \}/);
   assert.match(styles, /@media \(max-width: 575px\)/);
   assert.doesNotMatch(styles, /block-size: 36px|fleet-toolbar__zones|fleet-toolbar__intrinsic-select|fleet-refresh-/);
