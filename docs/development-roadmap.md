@@ -92,9 +92,9 @@ defined in
 [`docs/frontend-design-direction.md`](./frontend-design-direction.md), while
 preserving API and business behavior.
 
-**Ant Design native foundation + top navigation + Fleet: IMPLEMENTED — HUMAN
-VISUAL ACCEPTANCE PENDING.** The slice remains presentation-only and is ready
-for authenticated desktop/mobile review. The overall frontend redesign remains
+**Ant Design Fleet human-feedback consolidation implemented — human acceptance pending.**
+The native Fleet foundation remains presentation-only and is ready for
+authenticated desktop/mobile review. The overall frontend redesign remains
 **NOW** until its migration slices and human acceptance are complete.
 
 **NEXT — Map**, only after the native Ant Design foundation and Fleet receive

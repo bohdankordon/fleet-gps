@@ -1,4 +1,4 @@
-.fleet-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; min-width: 0; }
+.fleet-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
 .fleet-page > * { min-width: 0; }
-.fleet-toolbar__search { flex: 1 1 260px; }
-.fleet-toolbar__select { flex: 1 1 180px; }
+.fleet-toolbar__search { flex: 1 1 280px; min-width: 260px; max-width: 300px; }
+.fleet-toolbar__select { flex: 0 1 190px; min-width: 170px; }
