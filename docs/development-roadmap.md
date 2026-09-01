@@ -92,21 +92,30 @@ defined in
 [`docs/frontend-design-direction.md`](./frontend-design-direction.md), while
 preserving API and business behavior.
 
-**DONE — Ant Design Fleet.** The human-selected Fleet interface is accepted and
-closed on native Ant Design 6. Search, Sort, and Refresh remain always visible;
+**DONE / HUMAN ACCEPTED — Fleet redesign.** The human-selected Fleet interface is
+accepted and closed on native Ant Design 6. Search, Sort, and Refresh remain
+always visible;
 optional filters are collapsed by default with an active-count indicator.
 Reset remains mounted at the far right, disabled at defaults and enabled when
 an optional filter is active. The operational Table uses clear linked vehicle
 identity and a compact neutral disabled-vehicle indicator.
 
-**DONE — Shared Ant Design application header refinement (human accepted).** The
+**DONE / HUMAN ACCEPTED — Shared Fleet GPS header.** The
 shared shell now uses the Fleet GPS visible brand, a light horizontal desktop
 header, five deterministic semantic primary links, Administration in-page Tabs,
 stable compact locale/account controls, and native Drawer-based responsive
 navigation.
 
-**NEXT — Map redesign.** Map is the next behavior-preserving frontend slice. Map
-implementation has not started.
+**DONE / HUMAN ACCEPTED — Fleet visual reference/design system.** The accepted
+Fleet screen is the canonical visual reference for subsequent redesign slices.
+Each screen inherits its design language while adapting the system to its own
+workflow rather than copying Fleet's exact layout.
+
+**NOW — Frontend redesign.** Behavior-preserving redesign continues in small,
+human-reviewed slices using the accepted Fleet design reference.
+
+**NEXT IMPLEMENTATION SLICE — Map redesign.** Map is the next
+behavior-preserving frontend slice. Map implementation has not started.
 
 ## LATER — Final production hardening
 

@@ -109,8 +109,11 @@ test("Fleet and scheduler use only the final stable text-changing loading button
 test("Fleet keeps every accepted KPI metric and table presentation", () => {
   assert.match(dashboard, /<Row gutter=\{\[16, 16\]\}>/);
   assert.match(dashboard, /className="fleet-summary-card"/);
-  assert.match(dashboard, /title=\{t\("dashboard\.summary\.total"\)\}/);
-  assert.match(dashboard, /title=\{title\}/);
+  assert.match(dashboard, /title=\{<SummaryTitle icon=\{<CarFilled/);
+  assert.match(dashboard, /<SummaryCard icon=\{<ApiFilled/);
+  assert.match(dashboard, /<SummaryCard icon=\{<AimOutlined/);
+  assert.match(dashboard, /<SummaryCard icon=\{<BarChartOutlined/);
+  assert.match(dashboard, /title=\{<SummaryTitle icon=\{icon\} title=\{title\} \/>\}/);
   assert.match(dashboard, /justify="space-between"/);
   assert.match(dashboard, /\{metric\.label\}:/);
   for (const group of ["dashboard.summary.connection", "dashboard.summary.gps", "dashboard.summary.distance"]) assert.ok(dashboard.includes(`t("${group}")`), group);
@@ -122,11 +125,12 @@ test("Fleet keeps every accepted KPI metric and table presentation", () => {
 test("Fleet operational table improves scanability without changing its data or interaction contract", () => {
   assert.match(dashboard, /<ConfigProvider theme=\{\{ components: \{ Table: \{ cellPaddingInlineMD: token\.paddingSM, headerBg: token\.colorBorderSecondary, headerColor: token\.colorTextHeading, headerSplitColor: token\.colorBorderSecondary, rowHoverBg: token\.colorFillTertiary \} \} \}\}>/);
   assert.match(dashboard, /sticky=\{\{ offsetHeader: 0 \}\}/);
-  assert.match(dashboard, /styles=\{\{ header: \{ cell: headerCellStyle \} \}\}/);
+  assert.match(dashboard, /header: \{ cell: headerCellStyle \}/);
   assert.match(dashboard, /backgroundColor: token\.colorBorderSecondary/);
   assert.match(dashboard, /fontSize: token\.fontSize, fontWeight: token\.fontWeightStrong/);
   assert.match(dashboard, /paddingBlock: token\.paddingSM/);
-  assert.match(dashboard, /CarOutlined, ReloadOutlined, SearchOutlined/);
+  assert.match(dashboard, /CarOutlined/);
+  assert.match(dashboard, /styles=\{\{ root: \{ border: `\$\{token\.lineWidth\}px \$\{token\.lineType\} \$\{token\.colorBorder\}`, borderRadius: token\.borderRadiusLG, background: token\.colorBgContainer, overflow: "hidden" \}, header: \{ cell: headerCellStyle \} \}\}/);
   assert.match(dashboard, /function VehicleIdentityLine[\s\S]*?<CarOutlined className="fleet-vehicle-link__car" style=\{\{ color: token\.colorTextTertiary \}\} aria-hidden \/><VehicleDetailLink vehicle=\{vehicle\} table=\{table\} \/><\/span>/);
   assert.match(dashboard, /function VehicleDetailLink[\s\S]*?<Link className=\{`fleet-vehicle-link \$\{table \? "fleet-table__vehicle-link" : "fleet-mobile__vehicle-link"\}`\} href=\{`\/vehicles\/\$\{vehicle\.id\}`\}/);
   assert.match(dashboard, /<Link[^>]*><Text className="fleet-vehicle-link__name" style=\{\{ color: "inherit" \}\}/);
@@ -219,4 +223,13 @@ test("Fleet-specific CSS uses owned layout classes without Ant Design internals"
   assert.doesNotMatch(styles, /block-size: 36px|fleet-toolbar__zones|fleet-toolbar__intrinsic-select|fleet-refresh-/);
   assert.doesNotMatch(styles, /\.ant-/);
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}/i);
+});
+
+test("Fleet visual orientation uses the selected Ant Design icons without replacing labels", () => {
+  for (const icon of ["CarFilled", "ApiFilled", "AimOutlined", "BarChartOutlined", "FilterFilled"]) assert.ok(dashboard.includes(icon), icon);
+  assert.match(dashboard, /<FilterFilled[^>]*aria-hidden \/><Text strong>\{t\("dashboard\.toolbar\.filters"\)\}<\/Text>/);
+  assert.match(dashboard, /function SummaryTitle[\s\S]*?className="fleet-summary-card__icon"[\s\S]*?\{icon\}<\/span><span>\{title\}<\/span>/);
+  assert.match(scheduler, /import \{ ReloadOutlined, SyncOutlined \} from "@ant-design\/icons"/);
+  assert.match(scheduler, /<SyncOutlined[^>]*aria-hidden \/><Text strong>\{t\("scheduler\.title"\)\}<\/Text>/);
+  assert.doesNotMatch(dashboard + scheduler, /[🚗🔌🎯📊🔎🔄]/u);
 });

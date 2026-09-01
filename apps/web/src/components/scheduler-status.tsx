@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Badge, Card, Collapse, Col, Descriptions, Grid, Row, Space, theme } from "antd";
 import type { DescriptionsProps } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
+import { ReloadOutlined, SyncOutlined } from "@ant-design/icons";
 import Text from "antd/es/typography/Text";
 import type { SchedulerStatusResponse } from "@/lib/scheduler/scheduler-contract";
 import { formatSchedulerInterval, formatSchedulerTimestamp, schedulerFailureCategoryLabel } from "@/lib/scheduler/scheduler-formatters";
@@ -16,6 +16,7 @@ type Job = SchedulerStatusResponse["fleet"];
 
 export function SchedulerStatus({ initialStatus, timezone }: Props) {
   const { locale, t } = useI18n();
+  const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
   const [status, setStatus] = useState(initialStatus);
   const [loading, setLoading] = useState(false);
@@ -50,7 +51,7 @@ export function SchedulerStatus({ initialStatus, timezone }: Props) {
   const refreshAction = <span onClick={(event) => event.stopPropagation()}><StableLoadingButton idleLabel={t("scheduler.refresh")} loadingLabel={t("scheduler.refreshing")} loading={loading} icon={<ReloadOutlined />} showLabel={Boolean(screens.sm)} onClick={() => { void refresh(); }} /></span>;
   const state = status ? schedulerStateLabel(status, locale) : t("scheduler.loadError");
   const badgeStatus = failed || !status ? "error" : status.enabled ? "processing" : "default";
-  const label = <Space align="center" size="small" wrap><Text strong>{t("scheduler.title")}</Text><Badge status={badgeStatus} text={state} /></Space>;
+  const label = <Space align="center" size="small" wrap><SyncOutlined style={{ color: token.colorPrimary, fontSize: 15 }} aria-hidden /><Text strong>{t("scheduler.title")}</Text><Badge status={badgeStatus} text={state} /></Space>;
   const details = status ? <SchedulerDetails status={status} timezone={timezone} failed={failed} /> : <Alert type="error" showIcon message={t("scheduler.loadError")} />;
 
   return <Collapse className="scheduler-status" size="small" styles={{ header: { alignItems: "center" }, title: { display: "flex", alignItems: "center" }, icon: { alignSelf: "center" } }} activeKey={activeKeys} onChange={(keys) => setActiveKeys(Array.isArray(keys) ? keys.map(String) : [String(keys)])} items={[{ key: "details", label, extra: refreshAction, children: details }]} />;

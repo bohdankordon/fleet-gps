@@ -44,6 +44,19 @@ Scheduler/data-service diagnostics remain factual but are collapsed by default i
 
 Operational tables prioritize scanability over decoration. Vehicle identity is the strongest row content, numeric metrics use right alignment and tabular numerals, and long desktop tables use the official sticky header when page geometry permits. Meaningful domain absence remains explicit, while generic nullable cells use a restrained em dash. Hover remains subtle, links retain keyboard focus, and tables do not gain fictional actions, selection, zebra striping, or pagination.
 
+## Human-accepted visual reference
+
+The human-accepted Fleet screen is the canonical visual reference for subsequent screen redesigns. Future screens should inherit its design language while adapting the system to their own workflow; they must not mechanically copy Fleet's exact structure where it does not fit the content or task.
+
+- **Application shell.** The visible brand is Fleet GPS in a light horizontal Ant Design header with no permanent desktop Sidebar. Desktop navigation has five deterministic primary links and a restrained underline active state. Locale and account controls remain compact. Administration is a normal primary route whose children use in-page Ant Design Tabs. Responsive navigation uses `MenuOutlined` with Drawer. `@ant-design/icons` is the default icon source, and Unicode characters must not substitute for an available Ant Design icon.
+- **Page canvas.** Use a restrained light Ant Design layout background and deliberate vertical rhythm. Page title, description, and metadata remain open on the canvas unless boxing them serves a functional purpose.
+- **Surfaces.** Primary work areas use `colorBgContainer` or the equivalent Ant Design surface. Prefer quiet semantic borders and a consistent restrained radius family over shadows. Frame only real functional groupings; avoid unnecessary nesting and card soup.
+- **Secondary surfaces.** Restrained alternate fills may distinguish headers and disclosures. Table headers and comparable secondary surfaces stay subtle, without decorative gradients or strong elevation.
+- **Color.** Use semantic state colors only where they carry real meaning. Mixed-status Cards remain neutral rather than becoming red, green, or amber panels. Reserve primary blue for actions, navigation, and restrained orientation accents; neutral content remains neutral.
+- **Icons.** Icons are orientation aids, not decoration to repeat everywhere. Fleet demonstrates the approved pattern with `EnvironmentFilled`, `SyncOutlined`, `CarFilled`, `ApiFilled`, `AimOutlined`, `BarChartOutlined`, and `FilterFilled`. Icons beside an adequate text label are normally decorative and hidden from assistive technology. Do not add icons to every label or Table header.
+- **Component philosophy.** Prefer native Ant Design 6 primitives and consult current official documentation before inventing custom behavior. Application-owned CSS is acceptable for layout and optical precision, but brittle Ant Design internal selectors are prohibited.
+- **Data-dense UI.** Operational Tables remain dense and readable, with deliberate numeric alignment, explicit meaningful absence states, and restrained dashes for generic missing values. Responsive behavior is intentional; desktop layouts must not simply be squeezed onto mobile.
+
 ## Migration sequence
 
 1. Ant Design native foundation and Fleet are human accepted and complete.
