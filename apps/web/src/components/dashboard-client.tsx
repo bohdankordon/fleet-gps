@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { Alert, Badge, Button, Card, Checkbox, Col, Collapse, ConfigProvider, Empty, Flex, Grid, Input, Listy, Row, Select, Space, Spin, Statistic, Table, Tag, theme } from "antd";
+import { Alert, Badge, Button, Card, Checkbox, Col, Collapse, ConfigProvider, Empty, Flex, Grid, Listy, Row, Select, Space, Spin, Statistic, Table, Tag, theme } from "antd";
 import type { TableColumnsType } from "antd";
-import { AimOutlined, ApiFilled, BarChartOutlined, CarFilled, CarOutlined, FilterFilled, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
+import { AimOutlined, ApiFilled, BarChartOutlined, CarFilled, CarOutlined, FilterFilled, ReloadOutlined } from "@ant-design/icons";
+import Paragraph from "antd/es/typography/Paragraph";
 import Text from "antd/es/typography/Text";
 import Title from "antd/es/typography/Title";
 import type { DashboardVehiclesResponse } from "@/lib/dashboard/dashboard-contract";
@@ -14,6 +15,7 @@ import { dashboardHistoryPath, shouldUpdateDashboardHistory, type DashboardNavig
 import { parseDashboardQuery, serializeDashboardQuery, type DashboardActivity, type DashboardQuery, type DashboardStatus } from "@/lib/dashboard/dashboard-query";
 import type { SchedulerStatusResponse } from "@/lib/scheduler/scheduler-contract";
 import { SchedulerStatus } from "./scheduler-status";
+import { FleetSearchInput, FLEET_SEARCH_DEBOUNCE_MS } from "./fleet-search-input";
 import { sortFleetVehicles, type FleetSort } from "./fleet-overview-model";
 import { StableLoadingButton } from "./stable-loading-button";
 import { useI18n } from "../i18n/client";
@@ -24,7 +26,7 @@ type SelectOption = Readonly<{ value: string; label: string }>;
 
 export function DashboardClient({ initialData, initialQuery, initialSchedulerStatus }: Props) {
   const { locale, t } = useI18n(); const screens = Grid.useBreakpoint();
-  const [data, setData] = useState(initialData); const [query, setQuery] = useState<DashboardQuery>(initialQuery); const [sort, setSort] = useState<FleetSort>("name"); const [loading, setLoading] = useState(false); const [error, setError] = useState(false); const first = useRef(true); const controller = useRef<AbortController | null>(null);
+  const [data, setData] = useState(initialData); const [query, setQuery] = useState<DashboardQuery>(initialQuery); const [sort, setSort] = useState<FleetSort>("name"); const [loading, setLoading] = useState(false); const [error, setError] = useState(false); const controller = useRef<AbortController | null>(null); const pendingRequest = useRef<number | null>(null); const queryRef = useRef(initialQuery);
   const request = useCallback(async (next: DashboardQuery, reason: DashboardNavigationReason) => {
     controller.current?.abort(); const abort = new AbortController(); controller.current = abort; setLoading(true); setError(false);
     const encoded = serializeDashboardQuery(next); if (shouldUpdateDashboardHistory(reason)) window.history.pushState(null, "", dashboardHistoryPath(next));
@@ -32,11 +34,17 @@ export function DashboardClient({ initialData, initialQuery, initialSchedulerSta
     catch { if (!abort.signal.aborted) setError(true); }
     finally { if (!abort.signal.aborted) setLoading(false); }
   }, []);
-  useEffect(() => { if (first.current) { first.current = false; return; } const timer = window.setTimeout(() => { void request(query, "user"); }, 300); return () => window.clearTimeout(timer); }, [query, request]);
-  useEffect(() => { const onPopState = () => { const restored = parseDashboardQuery(new URLSearchParams(window.location.search)); first.current = true; setQuery(restored); void request(restored, "popstate"); }; window.addEventListener("popstate", onPopState); return () => { window.removeEventListener("popstate", onPopState); controller.current?.abort(); }; }, [request]);
-  const set = <K extends keyof DashboardQuery>(key: K, value: DashboardQuery[K]) => setQuery((current) => ({ ...current, [key]: value }));
-  const resetFilters = () => setQuery((current) => ({ ...current, status: undefined, activity: undefined, includeDisabled: true }));
-  const retry = () => void request(query, error ? "retry" : "refresh");
+  const commitQuery = useCallback((next: DashboardQuery, delay: number) => {
+    queryRef.current = next; setQuery(next);
+    if (pendingRequest.current !== null) window.clearTimeout(pendingRequest.current);
+    if (delay === 0) { pendingRequest.current = null; void request(next, "user"); return; }
+    pendingRequest.current = window.setTimeout(() => { pendingRequest.current = null; void request(next, "user"); }, delay);
+  }, [request]);
+  useEffect(() => { const onPopState = () => { const restored = parseDashboardQuery(new URLSearchParams(window.location.search)); if (pendingRequest.current !== null) window.clearTimeout(pendingRequest.current); queryRef.current = restored; setQuery(restored); void request(restored, "popstate"); }; window.addEventListener("popstate", onPopState); return () => { window.removeEventListener("popstate", onPopState); if (pendingRequest.current !== null) window.clearTimeout(pendingRequest.current); controller.current?.abort(); }; }, [request]);
+  const set = <K extends keyof DashboardQuery>(key: K, value: DashboardQuery[K]) => commitQuery({ ...queryRef.current, [key]: value }, FLEET_SEARCH_DEBOUNCE_MS);
+  const commitSearch = useCallback((search: string | undefined) => commitQuery({ ...queryRef.current, search }, 0), [commitQuery]);
+  const resetFilters = () => commitQuery({ ...queryRef.current, status: undefined, activity: undefined, includeDisabled: true }, FLEET_SEARCH_DEBOUNCE_MS);
+  const retry = () => void request(queryRef.current, error ? "retry" : "refresh");
   const hasActiveFilters = Boolean(query.search || query.status || query.activity || query.includeDisabled === false);
   const columns = fleetColumns(data, locale, t);
   const vehicles = useMemo(() => sortFleetVehicles(data.vehicles, sort, locale), [data.vehicles, locale, sort]);
@@ -46,7 +54,7 @@ export function DashboardClient({ initialData, initialQuery, initialSchedulerSta
     <SchedulerStatus initialStatus={initialSchedulerStatus} timezone={dashboardTimezone(data)} />
     <Summary data={data} />
     {error ? <Alert type="error" showIcon message={t("dashboard.loadError")} action={<Button onClick={retry}>{t("common.retry")}</Button>} /> : null}
-    <FleetToolbar query={query} sort={sort} loading={loading} onSet={set} onResetFilters={resetFilters} onSort={setSort} onRefresh={retry} />
+    <FleetToolbar query={query} sort={sort} loading={loading} onSearchCommit={commitSearch} onSet={set} onResetFilters={resetFilters} onSort={setSort} onRefresh={retry} />
     {screens.md ? <FleetTable vehicles={vehicles} columns={columns} loading={loading} emptyDescription={hasActiveFilters ? t("dashboard.emptyTitle") : t("dashboard.emptyFleetTitle")} emptyText={hasActiveFilters ? t("dashboard.emptyText") : t("dashboard.emptyFleetText")} /> : <FleetMobileList data={{ ...data, vehicles }} loading={loading} emptyDescription={hasActiveFilters ? t("dashboard.emptyTitle") : t("dashboard.emptyFleetTitle")} emptyText={hasActiveFilters ? t("dashboard.emptyText") : t("dashboard.emptyFleetText")} />}
   </div>;
 }
@@ -55,7 +63,7 @@ function FleetHeader({ data }: Readonly<{ data: DashboardVehiclesResponse }>) { 
 
 function MetadataItem({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) { return <Text type="secondary">{label}: <Text strong>{children}</Text></Text>; }
 
-function FleetToolbar({ query, sort, loading, onSet, onResetFilters, onSort, onRefresh }: Readonly<{ query: DashboardQuery; sort: FleetSort; loading: boolean; onSet: <K extends keyof DashboardQuery>(key: K, value: DashboardQuery[K]) => void; onResetFilters: () => void; onSort: (value: FleetSort) => void; onRefresh: () => void }>) {
+function FleetToolbar({ query, sort, loading, onSearchCommit, onSet, onResetFilters, onSort, onRefresh }: Readonly<{ query: DashboardQuery; sort: FleetSort; loading: boolean; onSearchCommit: (value: string | undefined) => void; onSet: <K extends keyof DashboardQuery>(key: K, value: DashboardQuery[K]) => void; onResetFilters: () => void; onSort: (value: FleetSort) => void; onRefresh: () => void }>) {
   const { t } = useI18n();
   const { token } = theme.useToken();
   const [activeKeys, setActiveKeys] = useState<string[]>([]);
@@ -73,7 +81,7 @@ function FleetToolbar({ query, sort, loading, onSet, onResetFilters, onSort, onR
   </div>;
   return <section className="fleet-toolbar" aria-label={t("dashboard.filters.label")} style={{ borderColor: token.colorBorder, borderRadius: token.borderRadiusLG, background: token.colorBgContainer, padding: token.paddingSM, paddingBottom: token.paddingXXS }}>
     <div className="fleet-toolbar__list-controls">
-      <Input className="fleet-toolbar__search" size="large" styles={{ root: { height: token.controlHeightLG }, input: { minHeight: 0 } }} aria-label={t("dashboard.filters.search")} allowClear prefix={<SearchOutlined />} value={query.search ?? ""} onChange={(event) => onSet("search", event.target.value || undefined)} placeholder={t("dashboard.filters.searchPlaceholder")} />
+      <FleetSearchInput value={query.search} ariaLabel={t("dashboard.filters.search")} placeholder={t("dashboard.filters.searchPlaceholder")} onCommit={onSearchCommit} />
       <LabeledSelect fieldLabel={t("dashboard.sort.label")} ariaLabel={t("dashboard.sort.label")} value={sort} options={sortOptions} sizingStyle={selectSizingStyle} onChange={(value) => onSort(value as FleetSort)} />
       <StableLoadingButton idleLabel={t("common.refresh")} loadingLabel={t("common.refreshing")} loading={loading} icon={<ReloadOutlined />} onClick={onRefresh} size="large" type="primary" />
     </div>
@@ -105,7 +113,7 @@ function FleetTable({ vehicles, columns, loading, emptyDescription, emptyText }:
 }
 
 function fleetColumns(data: DashboardVehiclesResponse, locale: ReturnType<typeof useI18n>["locale"], t: ReturnType<typeof useI18n>["t"]): TableColumnsType<Vehicle> { return [
-  { title: t("dashboard.table.vehicle"), key: "vehicle", className: "fleet-table__vehicle-column", width: "1%", minWidth: 240, onCell: centeredFleetCell, render: (_, vehicle) => <span className="fleet-table__vehicle-identity"><VehicleIdentityLine vehicle={vehicle} table />{vehicle.disabled ? <Tag className="fleet-table__disabled-tag" color="default" variant="filled">{t("dashboard.vehicle.disabled")}</Tag> : null}</span> },
+  { title: t("dashboard.table.vehicle"), key: "vehicle", className: "fleet-table__vehicle-column", width: "1%", minWidth: 240, onCell: centeredFleetCell, render: (_, vehicle) => <VehicleIdentity vehicle={vehicle} disabledLabel={t("dashboard.vehicle.disabled")} table /> },
   { title: t("dashboard.table.status"), dataIndex: "status", key: "status", responsive: ["sm"], onCell: centeredFleetCell, render: (status: Vehicle["status"]) => <Badge status={status === "online" ? "success" : status === "offline" ? "error" : "default"} text={statusLabel(status, locale)} /> },
   { title: t("dashboard.table.gps"), key: "gps", onCell: centeredFleetCell, render: (_, vehicle) => <FleetGpsCell vehicle={vehicle} timezone={data.timezone} locale={locale} /> },
   { title: t("dashboard.table.currentSpeed"), dataIndex: "speedKph", key: "speed", align: "right", responsive: ["md"], onCell: centeredFleetCell, render: (value: Vehicle["speedKph"]) => <OptionalMetric value={value} formatted={formatSpeed(value, locale)} /> },
@@ -114,9 +122,11 @@ function fleetColumns(data: DashboardVehiclesResponse, locale: ReturnType<typeof
   { title: t("dashboard.table.activity"), key: "activity", responsive: ["lg"], onCell: centeredFleetCell, render: (_, vehicle) => vehicle.belowMinimumDistance ? <Tag color="error">{t("dashboard.activity.belowThreshold")}</Tag> : vehicle.dailyDistanceMeters === null ? t("common.noData") : t("dashboard.activity.normal") },
 ]; }
 
-function VehicleIdentityLine({ vehicle, table = false }: Readonly<{ vehicle: Vehicle; table?: boolean }>) { const { token } = theme.useToken(); return <span className={`fleet-vehicle-identity-line ${table ? "" : "fleet-mobile__vehicle-identity"}`}><CarOutlined className="fleet-vehicle-link__car" style={{ color: token.colorTextTertiary }} aria-hidden /><VehicleDetailLink vehicle={vehicle} table={table} /></span>; }
+function VehicleIdentity({ vehicle, disabledLabel, table = false }: Readonly<{ vehicle: Vehicle; disabledLabel: string; table?: boolean }>) { const { token } = theme.useToken(); return <span className={`fleet-vehicle-identity ${table ? "fleet-table__vehicle-identity" : "fleet-mobile__vehicle-identity"}`}><CarOutlined className="fleet-vehicle-link__car" style={{ color: token.colorTextTertiary }} aria-hidden /><span className="fleet-vehicle-identity__content"><VehicleDetailLink vehicle={vehicle} table={table} />{vehicle.disabled ? <DisabledVehicleTag label={disabledLabel} table={table} /> : null}</span></span>; }
 
-function VehicleDetailLink({ vehicle, table = false }: Readonly<{ vehicle: Vehicle; table?: boolean }>) { return <Link className={`fleet-vehicle-link ${table ? "fleet-table__vehicle-link" : "fleet-mobile__vehicle-link"}`} href={`/vehicles/${vehicle.id}`}><Text className="fleet-vehicle-link__name" style={{ color: "inherit" }} ellipsis={{ tooltip: vehicle.name }}>{vehicle.name}</Text></Link>; }
+function VehicleDetailLink({ vehicle, table = false }: Readonly<{ vehicle: Vehicle; table?: boolean }>) { return <Link className={`fleet-vehicle-link ${table ? "fleet-table__vehicle-link" : "fleet-mobile__vehicle-link"}`} href={`/vehicles/${vehicle.id}`}><Paragraph className="fleet-vehicle-link__name" style={{ color: "inherit", margin: 0 }} ellipsis={{ rows: vehicle.disabled ? 1 : 2, tooltip: vehicle.name }}>{vehicle.name}</Paragraph></Link>; }
+
+function DisabledVehicleTag({ label, table }: Readonly<{ label: string; table: boolean }>) { return table ? <Tag className="fleet-table__disabled-tag" color="default" variant="filled">{label}</Tag> : <Tag className="fleet-mobile__disabled-tag">{label}</Tag>; }
 
 const centeredFleetCell = () => ({ style: { verticalAlign: "middle" } });
 
@@ -128,4 +138,4 @@ function SourceQuality({ vehicle, locale }: Readonly<{ vehicle: Vehicle; locale:
 
 function sourceQualityText(vehicle: Vehicle, locale: ReturnType<typeof useI18n>["locale"], t: ReturnType<typeof useI18n>["t"]): string { return vehicle.dailyDistanceSource === null && vehicle.dailyDistanceQuality === null ? t("common.noData") : `${sourceLabel(vehicle.dailyDistanceSource, locale)} / ${qualityLabel(vehicle.dailyDistanceQuality, locale)}`; }
 
-function FleetMobileList({ data, loading, emptyDescription, emptyText }: Readonly<{ data: DashboardVehiclesResponse; loading: boolean; emptyDescription: string; emptyText: string }>) { const { locale, t } = useI18n(); if (data.vehicles.length === 0) return <Empty description={emptyDescription}><Text type="secondary">{emptyText}</Text></Empty>; return <Spin spinning={loading}><Listy<Vehicle> items={data.vehicles} rowKey="id" itemRender={(vehicle) => <Flex vertical gap="small"><Flex justify="space-between" gap="small"><VehicleIdentityLine vehicle={vehicle} />{vehicle.disabled ? <Tag>{t("dashboard.vehicle.disabled")}</Tag> : null}</Flex><Space wrap><Badge status={vehicle.status === "online" ? "success" : vehicle.status === "offline" ? "error" : "default"} text={statusLabel(vehicle.status, locale)} /><Tag color={vehicle.positionFreshness === "fresh" ? "green" : vehicle.positionFreshness === "stale" ? "orange" : undefined}>{freshnessLabel(vehicle.positionFreshness, locale)}</Tag></Space><Flex wrap="wrap" gap="middle"><Text type="secondary">{t("dashboard.table.gps")}: {formatTimestamp(vehicle.fixTime, data.timezone, locale)}</Text><Text type="secondary">{t("dashboard.mobile.speed")}: {formatSpeed(vehicle.speedKph, locale)}</Text><Text type="secondary">{t("dashboard.mobile.distance")}: {formatDistance(vehicle.dailyDistanceMeters, locale)}</Text><Text type="secondary">{t("dashboard.table.sourceQuality")}: {sourceQualityText(vehicle, locale, t)}</Text></Flex></Flex>} /></Spin>; }
+function FleetMobileList({ data, loading, emptyDescription, emptyText }: Readonly<{ data: DashboardVehiclesResponse; loading: boolean; emptyDescription: string; emptyText: string }>) { const { locale, t } = useI18n(); if (data.vehicles.length === 0) return <Empty description={emptyDescription}><Text type="secondary">{emptyText}</Text></Empty>; return <Spin spinning={loading}><Listy<Vehicle> items={data.vehicles} rowKey="id" itemRender={(vehicle) => <Flex vertical gap="small"><VehicleIdentity vehicle={vehicle} disabledLabel={t("dashboard.vehicle.disabled")} /><Space wrap><Badge status={vehicle.status === "online" ? "success" : vehicle.status === "offline" ? "error" : "default"} text={statusLabel(vehicle.status, locale)} /><Tag color={vehicle.positionFreshness === "fresh" ? "green" : vehicle.positionFreshness === "stale" ? "orange" : undefined}>{freshnessLabel(vehicle.positionFreshness, locale)}</Tag></Space><Flex wrap="wrap" gap="middle"><Text type="secondary">{t("dashboard.table.gps")}: {formatTimestamp(vehicle.fixTime, data.timezone, locale)}</Text><Text type="secondary">{t("dashboard.mobile.speed")}: {formatSpeed(vehicle.speedKph, locale)}</Text><Text type="secondary">{t("dashboard.mobile.distance")}: {formatDistance(vehicle.dailyDistanceMeters, locale)}</Text><Text type="secondary">{t("dashboard.table.sourceQuality")}: {sourceQualityText(vehicle, locale, t)}</Text></Flex></Flex>} /></Spin>; }

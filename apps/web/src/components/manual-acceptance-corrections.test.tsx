@@ -53,7 +53,7 @@ test("Fleet vehicle identities are semantic links to the existing detail route",
   const dashboard = source("src/components/dashboard-client.tsx");
   assert.match(dashboard, /import Link from "next\/link"/);
   assert.match(dashboard, /function VehicleDetailLink[\s\S]*?href=\{`\/vehicles\/\$\{vehicle\.id\}`\}/);
-  assert.equal((dashboard.match(/<VehicleIdentityLine vehicle=\{vehicle\}/g) ?? []).length, 2);
+  assert.equal((dashboard.match(/<VehicleIdentity vehicle=\{vehicle\}/g) ?? []).length, 2);
   assert.match(dashboard, /<Table<Vehicle>/);
 });
 
