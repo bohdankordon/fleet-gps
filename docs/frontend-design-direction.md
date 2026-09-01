@@ -4,13 +4,13 @@ Status: Ant Design 6 is the active frontend foundation. The rejected shadcn/Base
 
 ## Product direction
 
-Taxi GPS is operational software for monitoring fleets. Presentation work must preserve authentication, authorization, API contracts, provider behavior, position freshness, history and track behavior, trips/stops, reports, alerts, settings, user management, audit behavior, Telegram, localization, and accepted timezone semantics. Frontend redesign has no API, business-rule, Prisma, or migration scope.
+The visible application-shell product brand is **Fleet GPS**. Existing technical Taxi GPS identifiers—including the repository, npm packages, services, environment keys, database identifiers, and historical release documentation—remain unchanged unless a separately scoped technical migration explicitly requires otherwise. The product is operational software for monitoring fleets. Presentation work must preserve authentication, authorization, API contracts, provider behavior, position freshness, history and track behavior, trips/stops, reports, alerts, settings, user management, audit behavior, Telegram, localization, and accepted timezone semantics. Frontend redesign has no API, business-rule, Prisma, or migration scope.
 
 ## Foundation and component policy
 
 Ant Design 6 is authoritative for new generic UI. Prefer an official Ant Design component, then composition of official Ant Design components, then a Taxi GPS domain component composed from Ant Design primitives. A custom generic component is the last resort.
 
-The current baseline intentionally uses the native/default Ant Design light appearance. There are no global or component token overrides; custom visual theming is deferred until human acceptance. Tailwind remains installed for legacy pages, MapLibre, and genuinely domain-specific layout, but must not reskin Ant Design controls.
+The current baseline intentionally uses the native/default Ant Design light appearance. Narrow component-token adjustments are allowed when they preserve that native appearance and express a documented shell requirement, such as the horizontal Menu line height and active indicator. Tailwind remains installed for legacy pages, MapLibre, and genuinely domain-specific layout, but must not reskin Ant Design controls.
 
 The official App Router registry and a locale-aware `ConfigProvider` are the integration path. Ant Design's `en_US`, `ru_RU`, and `uk_UA` locales accompany product-owned English, Russian, and Ukrainian strings. Use the official Ant Design application context where feedback APIs are needed.
 
@@ -18,13 +18,19 @@ Do not depend on Ant Design's internal DOM or styles. Custom `.ant-*` selectors 
 
 Radix remains installed while it has consumers. It is not the preferred choice for new generic interface components and must not be removed without a repository-wide proof that it is unused.
 
+`@ant-design/icons` is the default icon source for application UI. Do not introduce Unicode characters as substitute UI icons when an appropriate Ant Design icon exists; use the official icon component and keep it on the same major version as Ant Design. Do not add another icon library or invent a custom graphic without first establishing that the Ant Design icon set has no suitable option.
+
 ## Navigation
 
-Desktop primary navigation is horizontal and top-based. Taxi GPS has too few primary sections to justify a permanent desktop sidebar that reduces operational workspace. Fleet, Map, Events, Reports, and the permission-aware Administration group belong in one coherent top application header, with language and account/logout controls at the right.
+Desktop primary navigation is horizontal and top-based. Fleet GPS uses a light, viewport-wide Ant Design application header with a compact `EnvironmentFilled` brand. The icon and product name form one semantic home link to `/`, while retaining neutral product-identity styling rather than ordinary content-link styling. The header uses deliberate 24–32px desktop gutters, restrained spacing, and compact language and account controls. The application has too few primary sections to justify a permanent desktop sidebar that reduces operational workspace. Fleet, Map, Events, Reports, and the permission-aware Administration destination belong in one coherent top application header, with language and account/logout controls at the right.
 
-Administration groups only the allowed Users, Settings, Audit, and GPS History links. It is omitted when no child is authorized. Active route state must remain meaningful for nested routes, including vehicle detail and administrative pages. Do not create a duplicate permanent or in-page application navigation surface.
+The five primary desktop destinations use deterministic semantic links rather than a responsive horizontal Menu. All five remain visible together; primary-route navigation must never collapse into an overflow ellipsis. Horizontal navigation uses a neutral foreground and native/subtle hover treatment. The active section uses semantic primary text with a restrained 2px bottom indicator, never a full-height filled block. Administration is an ordinary top-level link to the authorized landing destination and stays active for every `/admin/*` route.
 
-At tablet and phone widths, replace the horizontal menu before it wraps with a compact header and an on-demand, focus-managed Ant Design Drawer. The Drawer contains the same permission-aware navigation and closes after navigation. It is temporary mobile navigation, not a permanent sidebar.
+Administration children use one shared permission-aware in-page Ant Design Tabs composition near the page title. Tabs expose only the real authorized Users, Settings, Audit, and GPS History destinations, select exact and nested routes correctly, and remain localized. They are local Administration navigation, not a second global header, large card, sidebar, or dark bar.
+
+Brand, primary navigation, locale, and account controls share one centered flex alignment system. Header controls reserve stable border and width geometry: hover may change token-derived color or background but never width, height, padding, or neighboring coordinates. Locale width accounts for the longest supported language name so changing locale cannot displace primary navigation.
+
+At tablet and phone widths, replace the horizontal menu before it wraps with a compact header using the real Ant Design `MenuOutlined` icon and an on-demand, focus-managed Ant Design Drawer. The Drawer contains the same permission-aware navigation plus locale and account access and closes after navigation. It is temporary mobile navigation, not a permanent sidebar.
 
 Fleet, Map, Reports, and other operational pages retain the available browser width below the header, subject only to practical page gutters. Do not place them in a narrow marketing-style content container.
 
@@ -40,8 +46,9 @@ Operational tables prioritize scanability over decoration. Vehicle identity is t
 
 ## Migration sequence
 
-1. Ant Design native foundation, top navigation, and Fleet are human accepted and complete.
-2. Map is the next redesign slice.
-3. Vehicle detail, Events, Reports, Administration, Account, and remaining routes migrate in small behavior-preserving slices.
+1. Ant Design native foundation and Fleet are human accepted and complete.
+2. The deterministic Fleet GPS header and in-page Administration Tabs are human accepted and complete.
+3. Map is the next redesign slice.
+4. Vehicle detail, Events, Reports, Administration, Account, and remaining routes migrate in small behavior-preserving slices.
 
-The Map redesign has not started in the first foundation slice.
+The Map redesign has not started.

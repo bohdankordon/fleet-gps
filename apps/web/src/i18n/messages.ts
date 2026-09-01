@@ -73,6 +73,8 @@ export const MESSAGE_CATALOG = Object.freeze({
 
   "navigation.primaryLabel": { ru: "Основная навигация", uk: "Основна навігація", en: "Primary navigation" },
   "navigation.openMenu": { ru: "Открыть навигацию", uk: "Відкрити навігацію", en: "Open navigation" },
+  "navigation.openAdminMenu": { ru: "Открыть разделы администрирования", uk: "Відкрити розділи адміністрування", en: "Open Administration destinations" },
+  "navigation.adminTabsLabel": { ru: "Разделы администрирования", uk: "Розділи адміністрування", en: "Administration sections" },
   "navigation.skipToMain": { ru: "Перейти к содержимому", uk: "Перейти до вмісту", en: "Skip to main content" },
   "navigation.scrollHint": { ru: "Навигация прокручивается по горизонтали при необходимости", uk: "Навігація прокручується горизонтально за потреби", en: "Navigation scrolls horizontally when needed" },
   "navigation.adminLabel": { ru: "Администрирование", uk: "Адміністрування", en: "Administration" },
@@ -113,6 +115,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "account.login": { ru: "Логин", uk: "Логін", en: "Login" },
   "account.role": { ru: "Роль", uk: "Роль", en: "Role" },
   "account.open": { ru: "Открыть аккаунт", uk: "Відкрити обліковий запис", en: "Open account" },
+  "account.openMenu": { ru: "Открыть меню аккаунта", uk: "Відкрити меню облікового запису", en: "Open account menu" },
   "account.noSectionsTitle": { ru: "Нет доступных разделов", uk: "Немає доступних розділів", en: "No sections available" },
   "account.noSectionsText": { ru: "Обратитесь к администратору для назначения разрешений.", uk: "Зверніться до адміністратора, щоб отримати дозволи.", en: "Contact an administrator to have permissions assigned." },
   "account.forbiddenTitle": { ru: "Недостаточно прав", uk: "Недостатньо прав", en: "Insufficient permissions" },

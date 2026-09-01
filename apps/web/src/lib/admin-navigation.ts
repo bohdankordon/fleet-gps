@@ -11,3 +11,7 @@ export function adminNavigationFor(user: AuthUser | null, locale: AppLocale = DE
   if (hasPermission(user, "historyAdmin.view")) items.push({ href: "/admin/history", label: translate(locale, "navigation.history") });
   return Object.freeze(items);
 }
+
+export function activeAdminNavigationPath(items: readonly AdminNavigationItem[], pathname: string): string | undefined {
+  return items.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))?.href;
+}

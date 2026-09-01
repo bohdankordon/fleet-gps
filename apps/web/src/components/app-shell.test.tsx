@@ -21,7 +21,7 @@ test("PageHeader still supports legacy route content during the incremental migr
   assert.match(html, /ui-page-header__actions/);
 });
 
-test("the shell establishes official Ant Design App Router, locale, horizontal menu, and mobile Drawer integration", () => {
+test("the shell establishes the light Fleet GPS Ant Design header and responsive navigation contract", () => {
   const layout = readFileSync("src/app/layout.tsx", "utf8");
   const provider = readFileSync("src/components/ant-design-provider.tsx", "utf8");
   const navigation = readFileSync("src/components/app-navigation.tsx", "utf8");
@@ -30,14 +30,44 @@ test("the shell establishes official Ant Design App Router, locale, horizontal m
   assert.match(layout, /<AntdRegistry>/);
   assert.match(provider, /<ConfigProvider locale=\{ANT_DESIGN_LOCALES\[locale\]\}>/);
   for (const name of ["enUS", "ruRU", "ukUA"]) assert.match(provider, new RegExp(`\\b${name}\\b`));
-  assert.match(navigation, /mode="horizontal"/);
-  assert.match(navigation, /theme="dark"/);
+  assert.match(navigation, /<span>Fleet GPS<\/span>/);
+  assert.doesNotMatch(navigation, />Taxi GPS</);
+  assert.match(navigation, /EnvironmentFilled/);
+  assert.doesNotMatch(navigation, /CarOutlined/);
+  assert.match(navigation, /<Link className="taxi-header__brand" href="\/">.*<EnvironmentFilled.*aria-hidden.*<span>Fleet GPS<\/span>.*<\/Link>/);
+  assert.match(navigation, /<Drawer[\s\S]*title=\{<Brand \/>\}/);
+  assert.match(navigation, /taxi-header--compact[\s\S]*<Brand \/>/);
+  assert.match(navigation, /<nav className="taxi-header__nav"/);
+  assert.match(navigation, /navigation\.map\(\(item\) =>/);
+  assert.match(navigation, /className=\{`taxi-header__nav-link/);
+  assert.match(navigation, /isActiveAppNavigationPath\(item\.href, pathname\)/);
+  assert.doesNotMatch(navigation, /mode="horizontal"|DesktopAdministration|overflowedIndicator|EllipsisOutlined/);
+  for (const icon of ["TeamOutlined", "SettingOutlined", "AuditOutlined", "HistoryOutlined"]) assert.match(navigation, new RegExp(`\\b${icon}\\b`));
   assert.match(navigation, /<Drawer/);
+  assert.match(navigation, /MenuOutlined/);
   assert.match(navigation, /adminNavigationFor\(user, locale\)/);
-  assert.match(navigation, /items\.push\(\{ key: "administration"/);
-  assert.match(navigation, /afterNavigation/);
+  assert.match(navigation, /const close = \(\) => setOpen\(false\)/);
+  assert.match(navigation, /onClick=\{close\}/);
+  assert.match(navigation, /<Avatar size=\{24\}>/);
+  assert.match(navigation, /UserOutlined/);
+  assert.match(navigation, /LogoutOutlined/);
+  assert.match(navigation, /key: "logout", danger: true/);
   assert.doesNotMatch(navigation, /Sider|Layout\.Sider/);
   assert.doesNotMatch(shellCss, /\.ant-/);
+  assert.match(shellCss, /\.taxi-header__inner[\s\S]*display: flex;[\s\S]*align-items: center;/);
+  assert.match(shellCss, /padding-inline: 28px/);
+  assert.match(shellCss, /\.taxi-header__brand[\s\S]*margin-inline: -8px;[\s\S]*padding-inline: 8px;/);
+});
+
+test("locale and shell controls use Ant Design icons instead of typed icon-like Unicode", () => {
+  const navigation = readFileSync("src/components/app-navigation.tsx", "utf8");
+  const selector = readFileSync("src/components/language-selector.tsx", "utf8");
+  assert.match(selector, /GlobalOutlined/);
+  assert.match(selector, /DownOutlined/);
+  assert.match(selector, /<Dropdown/);
+  assert.match(selector, /selectedKeys: \[locale\]/);
+  assert.match(selector, /NATIVE_LOCALE_NAMES\[locale\]/);
+  for (const source of [navigation, selector]) assert.doesNotMatch(source, /[→←✓⚙🌐⋮]/u);
 });
 
 test("route content delegates its main landmark to AppShell rather than nesting main elements", () => {

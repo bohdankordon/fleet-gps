@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AUDIT_ACTOR_TYPES, AUDIT_EVENT_TYPES, AUDIT_TARGET_TYPES, parseAuditReadResponse, type AuditReadItem } from "../lib/audit/audit-contract";
 import { normalizeAuditLocalFilters, serializeAuditRequestQuery, type AuditFilters } from "../lib/audit/audit-query";
 import { auditActorLabel, auditDetailsLines, auditEventLabel, auditTargetLabel, auditTargetTypeLabel, formatAuditTimestamp } from "../lib/audit/audit-ui-model";
@@ -24,7 +24,7 @@ export function AuditEventTable({ items }: Readonly<{ items: readonly AuditReadI
   return <div className="audit-table"><table><thead><tr><th>{t("audit.table.time")}</th><th>{t("audit.table.event")}</th><th>{t("audit.table.actor")}</th><th>{t("audit.table.target")}</th><th>{t("audit.table.description")}</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td><time dateTime={item.createdAt}>{formatAuditTimestamp(item.createdAt, locale)}</time></td><td>{auditEventLabel(item.eventType, locale)}</td><td>{auditActorLabel(item, locale)}</td><td>{auditTargetLabel(item, locale)}</td><td><ul className="audit-details">{auditDetailsLines(item, locale).map((line) => <li key={line}>{line}</li>)}</ul></td></tr>)}</tbody></table></div>;
 }
 
-export function AuditViewer() {
+export function AuditViewer({ navigation }: Readonly<{ navigation?: ReactNode }>) {
   const { locale, t } = useI18n();
   const [state, setState] = useState(initialAuditViewerState);
   const [draft, setDraft] = useState<DraftFilters>(emptyDraft);
@@ -71,6 +71,7 @@ export function AuditViewer() {
 
   return <>
     <header className="hero"><p className="eyebrow">{t("common.administration")}</p><h1>{t("audit.title")}</h1><p>{t("audit.description")}</p></header>
+    {navigation}
     <form className="audit-filters" onSubmit={apply} aria-label={t("audit.filters.label")}>
       <label>{t("audit.filters.eventType")}<select value={draft.eventType} onChange={(event) => setDraft((current) => ({ ...current, eventType: event.target.value }))}><option value="">{t("common.all")}</option>{AUDIT_EVENT_TYPES.map((value) => <option key={value} value={value}>{auditEventLabel(value, locale)}</option>)}</select></label>
       <label>{t("audit.filters.actor")}<select value={draft.actorType} onChange={(event) => setDraft((current) => ({ ...current, actorType: event.target.value }))}><option value="">{t("common.all")}</option>{AUDIT_ACTOR_TYPES.map((value) => <option key={value} value={value}>{value === "USER" ? t("audit.actor.user") : t("audit.actor.system")}</option>)}</select></label>

@@ -99,7 +99,14 @@ Reset remains mounted at the far right, disabled at defaults and enabled when
 an optional filter is active. The operational Table uses clear linked vehicle
 identity and a compact neutral disabled-vehicle indicator.
 
-**NOW — Map redesign.** Map is the next behavior-preserving frontend slice.
+**DONE — Shared Ant Design application header refinement (human accepted).** The
+shared shell now uses the Fleet GPS visible brand, a light horizontal desktop
+header, five deterministic semantic primary links, Administration in-page Tabs,
+stable compact locale/account controls, and native Drawer-based responsive
+navigation.
+
+**NEXT — Map redesign.** Map is the next behavior-preserving frontend slice. Map
+implementation has not started.
 
 ## LATER — Final production hardening
 

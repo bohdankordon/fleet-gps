@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useI18n } from "../i18n/client";
 import { formatDateTime, formatNumber, formatUnit } from "../i18n/formatting";
 import { absoluteToKyivLocal, kyivLocalToAbsolute } from "../lib/vehicle-track/vehicle-track-custom-range";
@@ -10,9 +10,9 @@ import { PositionHistoryPopulation } from "./position-history-population";
 import { PositionHistoryDurableRuns } from "./position-history-durable-runs";
 import { WarningIcon } from "./ui/icons";
 
-type Props = Readonly<{ anchor: string | null; data: PositionHistoryStatusResponse | null; error: "INVALID_ANCHOR" | "UNAVAILABLE" | null; canPopulate?: boolean; showDurableRuns?: boolean; initialDurableActive?: SafeDurableRun | null; initialDurableRecent?: readonly SafeDurableRun[] }>;
+type Props = Readonly<{ anchor: string | null; data: PositionHistoryStatusResponse | null; error: "INVALID_ANCHOR" | "UNAVAILABLE" | null; navigation?: ReactNode; canPopulate?: boolean; showDurableRuns?: boolean; initialDurableActive?: SafeDurableRun | null; initialDurableRecent?: readonly SafeDurableRun[] }>;
 
-export function PositionHistoryStatusView({ anchor, data, error, canPopulate = false, showDurableRuns = false, initialDurableActive = null, initialDurableRecent = [] }: Props) {
+export function PositionHistoryStatusView({ anchor, data, error, navigation, canPopulate = false, showDurableRuns = false, initialDurableActive = null, initialDurableRecent = [] }: Props) {
   const { locale, t } = useI18n();
   const [anchorDraft, setAnchorDraft] = useState(() => anchor === null ? "" : (absoluteToKyivLocal(anchor) ?? ""));
   const [anchorInputError, setAnchorInputError] = useState(false);
@@ -30,6 +30,7 @@ export function PositionHistoryStatusView({ anchor, data, error, canPopulate = f
 
   return <>
     <header className="hero admin-history-hero"><p className="eyebrow">{t("history.eyebrow")}</p><h1>{t("history.title")}</h1><p>{t("history.description")}</p></header>
+    {navigation}
     <section className="admin-history-controls" aria-labelledby="policy-anchor-title"><h2 id="policy-anchor-title">{t("history.policy.title")}</h2><p><strong>{data ? t("history.policy.days", { days: formatUnit(locale, data.policyDays, "day") }) : t("common.notAvailable")}</strong></p><p>{t("history.policy.architecture")}</p><form action="/admin/history" method="get" onSubmit={recalculate}><label>{t("history.anchor.label")}<input type="datetime-local" step="60" value={anchorDraft} aria-invalid={anchorInputError || undefined} onChange={(event) => { setAnchorDraft(event.target.value); setAnchorInputError(false); }} required /></label><input ref={anchorQueryInput} type="hidden" name="to" defaultValue={anchor ?? ""} /><button type="submit">{t("history.anchor.recalculate")}</button></form><p>{t("track.controls.timezone")}</p><p>{t("history.anchor.help")}</p>{anchorInputError && <p className="admin-error" role="alert">{t("history.anchor.invalidText")}</p>}</section>
     {error === "INVALID_ANCHOR" && <section className="notice" role="alert"><WarningIcon className="notice-icon" /><div><strong>{t("history.anchor.invalidTitle")}</strong><span>{t("history.anchor.invalidText")}</span></div></section>}
     {error === "UNAVAILABLE" && <section className="notice" role="alert"><WarningIcon className="notice-icon" /><div><strong>{t("history.unavailableTitle")}</strong><span>{t("history.unavailableText")}</span></div></section>}
