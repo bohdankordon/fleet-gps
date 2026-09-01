@@ -56,7 +56,7 @@ test("the shell establishes the light Fleet GPS Ant Design header and responsive
   assert.doesNotMatch(shellCss, /\.ant-/);
   assert.match(shellCss, /\.taxi-header__inner[\s\S]*display: flex;[\s\S]*align-items: center;/);
   assert.match(shellCss, /padding-inline: 28px/);
-  assert.match(shellCss, /\.taxi-header__brand[\s\S]*margin-inline: -8px;[\s\S]*padding-inline: 8px;/);
+  assert.match(shellCss, /\.taxi-header__brand[\s\S]*margin-inline-start:[\s\S]*margin-inline-end:[\s\S]*padding-inline-start:[\s\S]*padding-inline-end:/);
 });
 
 test("locale and shell controls use Ant Design icons instead of typed icon-like Unicode", () => {

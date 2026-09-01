@@ -71,14 +71,14 @@ function FleetToolbar({ query, sort, loading, onSet, onResetFilters, onSort, onR
     <LabeledSelect fieldLabel={t("dashboard.filters.activity")} ariaLabel={t("dashboard.filters.activity")} value={query.activity ?? ""} options={activityOptions} sizingStyle={selectSizingStyle} onChange={(value) => onSet("activity", (value || undefined) as DashboardActivity | undefined)} />
     <Checkbox aria-label={t("dashboard.filters.showDisabledAria")} styles={{ root: { gap: 0, fontWeight: 400 }, icon: { overflow: "clip" } }} checked={query.includeDisabled !== false} onChange={(event) => onSet("includeDisabled", event.target.checked)}>{t("dashboard.filters.showDisabled")}</Checkbox>
   </div>;
-  return <section className="fleet-toolbar" aria-label={t("dashboard.filters.label")} style={{ borderColor: token.colorBorderSecondary, borderRadius: token.borderRadiusLG, background: token.colorBgContainer, padding: token.paddingSM }}>
+  return <section className="fleet-toolbar" aria-label={t("dashboard.filters.label")} style={{ borderColor: token.colorBorderSecondary, borderRadius: token.borderRadiusLG, background: token.colorBgContainer, padding: token.paddingSM, paddingBottom: token.paddingXXS }}>
     <div className="fleet-toolbar__list-controls">
       <Input className="fleet-toolbar__search" size="large" styles={{ root: { height: token.controlHeightLG }, input: { minHeight: 0 } }} aria-label={t("dashboard.filters.search")} allowClear prefix={<SearchOutlined />} value={query.search ?? ""} onChange={(event) => onSet("search", event.target.value || undefined)} placeholder={t("dashboard.filters.searchPlaceholder")} />
       <LabeledSelect fieldLabel={t("dashboard.sort.label")} ariaLabel={t("dashboard.sort.label")} value={sort} options={sortOptions} sizingStyle={selectSizingStyle} onChange={(value) => onSort(value as FleetSort)} />
       <StableLoadingButton idleLabel={t("common.refresh")} loadingLabel={t("common.refreshing")} loading={loading} icon={<ReloadOutlined />} onClick={onRefresh} size="large" type="primary" />
     </div>
     <div className="fleet-toolbar__filters" style={{ borderTopColor: token.colorBorderSecondary }}>
-      <Collapse ghost size="small" activeKey={activeKeys} onChange={(keys) => setActiveKeys(Array.isArray(keys) ? keys.map(String) : [String(keys)])} styles={{ header: { paddingInline: 0 }, body: { padding: `${token.paddingXS}px 0 0` } }} items={[{ key: "filters", label: filterHeader, extra: reset, children: filters }]} />
+      <Collapse ghost size="small" activeKey={activeKeys} onChange={(keys) => setActiveKeys(Array.isArray(keys) ? keys.map(String) : [String(keys)])} styles={{ header: { paddingInline: 0 }, body: { padding: `${token.paddingXS}px 0 ${token.paddingXS}px` } }} items={[{ key: "filters", label: filterHeader, extra: reset, children: filters }]} />
     </div>
   </section>;
 }

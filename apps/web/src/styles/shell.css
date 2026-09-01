@@ -37,8 +37,10 @@
   flex: 0 0 auto;
   gap: 8px;
   height: 36px;
-  margin-inline: -8px;
-  padding-inline: 8px;
+  margin-inline-start: -6px;
+  margin-inline-end: -8px;
+  padding-inline-start: 6px;
+  padding-inline-end: 8px;
   border-radius: 6px;
   color: var(--shell-text);
   font-size: 17px;
