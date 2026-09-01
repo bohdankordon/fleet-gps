@@ -1,6 +1,7 @@
 import type { Feature, FeatureCollection, Polygon } from "geojson";
 import type { FillLayerSpecification, LineLayerSpecification, Map as MapLibreMap } from "maplibre-gl";
 import type { CityGeofenceMapResponse } from "./city-geofence-contract";
+import { FLEET_MAP_PRESENTATION } from "../fleet-map/fleet-map-presentation";
 
 export const CITY_GEOFENCE_SOURCE_ID = "city-geofence";
 export const CITY_GEOFENCE_FILL_LAYER_ID = "city-geofence-fill";
@@ -33,13 +34,13 @@ export function cityGeofenceLayers(): readonly [FillLayerSpecification, LineLaye
       id: CITY_GEOFENCE_FILL_LAYER_ID,
       type: "fill",
       source: CITY_GEOFENCE_SOURCE_ID,
-      paint: { "fill-color": "#2b7794", "fill-opacity": 0.08 },
+      paint: { "fill-color": FLEET_MAP_PRESENTATION.boundary, "fill-opacity": FLEET_MAP_PRESENTATION.boundaryFillOpacity },
     },
     {
       id: CITY_GEOFENCE_OUTLINE_LAYER_ID,
       type: "line",
       source: CITY_GEOFENCE_SOURCE_ID,
-      paint: { "line-color": "#1d6684", "line-opacity": 0.9, "line-width": 2 },
+      paint: { "line-color": FLEET_MAP_PRESENTATION.boundary, "line-opacity": FLEET_MAP_PRESENTATION.boundaryLineOpacity, "line-width": FLEET_MAP_PRESENTATION.boundaryLineWidth },
     },
   ];
 }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { FleetMapResponse } from "@/lib/fleet-map/fleet-map-contract";
 import type { OpenAlertMapResponse } from "./open-alert-map-contract";
-import { alertsForFleetVehicle, fleetAlertMapToGeoJson, joinFleetOpenAlerts } from "./open-alert-map-model";
+import { alertsForFleetVehicle, fleetAlertMapEventPresentation, fleetAlertMapToGeoJson, joinFleetOpenAlerts } from "./open-alert-map-model";
 
 const idA = "00000000-0000-4000-8000-000000000001";
 const idB = "00000000-0000-4000-8000-000000000002";
@@ -36,7 +36,14 @@ test("GeoJSON preserves longitude/latitude and carries only render-safe alert fl
   const geojson = fleetAlertMapToGeoJson(joinFleetOpenAlerts(fleet, alerts));
   assert.equal(geojson.features.length, 2);
   assert.deepEqual(geojson.features[0]?.geometry.coordinates, [28, 49]);
-  assert.deepEqual(geojson.features[0]?.properties, { vehicleId: idA, freshness: "FRESH", hasSpeeding: true, hasInactivity: true });
-  assert.deepEqual(geojson.features[1]?.properties, { vehicleId: idB, freshness: "STALE", hasSpeeding: false, hasInactivity: false });
+  assert.deepEqual(geojson.features[0]?.properties, { vehicleId: idA, freshness: "FRESH", hasSpeeding: true, hasInactivity: true, eventPresentation: "SPEEDING" });
+  assert.deepEqual(geojson.features[1]?.properties, { vehicleId: idB, freshness: "STALE", hasSpeeding: false, hasInactivity: false, eventPresentation: null });
   for (const forbidden of ["openedAt", "vehicleName", "eventId", "activeKey", "coordinatesAtAlert"]) assert.equal(JSON.stringify(geojson).includes(forbidden), false);
+});
+
+test("presentation priority is SPEEDING over INACTIVITY while preserving both source flags", () => {
+  assert.equal(fleetAlertMapEventPresentation(false, false), null);
+  assert.equal(fleetAlertMapEventPresentation(false, true), "INACTIVITY");
+  assert.equal(fleetAlertMapEventPresentation(true, false), "SPEEDING");
+  assert.equal(fleetAlertMapEventPresentation(true, true), "SPEEDING");
 });

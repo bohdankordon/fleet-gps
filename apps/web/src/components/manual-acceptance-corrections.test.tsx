@@ -19,17 +19,16 @@ test("Reports presents a localized period inside one grouped responsive control 
   assert.match(css, /report-control-groups \{ grid-template-columns:1fr/);
 });
 
-test("selected Map vehicle details are a compact grid with semantic primary and secondary navigation", () => {
+test("selected Map vehicle details use the contextual Ant Design inspector with semantic primary and secondary navigation", () => {
   const map = source("src/components/fleet-map-client.tsx");
-  const css = source("src/app/globals.css");
-  assert.match(map, /map-details-header/);
-  assert.match(map, /map-details-grid/);
-  assert.match(map, /map-details-events/);
-  assert.match(map, /map-details-actions/);
-  assert.match(map, /className="map-details-action-primary" href=\{`\/vehicles\/\$\{vehicle\.vehicle\.id\}`\}/);
-  assert.match(map, /className="map-details-action-secondary" href="\/events\?status=OPEN"/);
-  assert.match(css, /map-details \.map-details-grid \{ display:grid; grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
-  assert.match(css, /map-details \.map-details-grid \{ grid-template-columns:1fr/);
+  const css = source("src/styles/map.css");
+  assert.match(map, /function VehicleInspector/);
+  assert.match(map, /<Descriptions className="map-inspector__descriptions"/);
+  assert.match(map, /<Flex className="map-inspector__actions" vertical gap="small">/);
+  assert.match(map, /<Button block type="primary" href=\{`\/vehicles\/\$\{vehicle\.vehicle\.id\}`\}/);
+  assert.match(map, /<Button block type="default" href="\/events\?status=OPEN"/);
+  assert.match(css, /map-workspace--selected/);
+  assert.match(css, /grid-template-columns: minmax\(0, 1fr\) minmax\(300px, 340px\)/);
 });
 
 test("Audit controls use Kyiv datetime-local values and convert only at the filter boundary", () => {

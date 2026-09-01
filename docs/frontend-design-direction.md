@@ -61,7 +61,13 @@ The human-accepted Fleet screen is the canonical visual reference for subsequent
 
 1. Ant Design native foundation and Fleet are human accepted and complete.
 2. The deterministic Fleet GPS header and in-page Administration Tabs are human accepted and complete.
-3. Map is the next redesign slice.
-4. Vehicle detail, Events, Reports, Administration, Account, and remaining routes migrate in small behavior-preserving slices.
+3. Map is human accepted and complete.
+4. Events / Події is the next behavior-preserving redesign slice; Vehicle detail, Reports, Administration, Account, and remaining routes follow in small behavior-preserving slices.
 
-The Map redesign has not started.
+## Map workspace
+
+The Map redesign is human accepted and complete. Map is a map-first operational workspace: its open page header owns the generated timestamp and application freshness threshold, three compact Ant Design Cards group fleet/map coverage, GPS state, and every existing OPEN-event count, and one restrained control surface provides local vehicle search/selection, stable Refresh, and a keyboard-accessible click-open legend. At desktop widths the summary uses the Ant Design 24-column grid as 6/6/12, at tablet widths it uses 12/12/24, and on phones the three groups stack without horizontal page or summary scrolling. Metric labels own one component-rendered colon; translations remain punctuation-free. Marker grammar uses green/amber GPS centers, a solid red SPEEDING ring, a neutral dashed INACTIVITY ring, and an outer blue selection ring; SPEEDING has presentation priority when both event states exist, without changing either business state. The legend mirrors those markers and the muted city boundary and explains that event rings follow current vehicle positions. Clustering is not introduced.
+
+Map search, Refresh, and adjacent controls follow the accepted Fleet large-control geometry, including the shared vehicle-name placeholder and stable loading width. Search remains local to the already-loaded authorized snapshot. Its suggestion popup owns a bounded scroll area and contains wheel overscroll so the page does not move at list boundaries.
+
+The primary MapLibre surface uses the available width until a vehicle is selected. Desktop selection opens a right map-adjacent inspector without a permanently reserved empty column; tablet uses a temporary right Drawer and phone uses a bottom Drawer. Selection commits the inspector layout before the supported MapLibre resize and focus lifecycle runs, so first and later marker/search selections center in the final map geometry. Overlapping ergonomic marker hit areas resolve to the nearest vehicle center in screen space. Closing the inspector clears only the transient selection, expands and resizes the map, and does not reload data or reset the camera. The selection helper is initial guidance for the current mount and stays dismissed after the first successful selection. The inspector is limited to the current Map contract and existing permission-aware destinations. The implementation preserves the MapLibre implementation, server contracts, 30-second coordinated fleet/event refresh, freshness and event semantics, city boundary, authorization, routes, timezone, and localization.

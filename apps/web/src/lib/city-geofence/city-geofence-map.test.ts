@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Map as MapLibreMap } from "maplibre-gl";
+import { FLEET_MAP_PRESENTATION } from "../fleet-map/fleet-map-presentation";
 import {
   CITY_GEOFENCE_FILL_LAYER_ID,
   CITY_GEOFENCE_OUTLINE_LAYER_ID,
   CITY_GEOFENCE_SOURCE_ID,
   cityGeofenceBounds,
+  cityGeofenceLayers,
   cityGeofenceToGeoJson,
   ensureCityGeofenceLayers,
 } from "./city-geofence-map";
@@ -16,6 +18,15 @@ const configured: CityGeofenceMapResponse = {
   configured: true,
   geometry: { type: "Polygon", coordinates: [[[28, 49], [29, 49], [29, 50], [28, 49]]] },
 };
+
+test("uses the restrained boundary presentation shared with the Map legend", () => {
+  const [fill, outline] = cityGeofenceLayers();
+  assert.equal(fill.paint?.["fill-color"], FLEET_MAP_PRESENTATION.boundary);
+  assert.equal(fill.paint?.["fill-opacity"], 0.04);
+  assert.equal(outline.paint?.["line-color"], FLEET_MAP_PRESENTATION.boundary);
+  assert.equal(outline.paint?.["line-opacity"], 0.7);
+  assert.equal(outline.paint?.["line-width"], 2);
+});
 
 test("projects the canonical Polygon without reversing coordinates or leaking metadata", () => {
   const result = cityGeofenceToGeoJson(configured);

@@ -12,10 +12,17 @@ export type FleetAlertMapSummary = Readonly<{
   inactivity: number;
 }>;
 export type FleetAlertMapModel = Readonly<{ vehicles: readonly FleetAlertMapVehicle[]; summary: FleetAlertMapSummary }>;
-export type FleetAlertMapFeatureProperties = Readonly<{ vehicleId: string; freshness: "FRESH" | "STALE"; hasSpeeding: boolean; hasInactivity: boolean }>;
+export type FleetAlertMapEventPresentation = "SPEEDING" | "INACTIVITY" | null;
+export type FleetAlertMapFeatureProperties = Readonly<{ vehicleId: string; freshness: "FRESH" | "STALE"; hasSpeeding: boolean; hasInactivity: boolean; eventPresentation: FleetAlertMapEventPresentation }>;
 export type FleetAlertMapFeatureCollection = FeatureCollection<Point, FleetAlertMapFeatureProperties>;
 
 const typeOrder = Object.freeze({ SPEEDING: 0, INACTIVITY: 1 } as const);
+
+export function fleetAlertMapEventPresentation(hasSpeeding: boolean, hasInactivity: boolean): FleetAlertMapEventPresentation {
+  if (hasSpeeding) return "SPEEDING";
+  if (hasInactivity) return "INACTIVITY";
+  return null;
+}
 
 export function joinFleetOpenAlerts(fleet: FleetMapResponse, alerts: OpenAlertMapResponse | null): FleetAlertMapModel {
   const alertsByVehicle = new Map((alerts?.vehicles ?? []).map((entry) => [entry.vehicle.id, [...entry.alerts].sort((left, right) => typeOrder[left.type] - typeOrder[right.type]) as readonly OpenAlertMapAlert[]]));
@@ -31,17 +38,22 @@ export function joinFleetOpenAlerts(fleet: FleetMapResponse, alerts: OpenAlertMa
 export function fleetAlertMapToGeoJson(model: FleetAlertMapModel): FleetAlertMapFeatureCollection {
   return {
     type: "FeatureCollection",
-    features: model.vehicles.map(({ marker, alerts }): Feature<Point, FleetAlertMapFeatureProperties> => ({
-      type: "Feature",
-      id: marker.vehicle.id,
-      properties: {
-        vehicleId: marker.vehicle.id,
-        freshness: marker.freshness,
-        hasSpeeding: alerts.some((alert) => alert.type === "SPEEDING"),
-        hasInactivity: alerts.some((alert) => alert.type === "INACTIVITY"),
-      },
-      geometry: { type: "Point", coordinates: [marker.position.longitude, marker.position.latitude] },
-    })),
+    features: model.vehicles.map(({ marker, alerts }): Feature<Point, FleetAlertMapFeatureProperties> => {
+      const hasSpeeding = alerts.some((alert) => alert.type === "SPEEDING");
+      const hasInactivity = alerts.some((alert) => alert.type === "INACTIVITY");
+      return {
+        type: "Feature",
+        id: marker.vehicle.id,
+        properties: {
+          vehicleId: marker.vehicle.id,
+          freshness: marker.freshness,
+          hasSpeeding,
+          hasInactivity,
+          eventPresentation: fleetAlertMapEventPresentation(hasSpeeding, hasInactivity),
+        },
+        geometry: { type: "Point", coordinates: [marker.position.longitude, marker.position.latitude] },
+      };
+    }),
   };
 }
 

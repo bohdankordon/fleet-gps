@@ -1,6 +1,7 @@
 import { translate } from "../../i18n/core";
-import { formatDateTime, formatNumber } from "../../i18n/formatting";
-import { DEFAULT_LOCALE, type AppLocale } from "../../i18n/locales";
+import { formatNumber } from "../../i18n/formatting";
+import { DEFAULT_LOCALE, DISPLAY_TIMEZONE, type AppLocale } from "../../i18n/locales";
+import { formatFleetMetadataTimestamp } from "../dashboard/dashboard-formatters";
 
 export function formatFleetMapAge(observedAt: string, generatedAt: string, locale: AppLocale = DEFAULT_LOCALE): string {
   const observed = Date.parse(observedAt); const generated = Date.parse(generatedAt);
@@ -13,5 +14,5 @@ export function formatFleetMapAge(observedAt: string, generatedAt: string, local
 }
 
 export function formatFleetMapTimestamp(value: string, locale: AppLocale = DEFAULT_LOCALE): string {
-  return formatDateTime(locale, value, { dateStyle: "short", timeStyle: "medium" }) ?? "—";
+  return formatFleetMetadataTimestamp(value, DISPLAY_TIMEZONE, locale);
 }

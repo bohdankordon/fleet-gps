@@ -114,8 +114,16 @@ workflow rather than copying Fleet's exact layout.
 **NOW — Frontend redesign.** Behavior-preserving redesign continues in small,
 human-reviewed slices using the accepted Fleet design reference.
 
-**NEXT IMPLEMENTATION SLICE — Map redesign.** Map is the next
-behavior-preserving frontend slice. Map implementation has not started.
+**DONE / HUMAN ACCEPTED — Map redesign.** The behavior-preserving Map redesign
+applies the accepted Fleet design language,
+groups existing summary facts, prioritizes the MapLibre work surface, adds
+local loaded-vehicle search and compact legend access, and moves selected
+vehicle information into a responsive contextual inspector. API, business,
+database, freshness, event, geofence, authorization, route, refresh, timezone,
+and localization semantics remain unchanged.
+
+**NEXT IMPLEMENTATION SLICE — Events / Події.** Events is the next
+behavior-preserving frontend redesign slice.
 
 ## LATER — Final production hardening
 
