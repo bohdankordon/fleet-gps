@@ -9,7 +9,7 @@ import { VehicleDetailsStateError } from "./vehicle-details.types";
 const ID = "00000000-0000-4000-8000-000000000001";
 const DATE = new Date("2026-07-01T00:00:00.000Z");
 
-function harness(vehicle: object | null = { id: ID, name: "Taxi", currentState: null, dailyStats: [] }, active: readonly object[] = [], recent: readonly object[] = []) {
+function harness(vehicle: object | null = { id: ID, name: "Taxi", disabled: false, currentState: null, dailyStats: [] }, active: readonly object[] = [], recent: readonly object[] = []) {
   const calls: { settings?: unknown; raw?: readonly unknown[]; vehicle?: unknown; alerts: unknown[]; options?: unknown; transactions: number } = { alerts: [], transactions: 0 };
   const transaction = {
     applicationSettings: { findUnique: async (args: unknown) => { calls.settings = args; return { timezone: "Europe/Kyiv", positionFreshnessSeconds: 300 }; } },
@@ -34,8 +34,8 @@ test("reads one consistent bounded snapshot with four entity reads, explicit sel
   assert.deepEqual(calls.vehicle, {
     where: { id: ID },
     select: {
-      id: true, name: true,
-      currentState: { select: { fixTime: true, latitude: true, longitude: true, speedKph: true, valid: true, outdated: true } },
+      id: true, name: true, disabled: true,
+      currentState: { select: { status: true, fixTime: true, latitude: true, longitude: true, speedKph: true, valid: true, outdated: true } },
       dailyStats: { where: { serviceDate: DATE }, take: 1, select: { distanceMeters: true, movementDurationSeconds: true, maxSpeedKph: true, source: true, quality: true, isStale: true, isDegraded: true } },
     },
   });

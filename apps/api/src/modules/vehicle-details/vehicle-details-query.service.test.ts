@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AlertEventSpeedZone, AlertEventStatus, AlertEventType, AlertNotificationStatus, DailyStatSource, DataQuality } from "../../generated/prisma/client";
+import { AlertEventSpeedZone, AlertEventStatus, AlertEventType, AlertNotificationStatus, DailyStatSource, DataQuality, VehicleStatus } from "../../generated/prisma/client";
 import { AlertEventsQueryService } from "../alert-events/alert-events-query.service";
 import type { StoredAlertEventProjectionRow } from "../alert-events/alert-events-query.repository";
 import { FleetMapQueryService } from "../fleet-map/fleet-map-query.service";
@@ -11,7 +11,7 @@ import { VehicleDetailsNotFoundError } from "./vehicle-details.types";
 const VEHICLE_ID = "00000000-0000-4000-8000-000000000001";
 const EVENT_ID = "00000000-0000-4000-8000-000000000002";
 const NOW = new Date("2026-06-30T21:00:01.000Z");
-const CURRENT = Object.freeze({ fixTime: new Date("2026-06-30T20:59:01.000Z"), latitude: 49.2331, longitude: 28.4682, speedKph: 32.5, valid: true, outdated: false });
+const CURRENT = Object.freeze({ status: VehicleStatus.ONLINE, fixTime: new Date("2026-06-30T20:59:01.000Z"), latitude: 49.2331, longitude: 28.4682, speedKph: 32.5, valid: true, outdated: false });
 
 function speedingEvent(overrides: Partial<StoredAlertEventProjectionRow> = {}): StoredAlertEventProjectionRow {
   return {
@@ -36,7 +36,7 @@ function snapshot(overrides: Partial<StoredVehicleDetailsSnapshot> = {}): Stored
     timezone: "Europe/Kyiv",
     positionFreshnessSeconds: 300,
     serviceDate: new Date("2026-07-01T00:00:00.000Z"),
-    vehicle: { id: VEHICLE_ID, name: "Taxi 7", currentState: CURRENT, dailyStat: { distanceMeters: 12345.67, movementDurationSeconds: 3600, maxSpeedKph: 87.125, source: DailyStatSource.MODE1, quality: DataQuality.EXACT, isStale: false, isDegraded: false } },
+    vehicle: { id: VEHICLE_ID, name: "Taxi 7", disabled: false, currentState: CURRENT, dailyStat: { distanceMeters: 12345.67, movementDurationSeconds: 3600, maxSpeedKph: 87.125, source: DailyStatSource.MODE1, quality: DataQuality.EXACT, isStale: false, isDegraded: false } },
     activeAlerts: [], activeAlertsExceededLimit: false, recentEvents: [], ...overrides,
   };
 }
@@ -49,7 +49,7 @@ function subject(value: StoredVehicleDetailsSnapshot, calls?: string[]): Vehicle
 test("returns the allow-listed vehicle, current state, Kyiv operational today, and empty alert states", async () => {
   const response = await subject(snapshot()).getDetails(VEHICLE_ID);
   assert.deepEqual(response, {
-    generatedAt: NOW.toISOString(), vehicle: { id: VEHICLE_ID, name: "Taxi 7" },
+    generatedAt: NOW.toISOString(), vehicle: { id: VEHICLE_ID, name: "Taxi 7", disabled: false }, connectivity: "ONLINE",
     currentState: { position: { latitude: 49.2331, longitude: 28.4682, observedAt: "2026-06-30T20:59:01.000Z" }, speedKph: 32.5, freshness: "FRESH" },
     today: { date: "2026-07-01", distanceMeters: 12345.67, movementDurationSeconds: 3600, maxSpeedKph: 87.125, source: "MODE1", quality: "EXACT", isStale: false, isDegraded: false },
     activeAlerts: [], recentEvents: [],
@@ -57,10 +57,19 @@ test("returns the allow-listed vehicle, current state, Kyiv operational today, a
 });
 
 test("missing CurrentState and missing DailyVehicleStat are normal null states", async () => {
-  const value = snapshot({ vehicle: { id: VEHICLE_ID, name: "Taxi 7", currentState: null, dailyStat: null } });
+  const value = snapshot({ vehicle: { id: VEHICLE_ID, name: "Taxi 7", disabled: true, currentState: null, dailyStat: null } });
   const response = await subject(value).getDetails(VEHICLE_ID);
   assert.equal(response.currentState, null);
   assert.equal(response.today, null);
+  assert.equal(response.vehicle.disabled, true);
+  assert.equal(response.connectivity, "UNKNOWN");
+});
+
+test("projects connectivity independently when provider position is unusable", async () => {
+  const response = await subject(snapshot({ vehicle: { ...snapshot().vehicle!, disabled: true, currentState: { ...CURRENT, status: VehicleStatus.OFFLINE, fixTime: null, latitude: null, longitude: null } } })).getDetails(VEHICLE_ID);
+  assert.equal(response.currentState, null);
+  assert.equal(response.connectivity, "OFFLINE");
+  assert.equal(response.vehicle.disabled, true);
 });
 
 test("unknown valid vehicle is a typed not-found after the repository snapshot", async () => {

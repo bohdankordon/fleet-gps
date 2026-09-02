@@ -71,8 +71,10 @@ test("selection is map-adjacent on desktop and temporary at tablet and mobile wi
   assert.match(map, /!desktopInspector \? <Drawer/);
   assert.match(map, /placement=\{screens\.sm \? "right" : "bottom"\}/);
   assert.match(map, /ResizeObserver/);
+  assert.match(map, /resolveFleetMapDeepLink\(initialSnapshot, initialVehicleId\)/);
   assert.match(map, /useLayoutEffect\(\(\) => \{/);
   assert.match(map, /map\.resize\(\);[\s\S]*map\.easeTo\(\{ center:/);
+  assert.match(map, /\}, \[desktopInspector, mapReady, selectedId\]\);/);
   assert.match(map, /!selection\.hasSelectedVehicle \? <div className="map-selection-helper"/);
   assert.match(map, /<VehicleInspector[^>]*onClose=\{clearSelection\}/);
   assert.match(map, /title=\{<VehicleInspectorTitle name=\{vehicle\.vehicle\.name\} \/>\}/);
@@ -103,7 +105,7 @@ test("selected inspector preserves real fields, permission-aware actions, routes
 });
 
 test("Map states, accessibility labels, and all changed copy are available in ru, uk, and en", () => {
-  for (const key of ["map.title", "map.description", "map.controls.label", "map.search.label", "dashboard.filters.searchPlaceholder", "map.legend.label", "map.legend.selected", "map.legend.inactivityExplanation", "map.legend.selectionExplanation", "map.loading", "map.noPositions", "map.vehicle.closeDetails", "map.initialLoadError"] as const) {
+  for (const key of ["map.title", "map.description", "map.controls.label", "map.search.label", "dashboard.filters.searchPlaceholder", "map.legend.label", "map.legend.selected", "map.legend.inactivityExplanation", "map.legend.selectionExplanation", "map.loading", "map.noPositions", "map.deepLinkUnavailable", "map.vehicle.closeDetails", "map.initialLoadError"] as const) {
     for (const locale of SUPPORTED_LOCALES) assert.ok(createTranslator(locale)(key).length > 1, `${locale}:${key}`);
   }
   for (const key of ["map.summary.total", "map.summary.onMap", "map.summary.fresh", "map.summary.stale", "map.summary.withoutPosition", "map.summary.invalidPositionsLabel", "map.alertSummary.total", "map.alertSummary.vehicles", "map.alertSummary.visible", "map.alertSummary.withoutPosition", "events.type.SPEEDING", "events.type.INACTIVITY"] as const) {
@@ -131,8 +133,10 @@ test("Map CSS is application-owned, responsive, shadow-free, and does not target
   assert.doesNotMatch(styles, /#6e4aa1|purple/);
 });
 
-test("Map page retains the three read-only sources and does not add a route or API contract", () => {
+test("Map page retains the three read-only sources and adds only the validated vehicle deep-link input", () => {
   for (const source of ["fetchFleetMapSnapshot", "fetchCityGeofenceMap", "fetchOpenAlertMap"]) assert.ok(page.includes(source), source);
   assert.match(page, /Promise\.allSettled/);
-  assert.doesNotMatch(page, /searchParams|redirect|router/);
+  assert.match(page, /searchParams/);
+  assert.match(page, /parseFleetMapVehicleId\(query\.vehicleId\)/);
+  assert.doesNotMatch(page, /redirect|router|fetchVehicleDetails/);
 });

@@ -2,19 +2,21 @@ import { FleetMapClient } from "@/components/fleet-map-client";
 import { InitialFleetMapError } from "@/components/initial-fleet-map-error";
 import { fetchCityGeofenceMap } from "@/lib/city-geofence/city-geofence-client";
 import { fetchFleetMapSnapshot } from "@/lib/fleet-map/fleet-map-client";
+import { parseFleetMapVehicleId } from "@/lib/fleet-map/fleet-map-deep-link";
 import { fetchOpenAlertMap } from "@/lib/open-alert-map/open-alert-map-client";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-export default async function FleetMapPage() {
-  const [fleetResult, geofenceResult, alertsResult] = await Promise.allSettled([
-    fetchFleetMapSnapshot(),
-    fetchCityGeofenceMap(),
-    fetchOpenAlertMap(),
+export default async function FleetMapPage({ searchParams }: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) {
+  const [query, results] = await Promise.all([
+    searchParams,
+    Promise.allSettled([fetchFleetMapSnapshot(), fetchCityGeofenceMap(), fetchOpenAlertMap()]),
   ]);
+  const [fleetResult, geofenceResult, alertsResult] = results;
   if (fleetResult.status === "rejected") return <InitialFleetMapError />;
   return <div><FleetMapClient
     initialSnapshot={fleetResult.value}
+    initialVehicleId={parseFleetMapVehicleId(query.vehicleId)}
     initialGeofence={geofenceResult.status === "fulfilled" ? geofenceResult.value : null}
     initialGeofenceUnavailable={geofenceResult.status === "rejected"}
     initialAlerts={alertsResult.status === "fulfilled" ? alertsResult.value : null}

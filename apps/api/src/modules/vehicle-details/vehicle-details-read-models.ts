@@ -16,7 +16,8 @@ export type VehicleDetailsTodayReadModel = Readonly<{
 
 export type VehicleDetailsResponse = Readonly<{
   generatedAt: string;
-  vehicle: Readonly<{ id: string; name: string }>;
+  vehicle: Readonly<{ id: string; name: string; disabled: boolean }>;
+  connectivity: "ONLINE" | "OFFLINE" | "UNKNOWN";
   currentState: FleetMapCurrentStateProjection | null;
   today: VehicleDetailsTodayReadModel | null;
   activeAlerts: readonly Readonly<{ type: "SPEEDING" | "INACTIVITY"; openedAt: string }>[];

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import type { Map as MapLibreMap } from "maplibre-gl";
@@ -23,13 +22,12 @@ import { createVehicleTrackPresetRange, VEHICLE_TRACK_PRESETS, vehicleTrackModeF
 import { abortVehicleTrackRequest, beginVehicleTrackRequest, failVehicleTrackRequest, initialVehicleTrackRequestState, succeedVehicleTrackRequest, type VehicleTrackLoadError } from "@/lib/vehicle-track/vehicle-track-request-state";
 import { reconcileVehicleTrackSelection, selectedVehicleTrackPoint } from "@/lib/vehicle-track/vehicle-track-selection";
 import { vehicleTrackErrorCopy, vehicleTrackResponseError } from "@/lib/vehicle-track/vehicle-track-error-copy";
-import { useAuth } from "@/components/auth-provider";
-import { hasPermission } from "@/lib/auth/auth-contract";
+import { VehicleDetailShell } from "@/components/vehicle-detail-shell";
 import { useI18n } from "../i18n/client";
 
 const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 const workerState: FleetMapWorkerBootstrapState = { configured: false };
-type Props = Readonly<{ vehicleId: string; initialData: VehicleTrackLoadedData | null; initialRange: VehicleTrackRange | null; initialError: VehicleTrackLoadError; initialGeofence: CityGeofenceMapResponse | null; initialGeofenceUnavailable: boolean }>;
+type Props = Readonly<{ vehicleId: string; initialVehicleName: string | null; initialVehicleGeneratedAt: string | null; initialData: VehicleTrackLoadedData | null; initialRange: VehicleTrackRange | null; initialError: VehicleTrackLoadError; initialGeofence: CityGeofenceMapResponse | null; initialGeofenceUnavailable: boolean }>;
 
 function applyCamera(map: MapLibreMap, model: VehicleTrackPresentationModel, geofence: CityGeofenceMapResponse | null): void {
   const camera = vehicleTrackCamera(model, geofence);
@@ -37,9 +35,8 @@ function applyCamera(map: MapLibreMap, model: VehicleTrackPresentationModel, geo
   else map.jumpTo({ center: camera.center as [number, number], zoom: camera.zoom });
 }
 
-export function VehicleTrackClient({ vehicleId, initialData, initialRange, initialError, initialGeofence, initialGeofenceUnavailable }: Props) {
+export function VehicleTrackClient({ vehicleId, initialVehicleName, initialVehicleGeneratedAt, initialData, initialRange, initialError, initialGeofence, initialGeofenceUnavailable }: Props) {
   const { locale, t } = useI18n();
-  const auth = useAuth(); const canOpenMap = auth !== null && hasPermission(auth, "map.view");
   const [state, setState] = useState(() => initialVehicleTrackRequestState(initialData, initialRange, initialError));
   const [selectedKey, setSelectedKey] = useState<string | null>(null); const [styleError, setStyleError] = useState(false);
   const [draft, setDraft] = useState<VehicleTrackDraftRange>(() => vehicleTrackRangeToKyivDraft(initialData ? vehicleTrackLoadedRange(initialData) : initialRange));
@@ -100,8 +97,7 @@ export function VehicleTrackClient({ vehicleId, initialData, initialRange, initi
   const submitCustomRange = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const result = parseVehicleTrackCustomRange(draft); const copy = vehicleTrackCustomRangeErrorCopy(result.error, locale); if (!result.range) { setFormError(copy); return; } setFormError(null); void load(result.range, true); };
   const exactResponse = state.data?.mode === "EXACT" ? state.data.response : null;
   const overviewResponse = state.data?.mode === "OVERVIEW" ? state.data.response : null;
-  return <>
-    <header className="hero track-hero"><p className="eyebrow">{t("track.eyebrow")}</p><h1>{state.data?.response.vehicle.name ?? t("track.defaultTitle")}</h1><p>{t("track.description")}</p><div className="metadata"><Link href={`/vehicles/${vehicleId}`}>{t("track.backToVehicle")}</Link>{canOpenMap && <Link href="/map">{t("track.openCurrentMap")}</Link>}</div></header>
+  return <VehicleDetailShell vehicleId={vehicleId} vehicleName={state.data?.response.vehicle.name ?? initialVehicleName ?? t("track.defaultTitle")} activeTab="history" generatedAt={state.data?.response.generatedAt ?? initialVehicleGeneratedAt} description={t("track.description")} showMapAction>
     <section className="track-controls" aria-label={t("track.controls.label")}><div><span className="track-control-label">{t("track.controls.quick")}</span><div className="track-presets">{VEHICLE_TRACK_PRESETS.map((preset) => <button type="button" onClick={() => choosePreset(preset.hours)} disabled={state.loading} key={preset.hours}>{t(preset.messageKey)}</button>)}</div></div><button type="button" className="track-refresh" onClick={() => state.range && void load(state.range, false)} disabled={state.loading || !state.range}>{state.loading ? t("common.loading") : t("track.controls.refreshCurrent")}</button><form className="track-custom-range" onSubmit={submitCustomRange}><fieldset disabled={state.loading}><legend>{t("track.controls.custom")}</legend><p className="track-timezone">{t("track.controls.timezone")}</p><label htmlFor="track-from">{t("track.controls.from")}<input id="track-from" name="from" type="datetime-local" value={draft.from} onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))} step="60" required /></label><label htmlFor="track-to">{t("track.controls.to")}<input id="track-to" name="to" type="datetime-local" value={draft.to} onChange={(event) => setDraft((current) => ({ ...current, to: event.target.value }))} step="60" required /></label><button type="submit">{t("track.controls.showPeriod")}</button></fieldset>{formError && <p className="track-form-error" role="alert">{formError}</p>}</form><div className="track-range"><span>{t("track.range.from")} <strong>{formatVehicleTrackTimestamp(state.range?.from ?? null, locale)}</strong></span><span>{t("track.range.to")} <strong>{formatVehicleTrackTimestamp(state.range?.to ?? null, locale)}</strong></span></div></section>
     {state.loading && <p className="refresh" aria-live="polite">{t("track.loading")}</p>}
     {error && <section className="notice" role="alert"><WarningIcon className="notice-icon" /><div><strong>{error[0]}</strong><span>{error[1]}</span></div></section>}
@@ -116,5 +112,5 @@ export function VehicleTrackClient({ vehicleId, initialData, initialRange, initi
     {state.data?.mode === "OVERVIEW" && <p className="track-disclaimer">{t("track.overviewDisclaimer")}</p>}
     <section className="map-shell track-map-shell" aria-label={t("track.mapLabel")}><div ref={containerRef} className="fleet-map-canvas track-map-canvas" data-vehicle-track-map="true" />{state.data && model.points.length === 0 && <div className="map-empty">{t("track.noPoints")}</div>}</section>
     <section className="map-details track-point-details" aria-live="polite"><h2>{selected ? selected.endpoint === "single" ? t("track.selection.single") : t("track.selection.selected") : t("track.selection.none")}</h2>{selected ? <dl><div><dt>{t("track.selection.time")}</dt><dd>{formatVehicleTrackTimestamp(selected.point.observedAt, locale)}</dd></div><div><dt>{t("track.selection.speed")}</dt><dd>{formatVehicleTrackSpeed(selected.point.speedKph, locale)}</dd></div><div><dt>{t("track.selection.quality")}</dt><dd>{vehicleTrackQualityLabels(selected.point.valid, selected.point.outdated, locale).map((label) => <span key={label}>{label}</span>)}</dd></div></dl> : <p>{t("track.selection.help")}</p>}</section>
-  </>;
+  </VehicleDetailShell>;
 }

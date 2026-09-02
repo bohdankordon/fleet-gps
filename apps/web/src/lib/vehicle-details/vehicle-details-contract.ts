@@ -13,7 +13,8 @@ const recentEvent = z.discriminatedUnion("type", [
 
 export const vehicleDetailsResponseSchema = z.object({
   generatedAt: timestamp,
-  vehicle: z.object({ id: uuid, name: z.string().min(1).max(255) }).strict(),
+  vehicle: z.object({ id: uuid, name: z.string().min(1).max(255), disabled: z.boolean() }).strict(),
+  connectivity: z.enum(["ONLINE", "OFFLINE", "UNKNOWN"]),
   currentState: z.object({ position, speedKph: metric.nullable(), freshness: z.enum(["FRESH", "STALE"]) }).strict().nullable(),
   today: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), distanceMeters: metric, movementDurationSeconds: z.number().int().nonnegative().nullable(), maxSpeedKph: metric.nullable(), source: z.enum(["RUNS", "MODE1", "HISTORICAL_POSITIONS"]), quality: z.enum(["EXACT", "PROVISIONAL", "ESTIMATED"]), isStale: z.boolean(), isDegraded: z.boolean() }).strict().nullable(),
   activeAlerts: z.array(z.object({ type: z.enum(["SPEEDING", "INACTIVITY"]), openedAt: timestamp }).strict()).max(2),

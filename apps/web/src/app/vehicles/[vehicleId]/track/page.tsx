@@ -10,6 +10,7 @@ import { VehicleTrackOverviewContractError } from "@/lib/vehicle-track/vehicle-t
 import { VehicleTrackPresentationError } from "@/lib/vehicle-track/vehicle-track-presentation";
 import { resolveInitialVehicleTrackRange, vehicleTrackModeForRange } from "@/lib/vehicle-track/vehicle-track-range";
 import type { VehicleTrackLoadError } from "@/lib/vehicle-track/vehicle-track-request-state";
+import { fetchVehicleDetails } from "@/lib/vehicle-details/vehicle-details-client";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -22,7 +23,7 @@ export default async function VehicleTrackPage({ params, searchParams }: Readonl
   let initialData: VehicleTrackLoadedData | null = null;
   let initialError: VehicleTrackLoadError = !idValid || !resolved.range || !mode ? "INVALID_RANGE" : null;
   const trackPromise = idValid && resolved.range && mode ? mode === "EXACT" ? fetchVehicleTrack(vehicleId, resolved.range) : fetchVehicleTrackOverview(vehicleId, resolved.range) : Promise.resolve(null);
-  const [trackResult, geofenceResult] = await Promise.allSettled([trackPromise, fetchCityGeofenceMap()]);
+  const [trackResult, geofenceResult, detailsResult] = await Promise.allSettled([trackPromise, fetchCityGeofenceMap(), idValid ? fetchVehicleDetails(vehicleId) : Promise.resolve(null)]);
   if (trackResult.status === "fulfilled" && trackResult.value) {
     try {
       initialData = createVehicleTrackLoadedData(mode!, trackResult.value);
@@ -36,6 +37,8 @@ export default async function VehicleTrackPage({ params, searchParams }: Readonl
   }
   return <div><VehicleTrackClient
     vehicleId={vehicleId}
+    initialVehicleName={detailsResult.status === "fulfilled" ? detailsResult.value?.vehicle.name ?? null : null}
+    initialVehicleGeneratedAt={detailsResult.status === "fulfilled" ? detailsResult.value?.generatedAt ?? null : null}
     initialData={initialData}
     initialRange={resolved.range}
     initialError={initialError}

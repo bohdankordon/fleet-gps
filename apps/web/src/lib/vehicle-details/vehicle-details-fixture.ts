@@ -1,5 +1,6 @@
 export const VEHICLE_DETAILS_FIXTURE = {
-  generatedAt: "2026-08-10T12:00:00.000Z", vehicle: { id: "00000000-0000-4000-8000-000000000001", name: "Taxi GPS VEHICLE DETAILS TEST" },
+  generatedAt: "2026-08-10T12:00:00.000Z", vehicle: { id: "00000000-0000-4000-8000-000000000001", name: "Taxi GPS VEHICLE DETAILS TEST", disabled: false },
+  connectivity: "ONLINE",
   currentState: { position: { latitude: 49.23, longitude: 28.46, observedAt: "2026-08-10T11:59:00.000Z" }, speedKph: 42.5, freshness: "FRESH" },
   today: { date: "2026-08-10", distanceMeters: 12345.67, movementDurationSeconds: 5400, maxSpeedKph: 88.1, source: "RUNS", quality: "PROVISIONAL", isStale: false, isDegraded: false },
   activeAlerts: [{ type: "SPEEDING", openedAt: "2026-08-10T11:00:00.000Z" }, { type: "INACTIVITY", openedAt: "2026-08-10T10:00:00.000Z" }],

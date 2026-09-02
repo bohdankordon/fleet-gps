@@ -68,7 +68,8 @@ export class VehicleDetailsQueryService {
 
     return Object.freeze({
       generatedAt: generatedAt.toISOString(),
-      vehicle: Object.freeze({ id: snapshot.vehicle.id, name: snapshot.vehicle.name }),
+      vehicle: Object.freeze({ id: snapshot.vehicle.id, name: snapshot.vehicle.name, disabled: snapshot.vehicle.disabled }),
+      connectivity: snapshot.vehicle.currentState?.status ?? "UNKNOWN",
       currentState: projectFleetMapCurrentState(snapshot.vehicle.currentState, generatedAt, snapshot.positionFreshnessSeconds),
       today: mapToday(snapshot.serviceDate, snapshot.vehicle.dailyStat),
       activeAlerts: Object.freeze(activeAlerts),

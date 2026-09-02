@@ -15,10 +15,11 @@ import { initialFleetMapBasemapState, recordFleetMapBasemapError, recordFleetMap
 import { fleetMapInitialCamera } from "@/lib/fleet-map/fleet-map-camera";
 import { parseFleetMapResponse, type FleetMapResponse, type FleetMapVehicle } from "@/lib/fleet-map/fleet-map-contract";
 import { formatFleetMapAge, formatFleetMapTimestamp } from "@/lib/fleet-map/fleet-map-formatters";
+import { resolveFleetMapDeepLink } from "@/lib/fleet-map/fleet-map-deep-link";
 import { selectNearestMapFeature, updateFleetMapHoverState, type FleetMapFeatureId, type FleetMapHoverCandidate } from "@/lib/fleet-map/fleet-map-hover-target";
 import { createFleetMapInactivityRingImage, FLEET_MAP_PRESENTATION } from "@/lib/fleet-map/fleet-map-presentation";
 import { fleetMapSearchOptions } from "@/lib/fleet-map/fleet-map-search";
-import { clearFleetMapSelection, initialFleetMapSelectionState, reconcileFleetMapSelection, selectFleetMapVehicle, selectedFleetMapVehicle } from "@/lib/fleet-map/fleet-map-selection";
+import { clearFleetMapSelection, reconcileFleetMapSelection, selectFleetMapVehicle, selectedFleetMapVehicle } from "@/lib/fleet-map/fleet-map-selection";
 import { fleetMapStyleUrl } from "@/lib/fleet-map/fleet-map-style";
 import { createFleetMapAfterWorkerBootstrap, type FleetMapWorkerBootstrapState } from "@/lib/fleet-map/fleet-map-worker-bootstrap";
 import { parseOpenAlertMapResponse, type OpenAlertMapAlert, type OpenAlertMapResponse } from "@/lib/open-alert-map/open-alert-map-contract";
@@ -35,6 +36,7 @@ const { Text, Title } = Typography;
 
 type Props = Readonly<{
   initialSnapshot: FleetMapResponse;
+  initialVehicleId: string | null;
   initialGeofence: CityGeofenceMapResponse | null;
   initialGeofenceUnavailable: boolean;
   initialAlerts: OpenAlertMapResponse | null;
@@ -72,16 +74,19 @@ function MapSearchPopup({ children }: Readonly<{ children: ReactNode }>) {
   return <div ref={boundaryRef} className="map-search-popup__boundary">{children}</div>;
 }
 
-export function FleetMapClient({ initialSnapshot, initialGeofence, initialGeofenceUnavailable, initialAlerts, initialAlertsUnavailable }: Props) {
+export function FleetMapClient({ initialSnapshot, initialVehicleId, initialGeofence, initialGeofenceUnavailable, initialAlerts, initialAlertsUnavailable }: Props) {
   const { locale, t } = useI18n();
   const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
   const desktopInspector = Boolean(screens.lg);
+  const initialDeepLink = resolveFleetMapDeepLink(initialSnapshot, initialVehicleId);
+  const initialSelectedVehicle = selectedFleetMapVehicle(initialSnapshot, initialDeepLink.selection.selectedVehicleId);
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [alerts, setAlerts] = useState(initialAlerts);
-  const [selection, setSelection] = useState(initialFleetMapSelectionState);
+  const [selection, setSelection] = useState(initialDeepLink.selection);
   const selectedId = selection.selectedVehicleId;
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSelectedVehicle?.vehicle.name ?? "");
+  const [deepLinkUnavailable, setDeepLinkUnavailable] = useState(initialDeepLink.requestedVehicleUnavailable);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState(false);
   const [alertError, setAlertError] = useState(initialAlertsUnavailable);
@@ -105,11 +110,13 @@ export function FleetMapClient({ initialSnapshot, initialGeofence, initialGeofen
     if (!vehicle) return;
     setSelection((current) => selectFleetMapVehicle(snapshotRef.current, current, vehicleId));
     setSearchQuery(vehicle.vehicle.name);
+    setDeepLinkUnavailable(false);
   }, []);
 
   const clearSelection = useCallback((): void => {
     setSelection(clearFleetMapSelection);
     setSearchQuery("");
+    setDeepLinkUnavailable(false);
   }, []);
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -239,7 +246,7 @@ export function FleetMapClient({ initialSnapshot, initialGeofence, initialGeofen
       if (vehicle) map.easeTo({ center: [vehicle.position.longitude, vehicle.position.latitude], duration: 300 });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [desktopInspector, selectedId]);
+  }, [desktopInspector, mapReady, selectedId]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -330,7 +337,7 @@ export function FleetMapClient({ initialSnapshot, initialGeofence, initialGeofen
       <StableLoadingButton idleLabel={t("common.refresh")} loadingLabel={t("common.refreshing")} loading={refreshing} icon={<ReloadOutlined />} onClick={() => void refresh()} size="large" type="primary" />
     </section>
 
-    <MapStatus initialGeofence={initialGeofence} initialGeofenceUnavailable={initialGeofenceUnavailable} refreshError={refreshError} alertError={alertError} alerts={alerts} styleError={styleError} />
+    <MapStatus initialGeofence={initialGeofence} initialGeofenceUnavailable={initialGeofenceUnavailable} refreshError={refreshError} alertError={alertError} alerts={alerts} styleError={styleError} deepLinkUnavailable={deepLinkUnavailable} />
 
     <div className={`map-workspace${desktopInspector && selected ? " map-workspace--selected" : ""}`}>
       <section className="map-surface" aria-label={t("map.interactiveLabel")} style={surfaceStyle}>
@@ -423,15 +430,16 @@ function MapLegend() {
   </div>;
 }
 
-function MapStatus({ initialGeofence, initialGeofenceUnavailable, refreshError, alertError, alerts, styleError }: Readonly<{ initialGeofence: CityGeofenceMapResponse | null; initialGeofenceUnavailable: boolean; refreshError: boolean; alertError: boolean; alerts: OpenAlertMapResponse | null; styleError: boolean }>) {
+function MapStatus({ initialGeofence, initialGeofenceUnavailable, refreshError, alertError, alerts, styleError, deepLinkUnavailable }: Readonly<{ initialGeofence: CityGeofenceMapResponse | null; initialGeofenceUnavailable: boolean; refreshError: boolean; alertError: boolean; alerts: OpenAlertMapResponse | null; styleError: boolean; deepLinkUnavailable: boolean }>) {
   const { t } = useI18n();
   const geofenceMessage = initialGeofenceUnavailable ? t("map.geofence.unavailable") : !initialGeofence?.configured ? t("map.geofence.unconfigured") : null;
-  if (!refreshError && !alertError && !styleError && !geofenceMessage) return <span className="sr-only" data-city-geofence-state="configured">{t("map.geofence.configured")}</span>;
+  if (!refreshError && !alertError && !styleError && !geofenceMessage && !deepLinkUnavailable) return <span className="sr-only" data-city-geofence-state="configured">{t("map.geofence.configured")}</span>;
   return <Flex className="map-status" vertical gap="small">
     {geofenceMessage ? <Alert type={initialGeofenceUnavailable ? "warning" : "info"} showIcon message={geofenceMessage} data-city-geofence-state={initialGeofenceUnavailable ? "unavailable" : "unconfigured"} /> : <span className="sr-only" data-city-geofence-state="configured">{t("map.geofence.configured")}</span>}
     {refreshError ? <Alert type="error" showIcon message={t("map.refreshError")} description={t("map.refreshFallback")} /> : null}
     {alertError ? <Alert type="warning" showIcon message={t("map.alertsUnavailable")} description={alerts ? t("map.alertsLastState") : t("map.alertsMapContinues")} /> : null}
     {styleError ? <Alert type="error" showIcon message={t("map.basemapError")} description={t("map.basemapFallback")} /> : null}
+    {deepLinkUnavailable ? <Alert type="info" showIcon title={t("map.deepLinkUnavailable")} /> : null}
   </Flex>;
 }
 

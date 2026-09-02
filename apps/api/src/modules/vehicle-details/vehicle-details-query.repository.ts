@@ -1,4 +1,4 @@
-import type { AlertEventType, DailyStatSource, DataQuality } from "../../generated/prisma/client";
+import type { AlertEventType, DailyStatSource, DataQuality, VehicleStatus } from "../../generated/prisma/client";
 import type { StoredAlertEventProjectionRow } from "../alert-events/alert-events-query.repository";
 import type { FleetMapStoredCurrentState } from "../fleet-map/fleet-map-current-state.projection";
 
@@ -19,7 +19,8 @@ export type StoredVehicleDetailsSnapshot = Readonly<{
   vehicle: Readonly<{
     id: string;
     name: string;
-    currentState: FleetMapStoredCurrentState | null;
+    disabled: boolean;
+    currentState: (FleetMapStoredCurrentState & Readonly<{ status: VehicleStatus }>) | null;
     dailyStat: StoredVehicleDailyStat | null;
   }> | null;
   activeAlerts: readonly Readonly<{ type: AlertEventType; confirmedAt: Date }>[];

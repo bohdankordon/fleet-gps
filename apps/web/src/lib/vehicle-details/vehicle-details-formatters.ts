@@ -1,14 +1,15 @@
 import type { VehicleDetailsEvent } from "./vehicle-details-contract";
-import { alertStatusLabel, alertTypeLabel, alertZoneLabel, formatAlertDistance, formatAlertSpeed, formatAlertTimestamp, notificationDeliveryLabel } from "../alert-events/alert-events-formatters";
+import { alertStatusLabel, alertTypeLabel, alertZoneLabel, formatAlertDistance, formatAlertSpeed, notificationDeliveryLabel } from "../alert-events/alert-events-formatters";
 import { translate } from "../../i18n/core";
 import { formatNumber } from "../../i18n/formatting";
-import { DEFAULT_LOCALE, type AppLocale } from "../../i18n/locales";
+import { DEFAULT_LOCALE, DISPLAY_TIMEZONE, type AppLocale } from "../../i18n/locales";
 import { formatFleetMapAge } from "../fleet-map/fleet-map-formatters";
+import { formatFleetMetadataTimestamp } from "../dashboard/dashboard-formatters";
 
 export function formatVehicleDistance(value: number, locale: AppLocale = DEFAULT_LOCALE): string { return `${formatNumber(locale, value / 1_000, { maximumFractionDigits: 1 })} ${translate(locale, "unit.kilometre")}`; }
 export function formatVehicleDuration(value: number | null, locale: AppLocale = DEFAULT_LOCALE): string { if (value === null) return "—"; const minutes = Math.floor(value / 60); return minutes < 60 ? `${formatNumber(locale, minutes)} ${translate(locale, "unit.minuteShort")}` : `${formatNumber(locale, Math.floor(minutes / 60))} ${translate(locale, "unit.hourShort")} ${formatNumber(locale, minutes % 60)} ${translate(locale, "unit.minuteShort")}`; }
 export function formatVehicleSpeed(value: number | null, locale: AppLocale = DEFAULT_LOCALE): string { return value === null ? "—" : formatAlertSpeed(value, locale); }
-export function formatVehicleTimestamp(value: string, locale: AppLocale = DEFAULT_LOCALE): string { return formatAlertTimestamp(value, locale); }
+export function formatVehicleTimestamp(value: string, locale: AppLocale = DEFAULT_LOCALE): string { return formatFleetMetadataTimestamp(value, DISPLAY_TIMEZONE, locale); }
 export function formatVehicleAge(observedAt: string, generatedAt: string, locale: AppLocale = DEFAULT_LOCALE): string { return formatFleetMapAge(observedAt, generatedAt, locale); }
 export function freshnessLabel(value: "FRESH" | "STALE", locale: AppLocale = DEFAULT_LOCALE): string { return translate(locale, `vehicle.freshness.${value}`); }
 export function qualityLabel(value: "EXACT" | "PROVISIONAL" | "ESTIMATED", locale: AppLocale = DEFAULT_LOCALE): string { return translate(locale, `vehicle.quality.${value}`); }

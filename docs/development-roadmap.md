@@ -122,8 +122,14 @@ vehicle information into a responsive contextual inspector. API, business,
 database, freshness, event, geofence, authorization, route, refresh, timezone,
 and localization semantics remain unchanged.
 
-**NEXT IMPLEMENTATION SLICE — Events / Події.** Events is the next
-behavior-preserving frontend redesign slice.
+**DONE / HUMAN ACCEPTED — Vehicle Detail Overview.** The
+shared vehicle-family header and permission-aware route Tabs now cover Overview,
+Trips, and Movement History. Overview separates current position freshness,
+connectivity, disabled state, daily statistics, active events, and the bounded
+recent-event history using the accepted Fleet GPS design language.
+
+**NEXT — Trips redesign.** Trips business behavior and the Movement History body
+remain unchanged. Movement History redesign is planned after Trips.
 
 ## LATER — Final production hardening
 
