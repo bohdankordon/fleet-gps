@@ -1,0 +1,102 @@
+.vehicle-trips { min-width: 0; }
+.vehicle-trips__section-title { min-height: var(--control-height-compact); line-height: var(--line-height-label); }
+.vehicle-trips__section-icon { display: inline-flex; flex: 0 0 16px; width: 16px; align-items: center; justify-content: center; font-size: 16px; }
+
+.vehicle-trips__period-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-4); min-width: 0; margin-bottom: var(--space-4); padding: var(--space-2) var(--space-3); border: 1px solid var(--trip-surface-border); border-radius: var(--trip-surface-radius); background: var(--trip-surface-bg); }
+.vehicle-trips__period-context { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.vehicle-trips__period-trigger { display: inline-flex; min-width: 0; max-width: 100%; height: auto; min-height: var(--control-height); padding-inline: var(--space-2); color: var(--color-text-primary); text-align: start; }
+.vehicle-trips__period-trigger:hover:not(:disabled) { color: var(--color-text-primary); }
+.vehicle-trips__period-trigger-copy { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.vehicle-trips__period-window { min-width: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.vehicle-trips__period-chevron { flex: none; color: var(--color-text-secondary); font-size: var(--font-size-metadata); }
+.vehicle-trips__timezone { flex: none; }
+.vehicle-trips__period-editor { min-width: 0; }
+.vehicle-trips__editor-label { display: block; margin-bottom: var(--space-2); font-size: var(--font-size-metadata); font-weight: var(--font-weight-semibold); }
+.vehicle-trips__presets { min-width: 0; }
+.vehicle-trips__editor-divider { margin-block: var(--space-3); }
+.vehicle-trips__custom-range { min-width: 0; }
+.vehicle-trips__custom-title { display: block; margin-bottom: var(--space-3); }
+.vehicle-trips__range-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); align-items: end; }
+.vehicle-trips__range-field { display: grid; min-width: 0; gap: var(--space-2); color: var(--color-text-secondary); font-size: var(--font-size-metadata); font-weight: var(--font-weight-semibold); }
+.vehicle-trips__range-field input { width: 100%; }
+.vehicle-trips__show-period { grid-column: 1 / -1; justify-self: end; min-width: 158px; }
+.vehicle-trips__range-error { margin-top: var(--space-3); }
+.vehicle-trips__analysis-error,
+.vehicle-trips__neutral-result { margin-bottom: var(--space-4); }
+
+.vehicle-trips__summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-width: 0; margin-bottom: var(--space-4); overflow: hidden; border: 1px solid var(--trip-surface-border); border-radius: var(--trip-surface-radius); background: var(--trip-surface-bg); }
+.vehicle-trips__summary-metric { display: grid; align-content: center; min-width: 0; padding: var(--space-3) var(--space-4); }
+.vehicle-trips__summary-metric + .vehicle-trips__summary-metric { border-inline-start: 1px solid var(--trip-summary-divider); }
+.vehicle-trips__summary-title { min-width: 0; color: var(--color-text-secondary); font-weight: var(--font-weight-regular); line-height: var(--line-height-label); white-space: normal; }
+.vehicle-trips__summary-title > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.vehicle-trips__summary-value { display: block; margin-top: var(--space-1); font-size: 1.5rem; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.vehicle-trips__empty-surface { margin-bottom: var(--space-4); padding: var(--space-5); border: 1px solid var(--trip-surface-border); border-radius: var(--trip-surface-radius); background: var(--trip-surface-bg); }
+
+.vehicle-trips__workspace { display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); grid-template-areas: "timeline map"; align-items: start; min-width: 0; overflow: clip; border: 1px solid var(--trip-surface-border); border-radius: var(--trip-surface-radius); background: var(--trip-surface-bg); }
+.vehicle-trips__workspace-header { display: flex; align-items: center; min-height: var(--control-height-lg); padding: var(--space-2) var(--space-4); border-bottom: 1px solid var(--trip-summary-divider); }
+.vehicle-trips__timeline-pane { grid-area: timeline; min-width: 0; }
+.vehicle-trips__timeline-content { padding: var(--space-3); }
+.vehicle-trips__timeline { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.vehicle-trips__record { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); isolation: isolate; min-width: 0; overflow: hidden; border-radius: var(--trip-record-radius); background: var(--trip-record-bg); transition: background-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease; }
+.vehicle-trips__record--connected { margin-bottom: var(--trip-record-gap); overflow: visible; }
+.vehicle-trips__record::before { position: absolute; z-index: 2; inset-block: var(--space-2); inset-inline-start: 0; width: 2px; border-radius: 0 2px 2px 0; background: var(--trip-record-accent); content: ""; pointer-events: none; }
+.vehicle-trips__record:hover { background: color-mix(in srgb, var(--trip-record-accent) 2%, var(--trip-record-hover)); }
+.vehicle-trips__record--selected { background: var(--trip-record-selected); box-shadow: inset 0 0 0 1px var(--trip-record-selected-border); }
+.vehicle-trips__record--selected:hover { background: var(--trip-record-selected); }
+.vehicle-trips__record-marker { position: relative; display: flex; align-items: flex-start; justify-content: center; padding-top: calc(var(--trip-record-padding) + 2px); font-size: 17px; line-height: 1; }
+.vehicle-trips__record-icon { z-index: 1; display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center; background: transparent; }
+.vehicle-trips__record-line { position: absolute; z-index: 0; top: calc(var(--trip-record-padding) + 24px); bottom: calc((var(--trip-record-gap) + var(--trip-record-padding) + 12px) * -1); left: 50%; width: 1px; background: var(--trip-line); transform: translateX(-50%); }
+.vehicle-trips__record-body,
+.vehicle-trips__record-button { min-width: 0; padding: var(--trip-record-padding) var(--trip-record-padding) var(--trip-record-padding) 0; }
+.vehicle-trips__record-button { display: block; width: 100%; min-height: 0; border: 0; border-radius: 0; color: var(--color-text-primary); background: transparent; text-align: start; appearance: none; }
+.vehicle-trips__record-button:hover:not(:disabled) { color: var(--color-text-primary); background: transparent; }
+.vehicle-trips__record-content { display: grid; min-width: 0; gap: var(--space-1); }
+.vehicle-trips__record-title { line-height: var(--line-height-label); }
+.vehicle-trips__record-time,
+.vehicle-trips__record-secondary { min-width: 0; line-height: 1.4; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.vehicle-trips__record-value { line-height: 1.4; font-variant-numeric: tabular-nums; }
+.vehicle-trips__record-warning { margin-top: var(--space-2); color: var(--trip-color-warning-text); font-size: var(--font-size-metadata); line-height: 1.4; }
+.vehicle-trips__record-warning > span:first-child { flex: none; margin-top: 2px; }
+
+.vehicle-trips__map-pane { position: sticky; grid-area: map; top: calc(58px + var(--space-4)); min-width: 0; border-inline-start: 1px solid var(--trip-summary-divider); }
+.vehicle-trips__map-content { padding: var(--space-3); }
+.vehicle-trips__map-surface { min-height: 560px; height: 560px; border-color: var(--color-line); border-radius: calc(var(--trip-surface-radius) - 2px); background: var(--trip-map-bg); box-shadow: none; }
+.vehicle-trips__map-canvas { min-height: 560px; height: 560px; }
+.vehicle-trips__map-empty { background: color-mix(in srgb, var(--color-surface) 88%, transparent); }
+.vehicle-trips__map-error { color: var(--color-danger); }
+.vehicle-trips__map-notice { margin-top: var(--space-3); }
+.vehicle-trips__stop-disclaimer { display: block; margin-top: var(--space-3); line-height: 1.45; }
+
+@media (max-width: 991px) {
+  .vehicle-trips__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vehicle-trips__summary-metric + .vehicle-trips__summary-metric { border-inline-start: 0; }
+  .vehicle-trips__summary-metric:nth-child(even) { border-inline-start: 1px solid var(--trip-summary-divider); }
+  .vehicle-trips__summary-metric:nth-child(n + 3) { border-top: 1px solid var(--trip-summary-divider); }
+  .vehicle-trips__workspace { grid-template-columns: minmax(0, 1fr); grid-template-areas: "map" "timeline"; }
+  .vehicle-trips__map-pane { position: static; border-inline-start: 0; border-bottom: 1px solid var(--trip-summary-divider); }
+  .vehicle-trips__map-surface,
+  .vehicle-trips__map-canvas { min-height: 440px; height: 55vh; max-height: 560px; }
+}
+@media (max-width: 767px) {
+  .vehicle-trips__period-bar { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+  .vehicle-trips__period-context { justify-content: space-between; }
+  .vehicle-trips__period-bar > .stable-loading-button { justify-self: start; }
+  .vehicle-trips__range-fields { grid-template-columns: minmax(0, 1fr); }
+  .vehicle-trips__show-period { grid-column: auto; width: 100%; }
+}
+@media (max-width: 575px) {
+  .vehicle-trips__period-bar { padding: var(--space-2); }
+  .vehicle-trips__period-context { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
+  .vehicle-trips__period-trigger { width: 100%; justify-content: flex-start; }
+  .vehicle-trips__period-trigger-copy { flex: 1; flex-wrap: wrap; row-gap: 0; }
+  .vehicle-trips__timezone { padding-inline: var(--space-2); }
+  .vehicle-trips__period-bar > .stable-loading-button,
+  .vehicle-trips__period-bar > .stable-loading-button > * { width: 100%; }
+  .vehicle-trips__summary-metric { padding: var(--space-3); }
+  .vehicle-trips__summary-value { font-size: 1.25rem; }
+  .vehicle-trips__workspace-header { padding-inline: var(--space-3); }
+  .vehicle-trips__map-surface,
+  .vehicle-trips__map-canvas { min-height: 340px; height: 52vh; max-height: 400px; }
+  .vehicle-trips__record { grid-template-columns: 30px minmax(0, 1fr); }
+  .vehicle-trips__record-marker { font-size: 15px; }
+}

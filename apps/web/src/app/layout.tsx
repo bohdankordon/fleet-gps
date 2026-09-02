@@ -12,6 +12,7 @@ import "../styles/shell.css";
 import "../styles/dashboard.css";
 import "../styles/map.css";
 import "../styles/vehicle-details.css";
+import "../styles/vehicle-trips.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 export async function generateMetadata(): Promise<Metadata> { const { t } = await getServerI18n(); return { title: t("document.title"), description: t("document.description") }; }
