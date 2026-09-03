@@ -6,111 +6,155 @@ import { SUPPORTED_LOCALES } from "../i18n/locales";
 
 const trips = readFileSync("src/components/vehicle-trips-client.tsx", "utf8");
 const styles = readFileSync("src/styles/vehicle-trips.css", "utf8");
+const mapStyles = readFileSync("src/styles/map.css", "utf8");
+const globalStyles = readFileSync("src/app/globals.css", "utf8");
 const messages = readFileSync("src/i18n/messages.ts", "utf8");
 const tripContract = readFileSync("src/lib/trip-analysis/trip-analysis-contract.ts", "utf8");
 const tripRange = readFileSync("src/lib/trip-analysis/trip-analysis-range.ts", "utf8");
+const tripLayers = readFileSync("src/lib/trip-analysis/trip-analysis-map-layers.ts", "utf8");
 const customRange = readFileSync("src/lib/vehicle-track/vehicle-track-custom-range.ts", "utf8");
 const tripsPage = readFileSync("src/app/vehicles/[vehicleId]/trips/page.tsx", "utf8");
 
-test("Trips retains the accepted shell and presents one compact period trigger", () => {
+test("Trips retains the accepted shell and one native period trigger", () => {
   assert.match(trips, /<VehicleDetailShell[^>]*activeTab="trips"/);
+  assert.doesNotMatch(trips, /description=\{t\("trips\.description"\)\}/);
+  assert.doesNotMatch(messages, /"trips\.description"/);
   assert.equal((trips.match(/className="vehicle-trips__period-bar"/g) ?? []).length, 1);
-  for (const component of ["Popover", "Button", "Segmented", "Input", "Divider", "Empty", "Alert", "StableLoadingButton"]) assert.match(trips, new RegExp(`\\b${component}\\b`));
+  for (const component of ["Popover", "Button", "DatePicker", "Divider", "Empty", "Alert", "StableLoadingButton"]) assert.match(trips, new RegExp(`\\b${component}\\b`));
+  assert.doesNotMatch(trips, /\bCalendar\b|\bTimePicker\b|TripDateTimeField/);
   assert.match(trips, /<Popover[\s\S]*?open=\{editorOpen\}[\s\S]*?onOpenChange=\{setEditorOpen\}[\s\S]*?trigger="click"/);
   assert.match(trips, /destroyOnHidden[\s\S]*?fresh/);
-  assert.match(trips, /TRIP_ANALYSIS_PRESETS\.map/);
-  assert.match(trips, /<Segmented[\s\S]*?value=\{appliedPreset \?\? ""\}[\s\S]*?options=\{TRIP_ANALYSIS_PRESETS\.map/);
-  assert.match(trips, /orientation=\{screens\.sm === false \? "vertical" : "horizontal"\}/);
-  assert.match(trips, /type="datetime-local"/);
-  assert.match(trips, /parseVehicleTrackCustomRange\(draft\)/);
-  assert.match(trips, /htmlType="submit" type="primary"/);
-  assert.match(trips, /<StableLoadingButton[\s\S]*?type="default"/);
-  assert.match(trips, /window\.history\.replaceState\(null, "", `\/vehicles\/\$\{vehicleId\}\/trips\?\$\{query\}`\)/);
-});
-
-test("custom temporal editing is disclosed on demand and never masquerades as a preset", () => {
-  assert.match(tripsPage, /initialPreset=\{resolved\.restoredFromUrl \? null : "TODAY"\}/);
-  assert.match(trips, /const \[editorOpen, setEditorOpen\] = useState\(false\)/);
+  assert.match(trips, /<Button className="vehicle-trips__period-trigger" type="default" size="large"/);
   assert.match(trips, /aria-expanded=\{editorOpen\} aria-controls="vehicle-trips-custom-range"/);
-  assert.match(trips, /const periodEditor = <div className="vehicle-trips__period-editor">/);
-  assert.match(trips, /<form id="vehicle-trips-custom-range"/);
-  assert.match(trips, /void loadAnalysis\(parsed\.range, null, true\)/);
-  assert.match(trips, /setAppliedPreset\(nextPreset\)/);
-  assert.match(trips, /if \(collapseEditor\) setEditorOpen\(false\)/);
-  assert.match(trips, /const periodLabel = appliedPresetDefinition \? t\(appliedPresetDefinition\.messageKey\) : t\("track\.controls\.custom"\)/);
-  assert.match(trips, /vehicle-trips__period-window[\s\S]*?\{concisePeriod\}/);
-  assert.match(trips, /const concisePeriod = appliedPreset === "TODAY"/);
-  assert.match(trips, /formatTripAnalysisClock\(range\.from, locale\)[\s\S]*formatTripAnalysisClock\(range\.to, locale\)/);
+  assert.doesNotMatch(styles, /vehicle-trips__period-trigger:hover|vehicle-trips__period-trigger:focus-visible/);
+  assert.match(trips, /tripAnalysisPageQuery\(nextRange, nextOpenEnded\)/);
 });
 
-test("timezone and absolute range semantics remain authoritative and bounded", () => {
+test("quick periods keep the calendar/recent grouping and use supported Ant Design Button variants", () => {
+  assert.match(trips, /className="vehicle-trips__presets-section"/);
+  assert.equal((trips.match(/className="vehicle-trips__preset-group"/g) ?? []).length, 2);
+  assert.match(trips, /role="group"/);
+  assert.match(trips, /TRIP_ANALYSIS_CALENDAR_PRESETS\.map/);
+  assert.match(trips, /TRIP_ANALYSIS_RECENT_PRESETS\.map/);
+  assert.match(trips, /aria-pressed=\{isSelected\}/);
+  assert.match(trips, /className="vehicle-trips__preset-button"/);
+  assert.match(trips, /color=\{isSelected \? "primary" : "default"\}/);
+  assert.match(trips, /variant=\{isSelected \? "filled" : "outlined"\}/);
+  assert.match(trips, /size="middle"/);
+  assert.match(styles, /\.vehicle-trips__preset-grid--2col \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
+  assert.match(styles, /\.vehicle-trips__preset-grid--3col \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); \}/);
+  assert.match(styles, /\.vehicle-trips__preset-button \{[^}]*width: 100%;[^}]*box-shadow: none;/);
+  assert.match(styles, /\.vehicle-trips__preset-group-title \{[^}]*font-size: var\(--font-size-caption\);[^}]*font-weight: var\(--font-weight-regular\);[^}]*line-height: var\(--line-height-caption\);/);
+  assert.doesNotMatch(styles, /preset-tile|preset-button--selected/);
+  assert.match(trips, /const choosePreset =[^]*setFormError\(null\);[^]*loadAnalysis\(next, preset, false, true\)/);
+});
+
+test("one RangePicker presents 24-hour values and preserves the authoritative Kyiv parser", () => {
+  assert.match(tripsPage, /initialPreset=\{resolved\.restoredFromUrl \? null : "TODAY"\}/);
+  assert.match(tripsPage, /initialOpenEnded=\{resolved\.openEnded\}/);
+  assert.equal((trips.match(/<DatePicker\.RangePicker/g) ?? []).length, 1);
+  assert.match(trips, /allowEmpty=\{\[false, true\]\}/);
+  assert.match(trips, /order=\{false\}/);
+  assert.match(trips, /needConfirm/);
+  assert.match(trips, /showTime=\{\{ format: "HH:mm", minuteStep: 1 \}\}/);
+  assert.match(trips, /format=\{TRIP_ANALYSIS_PICKER_FORMAT\}/);
+  assert.match(trips, /classNames=\{\{ popup: \{ root: "vehicle-trips__range-popup" \} \}\}/);
+  assert.match(trips, /styles=\{\{ root: \{ height: token\.controlHeightLG \}, popup: \{ root: \{ maxWidth: "calc\(100vw - 48px\)", overflowX: "auto" \} \} \}\}/);
+  assert.match(trips, /placeholder=\{\[t\("trips\.range\.from"\), t\("trips\.range\.to"\)\]\}/);
+  assert.doesNotMatch(styles, /range-popup table|\.ant-/);
+  assert.match(globalStyles, /:where\(button:not\(\[class\*="ant-"\]\)\)/);
+  assert.match(globalStyles, /input:not\(\[class\*="ant-"\]\):not\(\[date-range\]\)/);
+  assert.match(globalStyles, /:where\(\.table-wrap, \.events-table-container, \.admin-users-table, \.audit-table, \.admin-history-table-wrap, \.report-table-wrap\) table/);
+  assert.match(tripRange, /TRIP_ANALYSIS_PICKER_FORMAT = "DD\.MM\.YYYY, HH:mm"/);
+  assert.match(trips, /tripAnalysisPickerValueToCivil\(values\[0\]\)/);
+  assert.match(trips, /parseVehicleTrackCustomRangeToNow\(draft, new Date\(\)\)/);
+  assert.match(trips, /void loadAnalysis\(parsed\.range, null, openEnded, true\)/);
+  assert.match(trips, /refreshOpenEndedTripAnalysisRange\(range, new Date\(\)\)/);
+  assert.match(trips, /appliedOpenEnded[\s\S]*t\("trips\.range\.now"\)/);
   assert.match(customRange, /VEHICLE_TRACK_INPUT_TIMEZONE = "Europe\/Kyiv"/);
   assert.match(customRange, /getPossibleOffsets\(\)\.length > 1/);
-  assert.match(customRange, /parseVehicleTrackRange\(from\.instant, to\.instant\)/);
-  assert.match(tripRange, /LAST_24_HOURS/);
-  assert.match(tripRange, /LAST_7_DAYS/);
+  assert.match(customRange, /date\.toFormat\("yyyy-MM-dd'T'HH:mm"\) !== value/);
+  assert.match(customRange, /parseVehicleTrackRange\(from, to\)/);
   assert.match(tripContract, /VEHICLE_TRACK_MAX_RANGE_MS/);
-  assert.doesNotMatch(trips, /DatePicker|RangePicker|dayjs/);
 });
 
-test("one unified analytical summary contains four aligned semantic metrics", () => {
+test("the unified four-metric Summary contract remains aligned and responsive", () => {
   assert.equal((trips.match(/<TripSummaryMetric/g) ?? []).length, 4);
   for (const icon of ["CarOutlined", "PauseCircleOutlined", "NodeIndexOutlined", "DisconnectOutlined"]) assert.match(trips, new RegExp(`<${icon}`));
   assert.equal((trips.match(/className="vehicle-trips__summary"/g) ?? []).length, 1);
-  assert.match(trips, /<article className="vehicle-trips__summary-metric">/);
-  assert.doesNotMatch(trips, /TripSummaryCard|vehicle-trips__summary-card/);
-  assert.match(styles, /vehicle-trips__summary \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);[^}]*border:/);
+  assert.match(trips, /<span className="vehicle-trips__summary-title">\{title\}:<\/span>/);
+  assert.match(styles, /\.vehicle-trips__summary-metric \{[^}]*grid-template-columns: 20px minmax\(0, 1fr\);/);
+  assert.match(styles, /\.vehicle-trips__summary-value \{[^}]*font-variant-numeric: tabular-nums;/);
   assert.match(styles, /@media \(max-width: 991px\)[\s\S]*vehicle-trips__summary \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
-  assert.match(styles, /vehicle-trips__summary-value \{[^}]*font-variant-numeric: tabular-nums;/);
 });
 
-test("chronology and Map are panes of one analysis workspace", () => {
-  assert.equal((trips.match(/className="vehicle-trips__workspace"/g) ?? []).length, 1);
-  assert.equal((trips.match(/className="vehicle-trips__workspace-header"/g) ?? []).length, 2);
-  assert.doesNotMatch(trips, /vehicle-trips__(?:timeline|map)-card/);
+test("Chronology stays factual and selectable only for trips and stops while GPS gaps remain inert", () => {
+  assert.equal((trips.match(/<header className="vehicle-trips__workspace-header/g) ?? []).length, 2);
   assert.match(trips, /<ol className="vehicle-trips__timeline">/);
   assert.match(trips, /item\.kind === "TRIP" \? <CarOutlined \/> : item\.kind === "STOP" \? <PauseCircleOutlined \/> : <DisconnectOutlined \/>/);
   assert.match(trips, /token\.colorPrimary : item\.kind === "STOP" \? token\.colorSuccess : token\.colorWarning/);
   assert.match(trips, /item\.kind === "GAP" \? <div[^>]*>\{content\}<\/div> : <button/);
   assert.match(trips, /aria-pressed=\{selected\}/);
-  assert.match(trips, /connected=\{index < timeline\.length - 1\}/);
-  assert.match(styles, /vehicle-trips__record--selected \{[^}]*box-shadow: inset/);
-  const hover = styles.match(/\.vehicle-trips__record:hover \{[^}]*\}/)?.[0] ?? "";
-  assert.doesNotMatch(hover, /transform|margin|padding|border|width|height/);
-  assert.equal((trips.match(/<Card/g) ?? []).length, 0);
-});
-
-test("record content preserves top-to-bottom facts warnings and truthful Map semantics", () => {
-  assert.match(trips, /formatTripAnalysisTime\(item\.startAt, locale\)[\s\S]*formatTripAnalysisTime\(item\.endAt, locale\)/);
-  assert.match(trips, /formatTripAnalysisDuration\(item\.value\.durationSeconds, locale\)/);
-  assert.match(trips, /formatObservedDistance\(item\.value\.observedDistanceMeters, locale\)/);
-  assert.match(trips, /terminationReason === "DATA_GAP"/);
-  assert.match(trips, /<WarningOutlined aria-hidden \/>/);
   assert.match(trips, /selectedStopBoundaryPresentation\(next\)/);
   assert.match(trips, /selectedTripTrackRequest\(next\)/);
-  assert.match(trips, /!selection \? <div className="map-empty vehicle-trips__map-empty">/);
+  assert.match(trips, /terminationReason === "DATA_GAP"/);
   assert.doesNotMatch(trips, /address|geocod|roadDistance|stopCenter|interpolat|cluster|eventLocation|locationMap/i);
 });
 
-test("desktop workspace keeps chronology beside a sticky Map and narrow layouts place Map first", () => {
+test("desktop Map stickiness uses the real scrolling page and narrow layouts remain Map-first", () => {
   assert.match(styles, /grid-template-columns: minmax\(300px, 360px\) minmax\(0, 1fr\)/);
   assert.match(styles, /grid-template-areas: "timeline map"/);
-  assert.match(styles, /vehicle-trips__workspace \{[^}]*overflow: clip;[^}]*border:/);
-  assert.match(styles, /vehicle-trips__map-pane \{[^}]*border-inline-start:/);
-  assert.match(styles, /vehicle-trips__map-pane \{[^}]*position: sticky;[^}]*top: calc\(58px \+ var\(--space-4\)\);/);
+  assert.match(styles, /vehicle-trips__workspace \{[^}]*border:/);
+  assert.doesNotMatch(styles, /vehicle-trips__workspace \{[^}]*overflow:/);
+  assert.match(styles, /vehicle-trips__map-pane \{[^}]*position: sticky;[^}]*top: var\(--space-3\);[^}]*100dvh/);
+  assert.match(styles, /main\.taxi-shell__main:has\(\.vehicle-trips\) \{ padding-bottom: var\(--space-3\); \}/);
+  assert.match(styles, /vehicle-trips__workspace-header \{[^}]*min-height: calc\(var\(--control-height-default\) \+ var\(--space-4\) \+ 1px\);[^}]*padding: var\(--space-2\) var\(--space-6\);/);
+  assert.doesNotMatch(styles, /top: calc\(58px/);
   assert.match(styles, /@media \(max-width: 991px\)[\s\S]*grid-template-areas: "map" "timeline"/);
-  assert.match(styles, /@media \(max-width: 991px\)[\s\S]*vehicle-trips__map-pane \{[^}]*position: static;[^}]*border-inline-start: 0;/);
+  assert.match(styles, /@media \(max-width: 991px\)[\s\S]*vehicle-trips__map-pane \{[^}]*position: static;/);
   assert.doesNotMatch(styles, /\.ant-/);
-  assert.doesNotMatch(styles, /#[0-9a-f]{3,8}/i);
 });
 
-test("Trips copy is complete in UK RU and EN and components own punctuation", () => {
-  const keys = ["trips.controls.title", "trips.map.title", "trips.timeline.trip", "trips.timeline.stop", "trips.timeline.gap", "trips.timeline.continuityLost", "trips.timeline.stopEndUnconfirmed"] as const;
-  for (const key of keys) for (const locale of SUPPORTED_LOCALES) {
-    const value = createTranslator(locale)(key);
-    assert.ok(value.length > 1, `${locale}:${key}`);
-    if (key === "trips.controls.title") assert.equal(value.includes(":"), false, `${locale}:${key}`);
-  }
-  assert.doesNotMatch(messages, /"trips\.controls\.title": \{[^\n]*: "[^"]*:/);
+test("Trips Map layers reuse accepted fleet semantics and keep route, warning, and stop truthfulness", () => {
+  for (const id of ["TRIP_MAP_LINE_LAYER_ID", "TRIP_MAP_WARNING_ACCENT_LAYER_ID", "TRIP_MAP_NORMAL_POINT_LAYER_ID", "TRIP_MAP_ENDPOINT_LAYER_ID"]) assert.match(tripLayers, new RegExp(id));
+  assert.match(tripLayers, /routeColor: "#246c95"/);
+  assert.match(tripLayers, /observationColor: "#176f86"/);
+  assert.match(tripLayers, /warningAccentColor: "#a55a08"/);
+  assert.match(tripLayers, /startColor: FLEET_MAP_PRESENTATION\.fresh/);
+  assert.match(tripLayers, /endColor: FLEET_MAP_PRESENTATION\.speeding/);
+  assert.match(tripLayers, /warningRadius: FLEET_MAP_PRESENTATION\.speedingRadius/);
+  assert.match(tripLayers, /circle-stroke-color": TRIP_MAP_PRESENTATION\.warningAccentColor/);
+  assert.match(tripLayers, /circle-color": "transparent"/);
+  assert.doesNotMatch(tripLayers, /TRIP_MAP_SELECTED_LAYER_ID|selectedKey/);
+  assert.match(trips, /ensureTripMapLayers/);
+  assert.match(trips, /updateTripMapData/);
+});
+
+test("Legend mirrors Main Map's trigger and popup surface and derives rows from one contract", () => {
+  assert.match(trips, /<Popover trigger="click" placement="bottomRight" content=\{<TripMapLegend \/>\}>/);
+  assert.match(trips, /<Button size="large" type="default" icon=\{<InfoCircleOutlined aria-hidden \/>\}>/);
+  assert.match(trips, /className="map-legend vehicle-trips__legend"/);
+  assert.match(trips, /className="map-legend__header"/);
+  assert.match(trips, /className="map-legend__items"/);
+  assert.match(trips, /TRIP_MAP_LEGEND_ITEMS\.map/);
+  assert.match(mapStyles, /\.map-legend \{[\s\S]*width: min\(340px, calc\(100vw - 64px\)\);[\s\S]*gap: 10px;/);
+  for (const kind of ["route", "observation", "warning", "start", "end", "stop"]) assert.match(styles, new RegExp(`vehicle-trips__legend-sample--${kind}`));
+});
+
+test("Trips copy is complete in UK, RU, and EN", () => {
+  const keys = [
+    "trips.controls.title", "trips.presetGroup.calendar", "trips.presetGroup.recent", "trips.presetChoice.last3",
+    "trips.range.label", "trips.range.from", "trips.range.to", "trips.range.now", "trips.range.openEndedHelp", "trips.range.startRequired",
+    "trips.map.title", "trips.timeline.trip", "trips.timeline.stop", "trips.timeline.gap", "trips.timeline.continuityLost",
+    "trips.legend.route", "trips.legend.observation", "trips.legend.qualityWarning", "trips.legend.start", "trips.legend.end", "trips.legend.stop", "trips.legend.note",
+  ] as const;
+  for (const key of keys) for (const locale of SUPPORTED_LOCALES) assert.ok(createTranslator(locale)(key).length > 1, `${locale}:${key}`);
+  assert.equal(createTranslator("uk")("trips.range.openEndedHelp"), "Без кінцевої дати — до поточного часу.");
+  assert.equal(createTranslator("ru")("trips.range.openEndedHelp"), "Без конечной даты — до текущего времени.");
+  assert.equal(createTranslator("en")("trips.range.openEndedHelp"), "No end date — until now.");
+  assert.deepEqual(SUPPORTED_LOCALES.map((locale) => createTranslator(locale)("trips.range.from")), ["От", "Від", "From"]);
+  assert.deepEqual(SUPPORTED_LOCALES.map((locale) => createTranslator(locale)("trips.range.to")), ["До", "До", "To"]);
+  assert.doesNotMatch(messages, /"trips\.controls\.time"|"trips\.controls\.clear"/);
+  assert.doesNotMatch(messages, /trips\.presetTile/);
   assert.doesNotMatch(trips, /[🚗⏸️🔌📍]/u);
 });

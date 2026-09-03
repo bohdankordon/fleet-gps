@@ -35,9 +35,22 @@ export function parseVehicleTrackCustomRange(draft: VehicleTrackDraftRange): Veh
   const from = kyivLocalToAbsolute(draft.from); const to = kyivLocalToAbsolute(draft.to);
   if (from.error) return Object.freeze({ range: null, error: from.error });
   if (to.error) return Object.freeze({ range: null, error: to.error });
-  const range = parseVehicleTrackRange(from.instant, to.instant);
+  return parseAbsoluteCustomRange(from.instant!, to.instant!);
+}
+
+/** Resolves an intentionally empty end boundary at the supplied current instant. */
+export function parseVehicleTrackCustomRangeToNow(draft: VehicleTrackDraftRange, now: Date): VehicleTrackCustomRangeResult {
+  if (draft.to) return parseVehicleTrackCustomRange(draft);
+  const from = kyivLocalToAbsolute(draft.from);
+  if (from.error) return Object.freeze({ range: null, error: from.error });
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) return Object.freeze({ range: null, error: "INVALID" });
+  return parseAbsoluteCustomRange(from.instant!, now.toISOString());
+}
+
+function parseAbsoluteCustomRange(from: string, to: string): VehicleTrackCustomRangeResult {
+  const range = parseVehicleTrackRange(from, to);
   if (range) return Object.freeze({ range, error: null });
-  const fromMs = Date.parse(from.instant!); const toMs = Date.parse(to.instant!);
+  const fromMs = Date.parse(from); const toMs = Date.parse(to);
   return Object.freeze({ range: null, error: toMs <= fromMs ? "ORDER" : "TOO_LONG" });
 }
 

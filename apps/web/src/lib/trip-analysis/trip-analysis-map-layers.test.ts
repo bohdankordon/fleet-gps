@@ -1,0 +1,68 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import type { CircleLayerSpecification, Map as MapLibreMap } from "maplibre-gl";
+import { FLEET_MAP_PRESENTATION } from "../fleet-map/fleet-map-presentation";
+import { EMPTY_VEHICLE_TRACK_PRESENTATION } from "../vehicle-track/vehicle-track-presentation";
+import {
+  ensureTripMapLayers,
+  TRIP_MAP_ENDPOINT_LAYER_ID,
+  TRIP_MAP_LAYER_ORDER,
+  TRIP_MAP_LEGEND_ITEMS,
+  TRIP_MAP_LINE_SOURCE_ID,
+  TRIP_MAP_NORMAL_POINT_LAYER_ID,
+  TRIP_MAP_POINT_SOURCE_ID,
+  TRIP_MAP_PRESENTATION,
+  TRIP_MAP_WARNING_ACCENT_LAYER_ID,
+  tripMapLayers,
+  updateTripMapData,
+} from "./trip-analysis-map-layers";
+
+test("Trip Map geometry follows the accepted fleet marker grammar and keeps warnings additive", () => {
+  const layers = tripMapLayers();
+  const circle = (id: string): CircleLayerSpecification => {
+    const layer = layers.find((candidate) => candidate.id === id);
+    assert.equal(layer?.type, "circle");
+    return layer as CircleLayerSpecification;
+  };
+  const normal = circle(TRIP_MAP_NORMAL_POINT_LAYER_ID);
+  const warning = circle(TRIP_MAP_WARNING_ACCENT_LAYER_ID);
+  const endpoints = circle(TRIP_MAP_ENDPOINT_LAYER_ID);
+  assert.equal(normal.paint?.["circle-opacity"], 1);
+  assert.equal(normal.paint?.["circle-stroke-width"], 2);
+  assert.equal(normal.paint?.["circle-stroke-color"], FLEET_MAP_PRESENTATION.markerOutline);
+  assert.deepEqual(normal.paint?.["circle-radius"], ["interpolate", ["linear"], ["zoom"], 9, 3, 15, FLEET_MAP_PRESENTATION.baseRadius]);
+  assert.equal(warning.paint?.["circle-color"], "transparent");
+  assert.equal(warning.paint?.["circle-stroke-width"], 2.5);
+  assert.deepEqual(warning.paint?.["circle-radius"], ["interpolate", ["linear"], ["zoom"], 9, 7, 15, FLEET_MAP_PRESENTATION.speedingRadius]);
+  assert.deepEqual(endpoints.paint?.["circle-color"], ["match", ["get", "endpoint"], "start", FLEET_MAP_PRESENTATION.fresh, "end", FLEET_MAP_PRESENTATION.speeding, TRIP_MAP_PRESENTATION.observationColor]);
+});
+
+test("Legend semantics stay synchronized with the complete Trips layer vocabulary", () => {
+  assert.deepEqual(TRIP_MAP_LEGEND_ITEMS.map((item) => item.kind), ["route", "observation", "warning", "start", "end", "stop"]);
+  assert.deepEqual(TRIP_MAP_LAYER_ORDER, ["trips-map-line", "trips-map-points-warning-accent", "trips-map-points-normal", "trips-map-endpoints"]);
+});
+
+test("Trip Map sources and layers are created once below labels and data updates in place", () => {
+  const sources = new Map<string, { setData(value: unknown): void }>();
+  const layers: Array<{ id: string; type: string }> = [{ id: "basemap-labels", type: "symbol" }];
+  let setDataCalls = 0;
+  const map = {
+    getSource: (id: string) => sources.get(id),
+    addSource: (id: string) => sources.set(id, { setData: () => { setDataCalls += 1; } }),
+    getLayer: (id: string) => layers.find((layer) => layer.id === id),
+    addLayer: (layer: { id: string; type: string }, before?: string) => {
+      const index = before ? layers.findIndex((item) => item.id === before) : -1;
+      if (index < 0) layers.push({ id: layer.id, type: layer.type });
+      else layers.splice(index, 0, { id: layer.id, type: layer.type });
+    },
+    getStyle: () => ({ layers }),
+  } as unknown as MapLibreMap;
+  ensureTripMapLayers(map, EMPTY_VEHICLE_TRACK_PRESENTATION);
+  ensureTripMapLayers(map, EMPTY_VEHICLE_TRACK_PRESENTATION);
+  updateTripMapData(map, EMPTY_VEHICLE_TRACK_PRESENTATION);
+  assert.equal(sources.has(TRIP_MAP_LINE_SOURCE_ID), true);
+  assert.equal(sources.has(TRIP_MAP_POINT_SOURCE_ID), true);
+  assert.equal(sources.size, 2);
+  assert.equal(setDataCalls, 2);
+  assert.deepEqual(layers.map((layer) => layer.id), [...TRIP_MAP_LAYER_ORDER, "basemap-labels"]);
+});

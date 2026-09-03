@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import * as maplibregl from "maplibre-gl";
 import type { Map as MapLibreMap } from "maplibre-gl";
-import { Alert, Button, Divider, Empty, Flex, Grid, Input, Popover, Segmented, Typography, theme } from "antd";
-import { CalendarOutlined, CarOutlined, DisconnectOutlined, DownOutlined, EnvironmentOutlined, NodeIndexOutlined, PauseCircleOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
+import { Alert, Button, DatePicker, Divider, Empty, Flex, Popover, Space, Typography, theme } from "antd";
+import { CalendarOutlined, CarOutlined, DisconnectOutlined, DownOutlined, EnvironmentOutlined, InfoCircleOutlined, NodeIndexOutlined, PauseCircleOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
+import dayjs from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
 import { StableLoadingButton } from "@/components/stable-loading-button";
 import { VehicleDetailShell } from "@/components/vehicle-detail-shell";
 import { fleetMapStyleUrl } from "@/lib/fleet-map/fleet-map-style";
@@ -13,12 +15,23 @@ import { createFleetMapAfterWorkerBootstrap, type FleetMapWorkerBootstrapState }
 import { parseTripAnalysisResponse, type TripAnalysisResponse } from "@/lib/trip-analysis/trip-analysis-contract";
 import { formatObservedDistance, formatTripAnalysisClock, formatTripAnalysisDuration, formatTripAnalysisTime } from "@/lib/trip-analysis/trip-analysis-formatters";
 import { clearTripAnalysisInteraction, failSelectedTrack, initialTripAnalysisInteractionState, selectTripAnalysisItem } from "@/lib/trip-analysis/trip-analysis-interaction";
-import { createTripAnalysisPresetRange, TRIP_ANALYSIS_PRESETS, type TripAnalysisPreset } from "@/lib/trip-analysis/trip-analysis-range";
+import {
+  TRIP_ANALYSIS_CALENDAR_PRESETS,
+  TRIP_ANALYSIS_CIVIL_FORMAT,
+  TRIP_ANALYSIS_PICKER_FORMAT,
+  TRIP_ANALYSIS_PRESETS,
+  TRIP_ANALYSIS_RECENT_PRESETS,
+  createTripAnalysisPresetRange,
+  refreshOpenEndedTripAnalysisRange,
+  tripAnalysisPageQuery,
+  tripAnalysisPickerValueToCivil,
+  type TripAnalysisPreset,
+} from "@/lib/trip-analysis/trip-analysis-range";
 import { selectedStopBoundaryPresentation, selectedTripTrackRequest } from "@/lib/trip-analysis/trip-analysis-selection";
 import { buildTripAnalysisTimeline, type TripAnalysisSelection, type TripAnalysisTimelineItem } from "@/lib/trip-analysis/trip-analysis-timeline";
+import { ensureTripMapLayers, TRIP_MAP_LEGEND_ITEMS, TRIP_MAP_PRESENTATION, updateTripMapData } from "@/lib/trip-analysis/trip-analysis-map-layers";
 import { vehicleTrackCamera } from "@/lib/vehicle-track/vehicle-track-camera";
-import { parseVehicleTrackCustomRange, vehicleTrackCustomRangeErrorCopy, vehicleTrackRangeToKyivDraft, type VehicleTrackDraftRange } from "@/lib/vehicle-track/vehicle-track-custom-range";
-import { ensureVehicleTrackLayers, updateVehicleTrackMapData } from "@/lib/vehicle-track/vehicle-track-layers";
+import { parseVehicleTrackCustomRange, parseVehicleTrackCustomRangeToNow, vehicleTrackCustomRangeErrorCopy, vehicleTrackRangeToKyivDraft, type VehicleTrackDraftRange } from "@/lib/vehicle-track/vehicle-track-custom-range";
 import { parseVehicleTrackOverviewResponse } from "@/lib/vehicle-track/vehicle-track-overview-contract";
 import { buildVehicleTrackOverviewPresentation } from "@/lib/vehicle-track/vehicle-track-overview-presentation";
 import { buildVehicleTrackPresentation, EMPTY_VEHICLE_TRACK_PRESENTATION, type VehicleTrackPresentationModel } from "@/lib/vehicle-track/vehicle-track-presentation";
@@ -26,9 +39,19 @@ import { parseVehicleTrackResponse } from "@/lib/vehicle-track/vehicle-track-con
 import type { VehicleTrackRange } from "@/lib/vehicle-track/vehicle-track-range";
 import { useI18n } from "../i18n/client";
 
+dayjs.extend(customParseFormat);
+
 const { Text } = Typography;
 const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 const workerState: FleetMapWorkerBootstrapState = { configured: false };
+const TRIP_MAP_MARKER_CSS_VARS = {
+  "--trip-marker-route": TRIP_MAP_PRESENTATION.routeColor,
+  "--trip-marker-observation": TRIP_MAP_PRESENTATION.observationColor,
+  "--trip-marker-warning": TRIP_MAP_PRESENTATION.warningAccentColor,
+  "--trip-marker-start": TRIP_MAP_PRESENTATION.startColor,
+  "--trip-marker-end": TRIP_MAP_PRESENTATION.endColor,
+  "--trip-marker-outline": TRIP_MAP_PRESENTATION.outlineColor,
+} as CSSProperties & Record<string, string>;
 
 type Props = Readonly<{
   vehicleId: string;
@@ -37,6 +60,7 @@ type Props = Readonly<{
   initialData: TripAnalysisResponse | null;
   initialRange: VehicleTrackRange;
   initialPreset: TripAnalysisPreset | null;
+  initialOpenEnded: boolean;
   initialError: boolean;
   timezone: string;
 }>;
@@ -55,10 +79,14 @@ function TripSectionTitle({ icon, title, className = "" }: Readonly<{ icon: Reac
   </Flex>;
 }
 
-export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, initialData, initialRange, initialPreset, initialError, timezone }: Props) {
+function pickerValue(value: string) {
+  const parsed = value ? dayjs(value, TRIP_ANALYSIS_CIVIL_FORMAT, true) : null;
+  return parsed?.isValid() ? parsed : null;
+}
+
+export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, initialData, initialRange, initialPreset, initialOpenEnded, initialError, timezone }: Props) {
   const { locale, t } = useI18n();
   const { token } = theme.useToken();
-  const screens = Grid.useBreakpoint();
   const [analysis, setAnalysis] = useState(initialData);
   const [range, setRange] = useState(initialRange);
   const [loading, setLoading] = useState(false);
@@ -67,14 +95,18 @@ export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, i
   const selection = interaction.selection;
   const [trackLoading, setTrackLoading] = useState(false);
   const [model, setModel] = useState<VehicleTrackPresentationModel>(EMPTY_VEHICLE_TRACK_PRESENTATION);
-  const [draft, setDraft] = useState<VehicleTrackDraftRange>(() => vehicleTrackRangeToKyivDraft(initialRange));
+  const [draft, setDraft] = useState<VehicleTrackDraftRange>(() => {
+    const initialDraft = vehicleTrackRangeToKyivDraft(initialRange);
+    return initialOpenEnded ? { ...initialDraft, to: "" } : initialDraft;
+  });
   const [appliedPreset, setAppliedPreset] = useState<TripAnalysisPreset | null>(initialPreset);
+  const [appliedOpenEnded, setAppliedOpenEnded] = useState(initialOpenEnded);
   const [editorOpen, setEditorOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [styleError, setStyleError] = useState(false);
   const analysisController = useRef<AbortController | null>(null);
   const trackController = useRef<AbortController | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [mapContainer, setMapContainer] = useState<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const modelRef = useRef(model);
   const timeline = useMemo(() => analysis ? buildTripAnalysisTimeline(analysis) : [], [analysis]);
@@ -94,18 +126,21 @@ export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, i
     "--trip-surface-border": token.colorBorder,
     "--trip-surface-radius": `${token.borderRadiusLG}px`,
     "--trip-summary-divider": token.colorBorderSecondary,
+    ...TRIP_MAP_MARKER_CSS_VARS,
   } as CSSProperties & Record<string, string>;
 
   useEffect(() => {
     modelRef.current = model;
     const map = mapRef.current;
     if (map?.isStyleLoaded()) {
-      updateVehicleTrackMapData(map, model, null);
+      ensureTripMapLayers(map, model);
+      updateTripMapData(map, model);
       applyCamera(map, model);
+      map.resize();
     }
   }, [model]);
 
-  const loadAnalysis = useCallback(async (nextRange: VehicleTrackRange, nextPreset: TripAnalysisPreset | null, collapseEditor: boolean) => {
+  const loadAnalysis = useCallback(async (nextRange: VehicleTrackRange, nextPreset: TripAnalysisPreset | null, nextOpenEnded: boolean, collapseEditor: boolean) => {
     analysisController.current?.abort();
     trackController.current?.abort();
     const controller = new AbortController();
@@ -123,10 +158,12 @@ export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, i
       if (controller.signal.aborted) return;
       setAnalysis(data);
       setRange(nextRange);
-      setDraft(vehicleTrackRangeToKyivDraft(nextRange));
+      const nextDraft = vehicleTrackRangeToKyivDraft(nextRange);
+      setDraft(nextOpenEnded ? { ...nextDraft, to: "" } : nextDraft);
       setAppliedPreset(nextPreset);
+      setAppliedOpenEnded(nextOpenEnded);
       if (collapseEditor) setEditorOpen(false);
-      window.history.replaceState(null, "", `/vehicles/${vehicleId}/trips?${query}`);
+      window.history.replaceState(null, "", `/vehicles/${vehicleId}/trips?${tripAnalysisPageQuery(nextRange, nextOpenEnded)}`);
     } catch {
       if (!controller.signal.aborted) {
         setAnalysis(null);
@@ -136,6 +173,11 @@ export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, i
       if (!controller.signal.aborted) setLoading(false);
     }
   }, [vehicleId]);
+
+  useEffect(() => () => {
+    analysisController.current?.abort();
+    trackController.current?.abort();
+  }, []);
 
   const select = useCallback(async (next: TripAnalysisSelection) => {
     trackController.current?.abort();
@@ -171,72 +213,154 @@ export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, i
   }, [vehicleId]);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container || mapRef.current) return;
-    const map = createFleetMapAfterWorkerBootstrap({ setWorkerUrl: maplibregl.setWorkerUrl, workerUrl: MAPLIBRE_WORKER_URL, state: workerState }, () => new maplibregl.Map({ container, style: fleetMapStyleUrl(), pitchWithRotate: false, dragRotate: false }));
+    if (!mapContainer) return;
+    const map = createFleetMapAfterWorkerBootstrap(
+      { setWorkerUrl: maplibregl.setWorkerUrl, workerUrl: MAPLIBRE_WORKER_URL, state: workerState },
+      () => new maplibregl.Map({ container: mapContainer, style: fleetMapStyleUrl(), pitchWithRotate: false, dragRotate: false })
+    );
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     const onLoad = () => {
-      ensureVehicleTrackLayers(map, modelRef.current, null);
-      updateVehicleTrackMapData(map, modelRef.current, null);
+      ensureTripMapLayers(map, modelRef.current);
+      updateTripMapData(map, modelRef.current);
       applyCamera(map, modelRef.current);
+      map.resize();
     };
     const onError = () => setStyleError(true);
     map.on("load", onLoad);
     map.on("error", onError);
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => {
+      map.resize();
+    }) : null;
+    observer?.observe(mapContainer);
     return () => {
+      observer?.disconnect();
       map.off("load", onLoad);
       map.off("error", onError);
       map.remove();
       mapRef.current = null;
-      analysisController.current?.abort();
-      trackController.current?.abort();
     };
-  }, []);
+  }, [mapContainer]);
 
   const choosePreset = (preset: TripAnalysisPreset) => {
     const next = createTripAnalysisPresetRange(preset, new Date(), timezone);
-    if (next) void loadAnalysis(next, preset, true);
+    if (next) {
+      setFormError(null);
+      void loadAnalysis(next, preset, false, true);
+    }
   };
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    const parsed = parseVehicleTrackCustomRange(draft);
+    const openEnded = draft.to === "";
+    const parsed = openEnded ? parseVehicleTrackCustomRangeToNow(draft, new Date()) : parseVehicleTrackCustomRange(draft);
     if (!parsed.range) {
-      setFormError(vehicleTrackCustomRangeErrorCopy(parsed.error, locale));
+      setFormError(parsed.error === "REQUIRED" ? t("trips.range.startRequired") : vehicleTrackCustomRangeErrorCopy(parsed.error, locale));
       return;
     }
     setFormError(null);
-    void loadAnalysis(parsed.range, null, true);
+    void loadAnalysis(parsed.range, null, openEnded, true);
+  };
+  const refresh = () => {
+    const next = appliedOpenEnded ? refreshOpenEndedTripAnalysisRange(range, new Date()) : range;
+    if (!next) {
+      setFormError(vehicleTrackCustomRangeErrorCopy("TOO_LONG", locale));
+      setEditorOpen(true);
+      return;
+    }
+    setFormError(null);
+    void loadAnalysis(next, appliedPreset, appliedOpenEnded, false);
   };
   const noObservations = analysis?.summary.rawObservationCount === 0;
   const noEvents = analysis && analysis.summary.rawObservationCount > 0 && analysis.summary.tripCount === 0 && analysis.summary.stopCount === 0;
   const appliedPresetDefinition = TRIP_ANALYSIS_PRESETS.find((preset) => preset.key === appliedPreset);
   const periodLabel = appliedPresetDefinition ? t(appliedPresetDefinition.messageKey) : t("track.controls.custom");
-  const concisePeriod = appliedPreset === "TODAY"
+  const concisePeriod = appliedOpenEnded
+    ? <><time dateTime={range.from}>{formatTripAnalysisTime(range.from, locale)}</time> → {t("trips.range.now")}</>
+    : appliedPreset === "TODAY"
     ? <><time dateTime={range.from}>{formatTripAnalysisClock(range.from, locale)}</time> → <time dateTime={range.to}>{formatTripAnalysisClock(range.to, locale)}</time></>
     : <><time dateTime={range.from}>{formatTripAnalysisTime(range.from, locale)}</time> → <time dateTime={range.to}>{formatTripAnalysisTime(range.to, locale)}</time></>;
+
   const periodEditor = <div className="vehicle-trips__period-editor">
     <Text className="vehicle-trips__editor-label" type="secondary">{t("track.controls.quick")}</Text>
-    <Segmented className="vehicle-trips__presets" aria-label={t("track.controls.quick")} block size="large" orientation={screens.sm === false ? "vertical" : "horizontal"} disabled={loading} value={appliedPreset ?? ""} options={TRIP_ANALYSIS_PRESETS.map((preset) => ({ label: t(preset.messageKey), value: preset.key }))} onChange={(value) => choosePreset(value as TripAnalysisPreset)} />
+    <div className="vehicle-trips__presets-section">
+      <div className="vehicle-trips__preset-group">
+        <span className="vehicle-trips__preset-group-title">{t("trips.presetGroup.calendar")}</span>
+        <div className="vehicle-trips__preset-grid vehicle-trips__preset-grid--2col" role="group" aria-label={t("trips.presetGroup.calendar")}>
+          {TRIP_ANALYSIS_CALENDAR_PRESETS.map((preset) => {
+            const isSelected = appliedPreset === preset.key;
+            return (
+              <Button
+                htmlType="button"
+                key={preset.key}
+                aria-pressed={isSelected}
+                className="vehicle-trips__preset-button"
+                color={isSelected ? "primary" : "default"}
+                variant={isSelected ? "filled" : "outlined"}
+                size="middle"
+                onClick={() => choosePreset(preset.key)}
+                disabled={loading}
+              >
+                {t(preset.choiceMessageKey)}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="vehicle-trips__preset-group">
+        <span className="vehicle-trips__preset-group-title">{t("trips.presetGroup.recent")}</span>
+        <div className="vehicle-trips__preset-grid vehicle-trips__preset-grid--3col" role="group" aria-label={t("trips.presetGroup.recent")}>
+          {TRIP_ANALYSIS_RECENT_PRESETS.map((preset) => {
+            const isSelected = appliedPreset === preset.key;
+            return (
+              <Button
+                htmlType="button"
+                key={preset.key}
+                aria-pressed={isSelected}
+                className="vehicle-trips__preset-button"
+                color={isSelected ? "primary" : "default"}
+                variant={isSelected ? "filled" : "outlined"}
+                size="middle"
+                onClick={() => choosePreset(preset.key)}
+                disabled={loading}
+              >
+                {t(preset.choiceMessageKey)}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
     <Divider className="vehicle-trips__editor-divider" />
     <form id="vehicle-trips-custom-range" className="vehicle-trips__custom-range" onSubmit={submit}>
       <Text className="vehicle-trips__custom-title" strong>{t("track.controls.custom")}</Text>
       <div className="vehicle-trips__range-fields">
-        <label className="vehicle-trips__range-field">
-          <span>{t("track.controls.from")}:</span>
-          <Input type="datetime-local" value={draft.from} disabled={loading} onChange={(event) => setDraft((current) => ({ ...current, from: event.target.value }))} required />
-        </label>
-        <label className="vehicle-trips__range-field">
-          <span>{t("track.controls.to")}:</span>
-          <Input type="datetime-local" value={draft.to} disabled={loading} onChange={(event) => setDraft((current) => ({ ...current, to: event.target.value }))} required />
-        </label>
+        <DatePicker.RangePicker
+          className="vehicle-trips__range-picker"
+          aria-label={t("trips.range.label")}
+          value={[pickerValue(draft.from), pickerValue(draft.to)]}
+          onCalendarChange={(values) => setDraft({ from: tripAnalysisPickerValueToCivil(values[0]), to: tripAnalysisPickerValueToCivil(values[1]) })}
+          onChange={(values) => setDraft({ from: tripAnalysisPickerValueToCivil(values?.[0] ?? null), to: tripAnalysisPickerValueToCivil(values?.[1] ?? null) })}
+          allowEmpty={[false, true]}
+          allowClear
+          order={false}
+          needConfirm
+          showTime={{ format: "HH:mm", minuteStep: 1 }}
+          format={TRIP_ANALYSIS_PICKER_FORMAT}
+          placeholder={[t("trips.range.from"), t("trips.range.to")]}
+          placement="bottomLeft"
+          classNames={{ popup: { root: "vehicle-trips__range-popup" } }}
+          styles={{ root: { height: token.controlHeightLG }, popup: { root: { maxWidth: "calc(100vw - 48px)", overflowX: "auto" } } }}
+          size="large"
+        />
+        <Text className="vehicle-trips__range-help" type="secondary">{t("trips.range.openEndedHelp")}</Text>
         <Button className="vehicle-trips__show-period" htmlType="submit" type="primary" size="large" loading={loading} icon={<CalendarOutlined aria-hidden />}>{t("track.controls.showPeriod")}</Button>
       </div>
       {formError ? <Alert className="vehicle-trips__range-error" type="error" showIcon title={formError} /> : null}
     </form>
   </div>;
 
-  return <VehicleDetailShell vehicleId={vehicleId} vehicleName={vehicleName ?? t("trips.title")} activeTab="trips" generatedAt={shellGeneratedAt} description={t("trips.description")}>
+  return <VehicleDetailShell vehicleId={vehicleId} vehicleName={vehicleName ?? t("trips.title")} activeTab="trips" generatedAt={shellGeneratedAt}>
     <div className="vehicle-trips" style={pageStyle}>
       <section className="vehicle-trips__period-bar" aria-label={t("trips.controls.title")}>
         <div className="vehicle-trips__period-context">
@@ -251,9 +375,9 @@ export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, i
             title={<TripSectionTitle icon={<CalendarOutlined />} title={t("trips.controls.title")} />}
             content={periodEditor}
             classNames={{ root: "vehicle-trips__period-popover" }}
-            styles={{ container: { width: screens.md === false ? "calc(100vw - 48px)" : 720, maxWidth: "calc(100vw - 48px)", padding: token.paddingLG, borderRadius: token.borderRadiusLG } }}
+            styles={{ container: { width: 620, maxWidth: "calc(100vw - 48px)", padding: token.paddingLG, borderRadius: token.borderRadiusLG } }}
           >
-            <Button className="vehicle-trips__period-trigger" type="text" size="large" aria-expanded={editorOpen} aria-controls="vehicle-trips-custom-range">
+            <Button className="vehicle-trips__period-trigger" type="default" size="large" aria-expanded={editorOpen} aria-controls="vehicle-trips-custom-range">
               <CalendarOutlined aria-hidden />
               <span className="vehicle-trips__period-trigger-copy"><strong>{periodLabel}</strong><span aria-hidden>·</span><span className="vehicle-trips__period-window">{concisePeriod}</span></span>
               <DownOutlined className="vehicle-trips__period-chevron" aria-hidden />
@@ -261,7 +385,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, i
           </Popover>
           <Text className="vehicle-trips__timezone" type="secondary">{timezone}</Text>
         </div>
-        <StableLoadingButton idleLabel={t("common.refresh")} loadingLabel={t("common.refreshing")} loading={loading} icon={<ReloadOutlined aria-hidden />} onClick={() => void loadAnalysis(range, appliedPreset, false)} size="large" type="default" />
+        <StableLoadingButton idleLabel={t("common.refresh")} loadingLabel={t("common.refreshing")} loading={loading} icon={<ReloadOutlined aria-hidden />} onClick={refresh} size="large" type="default" />
       </section>
 
       {analysisError ? <Alert className="vehicle-trips__analysis-error" type="error" showIcon title={t("trips.loadError")} description={t("trips.loadErrorText")} /> : null}
@@ -286,10 +410,15 @@ export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, i
           </div>
         </section>
         <section className="vehicle-trips__map-pane" aria-label={t("trips.map.label")}>
-          <header className="vehicle-trips__workspace-header"><TripSectionTitle icon={<EnvironmentOutlined />} title={t("trips.map.title")} /></header>
+          <header className="vehicle-trips__workspace-header">
+            <TripSectionTitle icon={<EnvironmentOutlined />} title={t("trips.map.title")} />
+            <Popover trigger="click" placement="bottomRight" content={<TripMapLegend />}>
+              <Button size="large" type="default" icon={<InfoCircleOutlined aria-hidden />}>{t("map.legend.label")}</Button>
+            </Popover>
+          </header>
           <div className="vehicle-trips__map-content">
             <div className="map-shell vehicle-trips__map-surface" aria-label={t("trips.map.label")}>
-              <div ref={containerRef} className="fleet-map-canvas vehicle-trips__map-canvas" />
+              <div ref={setMapContainer} className="fleet-map-canvas vehicle-trips__map-canvas" />
               {!selection ? <div className="map-empty vehicle-trips__map-empty">{t("trips.map.select")}</div> : null}
               {trackLoading ? <div className="map-empty vehicle-trips__map-empty">{t("trips.map.loading")}</div> : null}
               {interaction.trackError ? <div className="map-empty vehicle-trips__map-empty vehicle-trips__map-error">{t("trips.map.trackError")}</div> : null}
@@ -304,10 +433,36 @@ export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, i
 }
 
 function TripSummaryMetric({ icon, title, value }: Readonly<{ icon: ReactNode; title: string; value: ReactNode }>) {
+  const { token } = theme.useToken();
   return <article className="vehicle-trips__summary-metric">
-    <TripSectionTitle className="vehicle-trips__summary-title" icon={icon} title={title} />
-    <Text className="vehicle-trips__summary-value" strong>{value}</Text>
+    <span className="vehicle-trips__summary-icon" aria-hidden style={{ color: token.colorPrimary }}>{icon}</span>
+    <div className="vehicle-trips__summary-content">
+      <span className="vehicle-trips__summary-title">{title}:</span>
+      <Text className="vehicle-trips__summary-value" strong>{value}</Text>
+    </div>
   </article>;
+}
+
+function TripLegendSwatch({ kind }: Readonly<{ kind: "route" | "observation" | "warning" | "start" | "end" | "stop" }>) {
+  return <i className={`vehicle-trips__legend-sample vehicle-trips__legend-sample--${kind}`} aria-hidden />;
+}
+
+function TripMapLegend() {
+  const { t } = useI18n();
+  const { token } = theme.useToken();
+  return <div className="map-legend vehicle-trips__legend" style={TRIP_MAP_MARKER_CSS_VARS} role="region" aria-label={t("map.legend.label")}>
+    <Flex className="map-legend__header" align="center" gap="small">
+      <InfoCircleOutlined aria-hidden style={{ color: token.colorPrimary, fontSize: 16 }} />
+      <Text strong>{t("map.legend.label")}</Text>
+    </Flex>
+    <Divider className="map-legend__divider" style={{ margin: 0 }} />
+    <div className="map-legend__items">
+      {TRIP_MAP_LEGEND_ITEMS.map((item) => <span key={item.kind}><TripLegendSwatch kind={item.kind} />{t(item.messageKey)}</span>)}
+    </div>
+    <Space className="map-legend__notes" orientation="vertical" size={4}>
+      <Text className="map-legend__note" type="secondary">{t("trips.legend.note")}</Text>
+    </Space>
+  </div>;
 }
 
 function TripTimelineRecord({ item, selected, connected, onSelect }: Readonly<{ item: TripAnalysisTimelineItem; selected: boolean; connected: boolean; onSelect: (item: TripAnalysisSelection) => void }>) {

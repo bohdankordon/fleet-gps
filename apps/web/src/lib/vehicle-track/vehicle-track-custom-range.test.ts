@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { absoluteToKyivLocal, kyivLocalToAbsolute, parseVehicleTrackCustomRange, vehicleTrackCustomRangeErrorCopy, vehicleTrackRangeToKyivDraft } from "./vehicle-track-custom-range";
+import { absoluteToKyivLocal, kyivLocalToAbsolute, parseVehicleTrackCustomRange, parseVehicleTrackCustomRangeToNow, vehicleTrackCustomRangeErrorCopy, vehicleTrackRangeToKyivDraft } from "./vehicle-track-custom-range";
 
 test("formats absolute instants into Europe/Kyiv wall-clock minute inputs", () => {
   assert.equal(absoluteToKyivLocal("2026-01-10T06:30:00.000Z"), "2026-01-10T08:30");
@@ -30,4 +30,15 @@ test("enforces non-empty absolute elapsed ranges through custom inputs", () => {
   assert.equal(parseVehicleTrackCustomRange({ from: "2026-08-10T08:00", to: "2026-08-10T08:00" }).error, "ORDER");
   assert.equal(parseVehicleTrackCustomRange({ from: "2026-08-10T09:00", to: "2026-08-10T08:00" }).error, "ORDER");
   assert.equal(vehicleTrackCustomRangeErrorCopy("TOO_LONG"), "Максимальный период — 7 дней.");
+});
+
+test("an empty custom end resolves to the supplied current instant without weakening Kyiv validation", () => {
+  assert.deepEqual(parseVehicleTrackCustomRangeToNow({ from: "2026-08-10T08:00", to: "" }, new Date("2026-08-10T06:30:00.000Z")).range, {
+    from: "2026-08-10T05:00:00.000Z",
+    to: "2026-08-10T06:30:00.000Z",
+  });
+  assert.equal(parseVehicleTrackCustomRangeToNow({ from: "2026-03-29T03:30", to: "" }, new Date("2026-03-29T04:00:00.000Z")).error, "NONEXISTENT");
+  assert.equal(parseVehicleTrackCustomRangeToNow({ from: "2026-10-25T03:30", to: "" }, new Date("2026-10-25T04:00:00.000Z")).error, "AMBIGUOUS");
+  assert.equal(parseVehicleTrackCustomRangeToNow({ from: "2026-08-10T09:00", to: "" }, new Date("2026-08-10T05:00:00.000Z")).error, "ORDER");
+  assert.equal(parseVehicleTrackCustomRangeToNow({ from: "2026-08-01T08:00", to: "" }, new Date("2026-08-08T05:01:00.000Z")).error, "TOO_LONG");
 });
