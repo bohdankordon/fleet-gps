@@ -106,9 +106,10 @@ test("desktop Map stickiness uses the real scrolling page and narrow layouts rem
   assert.match(styles, /grid-template-areas: "timeline map"/);
   assert.match(styles, /vehicle-trips__workspace \{[^}]*border:/);
   assert.doesNotMatch(styles, /vehicle-trips__workspace \{[^}]*overflow:/);
-  assert.match(styles, /vehicle-trips__map-pane \{[^}]*position: sticky;[^}]*top: var\(--space-3\);[^}]*100dvh/);
-  assert.match(styles, /main\.taxi-shell__main:has\(\.vehicle-trips\) \{ padding-bottom: var\(--space-3\); \}/);
+  assert.match(styles, /vehicle-trips__map-pane \{[^}]*position: sticky;[^}]*top: 0;[^}]*height: 100dvh/);
+  assert.match(styles, /main\.taxi-shell__main:has\(\.vehicle-trips\) \{ padding-bottom: var\(--space-12\); \}/);
   assert.match(styles, /vehicle-trips__workspace-header \{[^}]*min-height: calc\(var\(--control-height-default\) \+ var\(--space-4\) \+ 1px\);[^}]*padding: var\(--space-2\) var\(--space-6\);/);
+  assert.match(styles, /vehicle-trips__workspace-header svg \{ overflow: visible; \}/);
   assert.doesNotMatch(styles, /top: calc\(58px/);
   assert.match(styles, /@media \(max-width: 991px\)[\s\S]*grid-template-areas: "map" "timeline"/);
   assert.match(styles, /@media \(max-width: 991px\)[\s\S]*vehicle-trips__map-pane \{[^}]*position: static;/);

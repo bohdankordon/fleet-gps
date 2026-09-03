@@ -40,6 +40,7 @@
 
 .vehicle-trips__workspace { display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); grid-template-areas: "timeline map"; align-items: start; min-width: 0; border: 1px solid var(--trip-surface-border); border-radius: var(--trip-surface-radius); background: var(--trip-surface-bg); }
 .vehicle-trips__workspace-header { display: flex; align-items: center; justify-content: space-between; min-height: calc(var(--control-height-default) + var(--space-4) + 1px); padding: var(--space-2) var(--space-6); border-bottom: 1px solid var(--trip-summary-divider); }
+.vehicle-trips__workspace-header svg { overflow: visible; }
 .vehicle-trips__timeline-pane { grid-area: timeline; min-width: 0; }
 .vehicle-trips__timeline-content { padding: var(--space-3); }
 .vehicle-trips__timeline { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
@@ -64,7 +65,7 @@
 .vehicle-trips__record-warning { margin-top: var(--space-2); color: var(--trip-color-warning-text); font-size: var(--font-size-metadata); line-height: 1.4; }
 .vehicle-trips__record-warning > span:first-child { flex: none; margin-top: 2px; }
 
-.vehicle-trips__map-pane { position: sticky; grid-area: map; top: var(--space-3); min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); height: calc(100dvh - var(--space-3) * 2); border-inline-start: 1px solid var(--trip-summary-divider); }
+.vehicle-trips__map-pane { position: sticky; grid-area: map; top: 0; min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100dvh; border-inline-start: 1px solid var(--trip-summary-divider); }
 .vehicle-trips__map-content { display: flex; flex-direction: column; min-height: 0; height: 100%; padding: var(--space-3); box-sizing: border-box; gap: var(--space-2); }
 .vehicle-trips__map-surface { position: relative; flex: 1 1 0%; min-height: 0; border-color: var(--color-line); border-radius: calc(var(--trip-surface-radius) - 2px); background: var(--trip-map-bg); box-shadow: none; }
 .vehicle-trips__map-canvas { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 100%; }
@@ -90,7 +91,7 @@
 .vehicle-trips__legend-sample--stop::after { left: 65%; background: var(--trip-marker-end); }
 
 @media (min-width: 992px) {
-  main.taxi-shell__main:has(.vehicle-trips) { padding-bottom: var(--space-3); }
+  main.taxi-shell__main:has(.vehicle-trips) { padding-bottom: var(--space-12); }
 }
 
 @media (max-width: 991px) {

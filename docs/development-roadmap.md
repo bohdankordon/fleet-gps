@@ -128,12 +128,12 @@ Trips, and Movement History. Overview separates current position freshness,
 connectivity, disabled state, daily statistics, active events, and the bounded
 recent-event history using the accepted Fleet GPS design language.
 
-**IMPLEMENTED — HUMAN ACCEPTANCE PENDING — Trips redesign.** Trips now uses the
+**DONE / HUMAN ACCEPTED — Trips redesign.** Trips now uses the
 accepted vehicle-family shell and a Period Trigger → Unified Summary → Analysis
 Workspace flow without changing trip, stop, gap, distance, range, or
 authorization semantics.
 
-**NEXT AFTER TRIPS ACCEPTANCE — Movement History redesign.** The Movement
+**NEXT — Movement History redesign.** The Movement
 History body remains unchanged until its separate redesign slice.
 
 ## LATER — Final production hardening
