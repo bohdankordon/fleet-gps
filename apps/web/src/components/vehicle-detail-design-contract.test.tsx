@@ -35,7 +35,8 @@ test("all three vehicle routes reuse the shell and select one exact active route
   assert.match(historyPage, /fetchVehicleDetails\(vehicleId\)/);
   assert.equal((trips.match(/<header className="vehicle-trips__workspace-header"/g) ?? []).length, 2);
   assert.doesNotMatch(trips, /<PageHeader|<header className="vehicle-detail/);
-  assert.equal((history.match(/<header/g) ?? []).length, 0);
+  assert.equal((history.match(/<header className="vehicle-track__workspace-header"/g) ?? []).length, 0);
+  assert.doesNotMatch(history, /<PageHeader|<header className="vehicle-detail/);
 });
 
 test("Overview uses three equal-height native Cards and bounded Listy surfaces", () => {

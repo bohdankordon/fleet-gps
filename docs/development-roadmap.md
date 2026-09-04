@@ -133,8 +133,13 @@ accepted vehicle-family shell and a Period Trigger → Unified Summary → Analy
 Workspace flow without changing trip, stop, gap, distance, range, or
 authorization semantics.
 
-**NEXT — Movement History redesign.** The Movement
-History body remains unchanged until its separate redesign slice.
+**DONE / HUMAN ACCEPTED — Movement History redesign.** Movement
+History now follows Period Context → Unified Summary → large Map → contextual
+selected-observation details. Exact/sampled boundaries, Kyiv civil time validation,
+stored-point-only routes, authoritative sampled gaps, and quality semantics remain
+unchanged. The temporal-profile experiment is **PARKED** on
+`experiment/history-echarts-timeline` for possible future review and is not part of the
+human-accepted implementation.
 
 ## LATER — Final production hardening
 

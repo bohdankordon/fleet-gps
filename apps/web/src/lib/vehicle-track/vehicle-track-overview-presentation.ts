@@ -9,6 +9,8 @@ import {
   type VehicleTrackPointProperties,
   type VehicleTrackPresentationModel,
   type VehicleTrackPresentationPoint,
+  type VehicleTrackPresentationSegment,
+  type VehicleTrackPresentationGap,
 } from "./vehicle-track-presentation";
 
 export function buildVehicleTrackOverviewPresentation(response: VehicleTrackOverviewResponse): VehicleTrackPresentationModel {
@@ -34,9 +36,15 @@ export function buildVehicleTrackOverviewPresentation(response: VehicleTrackOver
   };
   let pointOffset = 0;
   const lineFeatures: Array<Feature<LineString, Record<string, never>>> = [];
-  for (const segment of response.segments) {
+  const segments: VehicleTrackPresentationSegment[] = [];
+  const gaps: VehicleTrackPresentationGap[] = [];
+  for (const [segmentIndex, segment] of response.segments.entries()) {
     const segmentPoints = points.slice(pointOffset, pointOffset + segment.points.length);
+    const firstPointIndex = pointOffset;
     pointOffset += segment.points.length;
+    segments.push(Object.freeze({ key: `segment-${segmentIndex}`, firstObservedAt: segment.firstObservedAt, lastObservedAt: segment.lastObservedAt, firstPointIndex, lastPointIndex: pointOffset - 1 }));
+    const next = response.segments[segmentIndex + 1];
+    if (next) gaps.push(Object.freeze({ key: `gap-${segmentIndex}`, from: segment.lastObservedAt, to: next.firstObservedAt, durationSeconds: (Date.parse(next.firstObservedAt) - Date.parse(segment.lastObservedAt)) / 1_000 }));
     if (segmentPoints.length >= 2) lineFeatures.push({
       type: "Feature",
       properties: {},
@@ -46,5 +54,5 @@ export function buildVehicleTrackOverviewPresentation(response: VehicleTrackOver
   const longitudes = points.map((item) => item.point.longitude); const latitudes = points.map((item) => item.point.latitude);
   const bounds: VehicleTrackBounds | null = points.length === 0 ? null : [[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]];
   const lineGeoJson: VehicleTrackLineCollection = { type: "FeatureCollection", features: lineFeatures };
-  return Object.freeze({ points: Object.freeze(points), pointGeoJson, lineGeoJson, bounds, gapCount: response.summary.gapCount, start: points[0] ?? null, end: points.at(-1) ?? null });
+  return Object.freeze({ points: Object.freeze(points), segments: Object.freeze(segments), gaps: Object.freeze(gaps), pointGeoJson, lineGeoJson, bounds, gapCount: response.summary.gapCount, start: points[0] ?? null, end: points.at(-1) ?? null });
 }

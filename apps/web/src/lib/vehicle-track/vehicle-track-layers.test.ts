@@ -7,16 +7,17 @@ import { ensureVehicleTrackLayers, updateVehicleTrackMapData, VEHICLE_TRACK_LAYE
 import { buildVehicleTrackOverviewPresentation } from "./vehicle-track-overview-presentation";
 import { buildVehicleTrackPresentation } from "./vehicle-track-presentation";
 
-test("creates sources/layers once below labels and above geofence, then refreshes via setData", () => {
-  const sources = new Map<string, { setData(value: unknown): void }>(); const layers: Array<{ id: string; type: string }> = [{ id: "basemap-labels", type: "symbol" }]; let setDataCalls = 0; let filterCalls = 0;
+test("creates sources/layers once below labels and above geofence, then refreshes the persistent selection filter", () => {
+  const sources = new Map<string, { setData(value: unknown): void }>(); const layers: Array<{ id: string; type: string }> = [{ id: "basemap-labels", type: "symbol" }]; let setDataCalls = 0; const filters: unknown[] = [];
   const map = {
     getSource: (id: string) => sources.get(id), addSource: (id: string) => { sources.set(id, { setData: () => { setDataCalls += 1; } }); }, getLayer: (id: string) => layers.find((layer) => layer.id === id),
     addLayer: (layer: { id: string; type: string }, before?: string) => { const index = before ? layers.findIndex((item) => item.id === before) : -1; if (index < 0) layers.push({ id: layer.id, type: layer.type }); else layers.splice(index, 0, { id: layer.id, type: layer.type }); },
-    getStyle: () => ({ layers }), setFilter: () => { filterCalls += 1; },
+    getStyle: () => ({ layers }), setFilter: (_id: string, filter: unknown) => { filters.push(filter); },
   } as unknown as MapLibreMap;
   const model = buildVehicleTrackPresentation(trackFixture([trackPoint(), trackPoint("2026-08-10T10:00:01Z")]));
   const overviewModel = buildVehicleTrackOverviewPresentation(overviewTrackFixture([overviewSegment([trackPoint("2026-08-01T00:00:00Z"), trackPoint("2026-08-01T00:20:00Z")], 500)]));
   ensureCityGeofenceLayers(map, null); ensureVehicleTrackLayers(map, model, null); ensureVehicleTrackLayers(map, overviewModel, null); updateVehicleTrackMapData(map, model, "1"); updateVehicleTrackMapData(map, overviewModel, null);
   assert.deepEqual(layers.map((layer) => layer.id), ["city-geofence-fill", "city-geofence-outline", ...VEHICLE_TRACK_LAYER_ORDER, "basemap-labels"]);
-  assert.equal(sources.has(VEHICLE_TRACK_LINE_SOURCE_ID), true); assert.equal(sources.has(VEHICLE_TRACK_POINT_SOURCE_ID), true); assert.equal(sources.size, 3); assert.equal(setDataCalls, 4); assert.equal(filterCalls, 2);
+  assert.equal(sources.has(VEHICLE_TRACK_LINE_SOURCE_ID), true); assert.equal(sources.has(VEHICLE_TRACK_POINT_SOURCE_ID), true); assert.equal(sources.size, 3); assert.equal(setDataCalls, 4); assert.equal(filters.length, 2);
+  assert.deepEqual(filters, [["==", ["get", "key"], "1"], ["==", ["get", "key"], "__none__"]]);
 });

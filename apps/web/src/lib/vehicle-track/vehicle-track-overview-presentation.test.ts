@@ -21,6 +21,7 @@ test("never joins server-owned segments even when their selected timestamps are 
   ], 11);
   const model = buildVehicleTrackOverviewPresentation(response);
   assert.equal(model.lineGeoJson.features.length, 2); assert.equal(model.gapCount, 1);
+  assert.equal(model.segments.length, 2); assert.equal(model.gaps.length, 1); assert.equal(model.gaps[0]!.durationSeconds, 30);
   assert.deepEqual(model.lineGeoJson.features.map((feature) => feature.geometry.coordinates.length), [2, 2]);
   assert.equal(model.start?.point.observedAt, "2026-08-01T00:00:00Z"); assert.equal(model.end?.point.observedAt, "2026-08-01T00:21:00Z");
   assert.deepEqual(model.points.map((point) => point.qualityWarning), [false, false, false, false]);

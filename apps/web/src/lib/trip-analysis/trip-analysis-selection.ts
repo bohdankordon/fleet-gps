@@ -12,5 +12,5 @@ export function selectedStopBoundaryPresentation(selection: TripAnalysisSelectio
   const lineGeoJson: VehicleTrackLineCollection = { type: "FeatureCollection", features: [] };
   const longitudes = points.map((item) => item.point.longitude); const latitudes = points.map((item) => item.point.latitude);
   const bounds: VehicleTrackPresentationModel["bounds"] = [[Math.min(...longitudes), Math.min(...latitudes)], [Math.max(...longitudes), Math.max(...latitudes)]];
-  return Object.freeze({ points: Object.freeze(points), pointGeoJson, lineGeoJson, bounds, gapCount: 0, start: points[0]!, end: points[1]! });
+  return Object.freeze({ points: Object.freeze(points), segments: Object.freeze([]), gaps: Object.freeze([]), pointGeoJson, lineGeoJson, bounds, gapCount: 0, start: points[0]!, end: points[1]! });
 }

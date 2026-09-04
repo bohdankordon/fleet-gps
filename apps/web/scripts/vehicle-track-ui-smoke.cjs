@@ -14,7 +14,8 @@ async function main() {
   let api; let web; let trap; let database; let externalRequests = 0; let result = null;
   config({ path: path.resolve(__dirname, "../../..", ".env"), quiet: true, override: false });
   try {
-    if (!process.env.DATABASE_URL) throw new Error("configuration"); database = new Client({ connectionString: process.env.DATABASE_URL }); await database.connect();
+    const smokeLogin = process.env.VEHICLE_TRACK_SMOKE_LOGIN; const smokePassword = process.env.VEHICLE_TRACK_SMOKE_PASSWORD;
+    if (!process.env.DATABASE_URL || !smokeLogin || !smokePassword) throw new Error("configuration: VEHICLE_TRACK_SMOKE_LOGIN and VEHICLE_TRACK_SMOKE_PASSWORD are required for localhost authentication"); database = new Client({ connectionString: process.env.DATABASE_URL }); await database.connect();
     const candidate = (await database.query(`WITH ordered AS (SELECT vehicle_id, observed_at, valid, outdated, lag(observed_at) OVER (PARTITION BY vehicle_id, date_trunc('day', observed_at) ORDER BY observed_at, fix_fingerprint) AS previous_at FROM vehicle_position_observations), grouped AS (SELECT vehicle_id, date_trunc('day', observed_at) AS day, count(*)::int AS point_count, count(*) FILTER (WHERE previous_at IS NOT NULL AND observed_at - previous_at > interval '5 minutes')::int AS gap_count, count(*) FILTER (WHERE valid = false OR outdated = true)::int AS warning_count FROM ordered GROUP BY vehicle_id, date_trunc('day', observed_at)) SELECT vehicle_id::text, day, point_count, gap_count, warning_count FROM grouped WHERE point_count > 1 ORDER BY (gap_count > 0) DESC, point_count DESC LIMIT 1`)).rows[0];
     if (!candidate?.vehicle_id || !(candidate.day instanceof Date)) throw new Error("multi-point history required");
     const from = candidate.day.toISOString(); const to = new Date(candidate.day.getTime() + 24 * 60 * 60 * 1_000).toISOString(); const query = new URLSearchParams({ from, to }).toString(); const before = await databaseSnapshot(database);
@@ -24,19 +25,46 @@ async function main() {
     const apiPort = await freePort(); const webPort = await freePort(); trap = await startTrap(() => { externalRequests += 1; });
     const apiEnv = { ...process.env, HOST: "127.0.0.1", PORT: String(apiPort), SYNC_SCHEDULER_ENABLED: "false", ALERT_INGESTION_ENABLED: "false", TELEGRAM_NOTIFICATIONS_ENABLED: "false", EQUGPS_BASE_URL: `https://127.0.0.1:${trap.port}/api`, EQUGPS_WEB_BASE_URL: `https://127.0.0.1:${trap.port}`, EQUGPS_EMAIL: "smoke@example.test", EQUGPS_PASSWORD: "smoke-password" };
     api = spawn(process.execPath, [path.resolve(__dirname, "../../api/dist/main.js")], { env: apiEnv, stdio: "ignore" }); await waitFor(`http://127.0.0.1:${apiPort}/api/health`);
+    const loginResponse = await fetch(`http://127.0.0.1:${apiPort}/api/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ login: smokeLogin, password: smokePassword }) });
+    const sessionCookie = loginResponse.headers.get("set-cookie")?.split(";", 1)[0];
+    if (!loginResponse.ok || !sessionCookie?.startsWith("taxi_session=")) throw new Error("localhost authentication failed");
+    const authenticatedFetch = (url) => fetch(url, { headers: { Cookie: sessionCookie } });
     web = spawn(process.execPath, [path.resolve(__dirname, "start-standalone.cjs")], { cwd: path.resolve(__dirname, ".."), env: { ...process.env, HOSTNAME: "127.0.0.1", PORT: String(webPort), API_INTERNAL_BASE_URL: `http://127.0.0.1:${apiPort}` }, stdio: "ignore" }); await waitFor(`http://127.0.0.1:${webPort}/`);
     const trackPath = `/vehicles/${candidate.vehicle_id}/track?${query}`;
-    const nest = await fetch(`http://127.0.0.1:${apiPort}/api/vehicles/${candidate.vehicle_id}/track?${query}`); const nestBody = await nest.json();
-    const bff = await fetch(`http://127.0.0.1:${webPort}/api/vehicles/${candidate.vehicle_id}/track?${query}`); const bffBody = await bff.json();
-    const trackPage = await fetch(`http://127.0.0.1:${webPort}${trackPath}`); const trackHtml = await trackPage.text();
+    const nest = await authenticatedFetch(`http://127.0.0.1:${apiPort}/api/vehicles/${candidate.vehicle_id}/track?${query}`); const nestBody = await nest.json();
+    const bff = await authenticatedFetch(`http://127.0.0.1:${webPort}/api/vehicles/${candidate.vehicle_id}/track?${query}`); const bffBody = await bff.json();
+    const trackPage = await authenticatedFetch(`http://127.0.0.1:${webPort}${trackPath}`); const trackHtml = await trackPage.text();
     const overviewPath = `/vehicles/${candidate.vehicle_id}/track?${overviewQuery}`;
-    const nestOverview = await fetch(`http://127.0.0.1:${apiPort}/api/vehicles/${candidate.vehicle_id}/track/overview?${overviewQuery}`); const nestOverviewBody = await nestOverview.json();
-    const bffOverview = await fetch(`http://127.0.0.1:${webPort}/api/vehicles/${candidate.vehicle_id}/track/overview?${overviewQuery}`); const bffOverviewBody = await bffOverview.json();
-    const overviewPage = await fetch(`http://127.0.0.1:${webPort}${overviewPath}`); const overviewHtml = await overviewPage.text();
-    const details = await fetch(`http://127.0.0.1:${webPort}/vehicles/${candidate.vehicle_id}`); const detailsHtml = await details.text();
-    const statuses = { nestTrack: nest.status, bffTrack: bff.status, trackPage: trackPage.status, nestOverview: nestOverview.status, bffOverview: bffOverview.status, overviewPage: overviewPage.status, details: details.status, map: (await fetch(`http://127.0.0.1:${webPort}/map`)).status, events: (await fetch(`http://127.0.0.1:${webPort}/events`)).status, root: (await fetch(`http://127.0.0.1:${webPort}/`)).status };
+    const nestOverview = await authenticatedFetch(`http://127.0.0.1:${apiPort}/api/vehicles/${candidate.vehicle_id}/track/overview?${overviewQuery}`); const nestOverviewBody = await nestOverview.json();
+    const bffOverview = await authenticatedFetch(`http://127.0.0.1:${webPort}/api/vehicles/${candidate.vehicle_id}/track/overview?${overviewQuery}`); const bffOverviewBody = await bffOverview.json();
+    const overviewPage = await authenticatedFetch(`http://127.0.0.1:${webPort}${overviewPath}`); const overviewHtml = await overviewPage.text();
+    const details = await authenticatedFetch(`http://127.0.0.1:${webPort}/vehicles/${candidate.vehicle_id}`); const detailsHtml = await details.text();
+    const statuses = { nestTrack: nest.status, bffTrack: bff.status, trackPage: trackPage.status, nestOverview: nestOverview.status, bffOverview: bffOverview.status, overviewPage: overviewPage.status, details: details.status, map: (await authenticatedFetch(`http://127.0.0.1:${webPort}/map`)).status, events: (await authenticatedFetch(`http://127.0.0.1:${webPort}/events`)).status, root: (await authenticatedFetch(`http://127.0.0.1:${webPort}/`)).status };
     const after = await databaseSnapshot(database); const pointCount = Number(bffBody?.summary?.pointCount); const gaps = Array.isArray(bffBody?.points) ? bffBody.points.slice(1).filter((point, index) => Date.parse(point.observedAt) - Date.parse(bffBody.points[index].observedAt) > 300_000).length : -1; const warnings = Array.isArray(bffBody?.points) ? bffBody.points.filter((point) => point.valid === false || point.outdated === true).length : -1;
-    if (Object.values(statuses).some((status) => status !== 200) || pointCount < 2 || nestBody?.summary?.pointCount !== pointCount || nestOverviewBody?.summary?.sampled !== true || bffOverviewBody?.summary?.sampled !== true || bffOverviewBody?.summary?.returnedPointCount > 2_000 || !trackHtml.includes("data-vehicle-track-map") || !trackHtml.includes("track-from") || !trackHtml.includes("Europe/Kyiv") || !trackHtml.includes("Точный трек") || !trackHtml.includes("Разрывы не интерполируются") || !overviewHtml.includes("data-vehicle-track-map") || !overviewHtml.includes("Сэмплированный обзор") || !overviewHtml.includes("Сохранено точек") || !overviewHtml.includes("Показано точек") || !overviewHtml.includes("Разрывы рассчитаны по полному набору сохранённых наблюдений") || !detailsHtml.includes("История движения") || JSON.stringify(before.counts) !== JSON.stringify(after.counts) || before.digest !== after.digest || externalRequests !== 0) throw new Error("vehicle track smoke assertion");
+    const assertions = {
+      allStatuses200: Object.values(statuses).every((status) => status === 200),
+      exactHasMultiplePoints: pointCount >= 2,
+      exactApiAndBffAgree: nestBody?.summary?.pointCount === pointCount,
+      nestOverviewIsSampled: nestOverviewBody?.summary?.sampled === true,
+      bffOverviewIsSampled: bffOverviewBody?.summary?.sampled === true,
+      overviewRespectsPointLimit: bffOverviewBody?.summary?.returnedPointCount <= 2_000,
+      exactPageHasMap: trackHtml.includes("data-vehicle-track-map"),
+      exactPageHasCustomRange: trackHtml.includes("vehicle-track-custom-range"),
+      exactPageHasNoTemporalProfile: !trackHtml.includes("data-vehicle-track-echarts"),
+      exactPageHasNoPermanentInspector: !trackHtml.includes("vehicle-track__observation--empty"),
+      exactPageHasTimezone: trackHtml.includes("Europe/Kyiv"),
+      exactPageHasMode: trackHtml.includes("Точный трек"),
+      overviewPageHasMap: overviewHtml.includes("data-vehicle-track-map"),
+      overviewPageHasMode: overviewHtml.includes("Сэмплированный обзор"),
+      overviewPageHasSummary: overviewHtml.includes("vehicle-track__summary"),
+      overviewPageHasNoTemporalProfile: !overviewHtml.includes("data-vehicle-track-echarts"),
+      detailsPageHasHistoryTab: detailsHtml.includes("История движения"),
+      databaseCountsUnchanged: JSON.stringify(before.counts) === JSON.stringify(after.counts),
+      databaseDigestUnchanged: before.digest === after.digest,
+      noExternalProviderRequests: externalRequests === 0,
+    };
+    const failedAssertions = Object.entries(assertions).filter(([, passed]) => !passed).map(([name]) => name);
+    if (failedAssertions.length > 0) throw new Error(`vehicle track smoke assertion: ${failedAssertions.join(", ")}; statuses=${JSON.stringify(statuses)}`);
     result = { statuses, exactRange: { pointCount, gapCount: gaps, qualityWarningCount: warnings }, overviewRange: { rawPointCount: bffOverviewBody.summary.rawPointCount, returnedPointCount: bffOverviewBody.summary.returnedPointCount, segmentCount: bffOverviewBody.summary.segmentCount, gapCount: bffOverviewBody.summary.gapCount, qualityWarningCount: bffOverviewBody.summary.qualityWarningCount, sampled: bffOverviewBody.summary.sampled }, databaseBefore: before.counts, databaseAfter: after.counts, databaseDigestsUnchanged: true, network: { eQuGPS: externalRequests, telegram: 0, provider: externalRequests, openFreeMap: 0, unexpected: externalRequests }, localPaths: { exact: trackPath, overview: overviewPath } };
   } finally { await stop(web); await stop(api); await close(trap?.server); if (database) await database.end(); console.log(JSON.stringify(result)); }
 }
