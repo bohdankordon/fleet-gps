@@ -62,7 +62,7 @@ The human-accepted Fleet screen is the canonical visual reference for subsequent
 1. Ant Design native foundation and Fleet are human accepted and complete.
 2. The deterministic Fleet GPS header and in-page Administration Tabs are human accepted and complete.
 3. Map is human accepted and complete.
-4. Vehicle Detail Overview, the shared vehicle-family shell, and Trips are human accepted and complete; Movement History is implemented and awaits human acceptance.
+4. Vehicle Detail Overview, the shared vehicle-family shell, Trips, and Movement History are human accepted and complete.
 
 ## Map workspace
 
