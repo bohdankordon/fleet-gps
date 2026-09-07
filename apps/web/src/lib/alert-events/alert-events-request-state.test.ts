@@ -18,7 +18,7 @@ test("filter change invalidates the old cursor and failed new first page cannot 
   const changed = beginAlertEventsFirstPage(initialAlertEventsListState(alertEventsListFixture, {}), { status: "OPEN" });
   assert.equal(changed.paginationValid, false); assert.equal(canLoadMoreAlertEvents(changed), false);
   const failed = failAlertEventsFirstPage(changed);
-  assert.equal(failed.data.nextCursor, "opaque-next-cursor"); assert.equal(failed.paginationValid, false); assert.equal(canLoadMoreAlertEvents(failed), false);
+  assert.equal(failed.data.nextCursor, null); assert.deepEqual(failed.data.items, []); assert.equal(failed.paginationValid, false); assert.equal(canLoadMoreAlertEvents(failed), false);
 });
 
 test("refresh failure for the same filters preserves successful rows and cursor", () => {
@@ -29,4 +29,18 @@ test("refresh failure for the same filters preserves successful rows and cursor"
 test("stale request generations cannot replace a newer first-page result", () => {
   const newer = succeedAlertEventsFirstPage(initialAlertEventsListState(alertEventsListFixture, {}), { type: "INACTIVITY" }, { items: [], nextCursor: null });
   assert.equal(isCurrentAlertEventsGeneration(4, 5), false); assert.equal(isCurrentAlertEventsGeneration(5, 5), true); assert.equal(newer.filters.type, "INACTIVITY");
+});
+
+test("every context change clears old rows immediately, while same-context refresh keeps them", () => {
+  const initial = initialAlertEventsListState(alertEventsListFixture, { status: "OPEN" });
+  for (const filters of [{ status: "RESOLVED" as const }, { status: "OPEN" as const, vehicleId: "vehicle" }, { status: "OPEN" as const, type: "INACTIVITY" as const }, { status: "OPEN" as const, from: "2026-08-01" }]) {
+    const loading = beginAlertEventsFirstPage(initial, filters); assert.deepEqual(loading.data, { items: [], nextCursor: null }); assert.equal(loading.loading, true);
+  }
+  assert.equal(beginAlertEventsFirstPage(initial, initial.filters).data, initial.data);
+});
+test("load-more appends without duplicate IDs within or across pages and errors keep all rows", () => {
+  const initial = initialAlertEventsListState(alertEventsListFixture, {}); const extra = { ...alertEventsListFixture.items[0], id: "new" };
+  const appended = succeedAlertEventsLoadMore(beginAlertEventsLoadMore(initial), { items: [alertEventsListFixture.items[0], extra, extra], nextCursor: "next" });
+  assert.equal(appended.data.items.length, 2); assert.equal(appended.data.nextCursor, "next");
+  assert.deepEqual(failAlertEventsLoadMore(appended).data, appended.data);
 });

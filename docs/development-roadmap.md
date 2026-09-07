@@ -141,6 +141,18 @@ unchanged. The temporal-profile experiment is **PARKED** on
 `experiment/history-echarts-timeline` for possible future review and is not part of the
 human-accepted implementation.
 
+## IMPLEMENTED — HUMAN ACCEPTANCE PENDING — Events
+
+Events now implements the approved read-only operational Inbox + History direction:
+Active by default without an age cutoff; History with opening-time period filtering;
+a compact global OPEN strip; a selectable chronology with contextual detail and a
+mobile Drawer. Vehicle options belong to Events permissions, and investigation
+navigation respects existing destination permissions. Legacy Telegram delivery is
+removed from Events UI. There is no embedded Event map, acknowledgement, severity,
+assignment or manual resolution. Backend scope is limited to the approved read-query
+and read-model extensions, with no migration or business-rule changes. Human visual
+acceptance remains required.
+
 ## LATER — Final production hardening
 
 - Remove the temporary passwordless sudo configuration that remains intentionally available for continued development and operations.

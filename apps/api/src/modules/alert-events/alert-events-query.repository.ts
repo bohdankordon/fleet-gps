@@ -21,6 +21,7 @@ export type StoredAlertEventProjectionRow = Readonly<{
 }>;
 
 export type StoredAlertEventReadRow = StoredAlertEventProjectionRow & Readonly<{
+  lastObservedAt: Date;
   vehicle: Readonly<{ id: string; name: string }>;
 }>;
 
@@ -48,6 +49,7 @@ export type StoredOpenAlertMapSnapshot = Readonly<{
 }>;
 
 export interface AlertEventsQueryRepository {
+  getVehicleOptions(): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]>;
   list(params: AlertEventsQueryParams): Promise<StoredAlertEventsPage>;
   getOpenSummary(): Promise<StoredOpenAlertEventsSummary>;
   getOpenMapSnapshot(): Promise<StoredOpenAlertMapSnapshot>;

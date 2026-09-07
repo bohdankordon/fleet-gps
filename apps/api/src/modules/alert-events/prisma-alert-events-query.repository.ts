@@ -9,6 +9,7 @@ const alertEventReadSelect = {
   type: true,
   status: true,
   confirmedAt: true,
+  lastObservedAt: true,
   resolvedAt: true,
   speedZone: true,
   confirmationSpeedKph: true,
@@ -38,6 +39,9 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
         ...(params.status === undefined ? {} : { status: params.status }),
         ...(params.type === undefined ? {} : { type: params.type }),
         ...(params.vehicleId === undefined ? {} : { vehicleId: params.vehicleId }),
+        ...(params.from === undefined && params.to === undefined ? {} : {
+          confirmedAt: { ...(params.from ? { gte: params.from } : {}), ...(params.to ? { lt: params.to } : {}) },
+        }),
         ...(params.cursor === undefined ? {} : {
           OR: [
             { confirmedAt: { lt: params.cursor.openedAt } },
@@ -65,6 +69,15 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
       else if (group.type === AlertEventType.INACTIVITY) inactivity = group._count._all;
     }
     return Object.freeze({ speeding, inactivity });
+  }
+
+  public async getVehicleOptions(): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]> {
+    const vehicles = await this.database.getClient().vehicle.findMany({
+      where: { alertEvents: { some: {} } },
+      select: { id: true, name: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    });
+    return vehicles.map((vehicle) => ({ vehicleId: vehicle.id, vehicleName: vehicle.name }));
   }
 
   public async getOpenMapSnapshot(): Promise<StoredOpenAlertMapSnapshot> {

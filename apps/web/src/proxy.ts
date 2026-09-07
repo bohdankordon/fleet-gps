@@ -5,7 +5,7 @@ import { parseWebConfig } from "@/lib/web-config";
 function requiredPermission(path: string): readonly AuthPermission[] | null {
   if (path === "/" || path.startsWith("/api/dashboard/") || path === "/api/system/sync-status") return ["fleet.view"];
   if (path === "/map" || path === "/api/fleet/map") return ["map.view"];
-  if (path === "/events" || path === "/api/alert-events" || path === "/api/alert-events/summary") return ["events.view"];
+  if (path === "/events" || path === "/api/alert-events" || path === "/api/alert-events/summary" || path === "/api/alert-events/vehicles") return ["events.view"];
   if (path === "/api/alert-events/map") return ["map.view", "events.view"];
   if (path === "/api/city-geofence/map") return ["map.view", "trips.view"];
   if (path === "/reports" || path === "/api/reports/fleet-activity") return ["reports.view"];

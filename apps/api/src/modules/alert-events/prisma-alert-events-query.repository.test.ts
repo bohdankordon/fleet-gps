@@ -31,7 +31,7 @@ test("uses bounded newest-first deterministic pagination and selects only the re
   const query = args as { orderBy: unknown; take: number; select: Record<string, unknown>; where: unknown };
   assert.deepEqual(query.orderBy, [{ confirmedAt: "desc" }, { id: "desc" }]); assert.equal(query.take, 3); assert.deepEqual(query.where, {});
   assert.equal(query.select, alertEventsReadSelectForTests);
-  for (const forbidden of ["externalDeviceId", "latitude", "longitude", "dedupeKey", "activeKey", "lastObservedAt", "createdAt", "updatedAt", "confirmations", "lockToken", "lastErrorCode", "attemptCount"]) assert.equal(forbidden in query.select, false, forbidden);
+  for (const forbidden of ["externalDeviceId", "latitude", "longitude", "dedupeKey", "activeKey", "createdAt", "updatedAt", "confirmations", "lockToken", "lastErrorCode", "attemptCount"]) assert.equal(forbidden in query.select, false, forbidden);
   assert.deepEqual(query.select.notificationOutbox, { where: { kind: "ALERT_CONFIRMED" }, take: 1, select: { status: true } });
 });
 
@@ -98,4 +98,26 @@ test("OPEN map includes alerts regardless of whether the related vehicle has Cur
   const row = { type: AlertEventType.INACTIVITY, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "No position" } };
   const client = { alertEvent: { findMany: async () => [row] } } as unknown as PrismaClient;
   assert.deepEqual(await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getOpenMapSnapshot(), { rows: [row], exceededLimit: false });
+});
+
+
+test("opening range is inclusive/exclusive and composes with status, type, vehicle and strict keyset", async () => {
+  const queries: { where: Record<string, unknown>; orderBy: unknown; take: number }[] = [];
+  const client = { alertEvent: { findMany: async (args: typeof queries[number]) => { queries.push(args); return []; } } } as unknown as PrismaClient;
+  const repository = new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService);
+  const from = new Date("2026-08-01T00:00:00Z"); const to = new Date("2026-09-01T00:00:00Z"); const cursor = { openedAt: AT, id: VEHICLE_ID };
+  await repository.list({ ...baseParams, from }); await repository.list({ ...baseParams, to });
+  await repository.list({ ...baseParams, from, to, status: "RESOLVED", type: "INACTIVITY", vehicleId: VEHICLE_ID, cursor });
+  assert.deepEqual(queries[0]?.where, { confirmedAt: { gte: from } });
+  assert.deepEqual(queries[1]?.where, { confirmedAt: { lt: to } });
+  assert.deepEqual(queries[2]?.where, { confirmedAt: { gte: from, lt: to }, status: "RESOLVED", type: "INACTIVITY", vehicleId: VEHICLE_ID, OR: [{ confirmedAt: { lt: AT } }, { confirmedAt: AT, id: { lt: VEHICLE_ID } }] });
+  assert.deepEqual(queries[2]?.orderBy, [{ confirmedAt: "desc" }, { id: "desc" }]); assert.equal(queries[2]?.take, 3);
+  assert.equal(alertEventsReadSelectForTests.lastObservedAt, true);
+});
+test("vehicle options use only vehicles represented in Events and select identity without writes", async () => {
+  let query: unknown;
+  const client = { vehicle: { findMany: async (args: unknown) => { query = args; return [{ id: VEHICLE_ID, name: "DEMO" }]; } } } as unknown as PrismaClient;
+  const result = await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getVehicleOptions();
+  assert.deepEqual(query, { where: { alertEvents: { some: {} } }, select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }] });
+  assert.deepEqual(result, [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO" }]);
 });

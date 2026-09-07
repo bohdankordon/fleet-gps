@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "node scripts/clean-output.cjs .test-dist && tsc -p tsconfig.test.json && node scripts/run-tests.cjs && node --test scripts/prepare-standalone.test.cjs",
+    "events:smoke": "node scripts/events-workspace-smoke.cjs",
     "dashboard:smoke": "npm run standalone:build && node scripts/dashboard-ui-smoke.cjs",
     "open-alert-map:smoke": "npm run standalone:build && node scripts/open-alert-map-ui-smoke.cjs",
     "vehicle-track:smoke": "npm run standalone:build && node scripts/vehicle-track-ui-smoke.cjs",

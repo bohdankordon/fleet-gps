@@ -36,3 +36,18 @@ test("rejects invalid enum, UUID, array, and cursor query values", () => {
   ];
   for (const query of badQueries) assert.throws(() => parseAlertEventsQueryParams(query), AlertEventsQueryParamsError);
 });
+
+
+test("opening ranges parse offset timestamps, one-sided bounds and no arbitrary retention limit", () => {
+  const from = "2026-08-01T03:00:00+03:00"; const to = "2026-09-01T00:00:00Z";
+  assert.equal(parseAlertEventsQueryParams({ from }).from?.toISOString(), "2026-08-01T00:00:00.000Z");
+  assert.equal(parseAlertEventsQueryParams({ to }).to?.toISOString(), "2026-09-01T00:00:00.000Z");
+  const range = parseAlertEventsQueryParams({ from, to }); assert.ok(range.from! < range.to!);
+});
+test("opening ranges reject malformed, calendar-invalid, ambiguous absolute and reversed values", () => {
+  for (const value of ["bad", "2026-02-30T00:00:00Z", "2026-08-01T00:00:00", "2026-08-01T00:00:00+14:01", ["2026-08-01T00:00:00Z"]]) {
+    assert.throws(() => parseAlertEventsQueryParams({ from: value }), AlertEventsQueryParamsError);
+    assert.throws(() => parseAlertEventsQueryParams({ to: value }), AlertEventsQueryParamsError);
+  }
+  for (const to of ["2026-08-01T00:00:00Z", "2026-07-01T00:00:00Z"]) assert.throws(() => parseAlertEventsQueryParams({ from: "2026-08-01T00:00:00Z", to }), AlertEventsQueryParamsError);
+});

@@ -1,4 +1,5 @@
 import type { AlertEventStatus, AlertEventType } from "./alert-events.types";
+import { parseAbsoluteTimestamp } from "../vehicle-track/vehicle-track-query-params";
 
 export const DEFAULT_ALERT_EVENTS_PAGE_SIZE = 50;
 export const MAX_ALERT_EVENTS_PAGE_SIZE = 100;
@@ -8,6 +9,8 @@ export type AlertEventsQueryParams = Readonly<{
   status: AlertEventStatus | undefined;
   type: AlertEventType | undefined;
   vehicleId: string | undefined;
+  from?: Date;
+  to?: Date;
   limit: number;
   cursor: AlertEventsCursor | undefined;
 }>;
@@ -66,5 +69,8 @@ export function parseAlertEventsQueryParams(query: Readonly<Record<string, unkno
   if (type !== undefined && type !== "SPEEDING" && type !== "INACTIVITY") throw new AlertEventsQueryParamsError();
   const vehicleId = optionalString(query.vehicleId);
   if (vehicleId !== undefined && !UUID.test(vehicleId)) throw new AlertEventsQueryParamsError();
-  return Object.freeze({ status, type, vehicleId, limit: parseLimit(query.limit), cursor: parseCursor(query.cursor) });
+  const from = query.from === undefined ? undefined : parseAbsoluteTimestamp(query.from);
+  const to = query.to === undefined ? undefined : parseAbsoluteTimestamp(query.to);
+  if (from === null || to === null || (from && to && from >= to)) throw new AlertEventsQueryParamsError();
+  return Object.freeze({ status, type, vehicleId, ...(from ? { from } : {}), ...(to ? { to } : {}), limit: parseLimit(query.limit), cursor: parseCursor(query.cursor) });
 }

@@ -16,3 +16,11 @@ test("alert-events BFF returns safe 400, 502, and 503 responses", async () => {
   const malformed = await createAlertEventsRouteHandler(async () => { throw new AlertEventsContractError(); })(new Request("http://localhost/")); assert.equal(malformed.status, 502);
   const unavailable = await createAlertEventsRouteHandler(async () => { throw new AlertEventsBackendUnavailableError(); })(new Request("http://localhost/")); assert.equal(unavailable.status, 503); assert.equal((await unavailable.text()).includes("http"), false);
 });
+
+test("vehicle and opening range are validated then forwarded without UI state", async () => {
+  let query: unknown; const handler = createAlertEventsRouteHandler(async (value) => { query = value; return alertEventsListFixture; });
+  const vehicleId = "00000000-0000-4000-8000-000000000002";
+  const response = await handler(new Request(`http://localhost/api/alert-events?status=RESOLVED&vehicleId=${vehicleId}&from=2026-08-01T00:00:00Z&to=2026-09-01T00:00:00Z`));
+  assert.equal(response.status, 200); assert.deepEqual(query, { status: "RESOLVED", type: undefined, vehicleId, from: "2026-08-01T00:00:00.000Z", to: "2026-09-01T00:00:00.000Z", limit: 25, cursor: undefined });
+  for (const query of ["vehicleId=private-provider-id", "from=bad", "to=2026-02-30T00:00:00Z", "from=2026-09-01T00:00:00Z&to=2026-08-01T00:00:00Z"]) assert.equal((await handler(new Request(`http://localhost/?${query}`))).status, 400);
+});

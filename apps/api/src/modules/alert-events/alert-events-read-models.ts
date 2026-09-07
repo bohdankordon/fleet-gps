@@ -19,6 +19,7 @@ export type InactivityAlertDetails = Readonly<{
 type AlertEventReadModelBase = Readonly<{
   id: string;
   vehicle: Readonly<{ id: string; name: string }>;
+  lastObservedAt: string;
   status: "OPEN" | "RESOLVED";
   openedAt: string;
   resolvedAt: string | null;

@@ -134,8 +134,8 @@ test("observable shared projections align with fleet-map and alert-events list b
   const details = await subject(snapshot({ recentEvents: [speedingEvent({ notificationOutbox: [{ status: AlertNotificationStatus.FAILED }] })] })).getDetails(VEHICLE_ID);
   const fleet = await new FleetMapQueryService({ getSnapshot: async () => ({ positionFreshnessSeconds: 300, vehicles: [{ id: VEHICLE_ID, name: "Taxi 7", currentState: CURRENT }] }) }, { now: () => NOW }).getSnapshot();
   assert.deepEqual(details.currentState, { position: fleet.vehicles[0]?.position, speedKph: fleet.vehicles[0]?.speedKph, freshness: fleet.vehicles[0]?.freshness });
-  const alertRow = { ...speedingEvent({ notificationOutbox: [{ status: AlertNotificationStatus.FAILED }] }), vehicle: { id: VEHICLE_ID, name: "Taxi 7" } };
-  const events = await new AlertEventsQueryService({ list: async () => ({ rows: [alertRow], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }) }, { now: () => NOW }).list({ status: undefined, type: undefined, vehicleId: VEHICLE_ID, limit: 10, cursor: undefined });
-  const { vehicle: _vehicle, ...scoped } = events.items[0]!;
+  const alertRow = { lastObservedAt: NOW, ...speedingEvent({ notificationOutbox: [{ status: AlertNotificationStatus.FAILED }] }), vehicle: { id: VEHICLE_ID, name: "Taxi 7" } };
+  const events = await new AlertEventsQueryService({ getVehicleOptions: async () => [], list: async () => ({ rows: [alertRow], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }) }, { now: () => NOW }).list({ status: undefined, type: undefined, vehicleId: VEHICLE_ID, limit: 10, cursor: undefined });
+  const { vehicle: _vehicle, lastObservedAt: _lastObservedAt, ...scoped } = events.items[0]!;
   assert.deepEqual(details.recentEvents[0], scoped);
 });

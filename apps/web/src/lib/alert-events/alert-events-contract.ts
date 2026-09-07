@@ -25,6 +25,7 @@ const commonAlertEventSchema = z.object({
   vehicle: z.object({ id: z.string().uuid(), name: z.string() }).strict(),
   status: z.enum(["OPEN", "RESOLVED"]),
   openedAt: isoTimestamp,
+  lastObservedAt: isoTimestamp,
   resolvedAt: isoTimestamp.nullable(),
   notificationDeliveryStatus: z.enum(["NONE", "PENDING", "SENT", "FAILED"]),
 }).strict();
@@ -43,3 +44,7 @@ export type AlertEventsSummaryResponse = z.infer<typeof alertEventsSummaryRespon
 export class AlertEventsContractError extends Error { public constructor() { super("Invalid alert-events response."); this.name = "AlertEventsContractError"; } }
 export function parseAlertEventsListResponse(value: unknown): AlertEventsListResponse { const parsed = alertEventsListResponseSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }
 export function parseAlertEventsSummaryResponse(value: unknown): AlertEventsSummaryResponse { const parsed = alertEventsSummaryResponseSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }
+
+export const alertEventsVehicleOptionsSchema = z.array(z.object({ vehicleId: z.string().uuid(), vehicleName: z.string() }).strict());
+export type AlertEventsVehicleOptions = z.infer<typeof alertEventsVehicleOptionsSchema>;
+export function parseAlertEventsVehicleOptions(value: unknown): AlertEventsVehicleOptions { const parsed = alertEventsVehicleOptionsSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }

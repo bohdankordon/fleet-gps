@@ -1,12 +1,7 @@
 "use client";
-
+import { Alert, Button, Typography } from "antd";
 import { useI18n } from "../i18n/client";
-import { Button, ErrorState, PageHeader } from "./ui";
-
 export function InitialEventsError() {
   const { t } = useI18n();
-  return <div className="events-page">
-    <PageHeader className="events-page-header" eyebrow={t("events.eyebrow")} title={t("events.title")} description={t("events.initialDescription")} />
-    <ErrorState title={t("events.loadError")} action={<Button onClick={() => window.location.reload()}>{t("common.retry")}</Button>}>{t("dashboard.initialErrorText")}</ErrorState>
-  </div>;
+  return <div className="events-page"><Typography.Title level={2}>{t("events.title")}</Typography.Title><Typography.Text type="secondary">{t("events.description")}</Typography.Text><Alert type="error" showIcon title={t("events.loadError")} action={<Button href="/events">{t("common.retry")}</Button>} /></div>;
 }

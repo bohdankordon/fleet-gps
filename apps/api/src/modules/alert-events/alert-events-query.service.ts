@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AlertEventType } from "../../generated/prisma/client";
-import { projectOpenAlert, projectScopedAlertEvent } from "./alert-event-read.projection";
+import { projectAlertEventTimestamp, projectOpenAlert, projectScopedAlertEvent } from "./alert-event-read.projection";
 import type { AlertEventReadModel, AlertEventsListResponse, AlertEventsSummaryResponse, OpenAlertMapAlert, OpenAlertMapResponse, OpenAlertMapVehicle } from "./alert-events-read-models";
 import { encodeAlertEventsCursor, type AlertEventsQueryParams } from "./alert-events-query-params";
 import type { AlertEventsQueryRepository, StoredAlertEventReadRow, StoredOpenAlertMapRow } from "./alert-events-query.repository";
@@ -24,6 +24,7 @@ function toReadModel(row: StoredAlertEventReadRow): AlertEventReadModel {
     type: scoped.type,
     status: scoped.status,
     openedAt: scoped.openedAt,
+    lastObservedAt: projectAlertEventTimestamp(row.lastObservedAt),
     resolvedAt: scoped.resolvedAt,
     notificationDeliveryStatus: scoped.notificationDeliveryStatus,
     details: scoped.details,
@@ -48,6 +49,12 @@ export class AlertEventsQueryService {
   public async getSummary(): Promise<AlertEventsSummaryResponse> {
     const summary = await this.repository.getOpenSummary();
     return Object.freeze({ open: Object.freeze({ total: summary.speeding + summary.inactivity, speeding: summary.speeding, inactivity: summary.inactivity }) });
+  }
+
+  public async getVehicleOptions(): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]> {
+    const options = await this.repository.getVehicleOptions();
+    return options.map(({ vehicleId, vehicleName }) => ({ vehicleId, vehicleName }))
+      .sort((a, b) => a.vehicleName.localeCompare(b.vehicleName, "uk", { numeric: true }) || a.vehicleId.localeCompare(b.vehicleId));
   }
 
   public async getOpenMap(): Promise<OpenAlertMapResponse> {

@@ -81,3 +81,25 @@ Trips follows one analytical flow: Period Trigger → Unified Summary → Analys
 Movement History follows Period Context → Unified Summary → large Map → contextual selected-observation details. It is intentionally Map-first: real represented observations remain selectable on the Map, the route stops at every factual gap, and the inspector appears only for the selected observation. Exact mode uses returned full-data observations; sampled mode uses only returned overview observations and backend-authoritative segment/gap information. Neither mode introduces road geometry, hidden sampled observations, interpolation, geocoding, or any other inferred position.
 
 This Map-first direction is human accepted. The temporal-profile experiment is intentionally parked and is not part of the accepted screen. Its complete Apache ECharts implementation is preserved on `experiment/history-echarts-timeline`; future timeline work should review that branch rather than rebuilding the experiment blindly.
+
+
+## Events investigation workspace
+
+**IMPLEMENTED — HUMAN ACCEPTANCE PENDING.** Events is a read-only operational
+Events Inbox + History for automatic OPEN → RESOLVED detector episodes. Active is
+the default and has no age cutoff. History defaults to seven days and filters the
+opening/confirmation timestamp in Europe/Kyiv, with 24-hour, 7-day, 30-day and
+validated custom periods. The compact open heading and fleet-global OPEN metric
+strip lead into contextual filters and a 44/56 chronology/detail workspace;
+selection opens the same detail in an Ant Design Drawer below 992px.
+
+Stored lifecycle and SPEEDING/INACTIVITY evidence support permission-aware vehicle,
+movement-history, trips and **current-position** navigation. The navigation window
+is a deterministic opening −30/+90 minutes, capped at now, not an episode duration.
+No embedded Event map or event-origin claim is permitted without factual location.
+Legacy Telegram delivery is removed from this screen; compatible delivery contracts
+and the accepted Vehicle Overview remain unchanged. No acknowledgement, severity,
+assignment or manual resolution is invented. The specifically approved read API
+additions are opening-range filtering, public `lastObservedAt`, vehicle filtering
+through the BFF, and identity-only Events-owned vehicle options under `events.view`.
+No schema, detector, lifecycle or dispatch changes.

@@ -8,6 +8,13 @@ import { RequireAnyPermission } from "../auth/auth.decorators";
 export class AlertEventsController {
   public constructor(private readonly query: AlertEventsQueryService) {}
 
+  @Get("vehicles")
+  @RequireAnyPermission("events.view")
+  public async getVehicleOptions(): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]> {
+    try { return await this.query.getVehicleOptions(); }
+    catch { throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500); }
+  }
+
   @Get("summary")
   @RequireAnyPermission("events.view")
   public async getSummary(): Promise<AlertEventsSummaryResponse> {

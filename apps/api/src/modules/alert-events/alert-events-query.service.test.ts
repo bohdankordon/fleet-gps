@@ -12,7 +12,7 @@ const params: AlertEventsQueryParams = { status: undefined, type: undefined, veh
 
 function row(overrides: Partial<StoredAlertEventReadRow> = {}): StoredAlertEventReadRow {
   return {
-    id: EVENT_ID, type: AlertEventType.SPEEDING, status: AlertEventStatus.OPEN, confirmedAt: AT, resolvedAt: null,
+    id: EVENT_ID, type: AlertEventType.SPEEDING, status: AlertEventStatus.OPEN, confirmedAt: AT, lastObservedAt: AT, resolvedAt: null,
     speedZone: AlertEventSpeedZone.CITY, confirmationSpeedKph: 72, lastSpeedKph: 75, peakSpeedKph: 81, speedThresholdKph: 60,
     confirmationTraveledDistanceMeters: null, lastTraveledDistanceMeters: null, minimumTraveledDistanceMeters: null, distanceThresholdMeters: null, durationThresholdMinutes: null,
     vehicle: { id: VEHICLE_ID, name: "Taxi 7" }, notificationOutbox: [], ...overrides,
@@ -22,6 +22,7 @@ function row(overrides: Partial<StoredAlertEventReadRow> = {}): StoredAlertEvent
 function service(rows: readonly StoredAlertEventReadRow[], hasMore = false, summary = { speeding: 0, inactivity: 0 }, mapRows: readonly StoredOpenAlertMapRow[] = [], exceededLimit = false): { subject: AlertEventsQueryService; calls: { lists: number; summaries: number; maps: number } } {
   const calls = { lists: 0, summaries: 0, maps: 0 };
   const repository: AlertEventsQueryRepository = {
+    getVehicleOptions: async () => [],
     list: async () => { calls.lists += 1; return { rows, hasMore }; },
     getOpenSummary: async () => { calls.summaries += 1; return summary; },
     getOpenMapSnapshot: async () => { calls.maps += 1; return { rows: mapRows, exceededLimit }; },
@@ -42,8 +43,8 @@ test("maps persisted SPEEDING and INACTIVITY snapshots without current settings"
     confirmationTraveledDistanceMeters: 12, lastTraveledDistanceMeters: 350, minimumTraveledDistanceMeters: 8, distanceThresholdMeters: 300, durationThresholdMinutes: 60,
   });
   const response = await service([row(), inactivity]).subject.list(params);
-  assert.deepEqual(response.items[0], { id: EVENT_ID, vehicle: { id: VEHICLE_ID, name: "Taxi 7" }, type: "SPEEDING", status: "OPEN", openedAt: AT.toISOString(), resolvedAt: null, notificationDeliveryStatus: "NONE", details: { zone: "CITY", confirmationSpeedKph: 72, lastSpeedKph: 75, peakSpeedKph: 81, thresholdKph: 60 } });
-  assert.deepEqual(response.items[1], { id: inactivity.id, vehicle: { id: VEHICLE_ID, name: "Taxi 7" }, type: "INACTIVITY", status: "RESOLVED", openedAt: AT.toISOString(), resolvedAt: "2026-08-08T11:00:00.000Z", notificationDeliveryStatus: "NONE", details: { confirmationDistanceMeters: 12, lastDistanceMeters: 350, minimumDistanceMeters: 8, distanceThresholdMeters: 300, durationThresholdMinutes: 60 } });
+  assert.deepEqual(response.items[0], { id: EVENT_ID, vehicle: { id: VEHICLE_ID, name: "Taxi 7" }, type: "SPEEDING", status: "OPEN", openedAt: AT.toISOString(), lastObservedAt: AT.toISOString(), resolvedAt: null, notificationDeliveryStatus: "NONE", details: { zone: "CITY", confirmationSpeedKph: 72, lastSpeedKph: 75, peakSpeedKph: 81, thresholdKph: 60 } });
+  assert.deepEqual(response.items[1], { id: inactivity.id, vehicle: { id: VEHICLE_ID, name: "Taxi 7" }, type: "INACTIVITY", status: "RESOLVED", openedAt: AT.toISOString(), lastObservedAt: AT.toISOString(), resolvedAt: "2026-08-08T11:00:00.000Z", notificationDeliveryStatus: "NONE", details: { confirmationDistanceMeters: 12, lastDistanceMeters: 350, minimumDistanceMeters: 8, distanceThresholdMeters: 300, durationThresholdMinutes: 60 } });
 });
 
 test("maps PENDING and internal SENDING to the stable PENDING delivery state", async () => {
@@ -126,6 +127,17 @@ test("rejects over-limit, duplicate same-type OPEN state, invalid persisted time
   await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [], true).subject.getOpenMap());
   await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [duplicate, duplicate]).subject.getOpenMap());
   await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [{ ...duplicate, confirmedAt: new Date(Number.NaN) }]).subject.getOpenMap());
-  const repository = { list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }) };
+  const repository = { getVehicleOptions: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }) };
   await assert.rejects(new AlertEventsQueryService(repository, { now: () => new Date(Number.NaN) }).getOpenMap());
+});
+
+
+test("lastObservedAt is the stored factual timestamp and malformed persisted values fail safely", async () => {
+  const lastObservedAt = new Date("2026-08-08T10:21:00Z");
+  assert.equal((await service([row({ lastObservedAt })]).subject.list(params)).items[0]?.lastObservedAt, lastObservedAt.toISOString());
+  await assert.rejects(service([row({ lastObservedAt: new Date(NaN) })]).subject.list(params));
+});
+test("vehicle options are locale ordered and project safe fields even when repository has extras", async () => {
+  const repository: AlertEventsQueryRepository = { list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }), getVehicleOptions: async () => [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", providerId: "secret" }, { vehicleId: EVENT_ID, vehicleName: "DEMO 2", providerId: "secret" }] };
+  assert.deepEqual(await new AlertEventsQueryService(repository).getVehicleOptions(), [{ vehicleId: EVENT_ID, vehicleName: "DEMO 2" }, { vehicleId: VEHICLE_ID, vehicleName: "DEMO 10" }]);
 });

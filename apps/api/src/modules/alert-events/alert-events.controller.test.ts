@@ -26,3 +26,12 @@ test("controller returns deterministic safe 400 and 500 payloads", async () => {
   await assert.rejects(controller.getSummary(), (error: unknown) => error instanceof HttpException && error.getStatus() === 500 && !JSON.stringify(error.getResponse()).includes(secret));
   await assert.rejects(controller.getOpenMap(), (error: unknown) => error instanceof HttpException && error.getStatus() === 500 && !JSON.stringify(error.getResponse()).includes(secret));
 });
+
+
+test("vehicle options require events.view and fail with a safe response", async () => {
+  assert.deepEqual(Reflect.getMetadata("auth:permissions", AlertEventsController.prototype.getVehicleOptions), ["events.view"]);
+  const controller = new AlertEventsController({ getVehicleOptions: async () => [{ vehicleId: "00000000-0000-4000-8000-000000000001", vehicleName: "DEMO" }] } as unknown as AlertEventsQueryService);
+  assert.equal((await controller.getVehicleOptions())[0]?.vehicleName, "DEMO");
+  const failed = new AlertEventsController({ getVehicleOptions: async () => { throw new Error("secret"); } } as unknown as AlertEventsQueryService);
+  await assert.rejects(failed.getVehicleOptions(), (error: unknown) => error instanceof HttpException && error.getStatus() === 500 && !JSON.stringify(error.getResponse()).includes("secret"));
+});
