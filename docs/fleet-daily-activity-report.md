@@ -1,29 +1,57 @@
 # Fleet daily activity report
 
-Stage 15C adds the global **Отчёты** destination at `/reports`. It contains one read-only report: daily fleet activity. The report is derived on demand from persisted `Vehicle` and `VehiclePositionObservation` rows; it is not a provider-native report and is never persisted.
+**IMPLEMENTED — HUMAN ACCEPTANCE PENDING.** Reports at `/reports` contains exactly one product: Daily Fleet Activity, presented as a Daily Fleet Comparison Workspace. It is historical, fleet-wide, read-only and derived on demand from stored GPS observations.
 
-## Date semantics
+## Daily date and boundary contract
 
-The page URL stores only `?date=YYYY-MM-DD`. The web application resolves that Europe/Kyiv calendar date into explicit absolute `from` and `to` timestamps before calling the BFF and Nest API. Today means Kyiv start-of-day through the current instant. A historical date means its complete Kyiv calendar day, so DST days may be 23, 24, or 25 absolute hours. Missing or malformed page dates fall back to the current Kyiv date.
+The page URL stores only `?date=YYYY-MM-DD`. The Next server resolves the selected calendar day using authenticated runtime timezone settings and fetches Nest directly with absolute `from` and `to`. The separately available same-origin BFF forwards that same public read contract. Missing, malformed or duplicate page dates intentionally fall back to Today.
 
-The public read endpoint is `GET /api/reports/fleet-activity?from=<absolute-iso>&to=<absolute-iso>`. Both timestamps are required, `from < to`, and the maximum duration is exactly 25 absolute hours. This ceiling supports the Kyiv DST fall-back day; it does not introduce a general 25-hour analytics range product.
+Today is local midnight through the server-captured current instant. Other dates use local midnight through the next local midnight. Calendar arithmetic preserves 23-, 24- and 25-hour Europe/Kyiv days. The returned report timezone controls display; a timezone change during loading causes one re-resolution, then a safe report-context failure if it changes again.
 
-## Derivation and metrics
+`GET /api/reports/fleet-activity?from=<absolute-iso>&to=<absolute-iso>` requires both timestamps, `from <= to`, and at most 25 absolute hours. Reports observations use **[from,to)**: `observedAt >= from && observedAt < to`. Adjacent days do not share a midnight observation. At exact midnight Today, `[from,from)` is valid: all current fleet identities remain, with zero observations/episodes/gaps and nullable observation boundaries. This Reports-only correction does not change Trips, Movement History or the shared core's positive/inclusive contract.
 
-The repository performs two bounded set-based reads: all persisted vehicles with safe display identity, then all required observations in the selected range ordered by vehicle, timestamp, and fingerprint. Observations are grouped in memory and passed to the accepted Stage 15A pure trip/stop analytics core. There is no vehicle-dependent query count.
+## Sources and derivation
 
-Every persisted vehicle appears once, including provider-disabled vehicles and vehicles without observations. `hasGpsData` means `rawObservationCount > 0`. A missing observation set is displayed as **Нет GPS-данных** and is not interpreted as inactivity. Observations with zero confirmed trips remain GPS data.
+The repository uses one repeatable-read transaction (30-second transaction timeout) with two set-based reads: every current persisted Vehicle's public identity, and all VehiclePositionObservation records in the half-open interval ordered by vehicle, time and fingerprint. Disabled/provider-disabled vehicles remain included. There are no per-vehicle queries, writes or provider calls.
 
-Fleet and row metrics are sums of Stage 15A results under one current global trip/stop policy snapshot: trips and trip durations, GPS-observed trip distance, meaningful stops and their durations, and GPS gaps. The policy is ADMIN-editable in Application Settings, so historical reports are recomputed using current policy rather than persisted historical trip snapshots. Distance is not road or odometer distance. Gaps remain unknown discontinuities.
+One ApplicationSettings read returns the effective timezone and the actual policy used for every row:
+`tripMovementSpeedKph`, `tripMovementConfirmationSeconds`, `tripStopConfirmationSeconds`, `tripDataGapSeconds`.
+No invented policy version is exposed. Historical reports are recomputed from currently stored observations using current policy.
 
-**Время поездок** is trip duration, not continuous moving time, because an accepted trip may include a short pause. The UI intentionally provides no utilization, driver score, average speed, revenue, or other unapproved business metrics.
+The service groups observations in memory, enforces the report endpoint exclusion before calling the unchanged Stage 15A trip/stop core, and bypasses that core for an empty interval. Movement/stop confirmation, null-speed and quality-flag inclusion, Haversine distance and gap behavior remain unchanged.
 
-The report uses only observations inside the selected day. Events at its boundaries may therefore be clipped or under-classified. It does not query outside the day to reconstruct cross-midnight activity.
+| Public field | Meaning |
+| --- | --- |
+| generatedAt | Captured start of this backend report computation; not last GPS time or completeness |
+| timezone / policy | Effective current context read for this report |
+| vehicleId / vehicleName | Current safe public identity |
+| hasGpsData / rawObservationCount | At least one stored observation / count in this interval; no coverage percentage |
+| firstObservationAt / lastObservationAt | First/last core observation timestamps; both null without GPS |
+| tripCount / tripDurationSeconds | Confirmed derived trips / sum of their durations; trip time may include short pauses |
+| observedDistanceMeters | Sum of observed GPS distances inside confirmed trips; not odometer or complete traveled distance |
+| stopCount / stopDurationSeconds | Confirmed derived stops / summed durations; not engine idle |
+| gapCount / gapDurationSeconds | Count / sum of core internal adjacent-observation gaps above current threshold |
 
-## UI and drill-down
+Time before the first and after the last observation is not an internal gap. The service does not reconstruct cross-midnight episodes using data outside the day. Daily episode results must not be assumed additive across days.
 
-The report shows the fleet summary and one deterministic row per vehicle: GPS vehicles first by observed distance descending, then no-data vehicles, with a stable UUID tie-breaker that is not displayed. There are no filters, interactive sorting, map, or export controls.
+Summary retains vehicleCount, vehiclesWithGps, vehicleWithoutGpsCount, tripCount, totalObservedDistanceMeters, totalTripDurationSeconds and gapCount; totalGapDurationSeconds sums the row gap durations. All totals cover the complete fleet response and remain independent of client search/filter/sort.
 
-Each row links to the existing Stage 15B Trips page with the report's exact absolute `from` and `to`. The report does not recompute the range for drill-down and does not auto-select a trip or stop.
+## Workspace and investigation
 
-The browser calls the same-origin Next BFF, which calls Nest with `no-store` behavior. The endpoint performs no database writes, provider calls, Telegram calls, history population, checkpoint mutation, geocoding, routing, scheduling, caching, or background calculation. There is no schema change or migration.
+CompactPageHeading → daily PeriodPopover → unified factual summary → local comparison controls → result workspace. Today, Yesterday and a single calendar day are the only period choices. Date navigation uses router.push; Refresh uses router.refresh with no new history entry and preserves mounted comparison controls. Pending data retain their applied date and are visibly marked busy; route loading has a small skeleton. Runtime/context failure, report failure, empty fleet, no-GPS day and filtered-empty results have distinct localized presentation.
+
+Desktop uses a dense sortable Ant Design table; below 992px, a vehicle comparison list opens complete row facts in a contextual Drawer. Search matches public vehicle names case-insensitively; GPS filter selects all/with/without observations. Default metric order is GPS rows first, observed distance descending, then deterministic UUID; alternatives are name, trips, trip time, stops and gaps. Reset restores search, GPS filter and default sort. Active-filter count excludes sorting.
+
+No-GPS rows retain identity and one status; numerical facts display dashes. GPS-present zero values remain factual zeroes. Summary scope is explicitly the entire fleet, including when the list is filtered. Policy info explains the dynamic thresholds, generation time, timezone and current-policy historical recomputation.
+
+Reports requires reports.view independently on the page/BFF and backend. Report access does not grant navigation permissions. Vehicle identity links require vehicles.view; Trips and Movement History actions require trips.view and carry exact report from/to; Current position requires map.view and carries only vehicleId. At the empty midnight interval, Trips/History actions are disabled because their accepted APIs require a positive interval. A 25-hour History deep-link naturally uses its accepted sampled overview mode. No Events action or report-position claim is introduced.
+
+## Limits and deferred work
+
+The <=25-hour range is a time bound, not a row/memory bound. The complete fleet and all selected observations are read and accumulated in memory; the existing indexes and read model are unchanged. Large fleets or dense days can remain expensive. There is no fake pagination or scalability claim.
+
+No schema migration, persisted report snapshot, auto-refresh, background calculation, provider/Telegram call, chart, utilization/driver/engine-idle inference or multi-day report is introduced. **CSV is recommended as a follow-up after UI human acceptance**; CSV/XLSX/PDF/print and scheduling are absent from this candidate. Multi-day semantics require a separate explicit design.
+
+## Local verification
+
+Focused report/core API tests and Web contract/date/model/rendered-design tests cover endpoint exclusion, empty intervals, DST, policy context, observation evidence, permissions and presentation states. Run `npm run reports:smoke --workspace @taxi-gps/web` against existing loopback runtimes with REPORTS_SMOKE_LOGIN/PASSWORD supplied externally. Optional REPORTS_SMOKE_DATE selects an existing populated day (default 2026-08-21); REPORTS_SMOKE_API_URL/WEB_URL reject non-loopback origins. The smoke creates only a local login session and makes report/runtime/SSR reads. It never seeds or mutates domain data. Browser responsive and keyboard review remains a separate acceptance gate.

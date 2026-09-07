@@ -4,19 +4,14 @@ import test from "node:test";
 
 const source = (path: string) => readFileSync(path, "utf8");
 
-test("Reports presents a localized period inside one grouped responsive control surface", () => {
-  const report = source("src/components/fleet-activity-report-client.tsx");
-  const css = source("src/app/globals.css");
-  assert.match(report, /formatDateTime\(locale, initialRange\.from\)/);
-  assert.match(report, /formatDateTime\(locale, initialRange\.to\)/);
-  assert.match(report, /report-control-groups/);
-  assert.match(report, /report-quick-ranges/);
-  assert.match(report, /report-custom-date/);
-  assert.match(report, /report-period/);
-  assert.doesNotMatch(report, /from: initialRange\.from, to: initialRange\.to/);
-  assert.match(css, /report-control-groups \{ display:grid; grid-template-columns:minmax\(0,1fr\) auto/);
-  assert.match(css, /report-custom-date \{ justify-self:end/);
-  assert.match(css, /report-control-groups \{ grid-template-columns:1fr/);
+test("Reports retains localized daily context in the accepted PeriodPopover shell", () => {
+  const report = source("src/components/report-period.tsx");
+  assert.match(report, /PeriodPopover/);
+  assert.match(report, /formatReportWindow/);
+  assert.match(report, /timezone/);
+  assert.match(report, /currentBusinessDate/);
+  assert.match(report, /previousBusinessDate/);
+  assert.match(report, /DatePicker/);
 });
 
 test("selected Map vehicle details use the contextual Ant Design inspector with semantic primary and secondary navigation", () => {

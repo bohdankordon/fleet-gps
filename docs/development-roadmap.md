@@ -175,6 +175,18 @@ No next release is currently scheduled. Before creating another immutable releas
 - Perform authenticated desktop and mobile UI acceptance.
 - Create an immutable release tag only after acceptance.
 
+## IMPLEMENTED — HUMAN ACCEPTANCE PENDING — Reports
+
+Reports is the Daily Fleet Comparison Workspace for one calendar day of stored
+GPS-derived fleet activity. It uses a unified fleet-wide summary, local
+search/GPS filters/sorting, a desktop comparison table, and a tablet/mobile list
+with contextual Drawer and permission-aware investigation actions. Daily
+observations now use [from,to), including a valid empty interval at midnight;
+effective policy, timezone and observation evidence are public report context.
+No charts or multi-day report are included. CSV is deferred until after human
+acceptance. Complete daily observation loading remains a scalability constraint.
+See [the current report contract](./fleet-daily-activity-report.md).
+
 ## ONGOING — Production operations
 
 These are established operational processes, not open roadmap blockers:

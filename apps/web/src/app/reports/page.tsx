@@ -1,7 +1,13 @@
-import { FleetActivityReportClient } from "@/components/fleet-activity-report-client";
+import { ReportNavigation } from "@/components/report-navigation";
 import { fetchFleetActivityReport } from "@/lib/fleet-activity-report/fleet-activity-report-client";
-import { resolveInitialFleetActivityReportDate } from "@/lib/fleet-activity-report/fleet-activity-report-date";
-import { getAuthUser } from "@/lib/auth/auth-user"; import { hasPermission } from "@/lib/auth/auth-contract";
+import { loadReportPage } from "@/lib/fleet-activity-report/fleet-activity-report-page-loader";
 import { fetchRuntimeSettings } from "@/lib/runtime-settings/runtime-settings-client";
-export const dynamic = "force-dynamic"; export const revalidate = 0;
-export default async function ReportsPage({ searchParams }: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) { const now = new Date(); const [runtime, user, query] = await Promise.all([fetchRuntimeSettings(), getAuthUser(), searchParams]); const resolved = resolveInitialFleetActivityReportDate(query, now, runtime.timezone); if (!resolved) throw new Error("Unable to resolve report date"); let initialData = null; let initialError = false; try { initialData = await fetchFleetActivityReport(resolved.range); } catch { initialError = true; } return <div><FleetActivityReportClient initialDate={resolved.date} initialRange={resolved.range} initialData={initialData} initialError={initialError} now={now} timezone={runtime.timezone} canOpenTrips={user !== null && hasPermission(user, "trips.view")} /></div>; }
+import "@/styles/reports.css";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export default async function ReportsPage({ searchParams }: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) {
+  const state = await loadReportPage(await searchParams, new Date(), { runtime: fetchRuntimeSettings, report: fetchFleetActivityReport });
+  return <ReportNavigation {...state} />;
+}

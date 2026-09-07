@@ -13,7 +13,8 @@ export class PrismaFleetActivityReportRepository implements FleetActivityReportR
     return this.database.getClient().$transaction(async (transaction) => {
       const vehicles = await transaction.vehicle.findMany({ orderBy: { id: "asc" }, select: { id: true, name: true } });
       const observations = await transaction.vehiclePositionObservation.findMany({
-        where: { observedAt: { gte: range.from, lte: range.to } },
+        // Reports owns a half-open day; Trips/History keep their own contracts.
+        where: { observedAt: { gte: range.from, lt: range.to } },
         orderBy: [{ vehicleId: "asc" }, { observedAt: "asc" }, { fixFingerprint: "asc" }],
         select: { vehicleId: true, observedAt: true, fixFingerprint: true, latitude: true, longitude: true, speedKph: true, valid: true, outdated: true },
       });

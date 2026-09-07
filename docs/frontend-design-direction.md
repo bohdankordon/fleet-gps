@@ -4,7 +4,7 @@ Status: Ant Design 6 is the active frontend foundation. The rejected shadcn/Base
 
 ## Product direction
 
-The visible application-shell product brand is **Fleet GPS**. Existing technical Taxi GPS identifiers—including the repository, npm packages, services, environment keys, database identifiers, and historical release documentation—remain unchanged unless a separately scoped technical migration explicitly requires otherwise. The product is operational software for monitoring fleets. Presentation work must preserve authentication, authorization, API contracts, provider behavior, position freshness, history and track behavior, trips/stops, reports, alerts, settings, user management, audit behavior, Telegram, localization, and accepted timezone semantics. Frontend redesign has no API, business-rule, Prisma, or migration scope.
+The visible application-shell product brand is **Fleet GPS**. Existing technical Taxi GPS identifiers—including the repository, npm packages, services, environment keys, database identifiers, and historical release documentation—remain unchanged unless a separately scoped technical migration explicitly requires otherwise. The product is operational software for monitoring fleets. Presentation work must preserve authentication, authorization, API contracts, provider behavior, position freshness, history and track behavior, trips/stops, reports, alerts, settings, user management, audit behavior, Telegram, localization, and accepted timezone semantics. Presentation-only redesign has no API, business-rule, Prisma, or migration scope. Separately approved read-contract changes are recorded in the relevant screen sections below.
 
 ## Foundation and component policy
 
@@ -82,6 +82,32 @@ Movement History follows Period Context → Unified Summary → large Map → co
 
 This Map-first direction is human accepted. The temporal-profile experiment is intentionally parked and is not part of the accepted screen. Its complete Apache ECharts implementation is preserved on `experiment/history-echarts-timeline`; future timeline work should review that branch rather than rebuilding the experiment blindly.
 
+
+## Reports daily fleet comparison workspace
+
+**IMPLEMENTED — HUMAN ACCEPTANCE PENDING.** Reports answers what stored GPS
+activity was observed across the fleet for one selected calendar day, how vehicles
+compare, and which vehicle/period to investigate next. CompactPageHeading and the
+shared PeriodPopover shell retain independent Reports daily semantics: Today,
+Yesterday and a single calendar day only. A unified factual fleet-wide summary
+precedes local search, GPS-data filtering and sorting. Desktop uses a compact
+comparison table; below 992px, a comparison list opens complete facts and
+permission-aware navigation in a contextual Drawer. No desktop split workspace.
+
+GPS existence is not completeness; missing GPS uses dashes while observed zero
+remains zero. Distance means stored-GPS-derived distance inside confirmed trips.
+Dynamic effective analytics-policy context explains stop/gap thresholds and
+current-policy historical recomputation, with generation time and returned
+timezone as secondary metadata. The specifically approved Reports contract
+changes are half-open daily [from,to), zero-length intervals at midnight, and
+factual context/first-last observation/gap duration additions. Other analytical
+contracts and shared component behavior remain unchanged; no migration.
+
+No charts in this initial redesign. CSV is a deferred follow-up after human
+acceptance. Do not infer utilization, driver performance or engine idle, or
+introduce multi-day Reports until episode-boundary semantics are explicitly
+designed. Reports owns aggregate comparison; Fleet owns current operations,
+Trips owns derived episodes, and Movement History owns GPS-observation inspection.
 
 ## Events investigation workspace
 
