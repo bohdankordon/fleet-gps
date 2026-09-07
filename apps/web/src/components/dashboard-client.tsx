@@ -8,7 +8,7 @@ import type { TableColumnsType } from "antd";
 import { AimOutlined, ApiFilled, BarChartOutlined, CarFilled, CarOutlined, FilterFilled, ReloadOutlined } from "@ant-design/icons";
 import Paragraph from "antd/es/typography/Paragraph";
 import Text from "antd/es/typography/Text";
-import Title from "antd/es/typography/Title";
+import { CompactPageHeading } from "./compact-page-heading";
 import type { DashboardVehiclesResponse } from "@/lib/dashboard/dashboard-contract";
 import { dashboardTimezone, formatDistance, formatFleetGpsTimestamp, formatFleetMetadataTimestamp, formatFleetServiceDate, formatSpeed, formatTimestamp, freshnessLabel, qualityLabel, sourceLabel, statusLabel } from "@/lib/dashboard/dashboard-formatters";
 import { dashboardHistoryPath, shouldUpdateDashboardHistory, type DashboardNavigationReason } from "@/lib/dashboard/dashboard-navigation";
@@ -59,7 +59,7 @@ export function DashboardClient({ initialData, initialQuery, initialSchedulerSta
   </div>;
 }
 
-function FleetHeader({ data }: Readonly<{ data: DashboardVehiclesResponse }>) { const { locale, t } = useI18n(); return <Flex vertical gap={4}><Title level={1} style={{ margin: 0 }}>{t("dashboard.title")}</Title><Text type="secondary">{t("dashboard.description")}</Text><Flex wrap="wrap" gap="middle"><MetadataItem label={t("dashboard.metadata.serviceDate")}><time dateTime={data.serviceDate}>{formatFleetServiceDate(data.serviceDate, locale)}</time></MetadataItem><MetadataItem label={t("dashboard.metadata.timezone")}>{data.timezone}</MetadataItem><MetadataItem label={t("dashboard.metadata.vehicles")}>{data.summary.total}</MetadataItem><MetadataItem label={t("dashboard.metadata.generated")}><time dateTime={data.generatedAt}>{formatFleetMetadataTimestamp(data.generatedAt, data.timezone, locale)}</time></MetadataItem></Flex></Flex>; }
+function FleetHeader({ data }: Readonly<{ data: DashboardVehiclesResponse }>) { const { locale, t } = useI18n(); return <Flex vertical gap={4}><CompactPageHeading title={t("dashboard.title")} subtitle={t("dashboard.description")} /><Flex wrap="wrap" gap="middle"><MetadataItem label={t("dashboard.metadata.serviceDate")}><time dateTime={data.serviceDate}>{formatFleetServiceDate(data.serviceDate, locale)}</time></MetadataItem><MetadataItem label={t("dashboard.metadata.timezone")}>{data.timezone}</MetadataItem><MetadataItem label={t("dashboard.metadata.vehicles")}>{data.summary.total}</MetadataItem><MetadataItem label={t("dashboard.metadata.generated")}><time dateTime={data.generatedAt}>{formatFleetMetadataTimestamp(data.generatedAt, data.timezone, locale)}</time></MetadataItem></Flex></Flex>; }
 
 function MetadataItem({ label, children }: Readonly<{ label: string; children: React.ReactNode }>) { return <Text type="secondary">{label}: <Text strong>{children}</Text></Text>; }
 

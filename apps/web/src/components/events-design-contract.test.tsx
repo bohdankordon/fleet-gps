@@ -36,7 +36,7 @@ test("SPEEDING detail renders all stored evidence and lifecycle without fictiona
 });
 test("INACTIVITY detail has distance and window metrics, with conditional resolution", () => {
   const html = renderDetail(inactivity);
-  for (const text of ["Rolling window duration", "Confirmation traveled distance", "Last traveled distance", "Minimum distance during episode", "Distance threshold", "60 minutes", "35 m", "340 m", "12 m", "300 m", "<dt>Resolved</dt>"]) assert.ok(html.includes(text), text);
+  for (const text of ["Rolling window duration", "Confirmation traveled distance", "Last traveled distance", "Minimum distance during episode", "Distance threshold", "60 minutes", "35 m", "340 m", "12 m", "300 m", "<dt>Resolved:</dt>"]) assert.ok(html.includes(text), text);
   assert.doesNotMatch(html, /minimum duration|stayed at/i);
 });
 test("events.view-only identity remains visible and all restricted navigation is absent", () => {
@@ -54,10 +54,10 @@ test("desktop and mobile share a single detail component; drawer, selection, key
   assert.equal((source.match(/<EventDetail /g) ?? []).length, 2);
   assert.match(source, /screens.lg && <aside/); assert.match(source, /!screens.lg && <Drawer/);
   assert.match(source, /selectionTrigger.current\?\.focus\(/);
-  assert.match(styles, /grid-template-columns: minmax\(0, 1fr\); gap: 8px/);
+  assert.match(styles, /grid-template-columns: minmax\(0, 1fr\); gap: 0/);
   assert.match(source, /onClose=\{closeSelection\}/);
   assert.match(source, /reason === "user" \|\| reason === "popstate"/);
-  assert.match(source, /<button type="button" className="events-item" aria-pressed/);
+  assert.match(source, /<button type="button" className="events-item vehicle-trips__record-button" aria-pressed/);
   assert.match(source, /window.history.pushState/); assert.match(source, /window.addEventListener\("popstate"/);
   assert.match(styles, /@media \(max-width: 991px\)/); assert.match(styles, /:focus-visible/);
 });
@@ -67,4 +67,41 @@ test("all Events translations have nonempty UK, RU and EN values and opening-tim
     for (const value of Object.values(values)) assert.ok(value.trim(), key);
   }
   assert.match(MESSAGE_CATALOG["events.period.help"].en, /opening time/);
+});
+
+
+test("Events consumes accepted Fleet and Vehicle-family presentation without changing their CSS", () => {
+  const presentation = readFileSync("src/components/events-presentation.tsx", "utf8");
+  for (const contract of ["fleet-toolbar", "fleet-toolbar__select-control", "vehicle-detail-shell__tabs", "vehicle-trips__summary-metric", "vehicle-trips__record--selected", "vehicle-trips__record-button", "StableLoadingButton", "token.colorPrimaryBg", "token.colorPrimaryBorder"]) assert.ok(source.includes(contract), contract);
+  assert.match(source, /<Tabs /); assert.doesNotMatch(source, /Segmented|Empty.PRESENTED_IMAGE/);
+  assert.match(presentation, /vehicle-track__map-empty-icon/);
+  assert.match(presentation, /eventStatusColor\(status\)/);
+  assert.match(detailSource, /vehicle-overview__metric-row/);
+  assert.match(detailSource, /<Button size="large" type="default" key=\{action.key\}/);
+  assert.match(styles, /--font-weight-semibold/);
+  assert.doesNotMatch(styles, /#[0-9a-f]{3,8}\b|\.ant-/i);
+  assert.doesNotMatch(source + detailSource + presentation, /severity|colorError|colorWarning/);
+});
+
+
+test("filter utility has label and control rows with the exact accepted Fleet Reset contract", () => {
+  assert.match(source, /<div className="events-filter-utility"><Typography.Text className="events-filter-count"/);
+  assert.match(source, /count: filterCount/);
+  assert.match(source, /<FleetFilterResetButton disabled=\{filterCount === 0\}/);
+  assert.match(styles, /events-filter-count \{ grid-row: 1/);
+  assert.match(styles, /events-filter-utility > .fleet-filter-reset \{ grid-row: 2/);
+  assert.match(styles, /events-filter-utility \{ grid-column: 1 \/ -1; grid-row: 3; display: flex; justify-content: space-between/);
+  const reset = readFileSync("src/components/fleet-filter-reset-button.tsx", "utf8");
+  const fleet = readFileSync("src/components/dashboard-client.tsx", "utf8");
+  const themeContract = /<ConfigProvider theme=([\s\S]*?)><Button/;
+  assert.equal(reset.match(themeContract)?.[1], fleet.match(themeContract)?.[1]);
+  for (const contract of ['type="default" size="small"', 'styles={{ root: { minHeight: 0 } }}']) {
+    assert.ok(reset.includes(contract)); assert.ok(fleet.includes(contract));
+  }
+  const empty = renderPage();
+  assert.match(empty, /Filters: 0/);
+  assert.match(empty, /class="[^"<>]*fleet-filter-reset[^"<>]*"[^>]*disabled=""/);
+  const filtered = renderPage({ type: "SPEEDING", vehicleId: speeding.vehicle.id });
+  assert.match(filtered, /Filters: 2/);
+  assert.doesNotMatch(filtered, /class="[^"<>]*fleet-filter-reset[^"<>]*"[^>]*disabled/);
 });

@@ -27,12 +27,13 @@ import { activeAlertDetails } from "@/lib/open-alert-map/open-alert-map-formatte
 import { FLEET_MAP_HIT_LAYER_ID, FLEET_MAP_SELECTED_LAYER_ID, FLEET_MAP_SOURCE_ID, ensureFleetAlertMapLayers } from "@/lib/open-alert-map/open-alert-map-layers";
 import { alertsForFleetVehicle, fleetAlertMapToGeoJson, joinFleetOpenAlerts } from "@/lib/open-alert-map/open-alert-map-model";
 import { abortCoordinatedMapRefresh, beginCoordinatedMapRefresh, initialCoordinatedMapRefreshState, settleCoordinatedMapRefresh, type MapRefreshResult } from "@/lib/open-alert-map/open-alert-map-refresh-state";
+import { CompactPageHeading } from "./compact-page-heading";
 import { useI18n } from "../i18n/client";
 import { formatNumber } from "../i18n/formatting";
 
 const MAPLIBRE_WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 const mapLibreWorkerBootstrapState: FleetMapWorkerBootstrapState = { configured: false };
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 type Props = Readonly<{
   initialSnapshot: FleetMapResponse;
@@ -286,8 +287,7 @@ export function FleetMapClient({ initialSnapshot, initialVehicleId, initialGeofe
 
   return <div className="map-page">
     <header className="map-page__header">
-      <Title level={1} style={{ margin: 0 }}>{t("map.title")}</Title>
-      <Text type="secondary">{t("map.description")}</Text>
+      <CompactPageHeading title={t("map.title")} subtitle={t("map.description")} />
       <Flex className="map-page__metadata" wrap="wrap" gap="middle">
         <MetadataItem label={t("map.generated")}><time dateTime={snapshot.generatedAt}>{formatFleetMapTimestamp(snapshot.generatedAt, locale)}</time></MetadataItem>
         <MetadataItem label={t("map.freshnessThreshold")}>{formatNumber(locale, snapshot.positionFreshnessSeconds)} {t("unit.secondShort")}</MetadataItem>

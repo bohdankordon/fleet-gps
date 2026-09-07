@@ -96,7 +96,7 @@ test("active and recent events preserve every projected field in compact Listy s
   for (const field of ["openedAt", "resolvedAt", "notificationDeliveryStatus", "zone", "confirmationSpeedKph", "lastSpeedKph", "peakSpeedKph", "thresholdKph", "confirmationDistanceMeters", "lastDistanceMeters", "minimumDistanceMeters", "distanceThresholdMeters", "durationThresholdMinutes"]) assert.ok(overview.includes(field), field);
   const recentItem = overview.slice(overview.indexOf("function RecentEventItem"));
   assert.equal((recentItem.match(/<Card/g) ?? []).length, 0);
-  for (const icon of ["WarningFilled", "ClockCircleFilled", "CheckCircleFilled"]) assert.ok(recentItem.includes(icon), icon);
+  assert.match(recentItem, /eventSemanticPresentation\(event, token\)/);
   assert.match(recentItem, /const lifecycleItems:[\s\S]*key: "opened"[\s\S]*key: "resolved"[\s\S]*key: "delivery"/);
   assert.match(recentItem, /<MetricRows className="vehicle-overview__event-lifecycle" items=\{lifecycleItems\} \/>/);
   assert.match(recentItem, /<Divider className="vehicle-overview__event-section-divider" style=\{\{ marginBlock: sectionDividerGap \}\} \/>/);
@@ -148,7 +148,7 @@ test("Overview owns centered vertical metric rows, chronology, and one empty-sta
   assert.match(overview, /"--vehicle-event-section-bg": token\.colorFillQuaternary/);
   assert.match(overview, /"--vehicle-event-section-accent": semanticAccent/);
   assert.match(overview, /"--vehicle-event-section-radius": `\$\{token\.borderRadiusLG\}px`/);
-  assert.match(overview, /event\.status === "RESOLVED" \? token\.colorSuccess : event\.type === "SPEEDING" \? token\.colorError : token\.colorWarning/);
+  assert.match(overview, /const \{ accent: semanticAccent, marker, statusColor \} = eventSemanticPresentation\(event, token\)/);
   assert.match(styles, /vehicle-overview__chronology-item::before \{[^}]*width: 2px;[^}]*background: var\(--vehicle-event-section-accent\);/);
   assert.match(styles, /vehicle-overview__chronology-item:hover \{ background: color-mix\(in srgb, var\(--vehicle-event-section-accent\) 2%, var\(--vehicle-event-section-bg\)\); \}/);
   assert.match(styles, /vehicle-overview__chronology-icon \{[^}]*background: transparent;/);

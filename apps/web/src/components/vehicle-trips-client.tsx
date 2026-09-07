@@ -37,6 +37,7 @@ import { buildVehicleTrackOverviewPresentation } from "@/lib/vehicle-track/vehic
 import { buildVehicleTrackPresentation, EMPTY_VEHICLE_TRACK_PRESENTATION, type VehicleTrackPresentationModel } from "@/lib/vehicle-track/vehicle-track-presentation";
 import { parseVehicleTrackResponse } from "@/lib/vehicle-track/vehicle-track-contract";
 import type { VehicleTrackRange } from "@/lib/vehicle-track/vehicle-track-range";
+import { PeriodPopover } from "./period-popover";
 import { useI18n } from "../i18n/client";
 
 dayjs.extend(customParseFormat);
@@ -364,25 +365,13 @@ export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, i
     <div className="vehicle-trips" style={pageStyle}>
       <section className="vehicle-trips__period-bar" aria-label={t("trips.controls.title")}>
         <div className="vehicle-trips__period-context">
-          <Popover
-            open={editorOpen}
-            onOpenChange={setEditorOpen}
-            trigger="click"
-            placement="bottomLeft"
-            arrow={false}
-            destroyOnHidden
-            fresh
-            title={<TripSectionTitle icon={<CalendarOutlined />} title={t("trips.controls.title")} />}
-            content={periodEditor}
-            classNames={{ root: "vehicle-trips__period-popover" }}
-            styles={{ container: { width: 620, maxWidth: "calc(100vw - 48px)", padding: token.paddingLG, borderRadius: token.borderRadiusLG } }}
-          >
+          <PeriodPopover open={editorOpen} onOpenChange={setEditorOpen} title={<TripSectionTitle icon={<CalendarOutlined />} title={t("trips.controls.title")} />} content={periodEditor} className="vehicle-trips__period-popover">
             <Button className="vehicle-trips__period-trigger" type="default" size="large" aria-expanded={editorOpen} aria-controls="vehicle-trips-custom-range">
               <CalendarOutlined aria-hidden />
               <span className="vehicle-trips__period-trigger-copy"><strong>{periodLabel}</strong><span aria-hidden>·</span><span className="vehicle-trips__period-window">{concisePeriod}</span></span>
               <DownOutlined className="vehicle-trips__period-chevron" aria-hidden />
             </Button>
-          </Popover>
+          </PeriodPopover>
           <Text className="vehicle-trips__timezone" type="secondary">{timezone}</Text>
         </div>
         <StableLoadingButton idleLabel={t("common.refresh")} loadingLabel={t("common.refreshing")} loading={loading} icon={<ReloadOutlined aria-hidden />} onClick={refresh} size="large" type="default" />

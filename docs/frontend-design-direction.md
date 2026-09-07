@@ -85,7 +85,7 @@ This Map-first direction is human accepted. The temporal-profile experiment is i
 
 ## Events investigation workspace
 
-**IMPLEMENTED — HUMAN ACCEPTANCE PENDING.** Events is a read-only operational
+**DONE / HUMAN ACCEPTED.** Events is a read-only operational
 Events Inbox + History for automatic OPEN → RESOLVED detector episodes. Active is
 the default and has no age cutoff. History defaults to seven days and filters the
 opening/confirmation timestamp in Europe/Kyiv, with 24-hour, 7-day, 30-day and
@@ -103,3 +103,16 @@ assignment or manual resolution is invented. The specifically approved read API
 additions are opening-range filtering, public `lastObservedAt`, vehicle filtering
 through the BFF, and identity-only Events-owned vehicle options under `events.view`.
 No schema, detector, lifecycle or dispatch changes.
+
+The final Events visual direction is human accepted. Neutral chronology rows use
+Vehicle Overview's shared semantic rail/icon grammar: OPEN SPEEDING uses error,
+OPEN INACTIVITY warning, and RESOLVED success tokens. The accepted blue selection
+remains distinct from lifecycle/type accents. Detail label/value rows own trailing
+colons; section headings and standalone form labels do not. Reset follows Fleet's
+accepted secondary button grammar, aligned with filter controls in a two-row utility.
+
+Fleet, Map and Events share the compact theme-derived page-heading standard
+(24/32 title, weight 600; 14px secondary subtitle); vehicle identity retains its
+separate hierarchy. Events, Trips and Movement History share the Vehicle-family
+period popover presentation shell, with independent range models. Events retains
+only 24-hour, 7-day, 30-day and bounded custom periods; no open-ended option is added.

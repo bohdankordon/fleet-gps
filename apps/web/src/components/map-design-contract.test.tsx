@@ -11,7 +11,7 @@ const styles = readFileSync("src/styles/map.css", "utf8");
 const page = readFileSync("src/app/map/page.tsx", "utf8");
 
 test("Map uses the accepted open header and groups every existing real summary metric into three native Cards", () => {
-  assert.match(map, /<Title level=\{1\}/);
+  assert.match(map, /<CompactPageHeading title=/);
   assert.match(map, /t\("map\.description"\)/);
   assert.doesNotMatch(map + initialError, /map\.eyebrow|className="eyebrow"/);
   assert.equal((map.match(/<MapSummaryCard/g) ?? []).length, 3);
@@ -101,7 +101,7 @@ test("selected inspector preserves real fields, permission-aware actions, routes
   assert.match(map, /href="\/events\?status=OPEN"/);
   assert.match(map, /formatFleetMapTimestamp\(vehicle\.position\.observedAt, locale\)/);
   assert.match(map, /formatFleetMapAge\(vehicle\.position\.observedAt, generatedAt, locale\)/);
-  for (const forbidden of ["driver", "fuel", "battery", "heading", "address", "provider quality"]) assert.equal(map.toLowerCase().includes(forbidden), false, forbidden);
+  for (const forbidden of ["driver", "fuel", "battery", "heading", "address", "provider quality"]) assert.doesNotMatch(map.slice(map.indexOf("function VehicleInspectorContent")), new RegExp(`\\b${forbidden}\\b`, "i"), forbidden);
 });
 
 test("Map states, accessibility labels, and all changed copy are available in ru, uk, and en", () => {

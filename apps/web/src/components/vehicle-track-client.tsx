@@ -29,6 +29,7 @@ import { abortVehicleTrackRequest, beginVehicleTrackRequest, failVehicleTrackReq
 import { reconcileVehicleTrackSelection, selectedVehicleTrackPoint } from "@/lib/vehicle-track/vehicle-track-selection";
 import { vehicleTrackErrorCopy, vehicleTrackResponseError } from "@/lib/vehicle-track/vehicle-track-error-copy";
 import { formatNumber } from "@/i18n/formatting";
+import { PeriodPopover } from "./period-popover";
 import { useI18n } from "../i18n/client";
 
 dayjs.extend(customParseFormat);
@@ -245,9 +246,9 @@ export function VehicleTrackClient({ vehicleId, initialVehicleName, initialVehic
     <div className="vehicle-track" style={pageStyle}>
       <section className="vehicle-track__period-bar" aria-label={t("track.controls.label")}>
         <div className="vehicle-track__period-context">
-          <Popover open={editorOpen} onOpenChange={setEditorOpen} trigger="click" placement="bottomLeft" arrow={false} destroyOnHidden fresh title={<TrackSectionTitle icon={<CalendarOutlined />} title={t("trips.controls.title")} />} content={periodEditor} classNames={{ root: "vehicle-track__period-popover" }} styles={{ container: { width: 620, maxWidth: "calc(100vw - 48px)", padding: token.paddingLG, borderRadius: token.borderRadiusLG } }}>
+          <PeriodPopover open={editorOpen} onOpenChange={setEditorOpen} title={<TrackSectionTitle icon={<CalendarOutlined />} title={t("trips.controls.title")} />} content={periodEditor} className="vehicle-track__period-popover">
             <Button className="vehicle-track__period-trigger" type="default" size="large" aria-expanded={editorOpen} aria-controls="vehicle-track-custom-range"><CalendarOutlined aria-hidden /><span className="vehicle-track__period-trigger-copy"><strong>{periodLabel}</strong><span aria-hidden>·</span><span className="vehicle-track__period-window"><time dateTime={loadedRange?.from}>{formatVehicleTrackClock(loadedRange?.from ?? null, locale)}</time> → <time dateTime={loadedRange?.to}>{formatVehicleTrackClock(loadedRange?.to ?? null, locale)}</time></span></span><DownOutlined className="vehicle-track__period-chevron" aria-hidden /></Button>
-          </Popover>
+          </PeriodPopover>
           {mode ? <Tooltip title={mode === "OVERVIEW" ? t("track.mode.overviewHelp") : t("track.mode.exactHelp")}><Tag className="vehicle-track__mode" color={mode === "EXACT" ? "success" : "default"}><span>{mode === "EXACT" ? t("track.mode.exact") : t("track.mode.overview")}</span><InfoCircleOutlined className="vehicle-track__mode-info" aria-hidden /></Tag></Tooltip> : null}
           <Text className="vehicle-track__timezone" type="secondary">Europe/Kyiv</Text>
         </div>

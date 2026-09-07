@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { AimOutlined, AlertOutlined, BarChartOutlined, CheckCircleFilled, ClockCircleFilled, HistoryOutlined, NodeIndexOutlined, ReloadOutlined, WarningFilled } from "@ant-design/icons";
+import { AimOutlined, AlertOutlined, BarChartOutlined, HistoryOutlined, NodeIndexOutlined, ReloadOutlined } from "@ant-design/icons";
 import { Alert, Card, Col, Divider, Empty, Flex, Listy, Row, Tag, Typography, theme } from "antd";
 import type { CardProps } from "antd";
 import type { VehicleDetailsEvent, VehicleDetailsResponse } from "@/lib/vehicle-details/vehicle-details-contract";
@@ -13,6 +13,7 @@ import { beginVehicleDetailsRefresh, failVehicleDetailsRefresh, initialVehicleDe
 import { formatNumber } from "@/i18n/formatting";
 import { StableLoadingButton } from "@/components/stable-loading-button";
 import { VehicleDetailShell } from "@/components/vehicle-detail-shell";
+import { eventSemanticPresentation } from "./event-semantic-presentation";
 import { useI18n } from "../i18n/client";
 
 const { Text } = Typography;
@@ -185,7 +186,7 @@ function RecentEventItem({ event, showDivider }: Readonly<{ event: VehicleDetail
   const { locale, t } = useI18n();
   const { token } = theme.useToken();
   const sectionDividerGap = token.marginSM;
-  const semanticAccent = event.status === "RESOLVED" ? token.colorSuccess : event.type === "SPEEDING" ? token.colorError : token.colorWarning;
+  const { accent: semanticAccent, marker, statusColor } = eventSemanticPresentation(event, token);
   const sectionStyle = {
     "--vehicle-event-section-bg": token.colorFillQuaternary,
     "--vehicle-event-section-accent": semanticAccent,
@@ -194,7 +195,6 @@ function RecentEventItem({ event, showDivider }: Readonly<{ event: VehicleDetail
     "--vehicle-event-section-gap": `${token.marginSM}px`,
     "--vehicle-event-connector-bottom": `-${token.marginSM + token.paddingSM + 2}px`,
   } as CSSProperties;
-  const statusColor = event.status === "OPEN" ? "red" : "green";
   const deliveryColor = event.notificationDeliveryStatus === "SENT" ? "green" : event.notificationDeliveryStatus === "FAILED" ? "red" : event.notificationDeliveryStatus === "PENDING" ? "gold" : "default";
   const lifecycleItems: readonly MetricRow[] = [
     { key: "opened", label: `${t("vehicle.eventOpened")}:`, value: <time dateTime={event.openedAt}>{formatVehicleTimestamp(event.openedAt, locale)}</time> },
@@ -214,11 +214,6 @@ function RecentEventItem({ event, showDivider }: Readonly<{ event: VehicleDetail
     { key: "threshold", label: `${t("vehicle.eventDistanceThreshold")}:`, value: formatAlertDistance(event.details.distanceThresholdMeters, locale) },
     { key: "duration", label: `${t("vehicle.eventDurationThreshold")}:`, value: `${formatNumber(locale, event.details.durationThresholdMinutes)} ${t("unit.minuteShort")}` },
   ];
-  const marker = event.status === "RESOLVED"
-    ? <CheckCircleFilled aria-hidden style={{ color: token.colorSuccess }} />
-    : event.type === "SPEEDING"
-      ? <WarningFilled aria-hidden style={{ color: token.colorError }} />
-      : <ClockCircleFilled aria-hidden style={{ color: token.colorWarning }} />;
   return <div className={`vehicle-overview__chronology-item${showDivider ? " vehicle-overview__chronology-item--connected" : ""}`} style={sectionStyle}>
     <div className="vehicle-overview__chronology-marker"><span className="vehicle-overview__chronology-icon">{marker}</span>{showDivider ? <span className="vehicle-overview__chronology-line" aria-hidden /> : null}</div>
     <div className="vehicle-overview__recent-content">

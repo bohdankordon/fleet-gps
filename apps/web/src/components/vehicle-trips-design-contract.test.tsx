@@ -22,8 +22,8 @@ test("Trips retains the accepted shell and one native period trigger", () => {
   assert.equal((trips.match(/className="vehicle-trips__period-bar"/g) ?? []).length, 1);
   for (const component of ["Popover", "Button", "DatePicker", "Divider", "Empty", "Alert", "StableLoadingButton"]) assert.match(trips, new RegExp(`\\b${component}\\b`));
   assert.doesNotMatch(trips, /\bCalendar\b|\bTimePicker\b|TripDateTimeField/);
-  assert.match(trips, /<Popover[\s\S]*?open=\{editorOpen\}[\s\S]*?onOpenChange=\{setEditorOpen\}[\s\S]*?trigger="click"/);
-  assert.match(trips, /destroyOnHidden[\s\S]*?fresh/);
+  assert.match(trips, /<PeriodPopover open=\{editorOpen\} onOpenChange=\{setEditorOpen\}/);
+  assert.match(readFileSync("src/components/period-popover.tsx", "utf8"), /destroyOnHidden fresh/);
   assert.match(trips, /<Button className="vehicle-trips__period-trigger" type="default" size="large"/);
   assert.match(trips, /aria-expanded=\{editorOpen\} aria-controls="vehicle-trips-custom-range"/);
   assert.doesNotMatch(styles, /vehicle-trips__period-trigger:hover|vehicle-trips__period-trigger:focus-visible/);
