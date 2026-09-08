@@ -31,7 +31,8 @@ test("Events uses the accepted period shell, sections, filled selection and boun
 test("shared shell preserves accepted Vehicle-family props, trigger markup and consumer content ownership", () => {
   const shell = readFileSync("src/components/period-popover.tsx", "utf8");
   assert.match(shell, /trigger="click" placement="bottomLeft" arrow=\{false\} destroyOnHidden fresh/);
-  assert.match(shell, /width: 620, maxWidth: "calc\(100vw - 48px\)", padding: token.paddingLG, borderRadius: token.borderRadiusLG/);
+  assert.match(shell, /width = 620/);
+  assert.match(shell, /width, maxWidth: "calc\(100vw - 48px\)", padding: token.paddingLG, borderRadius: token.borderRadiusLG/);
   for (const family of ["trips", "track"]) {
     const vehicle = readFileSync(`src/components/vehicle-${family}-client.tsx`, "utf8");
     assert.match(vehicle, /<PeriodPopover open=\{editorOpen\} onOpenChange=\{setEditorOpen\}/);

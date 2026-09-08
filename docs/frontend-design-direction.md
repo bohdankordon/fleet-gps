@@ -85,12 +85,20 @@ This Map-first direction is human accepted. The temporal-profile experiment is i
 
 ## Reports daily fleet comparison workspace
 
-**IMPLEMENTED — HUMAN ACCEPTANCE PENDING.** Reports answers what stored GPS
+**DONE / HUMAN ACCEPTED.** Reports answers what stored GPS
 activity was observed across the fleet for one selected calendar day, how vehicles
 compare, and which vehicle/period to investigate next. CompactPageHeading and the
 shared PeriodPopover shell retain independent Reports daily semantics: Today,
-Yesterday and a single calendar day only. A unified factual fleet-wide summary
-precedes local search, GPS-data filtering and sorting. Desktop uses a compact
+Yesterday and a single calendar day only. The full-width Period Context owns the
+calculation-info action. An accepted Vehicle-family unified fleet-wide summary
+precedes one bordered Results Workspace, which owns local search, GPS-data
+filtering, sorting, result count, contextual notices and comparison output.
+Client filters affect the visible vehicle list only; the summary remains fleet-wide.
+The comparison table uses neutral Fleet header/row grammar with header-only sort
+indication; no full sorted-column fill. Sorting is desktop-header-only with explicit
+ascending/descending/default cycles; mobile uses the authoritative default order.
+The compact summary has no persistent scope row. Reports consumes the accepted
+calendar preset/date editor grammar and exact Events Refresh presentation. Desktop uses a compact
 comparison table; below 992px, a comparison list opens complete facts and
 permission-aware navigation in a contextual Drawer. No desktop split workspace.
 
@@ -103,8 +111,8 @@ changes are half-open daily [from,to), zero-length intervals at midnight, and
 factual context/first-last observation/gap duration additions. Other analytical
 contracts and shared component behavior remain unchanged; no migration.
 
-No charts in this initial redesign. CSV is a deferred follow-up after human
-acceptance. Do not infer utilization, driver performance or engine idle, or
+No charts or export in the human-accepted version. CSV remains a deferred
+follow-up. Do not infer utilization, driver performance or engine idle, or
 introduce multi-day Reports until episode-boundary semantics are explicitly
 designed. Reports owns aggregate comparison; Fleet owns current operations,
 Trips owns derived episodes, and Movement History owns GPS-observation inspection.

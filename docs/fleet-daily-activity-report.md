@@ -1,6 +1,6 @@
 # Fleet daily activity report
 
-**IMPLEMENTED — HUMAN ACCEPTANCE PENDING.** Reports at `/reports` contains exactly one product: Daily Fleet Activity, presented as a Daily Fleet Comparison Workspace. It is historical, fleet-wide, read-only and derived on demand from stored GPS observations.
+**DONE / HUMAN ACCEPTED.** Reports at `/reports` contains exactly one product: Daily Fleet Activity, presented as a Daily Fleet Comparison Workspace. It is historical, fleet-wide, read-only and derived on demand from stored GPS observations.
 
 ## Daily date and boundary contract
 
@@ -38,11 +38,11 @@ Summary retains vehicleCount, vehiclesWithGps, vehicleWithoutGpsCount, tripCount
 
 ## Workspace and investigation
 
-CompactPageHeading → daily PeriodPopover → unified factual summary → local comparison controls → result workspace. Today, Yesterday and a single calendar day are the only period choices. Date navigation uses router.push; Refresh uses router.refresh with no new history entry and preserves mounted comparison controls. Pending data retain their applied date and are visibly marked busy; route loading has a small skeleton. Runtime/context failure, report failure, empty fleet, no-GPS day and filtered-empty results have distinct localized presentation.
+CompactPageHeading → full-width daily Period Context with shared PeriodPopover and calculation info → unified factual summary → one Results Workspace containing local comparison controls and table/list. Today, Yesterday and a single calendar day are the only period choices. Date navigation uses router.push; Refresh uses router.refresh with no new history entry and preserves mounted comparison controls. Pending data retain their applied date and are visibly marked busy; route loading has a small skeleton. Runtime/context failure, report failure, empty fleet, no-GPS day and filtered-empty results have distinct localized presentation.
 
-Desktop uses a dense sortable Ant Design table; below 992px, a vehicle comparison list opens complete row facts in a contextual Drawer. Search matches public vehicle names case-insensitively; GPS filter selects all/with/without observations. Default metric order is GPS rows first, observed distance descending, then deterministic UUID; alternatives are name, trips, trip time, stops and gaps. Reset restores search, GPS filter and default sort. Active-filter count excludes sorting.
+Desktop uses a dense sortable Ant Design table; below 992px, a vehicle comparison list opens complete row facts in a contextual Drawer. Search matches public vehicle names case-insensitively; GPS filter selects all/with/without observations. Default metric order is GPS rows first, observed distance descending, then deterministic UUID; desktop header alternatives are name, trips, trip time, stops, stop time and gaps. Numeric headers cycle descending → ascending → default; name cycles ascending → descending → default. Distance toggles ascending/default descending with its effective indicator always visible. Tablet/mobile uses default order and has no separate sorting control. Reset restores search, GPS filter and default sort. Active-filter count excludes sorting.
 
-No-GPS rows retain identity and one status; numerical facts display dashes. GPS-present zero values remain factual zeroes. Summary scope is explicitly the entire fleet, including when the list is filtered. Policy info explains the dynamic thresholds, generation time, timezone and current-policy historical recomputation.
+No-GPS rows retain identity and one status; numerical facts display dashes. GPS-present zero values remain factual zeroes. Summary scope remains the entire fleet, explained in methodology/help and the accessible description; no persistent scope row is shown. Policy info explains the dynamic thresholds, generation time, timezone and current-policy historical recomputation.
 
 Reports requires reports.view independently on the page/BFF and backend. Report access does not grant navigation permissions. Vehicle identity links require vehicles.view; Trips and Movement History actions require trips.view and carry exact report from/to; Current position requires map.view and carries only vehicleId. At the empty midnight interval, Trips/History actions are disabled because their accepted APIs require a positive interval. A 25-hour History deep-link naturally uses its accepted sampled overview mode. No Events action or report-position claim is introduced.
 
@@ -50,7 +50,7 @@ Reports requires reports.view independently on the page/BFF and backend. Report 
 
 The <=25-hour range is a time bound, not a row/memory bound. The complete fleet and all selected observations are read and accumulated in memory; the existing indexes and read model are unchanged. Large fleets or dense days can remain expensive. There is no fake pagination or scalability claim.
 
-No schema migration, persisted report snapshot, auto-refresh, background calculation, provider/Telegram call, chart, utilization/driver/engine-idle inference or multi-day report is introduced. **CSV is recommended as a follow-up after UI human acceptance**; CSV/XLSX/PDF/print and scheduling are absent from this candidate. Multi-day semantics require a separate explicit design.
+No schema migration, persisted report snapshot, auto-refresh, background calculation, provider/Telegram call, chart, utilization/driver/engine-idle inference or multi-day report is introduced. **CSV remains a recommended deferred follow-up**; CSV/XLSX/PDF/print and scheduling are absent from the human-accepted version. Multi-day semantics require a separate explicit design.
 
 ## Local verification
 

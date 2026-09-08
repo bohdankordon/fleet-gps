@@ -2,10 +2,25 @@ import { hasPermission, type AuthUser } from "../auth/auth-contract";
 import type { FleetActivityReportResponse, FleetActivityVehicleRow } from "./fleet-activity-report-contract";
 
 export type ReportGpsFilter = "ALL" | "WITH_GPS" | "NO_GPS";
-export type ReportSort = "distance" | "name" | "trips" | "tripTime" | "stops" | "gaps";
-export type ReportFilters = Readonly<{ search: string; gps: ReportGpsFilter; sort: ReportSort }>;
-export const DEFAULT_REPORT_FILTERS: ReportFilters = Object.freeze({ search: "", gps: "ALL", sort: "distance" });
-export const REPORT_SORTS: readonly ReportSort[] = ["distance", "name", "trips", "tripTime", "stops", "gaps"];
+export type ReportSort = "distance" | "name" | "trips" | "tripTime" | "stops" | "stopTime" | "gaps";
+export type ReportFilters = Readonly<{ search: string; gps: ReportGpsFilter; sort: ReportSort; direction?: "ascend" | "descend" }>;
+export const DEFAULT_REPORT_FILTERS: ReportFilters = Object.freeze({ search: "", gps: "ALL", sort: "distance", direction: "descend" });
+export const REPORT_SORTS: readonly ReportSort[] = ["distance", "name", "trips", "tripTime", "stops", "stopTime", "gaps"];
+
+export function reportSortDirection(state: Pick<ReportFilters, "sort" | "direction">): "ascend" | "descend" {
+  return state.direction ?? (state.sort === "name" ? "ascend" : "descend");
+}
+
+/** Distance DESC is the default, never an unmarked unsorted state. */
+export function nextReportSort(state: Pick<ReportFilters, "sort" | "direction">, key: ReportSort = state.sort): Pick<ReportFilters, "sort" | "direction"> {
+  // AntD clears columnKey on the third click; that still advances the active column.
+  const first = key === "name" ? "ascend" : "descend";
+  if (key !== state.sort) return { sort: key, direction: first };
+  if (key === "distance") return { sort: key, direction: reportSortDirection(state) === "descend" ? "ascend" : "descend" };
+  return reportSortDirection(state) === first
+    ? { sort: key, direction: first === "ascend" ? "descend" : "ascend" }
+    : { sort: "distance", direction: "descend" };
+}
 
 // These are local view controls over the complete response. They never change
 // server summary scope or recompute analytical metrics.
@@ -13,17 +28,18 @@ export function reportFilterCount(filters: ReportFilters): number {
   return Number(filters.search.trim().length > 0) + Number(filters.gps !== "ALL");
 }
 export function reportControlsChanged(filters: ReportFilters): boolean {
-  return reportFilterCount(filters) > 0 || filters.sort !== "distance";
+  return reportFilterCount(filters) > 0 || filters.sort !== "distance" || reportSortDirection(filters) !== "descend";
 }
 export function visibleReportVehicles(rows: readonly FleetActivityVehicleRow[], filters: ReportFilters, locale: string): FleetActivityVehicleRow[] {
   const needle = filters.search.trim().normalize("NFKC").toLocaleLowerCase(locale);
   const result = rows.filter((row) => (!needle || row.vehicleName.normalize("NFKC").toLocaleLowerCase(locale).includes(needle)) &&
     (filters.gps === "ALL" || row.hasGpsData === (filters.gps === "WITH_GPS")));
   const collator = new Intl.Collator(locale, { numeric: true, sensitivity: "base" });
-  const metric = { distance: "observedDistanceMeters", trips: "tripCount", tripTime: "tripDurationSeconds", stops: "stopCount", gaps: "gapCount" } as const;
+  const metric = { distance: "observedDistanceMeters", trips: "tripCount", tripTime: "tripDurationSeconds", stops: "stopCount", stopTime: "stopDurationSeconds", gaps: "gapCount" } as const;
+  const direction = reportSortDirection(filters) === "ascend" ? 1 : -1;
   return result.sort((a, b) => {
-    if (filters.sort === "name") return collator.compare(a.vehicleName, b.vehicleName) || a.vehicleId.localeCompare(b.vehicleId);
-    return Number(b.hasGpsData) - Number(a.hasGpsData) || b[metric[filters.sort]] - a[metric[filters.sort]] || a.vehicleId.localeCompare(b.vehicleId);
+    if (filters.sort === "name") return direction * collator.compare(a.vehicleName, b.vehicleName) || a.vehicleId.localeCompare(b.vehicleId);
+    return Number(b.hasGpsData) - Number(a.hasGpsData) || direction * (a[metric[filters.sort]] - b[metric[filters.sort]]) || a.vehicleId.localeCompare(b.vehicleId);
   });
 }
 
