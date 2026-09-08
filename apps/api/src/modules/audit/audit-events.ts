@@ -144,8 +144,13 @@ export function buildSystemActor(): AuditSystemActor {
   return Object.freeze({ actorType: AuditActorType.SYSTEM, actorUserId: null, actorLoginSnapshot: null });
 }
 
+// Bounded settings-change payload. Derived from ADMIN_SETTINGS_FIELDS length (16):
+// the largest valid SETTINGS_UPDATED event carries one change per mutable field.
+// Keep bounded (not unlimited) to preserve payload validation.
+export const SETTINGS_AUDIT_CHANGES_MAX = 16;
+
 function settingsDetails(details: SettingsUpdatedAuditDetails): SettingsUpdatedAuditDetails {
-  if (!Array.isArray(details.changes) || details.changes.length === 0 || details.changes.length > 16) throw new AuditEventValidationError("settings changes must be a non-empty bounded array");
+  if (!Array.isArray(details.changes) || details.changes.length === 0 || details.changes.length > SETTINGS_AUDIT_CHANGES_MAX) throw new AuditEventValidationError("settings changes must be a non-empty bounded array");
   const changes = details.changes.map((change) => {
     const item = object(change, "settings change");
     exactKeys(item, ["field", "previous", "next"], "settings change");

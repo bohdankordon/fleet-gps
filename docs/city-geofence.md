@@ -27,3 +27,7 @@ The map geofence is a read projection of the same canonical geofence used by `CI
 The compiled smoke compares a before/after safe fingerprint of the `ApplicationSettings` row (`updatedAt` plus whether geofence JSON is null), so its `database writes: 0` confirms this read-only workflow did not alter settings. It also blocks any non-localhost fetch before it can leave the process.
 
 The runtime never queries OpenStreetMap, Overpass, Nominatim, or any other external geofence service. The separately controlled Vinnytsia candidate, source, licence, and checksum are documented below; it is still not imported.
+
+## Phase 0 legacy lifecycle gap (deferred)
+
+Phase 0 fixes coordinate-change detection only inside the revision-protected business-settings lifecycle: validated polygon structure comparison, persisted revision increment, bounded audit with safe ring/point presentation, and detector reset selection. The older direct geofence management and import path does not participate in that revision/audit/notifier lifecycle. That gap is intentionally left unchanged in Phase 0 and is classified as a prerequisite before any future browser geofence editor. Do not build an editor until the lifecycle is consolidated in a separately scoped task. Existing operational tooling is retained.

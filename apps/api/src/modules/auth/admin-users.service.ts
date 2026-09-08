@@ -26,6 +26,16 @@ export class AdminUsersError extends Error {
 
 type UserWithPermissions = AuthUser & Readonly<{ permissions: readonly Readonly<{ key: string }>[]; telegramConnection?: Readonly<{ status: "CONNECTED" | "BROKEN" | "DISCONNECTED" }> | null }>;
 
+// Authoritative safe AdminUser read projection (Phase 0 correctness).
+// Every list/detail/mutation read that returns SafeAdminUser must include the
+// Telegram connection status projection (status only, no secrets) so that
+// safeUser() never fabricates NOT_CONNECTED merely because the relation was
+// omitted. Reuse this constant to prevent future drift.
+export const ADMIN_USER_INCLUDE = Object.freeze({
+  permissions: true,
+  telegramConnection: Object.freeze({ select: Object.freeze({ status: true }) }),
+}) as unknown as Prisma.AuthUserInclude;
+
 function safeUser(user: UserWithPermissions): SafeAdminUser {
   return Object.freeze({
     id: user.id,
@@ -81,12 +91,12 @@ export class AdminUsersService {
   public constructor(private readonly database: DatabaseService, @Inject(ADMIN_USER_SECURITY) private readonly security: AdminUserSecurity, private readonly audit: AuditEventRepository) {}
 
   public async list(): Promise<readonly SafeAdminUser[]> {
-    const users = await this.database.getClient().authUser.findMany({ orderBy: [{ normalizedLogin: "asc" }, { id: "asc" }], include: { permissions: true, telegramConnection: { select: { status: true } } } });
+    const users = await this.database.getClient().authUser.findMany({ orderBy: [{ normalizedLogin: "asc" }, { id: "asc" }], include: ADMIN_USER_INCLUDE });
     return Object.freeze(users.map(safeUser));
   }
 
   public async detail(userId: string): Promise<SafeAdminUser> {
-    const user = await this.database.getClient().authUser.findUnique({ where: { id: userId }, include: { permissions: true, telegramConnection: { select: { status: true } } } });
+    const user = await this.database.getClient().authUser.findUnique({ where: { id: userId }, include: ADMIN_USER_INCLUDE });
     if (!user) throw new AdminUsersError("NOT_FOUND");
     return safeUser(user);
   }
@@ -105,7 +115,7 @@ export class AdminUsersService {
         if (nextRole === AuthRole.ADMIN) await lockAdminCardinality(transaction);
         const created = await transaction.authUser.create({ data: { login: value.login as string, normalizedLogin, role: nextRole, disabled: false, mustChangePassword: true, passwordHashVersion: material.version, passwordSalt: new Uint8Array(material.salt), passwordHash: new Uint8Array(material.hash) } });
         if (nextRole === AuthRole.USER && nextPermissions.length > 0) await transaction.authUserPermission.createMany({ data: nextPermissions.map((key) => ({ userId: created.id, key })) });
-        const persisted = await transaction.authUser.findUniqueOrThrow({ where: { id: created.id }, include: { permissions: true } });
+        const persisted = await transaction.authUser.findUniqueOrThrow({ where: { id: created.id }, include: ADMIN_USER_INCLUDE });
         await this.audit.append(transaction, buildUserCreatedAuditEvent(actor, persisted.id, {
           targetLoginSnapshot: persisted.login,
           role: persisted.role,
@@ -127,7 +137,7 @@ export class AdminUsersService {
     if (nextRole === AuthRole.ADMIN && nextPermissions.length > 0) throw new AdminUsersError("INVALID_INPUT");
     return this.database.getClient().$transaction(async (transaction: Prisma.TransactionClient) => {
       await lockAdminCardinality(transaction);
-      const current = await transaction.authUser.findUnique({ where: { id: userId }, include: { permissions: true } });
+      const current = await transaction.authUser.findUnique({ where: { id: userId }, include: ADMIN_USER_INCLUDE });
       if (!current) throw new AdminUsersError("NOT_FOUND");
       if (actor.actorUserId === userId && current.role === AuthRole.ADMIN && nextRole === AuthRole.USER) throw new AdminUsersError("SELF_PROTECTED");
       if (current.role === AuthRole.ADMIN && !current.disabled && nextRole === AuthRole.USER) {
@@ -141,7 +151,7 @@ export class AdminUsersService {
       await transaction.authUserPermission.deleteMany({ where: { userId } });
       await transaction.authUser.update({ where: { id: userId }, data: { role: nextRole } });
       if (nextRole === AuthRole.USER && nextPermissions.length > 0) await transaction.authUserPermission.createMany({ data: nextPermissions.map((key) => ({ userId, key })) });
-      const persisted = await transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: { permissions: true } });
+      const persisted = await transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: ADMIN_USER_INCLUDE });
       await this.audit.append(transaction, buildUserAccessChangedAuditEvent(actor, persisted.id, {
         targetLoginSnapshot: persisted.login,
         previousRole: current.role,
@@ -157,7 +167,7 @@ export class AdminUsersService {
     if (actor.actorUserId === userId) throw new AdminUsersError("SELF_PROTECTED");
     return this.database.getClient().$transaction(async (transaction: Prisma.TransactionClient) => {
       await lockAdminCardinality(transaction);
-      const current = await transaction.authUser.findUnique({ where: { id: userId }, include: { permissions: true } });
+      const current = await transaction.authUser.findUnique({ where: { id: userId }, include: ADMIN_USER_INCLUDE });
       if (!current) throw new AdminUsersError("NOT_FOUND");
       if (current.role === AuthRole.ADMIN && !current.disabled) {
         const enabledAdmins = await transaction.authUser.count({ where: { role: AuthRole.ADMIN, disabled: false } });
@@ -170,20 +180,20 @@ export class AdminUsersService {
       } else {
         await transaction.authSession.deleteMany({ where: { userId } });
       }
-      return safeUser(await transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: { permissions: true } }));
+      return safeUser(await transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: ADMIN_USER_INCLUDE }));
     });
   }
 
   public async enable(actor: AuditUserActor, userId: string): Promise<SafeAdminUser> {
     return this.database.getClient().$transaction(async (transaction: Prisma.TransactionClient) => {
       await lockAdminCardinality(transaction);
-      const current = await transaction.authUser.findUnique({ where: { id: userId }, include: { permissions: true } });
+      const current = await transaction.authUser.findUnique({ where: { id: userId }, include: ADMIN_USER_INCLUDE });
       if (!current) throw new AdminUsersError("NOT_FOUND");
       if (current.disabled) {
         await transaction.authUser.update({ where: { id: userId }, data: { disabled: false } });
         await this.audit.append(transaction, buildUserEnabledAuditEvent(actor, userId, current.login));
       }
-      return safeUser(await transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: { permissions: true } }));
+      return safeUser(await transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: ADMIN_USER_INCLUDE }));
     });
   }
 
@@ -192,12 +202,12 @@ export class AdminUsersService {
     const temporaryPassword = this.security.generatePassword();
     const material = await this.security.hashPassword(temporaryPassword);
     const user = await this.database.getClient().$transaction(async (transaction: Prisma.TransactionClient) => {
-      const current = await transaction.authUser.findUnique({ where: { id: userId }, include: { permissions: true } });
+      const current = await transaction.authUser.findUnique({ where: { id: userId }, include: ADMIN_USER_INCLUDE });
       if (!current) throw new AdminUsersError("NOT_FOUND");
       await transaction.authUser.update({ where: { id: userId }, data: { passwordHashVersion: material.version, passwordSalt: new Uint8Array(material.salt), passwordHash: new Uint8Array(material.hash), passwordChangedAt: new Date(), mustChangePassword: true } });
       await transaction.authSession.deleteMany({ where: { userId } });
       await this.audit.append(transaction, buildUserPasswordResetAuditEvent(actor, userId, current.login));
-      return transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: { permissions: true } });
+      return transaction.authUser.findUniqueOrThrow({ where: { id: userId }, include: ADMIN_USER_INCLUDE });
     });
     return Object.freeze({ user: safeUser(user), temporaryPassword });
   }

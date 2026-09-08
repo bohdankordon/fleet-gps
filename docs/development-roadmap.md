@@ -155,6 +155,12 @@ visual candidate is human accepted: semantic Event accents share Vehicle Overvie
 grammar, Fleet/Map/Events use compact page headings, and period presentation shares
 the accepted Vehicle-family shell while retaining Events range semantics.
 
+## NOW — Administration Phase 0 correctness baseline IN PROGRESS
+
+Administration discovery is complete. Direction A is accepted: shared Administration identity with separate route-based domain workspaces Users, Business Settings, Audit, GPS History. Telegram notification preferences remain under the individual Account area. No visual redesign has started.
+
+Phase 0 repairs six source-backed correctness and truthful-state areas only: audit frontend/backend contract drift including Telegram events and bounded 16-change settings payload; geofence coordinate-change detection comparing validated polygon structure while keeping ring/point counts for safe audit presentation; user mutation Telegram projection via one authoritative read projection; durable active-run explicit JSON envelope for SUCCESS plus NO ACTIVE RUN versus READ FAILURE; settings frontend validation parity with truthful blank-versus-zero handling and human-readable labels; GPS-history read-failure truthfulness preserving last-known data with explicit unavailable indication. Permissions, retention ADMIN-only irreversibility, self-lockout, last-enabled-ADMIN, revision and concurrency guards remain unchanged. Account notifications improvements remain deferred as the adjacent follow-up. Legacy direct geofence management/import remains outside the revision/audit/notifier lifecycle; that gap is documented as a prerequisite before any future browser geofence editor. No migration is expected.
+
 ## LATER — Final production hardening
 
 - Remove the temporary passwordless sudo configuration that remains intentionally available for continued development and operations.

@@ -58,5 +58,6 @@ test("active/recent reads do not invoke creation or worker paths", async () => {
   let reads = 0;
   const service = { active: async () => { reads += 1; return null; }, recent: async () => { reads += 1; return []; }, create: async () => { throw new Error("not called"); } } as unknown as PositionHistoryPopulationRunAdminService;
   const controller = new PositionHistoryPopulationRunAdminController(service); const response = { setHeader: () => undefined };
-  assert.equal(await controller.active(response), null); assert.deepEqual(await controller.recent(response), []); assert.equal(reads, 2);
+  // Phase 0: SUCCESS + NO ACTIVE RUN is explicit { active: null } envelope, never empty body.
+  assert.deepEqual(await controller.active(response), { active: null }); assert.deepEqual(await controller.recent(response), []); assert.equal(reads, 2);
 });

@@ -24,9 +24,15 @@ export const safeDurableRunSchema = z.object({
   failureCategory: z.enum(["EXECUTION", "WORKER", "UNKNOWN"]).nullable(),
 }).strict();
 
-export const activeDurableRunSchema = safeDurableRunSchema.nullable();
+
 export const recentDurableRunsSchema = z.array(safeDurableRunSchema.refine((run) => run.status === "SUCCEEDED" || run.status === "FAILED")).max(10);
 
 export type CreateDurableRunRequest = z.infer<typeof createDurableRunRequestSchema>;
 export type SafeDurableRun = z.infer<typeof safeDurableRunSchema>;
 
+// Explicit no-active-run HTTP contract (Phase 0 correctness).
+// SUCCESS + NO ACTIVE RUN is HTTP 200 with { active: null } as valid JSON,
+// distinct from READ FAILURE (non-2xx / transport / contract error).
+// Never rely on framework-specific null/empty-body behavior.
+export const activeDurableRunResponseSchema = z.object({ active: safeDurableRunSchema.nullable() }).strict();
+export type ActiveDurableRunResponse = z.infer<typeof activeDurableRunResponseSchema>;

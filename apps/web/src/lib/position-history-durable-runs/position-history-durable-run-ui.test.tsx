@@ -9,7 +9,7 @@ const terminal = (status: "SUCCEEDED" | "FAILED", committedWindows: number): Saf
 
 test("view-only integration receives active/recent truth while create controls stay permission-conditional", () => {
   const source = readFileSync("src/components/position-history-durable-runs.tsx", "utf8"); const page = readFileSync("src/app/admin/history/page.tsx", "utf8");
-  assert.match(source, /active &&/); assert.match(source, /recent\.map/); assert.match(source, /canPopulate && active === null/);
+  assert.match(source, /active &&/); assert.match(source, /recent\.map/); assert.match(source, /shouldShowDurableCreateControls/);
   assert.match(page, /showDurableRuns/); assert.match(page, /hasPermission\(user, "historyAdmin\.populate"\)/); assert.match(page, /fetchActiveDurableRun/); assert.match(page, /fetchRecentDurableRuns/);
   assert.equal(source.includes("leaseOwner"), false); assert.equal(source.includes("safeFailureCode"), false);
 });
@@ -33,7 +33,7 @@ test("active and recent summaries distinguish safe USER and SYSTEM initiators wi
   const source = readFileSync("src/components/position-history-durable-runs.tsx", "utf8");
   assert.match(source, /history\.durable\.initiator/);
   for (const forbidden of ["requestedByUserId", "leaseOwner", "scheduler instance", "server hostname", "pause", "resume", "retry"]) assert.equal(source.toLowerCase().includes(forbidden.toLowerCase()), false, forbidden);
-  assert.match(source, /canPopulate && active === null/);
+  assert.match(source, /shouldShowDurableCreateControls/);
 });
 
 test("BFF server source forwards through named session helper and has one POST call site", () => {

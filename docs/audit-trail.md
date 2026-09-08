@@ -20,13 +20,15 @@ Stage 20B completes integration of every approved event in the existing catalog:
 - `SYSTEM_POPULATION_CREATED`: SYSTEM actor; created `POSITION_HISTORY_POPULATION_RUN` target; details `to`, `windowBudget`, and `excludeProviderDisabled`.
 - `AUTOMATIC_RETENTION_EXECUTED`: SYSTEM actor; `POSITION_HISTORY_RETENTION` target with no target ID; the same factual bounded-retention details as manual retention.
 
-No event types beyond this source-controlled catalog are accepted.
+  No event types beyond this source-controlled catalog are accepted.
+
+ Phase 0 correctness baseline: the catalog now includes SETTINGS_UPDATED with bounded 1..16 changes and TELEGRAM_LINKED plus TELEGRAM_DISCONNECTED with empty safe details. No Telegram secrets are stored.
 
 ## Identity, targets, and safe details
 
 A USER actor is always derived from the authenticated server principal. New USER events require the authenticated user's ID and a login snapshot that follows the application login policy. The snapshot preserves historical identity if the optional AuthUser relation is later removed with `SET NULL`. A SYSTEM actor has a null user ID and null login snapshot; no fake AuthUser represents a scheduler.
 
-Targets use the fixed generic target categories `USER`, `POSITION_HISTORY`, `POSITION_HISTORY_POPULATION_RUN`, and `POSITION_HISTORY_RETENTION`. Only user and durable-run events have target IDs. There are no generic target foreign keys.
+Targets use the fixed generic target categories `USER`, `POSITION_HISTORY`, `POSITION_HISTORY_POPULATION_RUN`, `POSITION_HISTORY_RETENTION`, and `APPLICATION_SETTINGS`. Only user, durable-run, and settings events have target IDs. There are no generic target foreign keys. Telegram events never carry link tokens, bot secrets, chat secrets, or credential material.
 
 Every event has a strict typed detail shape and exact-key runtime validation. Role values are only `ADMIN` or `USER`. Permission arrays contain only source-controlled permissions, include required dependencies, and use deterministic catalog order. ADMIN audit facts describe ADMIN's effective full access rather than empty permission-row storage. An access request that produces no normalized role or effective-permission change writes no event.
 
@@ -72,4 +74,4 @@ The only filters are one `eventType`, one `actorType`, one `targetType`, inclusi
 
 The public DTO exposes only the event ID and timestamp, event type, actor, target, and safe details. USER actors expose the durable login snapshot but never `actorUserId`; SYSTEM actors expose only their type. Targets are displayed without live target lookup. The repository's JSON details are never returned directly: every row is revalidated against its exact source-controlled event detail contract and reconstructed into typed fields. If one historical row has malformed or extra details, that row remains visible with `details.status = UNAVAILABLE`; raw JSON, validation errors, and embedded forbidden content are discarded without failing the rest of the page.
 
-The browser renders Russian labels and typed descriptions for all 11 approved event types. It provides the approved filters, an explicit first-page refresh, and cursor-based “Показать ещё”. Changing or resetting filters and refreshing discard the previous cursor chain. There is no polling, SSE, WebSocket, JSON dump, actor UUID, export/download, audit update/delete/clear/prune, or audit retention control.
+The browser renders Russian labels and typed descriptions for all 14 approved event types, including Telegram link and disconnect events with safe empty details. It provides the approved filters, an explicit first-page refresh, and cursor-based “Показать ещё”. Changing or resetting filters and refreshing discard the previous cursor chain. There is no polling, SSE, WebSocket, JSON dump, actor UUID, export/download, audit update/delete/clear/prune, or audit retention control. A valid page containing a Telegram event never fails as a whole; per-row UNAVAILABLE remains the only fallback.

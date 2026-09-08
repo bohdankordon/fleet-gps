@@ -18,6 +18,8 @@ export const AUDIT_EVENT_LABELS: Readonly<Record<AuditEventType, string>> = Obje
   RETENTION_EXECUTED: translate(DEFAULT_LOCALE, "audit.event.RETENTION_EXECUTED"),
   AUTOMATIC_RETENTION_EXECUTED: translate(DEFAULT_LOCALE, "audit.event.AUTOMATIC_RETENTION_EXECUTED"),
   SETTINGS_UPDATED: translate(DEFAULT_LOCALE, "audit.event.SETTINGS_UPDATED"),
+  TELEGRAM_LINKED: translate(DEFAULT_LOCALE, "audit.event.TELEGRAM_LINKED"),
+  TELEGRAM_DISCONNECTED: translate(DEFAULT_LOCALE, "audit.event.TELEGRAM_DISCONNECTED"),
 });
 
 export const AUDIT_TARGET_LABELS: Readonly<Record<AuditTargetType, string>> = Object.freeze({
@@ -62,5 +64,9 @@ export function auditDetailsLines(item: AuditReadItem, locale: AppLocale = DEFAU
       return Object.freeze([t("audit.detail.canonicalAnchor", { value: formatAuditTimestamp(item.details.canonicalAnchor, locale) }), t("audit.detail.cutoff", { value: formatAuditTimestamp(item.details.policyCutoff, locale) }), t("audit.detail.deletedCheckpoints", { count: item.details.deletedCheckpoints }), t("audit.detail.deletedObservations", { count: item.details.deletedObservations }), t("audit.detail.remainingCheckpoints", { count: item.details.remainingFullyObsoleteCheckpoints }), t("audit.detail.remainingObservations", { count: item.details.remainingExecutableObservationCandidates }), t("audit.detail.stoppedByBudget", { value: yes(item.details.stoppedByBudget, locale) })]);
     case "SETTINGS_UPDATED":
       return Object.freeze(item.details.changes.map((change) => `${change.field}: ${String(change.previous)} → ${String(change.next)}`));
+    case "TELEGRAM_LINKED":
+      return Object.freeze([t("audit.detail.telegramLinked")]);
+    case "TELEGRAM_DISCONNECTED":
+      return Object.freeze([t("audit.detail.telegramDisconnected")]);
   }
 }

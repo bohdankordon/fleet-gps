@@ -26,3 +26,11 @@ export type SafePositionHistoryPopulationRun = Readonly<{
 export type PositionHistoryPopulationRunSafeSource = Pick<PositionHistoryPopulationRun,
   "id" | "status" | "initiatorType" | "to" | "excludeProviderDisabled" | "windowBudget" | "committedWindows" | "createdAt" | "startedAt" | "finishedAt" | "safeFailureCode"
 >;
+
+// Explicit no-active-run HTTP contract (Phase 0 correctness).
+// SUCCESS + NO ACTIVE RUN is { active: null } as valid JSON (HTTP 200),
+// distinct from READ FAILURE (non-2xx / transport / contract error).
+// Never rely on framework-specific null/empty-body behavior.
+export type ActivePositionHistoryPopulationRunResponse = Readonly<{
+  active: SafePositionHistoryPopulationRun | null;
+}>;

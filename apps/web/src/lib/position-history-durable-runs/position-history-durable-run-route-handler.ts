@@ -1,5 +1,5 @@
 import { rejectCrossOriginWrite } from "../auth/same-origin";
-import { activeDurableRunSchema, createDurableRunRequestSchema, recentDurableRunsSchema, safeDurableRunSchema, type CreateDurableRunRequest } from "./position-history-durable-run-contract";
+import { activeDurableRunResponseSchema, createDurableRunRequestSchema, recentDurableRunsSchema, safeDurableRunSchema, type CreateDurableRunRequest } from "./position-history-durable-run-contract";
 import { boundedBodyStatus, readBoundedJson } from "../http/bounded-body";
 
 const headers = { "Cache-Control": "no-store" };
@@ -31,7 +31,10 @@ export function createDurableRunReadRouteHandler(load: () => Promise<Response>, 
     try {
       const upstream = await load();
       if (!upstream.ok) return safeError(upstream.status);
-      const parsed = (kind === "active" ? activeDurableRunSchema : recentDurableRunsSchema).safeParse(await upstream.json());
+      // Active uses explicit { active: run | null } envelope so SUCCESS + NONE
+      // (HTTP 200, { active: null }) is parseable and never 503, while any
+      // upstream/network/contract failure remains an error.
+      const parsed = (kind === "active" ? activeDurableRunResponseSchema : recentDurableRunsSchema).safeParse(await upstream.json());
       return parsed.success ? Response.json(parsed.data, { headers }) : safeError(503);
     } catch { return safeError(503); }
   };

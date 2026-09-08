@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AUTH_PERMISSIONS } from "../auth/auth-contract";
 
-export const AUDIT_EVENT_TYPES = ["USER_CREATED", "USER_ACCESS_CHANGED", "USER_DISABLED", "USER_ENABLED", "USER_PASSWORD_RESET", "OWN_PASSWORD_CHANGED", "SHORT_POPULATION_EXECUTED", "DURABLE_POPULATION_CREATED", "RETENTION_EXECUTED", "SYSTEM_POPULATION_CREATED", "AUTOMATIC_RETENTION_EXECUTED", "SETTINGS_UPDATED"] as const;
+export const AUDIT_EVENT_TYPES = ["USER_CREATED", "USER_ACCESS_CHANGED", "USER_DISABLED", "USER_ENABLED", "USER_PASSWORD_RESET", "OWN_PASSWORD_CHANGED", "SHORT_POPULATION_EXECUTED", "DURABLE_POPULATION_CREATED", "RETENTION_EXECUTED", "SYSTEM_POPULATION_CREATED", "AUTOMATIC_RETENTION_EXECUTED", "SETTINGS_UPDATED", "TELEGRAM_LINKED", "TELEGRAM_DISCONNECTED"] as const;
 export const AUDIT_ACTOR_TYPES = ["USER", "SYSTEM"] as const;
 export const AUDIT_TARGET_TYPES = ["USER", "POSITION_HISTORY", "POSITION_HISTORY_POPULATION_RUN", "POSITION_HISTORY_RETENTION", "APPLICATION_SETTINGS"] as const;
 
@@ -25,6 +25,11 @@ const snapshot = { targetLoginSnapshot: z.string().regex(/^[A-Za-z0-9._-]{3,64}$
 const population = { to: timestamp, windowBudget: positiveCount, excludeProviderDisabled: z.boolean() };
 const retention = { canonicalAnchor: timestamp, policyCutoff: timestamp, deletedCheckpoints: count, deletedObservations: count, remainingFullyObsoleteCheckpoints: count, remainingExecutableObservationCandidates: count, stoppedByBudget: z.boolean() };
 const settingsChange = z.object({ field: z.string().min(1).max(64), previous: z.union([z.string(), z.number().finite(), z.boolean(), z.null()]), next: z.union([z.string(), z.number().finite(), z.boolean(), z.null()]) }).strict();
+// Bounded settings-change payload. Derived from the backend/domain model:
+// ADMIN_SETTINGS_FIELDS has 16 entries and backend settingsDetails() accepts
+// 1..16 changes, so the Web contract must accept the full 1..16 range.
+// Keep bounded (not unlimited) to preserve payload validation.
+export const SETTINGS_AUDIT_CHANGES_MAX = 16;
 
 const auditItem = z.discriminatedUnion("eventType", [
   z.object({ ...common, eventType: z.literal("USER_CREATED"), target: target("USER", true), details: details({ ...snapshot, role, permissions: z.array(permission) }) }).strict(),
@@ -38,7 +43,9 @@ const auditItem = z.discriminatedUnion("eventType", [
   z.object({ ...common, eventType: z.literal("RETENTION_EXECUTED"), target: target("POSITION_HISTORY_RETENTION", false), details: details(retention) }).strict(),
   z.object({ ...common, eventType: z.literal("SYSTEM_POPULATION_CREATED"), target: target("POSITION_HISTORY_POPULATION_RUN", true), details: details(population) }).strict(),
   z.object({ ...common, eventType: z.literal("AUTOMATIC_RETENTION_EXECUTED"), target: target("POSITION_HISTORY_RETENTION", false), details: details(retention) }).strict(),
-  z.object({ ...common, eventType: z.literal("SETTINGS_UPDATED"), target: z.object({ type: z.literal("APPLICATION_SETTINGS"), id: z.literal("1") }).strict(), details: details({ changes: z.array(settingsChange).min(1).max(12) }) }).strict(),
+  z.object({ ...common, eventType: z.literal("SETTINGS_UPDATED"), target: z.object({ type: z.literal("APPLICATION_SETTINGS"), id: z.literal("1") }).strict(), details: details({ changes: z.array(settingsChange).min(1).max(SETTINGS_AUDIT_CHANGES_MAX).refine((changes) => new Set(changes.map((c) => c.field)).size === changes.length, { message: "duplicate settings field" }) }) }).strict(),
+  z.object({ ...common, eventType: z.literal("TELEGRAM_LINKED"), target: target("USER", true), details: details({}) }).strict(),
+  z.object({ ...common, eventType: z.literal("TELEGRAM_DISCONNECTED"), target: target("USER", true), details: details({}) }).strict(),
 ]);
 
 const responseSchema = z.object({ items: z.array(auditItem).max(50), nextCursor: z.string().regex(/^[A-Za-z0-9_-]{1,512}$/).nullable(), hasMore: z.boolean() }).strict().refine((value) => value.hasMore === (value.nextCursor !== null));

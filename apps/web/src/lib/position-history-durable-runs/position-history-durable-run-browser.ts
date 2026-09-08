@@ -1,11 +1,13 @@
-import { activeDurableRunSchema, recentDurableRunsSchema, safeDurableRunSchema, type CreateDurableRunRequest, type SafeDurableRun } from "./position-history-durable-run-contract";
+import { activeDurableRunResponseSchema, recentDurableRunsSchema, safeDurableRunSchema, type CreateDurableRunRequest, type SafeDurableRun } from "./position-history-durable-run-contract";
 
-export type DurableCreateOutcome = { kind: "CREATED"; run: SafeDurableRun } | { kind: "ALREADY_RUNNING"; active: SafeDurableRun | null } | { kind: "FAILED"; active: SafeDurableRun | null };
+export type DurableCreateOutcome = { kind: "CREATED"; run: SafeDurableRun } | { kind: "ALREADY_RUNNING"; active: SafeDurableRun | null; activeUnavailable: boolean } | { kind: "FAILED"; active: SafeDurableRun | null; activeUnavailable: boolean };
 
 export async function readActiveDurableRun(fetcher: typeof fetch = fetch): Promise<SafeDurableRun | null> {
   const response = await fetcher("/api/system/position-history/population-runs/active", { method: "GET", cache: "no-store" });
   if (!response.ok) throw new Error("active unavailable");
-  return activeDurableRunSchema.parse(await response.json());
+  // Explicit envelope: SUCCESS + NO ACTIVE RUN is { active: null } (HTTP 200).
+  // Failure (non-2xx / transport / contract) throws and must not become none.
+  return activeDurableRunResponseSchema.parse(await response.json()).active;
 }
 
 export async function readRecentDurableRuns(fetcher: typeof fetch = fetch): Promise<readonly SafeDurableRun[]> {
@@ -21,7 +23,7 @@ export async function submitDurableRun(request: CreateDurableRunRequest, fetcher
     try { return { kind: "CREATED", run: safeDurableRunSchema.parse(await response.json()) }; } catch {}
   }
   let active: SafeDurableRun | null = null;
-  try { active = await readActiveDurableRun(fetcher); } catch {}
-  return { kind: response?.status === 409 ? "ALREADY_RUNNING" : "FAILED", active };
+  let activeUnavailable = false;
+  try { active = await readActiveDurableRun(fetcher); } catch { activeUnavailable = true; }
+  return { kind: response?.status === 409 ? "ALREADY_RUNNING" : "FAILED", active, activeUnavailable };
 }
-

@@ -10,11 +10,40 @@ import { ADMIN_SETTINGS_FIELDS, type AdminSettingsPatch, type AdminSettingsRespo
 const SELECT = { timezone: true, minimumDailyDistanceMeters: true, positionFreshnessSeconds: true, speedRuleEnabled: true, citySpeedLimitKph: true, outsideCitySpeedLimitKph: true, speedToleranceKph: true, speedingConfirmationUpdates: true, inactivityRuleEnabled: true, inactivityDistanceMeters: true, inactivityDurationMinutes: true, tripMovementSpeedKph: true, tripMovementConfirmationSeconds: true, tripStopConfirmationSeconds: true, tripDataGapSeconds: true, cityGeofenceGeoJson: true, updatedAt: true, revision: true } as const;
 function record(value: unknown): Record<string, unknown> { if (typeof value !== "object" || value === null || Array.isArray(value)) throw new AdminSettingsError("INVALID_INPUT"); return value as Record<string, unknown>; }
 function geofence(value: unknown): string { const polygon = validateGeoJsonPolygon(value); return polygon === null ? "not configured" : `${polygon.coordinates.length} rings, ${polygon.coordinates.reduce((sum, ring) => sum + ring.length, 0)} points`; }
+// Structural geofence equality for change detection (Phase 0 correctness).
+// Compares the validated polygon coordinate structure exactly, not only the
+// safe audit summary (ring/point counts). Ring/point counts remain the safe
+// audit PRESENTATION via geofence(); raw coordinates are never copied into
+// audit details. No topological normalization: exact validated structural
+// equality is sufficient.
+function geofenceFingerprint(value: unknown): string {
+  const polygon = validateGeoJsonPolygon(value);
+  if (polygon === null) return "null";
+  return JSON.stringify(polygon.coordinates);
+}
+function geofenceEqual(previous: unknown, next: unknown): boolean {
+  return geofenceFingerprint(previous) === geofenceFingerprint(next);
+}
 function present(row: StoredSettings): AdminSettingsResponse { const speed = validateSpeedSettings(row); const inactivity = validateInactivitySettings(row); const tripStop = validateTripStopAnalyticsPolicy(row); const polygon = validateGeoJsonPolygon(row.cityGeofenceGeoJson); return Object.freeze({ timezone: validateTimezone(row.timezone), minimumDailyDistanceMeters: validateMinimumDailyDistanceMeters(row.minimumDailyDistanceMeters), positionFreshnessSeconds: validatePositionFreshnessSeconds(row.positionFreshnessSeconds), speedRuleEnabled: validateRuleEnabled(row.speedRuleEnabled), citySpeedLimitKph: speed.citySpeedLimitKph, outsideCitySpeedLimitKph: speed.outsideCitySpeedLimitKph, speedToleranceKph: speed.speedToleranceKph, speedingConfirmationUpdates: speed.speedingConfirmationUpdates, inactivityRuleEnabled: validateRuleEnabled(row.inactivityRuleEnabled), inactivityDistanceMeters: inactivity.inactivityDistanceMeters, inactivityDurationMinutes: inactivity.inactivityDurationMinutes, ...tripStop, cityGeofence: Object.freeze({ configured: polygon !== null, ringCount: polygon?.coordinates.length ?? 0, pointCount: polygon?.coordinates.reduce((n, ring) => n + ring.length, 0) ?? 0 }), updatedAt: validateUpdatedAt(row.updatedAt), revision: validateRevision(row.revision) }); }
 function patch(value: unknown): AdminSettingsPatch { const input = record(value); const allowed = new Set(["revision", ...ADMIN_SETTINGS_FIELDS]); if (Object.keys(input).some((key) => !allowed.has(key)) || !("revision" in input)) throw new AdminSettingsError("INVALID_INPUT"); const result: Record<string, unknown> = { revision: validateRevision(input.revision) }; for (const field of ADMIN_SETTINGS_FIELDS) if (field in input) result[field] = input[field]; if (Object.keys(result).length === 1) throw new AdminSettingsError("INVALID_INPUT"); return result as AdminSettingsPatch; }
 function validateMerged(current: StoredSettings, update: AdminSettingsPatch): StoredSettings { const next = { ...current, ...update } as StoredSettings; try { validateTimezone(next.timezone); validateMinimumDailyDistanceMeters(next.minimumDailyDistanceMeters); validatePositionFreshnessSeconds(next.positionFreshnessSeconds); validateRuleEnabled(next.speedRuleEnabled); validateRuleEnabled(next.inactivityRuleEnabled); validateSpeedSettings(next); validateInactivitySettings(next); validateTripStopAnalyticsPolicy(next); validateGeoJsonPolygon(next.cityGeofenceGeoJson); return next; } catch { throw new AdminSettingsError("INVALID_INPUT"); } }
-function changes(current: StoredSettings, next: StoredSettings) { return ADMIN_SETTINGS_FIELDS.flatMap((field) => { const previous = field === "cityGeofenceGeoJson" ? geofence(current[field]) : current[field] as string | number | boolean | null; const after = field === "cityGeofenceGeoJson" ? geofence(next[field]) : next[field] as string | number | boolean | null; return JSON.stringify(previous) === JSON.stringify(after) ? [] : [Object.freeze({ field, previous, next: after })]; }); }
-function resetKinds(changed: ReturnType<typeof changes>): ReadonlySet<SettingsChangeKind> { const reset = new Set<SettingsChangeKind>(); if (changed.some((item) => ["speedRuleEnabled", "citySpeedLimitKph", "outsideCitySpeedLimitKph", "speedToleranceKph", "speedingConfirmationUpdates", "cityGeofenceGeoJson"].includes(item.field))) reset.add("speeding"); if (changed.some((item) => ["inactivityRuleEnabled", "inactivityDistanceMeters", "inactivityDurationMinutes"].includes(item.field))) reset.add("inactivity"); return reset; }
+type SettingsAuditChange = Readonly<{ field: string; previous: string | number | boolean | null; next: string | number | boolean | null }>;
+function changes(current: StoredSettings, next: StoredSettings): readonly SettingsAuditChange[] {
+  const out: SettingsAuditChange[] = [];
+  for (const field of ADMIN_SETTINGS_FIELDS) {
+    if (field === "cityGeofenceGeoJson") {
+      if (geofenceEqual(current[field], next[field])) continue;
+      out.push(Object.freeze({ field, previous: geofence(current[field]), next: geofence(next[field]) }));
+      continue;
+    }
+    const previous = current[field] as string | number | boolean | null;
+    const after = next[field] as string | number | boolean | null;
+    if (JSON.stringify(previous) !== JSON.stringify(after)) out.push(Object.freeze({ field, previous, next: after }));
+  }
+  return Object.freeze(out);
+}
+function resetKinds(changed: readonly SettingsAuditChange[]): ReadonlySet<SettingsChangeKind> { const reset = new Set<SettingsChangeKind>(); if (changed.some((item) => ["speedRuleEnabled", "citySpeedLimitKph", "outsideCitySpeedLimitKph", "speedToleranceKph", "speedingConfirmationUpdates", "cityGeofenceGeoJson"].includes(item.field))) reset.add("speeding"); if (changed.some((item) => ["inactivityRuleEnabled", "inactivityDistanceMeters", "inactivityDurationMinutes"].includes(item.field))) reset.add("inactivity"); return reset; }
+
 
 @Injectable()
 export class AdminSettingsService {

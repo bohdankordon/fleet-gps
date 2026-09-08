@@ -10,9 +10,9 @@ import { PositionHistoryPopulation } from "./position-history-population";
 import { PositionHistoryDurableRuns } from "./position-history-durable-runs";
 import { WarningIcon } from "./ui/icons";
 
-type Props = Readonly<{ anchor: string | null; data: PositionHistoryStatusResponse | null; error: "INVALID_ANCHOR" | "UNAVAILABLE" | null; navigation?: ReactNode; canPopulate?: boolean; showDurableRuns?: boolean; initialDurableActive?: SafeDurableRun | null; initialDurableRecent?: readonly SafeDurableRun[] }>;
+type Props = Readonly<{ anchor: string | null; data: PositionHistoryStatusResponse | null; error: "INVALID_ANCHOR" | "UNAVAILABLE" | null; navigation?: ReactNode; canPopulate?: boolean; showDurableRuns?: boolean; initialDurableActive?: SafeDurableRun | null; initialDurableRecent?: readonly SafeDurableRun[]; initialDurableActiveUnavailable?: boolean; initialDurableRecentUnavailable?: boolean }>;
 
-export function PositionHistoryStatusView({ anchor, data, error, navigation, canPopulate = false, showDurableRuns = false, initialDurableActive = null, initialDurableRecent = [] }: Props) {
+export function PositionHistoryStatusView({ anchor, data, error, navigation, canPopulate = false, showDurableRuns = false, initialDurableActive = null, initialDurableRecent = [], initialDurableActiveUnavailable = false, initialDurableRecentUnavailable = false }: Props) {
   const { locale, t } = useI18n();
   const [anchorDraft, setAnchorDraft] = useState(() => anchor === null ? "" : (absoluteToKyivLocal(anchor) ?? ""));
   const [anchorInputError, setAnchorInputError] = useState(false);
@@ -42,6 +42,6 @@ export function PositionHistoryStatusView({ anchor, data, error, navigation, can
       {anchor && canPopulate && <PositionHistoryPopulation anchor={anchor} />}
       <aside className="admin-history-help"><strong>{t("history.operations.title")}</strong><p>{t("history.operations.text")}</p></aside>
     </>}
-    {anchor && showDurableRuns && <PositionHistoryDurableRuns key={`${anchor}:${initialDurableActive?.id ?? "none"}:${initialDurableActive?.committedWindows ?? 0}:${initialDurableRecent[0]?.id ?? "none"}`} anchor={anchor} canPopulate={canPopulate} initialActive={initialDurableActive} initialRecent={initialDurableRecent} />}
+    {anchor && showDurableRuns && <PositionHistoryDurableRuns key={`${anchor}:${initialDurableActive?.id ?? "none"}:${initialDurableActive?.committedWindows ?? 0}:${initialDurableRecent[0]?.id ?? "none"}:${initialDurableActiveUnavailable ? "unavailable" : "ok"}:${initialDurableRecentUnavailable ? "unavailable" : "ok"}`} anchor={anchor} canPopulate={canPopulate} initialActive={initialDurableActive} initialRecent={initialDurableRecent} initialActiveUnavailable={initialDurableActiveUnavailable} initialRecentUnavailable={initialDurableRecentUnavailable} />}
   </>;
 }

@@ -28,9 +28,13 @@ test("409 and 5xx are stable and never expose upstream internals", async () => {
 
 test("active and recent read handlers are no-store, safe, and do no hidden execution", async () => {
   let reads = 0;
-  const active = await createDurableRunReadRouteHandler(async () => { reads += 1; return Response.json(run); }, "active")();
+  // Phase 0: active uses explicit { active: run | null } envelope, never empty body.
+  const active = await createDurableRunReadRouteHandler(async () => { reads += 1; return Response.json({ active: run }); }, "active")();
   const recent = await createDurableRunReadRouteHandler(async () => { reads += 1; return Response.json([{ ...run, status: "SUCCEEDED", finishedAt: exact }]); }, "recent")();
   assert.equal(active.status, 200); assert.equal(recent.status, 200); assert.equal(reads, 2); assert.equal(active.headers.get("cache-control"), "no-store");
+  assert.deepEqual(await active.json(), { active: run });
+  const none = await createDurableRunReadRouteHandler(async () => Response.json({ active: null }), "active")();
+  assert.equal(none.status, 200); assert.deepEqual(await none.json(), { active: null });
 });
 
 test("active/recent preserve safe authorization status and mask upstream failures", async () => {
@@ -38,4 +42,11 @@ test("active/recent preserve safe authorization status and mask upstream failure
     const response = await createDurableRunReadRouteHandler(async () => Response.json({ secret: "raw-token" }, { status }), "active")();
     const text = await response.text(); assert.equal(response.status, status === 500 ? 503 : status); assert.equal(text.includes("raw-token"), false);
   }
+});
+
+test("active envelope rejects empty body and raw run as contract failure, never successful none", async () => {
+  const empty = await createDurableRunReadRouteHandler(async () => new Response(null, { status: 200 }), "active")();
+  assert.equal(empty.status, 503);
+  const raw = await createDurableRunReadRouteHandler(async () => Response.json(run), "active")();
+  assert.equal(raw.status, 503);
 });

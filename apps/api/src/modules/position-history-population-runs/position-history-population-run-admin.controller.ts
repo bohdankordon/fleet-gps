@@ -4,7 +4,7 @@ import type { AuthenticatedRequest } from "../auth/auth.types";
 import { buildUserActor } from "../audit";
 import { PositionHistoryPopulationRunConflictError } from "./position-history-population-run.errors";
 import { PositionHistoryPopulationRunAdminService } from "./position-history-population-run-admin.service";
-import type { SafePositionHistoryPopulationRun } from "./position-history-population-run-admin.types";
+import type { ActivePositionHistoryPopulationRunResponse, SafePositionHistoryPopulationRun } from "./position-history-population-run-admin.types";
 import { parseCreatePositionHistoryPopulationRunRequest } from "./position-history-population-run-admin.validation";
 
 type HttpResponse = { setHeader(name: string, value: string): void };
@@ -30,9 +30,13 @@ export class PositionHistoryPopulationRunAdminController {
 
   @Get("active")
   @RequireAnyPermission("historyAdmin.view")
-  public active(@Res({ passthrough: true }) response: HttpResponse): Promise<SafePositionHistoryPopulationRun | null> {
+  public async active(@Res({ passthrough: true }) response: HttpResponse): Promise<ActivePositionHistoryPopulationRunResponse> {
     response.setHeader("Cache-Control", "no-store");
-    return this.runs.active();
+    // Explicit JSON envelope: { active: run | null }. SUCCESS + NO ACTIVE RUN
+    // is HTTP 200 with { active: null }, never an empty body. Failures remain
+    // errors via exceptions / non-2xx, never successful none.
+    const active = await this.runs.active();
+    return Object.freeze({ active });
   }
 
   @Get("recent")

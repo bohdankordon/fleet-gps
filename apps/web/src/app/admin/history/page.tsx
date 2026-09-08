@@ -21,5 +21,11 @@ export default async function AdminHistoryPage({ searchParams }: Readonly<{ sear
   const [statusResult, activeResult, recentResult, retentionResult] = await Promise.allSettled([fetchPositionHistoryStatus(resolved.anchor), fetchActiveDurableRun(), fetchRecentDurableRuns(), fetchPositionHistoryRetentionPlan()]);
   if (statusResult.status === "fulfilled") data = statusResult.value;
   else error = "UNAVAILABLE";
-  return <div><PositionHistoryStatusView anchor={resolved.anchor} data={data} error={error} navigation={<AdminNavigationTabs />} canPopulate={user !== null && hasPermission(user, "historyAdmin.populate")} showDurableRuns initialDurableActive={activeResult.status === "fulfilled" ? activeResult.value : null} initialDurableRecent={recentResult.status === "fulfilled" ? recentResult.value : []} /><PositionHistoryRetention data={retentionResult.status === "fulfilled" ? retentionResult.value : null} unavailable={retentionResult.status === "rejected"} isAdmin={user?.role === "ADMIN"} /></div>;
+  // Truthful read-state: SUCCESS + NONE vs READ FAILURE are distinct.
+  // Do NOT conceal durable-run poll failures as ordinary null/empty state.
+  const initialDurableActive = activeResult.status === "fulfilled" ? activeResult.value : null;
+  const initialDurableActiveUnavailable = activeResult.status === "rejected";
+  const initialDurableRecent = recentResult.status === "fulfilled" ? recentResult.value : [];
+  const initialDurableRecentUnavailable = recentResult.status === "rejected";
+  return <div><PositionHistoryStatusView anchor={resolved.anchor} data={data} error={error} navigation={<AdminNavigationTabs />} canPopulate={user !== null && hasPermission(user, "historyAdmin.populate")} showDurableRuns initialDurableActive={initialDurableActive} initialDurableRecent={initialDurableRecent} initialDurableActiveUnavailable={initialDurableActiveUnavailable} initialDurableRecentUnavailable={initialDurableRecentUnavailable} /><PositionHistoryRetention data={retentionResult.status === "fulfilled" ? retentionResult.value : null} unavailable={retentionResult.status === "rejected"} isAdmin={user?.role === "ADMIN"} /></div>;
 }

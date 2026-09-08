@@ -17,7 +17,11 @@ test("settings form preserves canonical units, dirty state, booleans, and a sing
 test("client validation rejects invalid timezone and every scalar boundary without coercion", () => {
   const draft = adminSettingsDraft(initial);
   assert.equal(validateAdminSettingsDraft(draft), null);
-  assert.equal(validateAdminSettingsDraft({ ...draft, minimumDailyDistanceMeters: 10_000_001, positionFreshnessSeconds: 86_401 }), null);
+  // Phase 0 parity: backend 0..10_000_000 and 1..86_400 must be enforced client-side.
+  assert.equal(validateAdminSettingsDraft({ ...draft, minimumDailyDistanceMeters: 10_000_001, positionFreshnessSeconds: 86_401 }), "minimumDailyDistanceMeters");
+  assert.equal(validateAdminSettingsDraft({ ...draft, minimumDailyDistanceMeters: 10_000_000 }), null);
+  assert.equal(validateAdminSettingsDraft({ ...draft, positionFreshnessSeconds: 86_400 }), null);
+  assert.equal(validateAdminSettingsDraft({ ...draft, positionFreshnessSeconds: 86_401 }), "positionFreshnessSeconds");
   assert.equal(validateAdminSettingsDraft({ ...draft, timezone: "Not/AZone" }), "timezone");
   for (const [key, value] of [["minimumDailyDistanceMeters", -1], ["positionFreshnessSeconds", 0], ["citySpeedLimitKph", 201], ["outsideCitySpeedLimitKph", 0], ["speedToleranceKph", 51], ["speedingConfirmationUpdates", 11], ["inactivityDistanceMeters", 5001], ["inactivityDurationMinutes", 0], ["tripMovementSpeedKph", 0], ["tripMovementConfirmationSeconds", 604801], ["tripStopConfirmationSeconds", 0], ["tripDataGapSeconds", 604801]] as const) assert.equal(validateAdminSettingsDraft({ ...draft, [key]: value }), key);
   assert.equal(validateAdminSettingsDraft({ ...draft, speedToleranceKph: 1.5 }), "speedToleranceKph");

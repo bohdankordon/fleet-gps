@@ -30,6 +30,10 @@ The browser performs read-only active polling every five seconds. It retains pri
 
 There is no cancel, pause, resume, force unlock, run deletion, pruning, retention, or notification.
 
+## Phase 0 active-run read contract (correctness baseline)
+
+Phase 0 makes SUCCESS plus NO ACTIVE RUN explicit and truthful. GET active returns HTTP 200 with a valid JSON envelope meaning none, never an empty body. Actual upstream, network, or contract failure remains an error and is never converted to successful none. The Web BFF and clients parse the envelope without exception, preserve last-known data on poll failure, surface unavailable separately, and recover on a later successful poll. Recent runs are retried while unavailable; a later successful poll clears unavailable and restores data. After ambiguous create, a failed active confirmation is unavailable, not confirmed none, and creation controls stay suppressed until a later successful active read. Stale polling responses started before a newer submission result cannot replace that newer truth; later successful polling can recover state. Existing active-run representation remains truthful.
+
 ## Stage 18C automatic rolling maintenance
 
 `POSITION_HISTORY_MAINTENANCE_ENABLED` is an operational feature flag. It accepts the repository's exact boolean forms `true` and `false` and defaults to `false` when absent. Disabled maintenance performs no active-run lookup, horizon planning, durable creation, worker invocation, provider request, or durable mutation. This flag controls only automatic `SYSTEM` creation; the Stage 18B 30-second poller continues processing existing USER and SYSTEM rows independently. `POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET` is a strict decimal integer from 1 through 5000; it is required explicitly whenever maintenance is enabled. The intended initial Stage 24B production value is `2000`.
