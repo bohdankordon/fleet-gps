@@ -59,8 +59,8 @@ test("Disable is destructive while Enable and password reset are not", () => {
   assert.match(detail, /variant="secondary"[\s\S]*onConfirm=\{\(\) => void reset\(\)\}/);
 });
 
-test("accepted correction hooks cover users, permissions, account, dashboard summary semantics, and Trips spacing", () => {
-  assert.match(source("src/app/admin/users/page.tsx"), /admin-users-hero/);
+test("accepted correction hooks cover the Users workspace, permissions, account, dashboard summary semantics, and Trips spacing", () => {
+  assert.match(source("src/app/admin/users/page.tsx"), /admin-users-page-v2/);
   const permissions = source("src/components/permission-selector.tsx");
   assert.match(permissions, /permission-copy/);
   assert.match(permissions, /permission-title/);

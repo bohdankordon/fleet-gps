@@ -1,0 +1,96 @@
+.admin-users-page-v2 {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.admin-users-page-header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.admin-users-page-header__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.admin-users-page-header .admin-users-page-header__title h1 {
+  margin: 0;
+  font-size: var(--font-size-page-title);
+  line-height: var(--line-height-page-title);
+  letter-spacing: var(--letter-spacing-default);
+}
+
+.admin-users-page-v2 > .admin-navigation-tabs { margin-bottom: 0; }
+.admin-navigation-tabs__mobile { width: 100%; }
+.admin-navigation-tabs__select { width: 100%; }
+
+.admin-users-controls {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(160px, 210px) minmax(210px, 280px);
+  gap: var(--space-3);
+  align-items: end;
+}
+
+.admin-users-control {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.admin-users-directory { min-width: 0; }
+.admin-users-directory__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.admin-users-directory .admin-users-directory__heading h2 {
+  margin: 0;
+  font-size: var(--font-size-section-title);
+  line-height: var(--line-height-section-title);
+}
+
+.admin-users-directory__divider { margin: var(--space-2) 0 0 !important; }
+.admin-users-list__item {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(150px, 1.3fr) minmax(110px, 1fr) minmax(130px, 1fr) auto;
+  grid-template-areas: "account authority state telegram open" "account authority state updated open";
+  gap: var(--space-1) var(--space-3);
+  align-items: center !important;
+}
+
+.admin-users-list__account { grid-area: account; }
+.admin-users-list__authority { grid-area: authority; }
+.admin-users-list__state { grid-area: state; }
+.admin-users-list__telegram { grid-area: telegram; }
+.admin-users-list__updated { grid-area: updated; }
+.admin-users-list__open { grid-area: open; }
+.admin-users-loading { display: grid; min-height: 280px; place-items: center; }
+.admin-users-load-error { margin-top: var(--space-2); }
+
+@media (max-width: 767px) {
+  .admin-users-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .admin-users-control--search { grid-column: 1 / -1; }
+  .admin-users-list__item {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas: "account authority open" "state telegram open" "updated updated open";
+    gap: var(--space-2) var(--space-3);
+  }
+}
+
+@media (max-width: 575px) {
+  .admin-users-page-v2 { gap: var(--space-3); }
+  .admin-users-page-header__title { align-items: flex-start; }
+  .admin-users-create { flex: none; }
+  .admin-users-directory__heading { align-items: flex-start; flex-direction: column; gap: var(--space-1); }
+  .admin-users-directory__heading > .ant-space { width: 100%; justify-content: space-between; }
+  .admin-users-list__item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "account authority" "state telegram" "updated open";
+    padding-block: var(--space-3) !important;
+  }
+}

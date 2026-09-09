@@ -1,10 +1,22 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { fetchAdminUsers } from "@/lib/admin-users/admin-users-client";
-import { requireAuthUser } from "@/lib/auth/auth-user";
-import { getServerI18n } from "@/i18n/server";
-import { permissionLabel, roleLabel } from "@/i18n/domain-labels";
-import { formatDateTime } from "@/i18n/formatting";
 import { AdminNavigationTabs } from "@/components/admin-navigation-tabs";
-export const dynamic = "force-dynamic"; export const revalidate = 0;
-export default async function AdminUsersPage() { const [actor, { locale, t }] = await Promise.all([requireAuthUser(), getServerI18n()]); if (actor.role !== "ADMIN") redirect("/forbidden"); let users = null; try { users = await fetchAdminUsers(); } catch {} return <div><header className="hero admin-users-hero"><div><p className="eyebrow">{t("admin.users.eyebrow")}</p><h1>{t("admin.users.title")}</h1><p>{t("admin.users.description")}</p></div><Link className="admin-primary-link" href="/admin/users/new">{t("admin.users.create")}</Link></header><AdminNavigationTabs />{!users ? <p className="admin-error" role="alert">{t("admin.users.loadError")}</p> : <div className="admin-users-table"><table><thead><tr><th>{t("admin.user.login")}</th><th>{t("admin.user.role")}</th><th>{t("admin.user.status")}</th><th>{t("admin.user.passwordChangeRequired")}</th><th>{t("admin.user.access")}</th><th>{t("admin.user.createdAt")}</th></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><Link href={`/admin/users/${user.id}`}>{user.login}</Link></td><td>{roleLabel(user.role, locale)}</td><td><span className={`badge ${user.disabled ? "badge-stale" : "badge-fresh"}`}>{user.disabled ? t("admin.user.disabled") : t("admin.user.active")}</span></td><td>{user.mustChangePassword ? t("common.yes") : t("common.no")}</td><td>{user.role === "ADMIN" ? t("admin.user.fullAccess") : user.permissions.length ? user.permissions.map((permission) => permissionLabel(permission, locale)).join(", ") : t("common.noAccess")}</td><td>{formatDateTime(locale, user.createdAt) ?? "—"}</td></tr>)}</tbody></table></div>}</div>; }
+import { AdminUsersPageHeader, AdminUsersWorkspace } from "@/components/admin-users-workspace";
+import { getServerI18n } from "@/i18n/server";
+import { fetchAdminUsers } from "@/lib/admin-users/admin-users-client";
+import { parseAdminUsersQuery } from "@/lib/admin-users/admin-users-directory-model";
+import { requireAuthUser } from "@/lib/auth/auth-user";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export default async function AdminUsersPage({ searchParams }: Readonly<{ searchParams: Promise<Record<string, string | string[] | undefined>> }>) {
+  const [actor, query] = await Promise.all([requireAuthUser(), searchParams]);
+  if (actor.role !== "ADMIN") redirect("/forbidden");
+  let users = null;
+  try { users = await fetchAdminUsers(); } catch {}
+  return <div className="admin-users-page-v2">
+    <AdminUsersPageHeader />
+    <AdminNavigationTabs />
+    <AdminUsersWorkspace users={users} actorId={actor.id} initialQuery={parseAdminUsersQuery(query)} />
+  </div>;
+}
