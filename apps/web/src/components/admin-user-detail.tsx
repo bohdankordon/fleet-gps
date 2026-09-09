@@ -1,19 +1,56 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { AuthPermission } from "@/lib/auth/auth-contract";
-import { parseAdminManagedUser, parseOneTimePasswordResult, type AdminManagedUser } from "@/lib/admin-users/admin-users-contract";
+import { Descriptions, Divider, Typography } from "antd";
+import type { AuthPermission } from "../lib/auth/auth-contract";
+import { parseAdminManagedUser, parseOneTimePasswordResult, type AdminManagedUser } from "../lib/admin-users/admin-users-contract";
+import { adminUserAuthoritySummary } from "../lib/admin-users/admin-users-directory-model";
 import { useI18n } from "../i18n/client";
-import { roleLabel } from "../i18n/domain-labels";
+import { permissionLabel, roleLabel } from "../i18n/domain-labels";
 import { adminUserErrorMessage } from "../i18n/errors";
 import { formatDateTime } from "../i18n/formatting";
+import { AdminNavigationTabs } from "./admin-navigation-tabs";
 import { OneTimePassword } from "./one-time-password";
 import { PermissionSelector } from "./permission-selector";
 import { Alert, AlertDialog, Button } from "./ui";
 
 class AdminUserRequestError extends Error {
   public constructor(public readonly body: unknown) { super("ADMIN_USER_REQUEST_FAILED"); }
+}
+
+export function AdminUserIdentity({ user, self }: Readonly<{ user: AdminManagedUser; self: boolean }>) {
+  const { locale, t } = useI18n();
+  const identityFacts = [roleLabel(user.role, locale), user.disabled ? t("admin.user.disabled") : t("admin.user.active"), ...(user.mustChangePassword ? [t("admin.user.passwordChangeRequired")] : []), ...(self ? [t("admin.user.yourAccount")] : [])];
+  return <>
+    <Link className="admin-user-detail-v2__back" href="/admin/users"><span aria-hidden="true">{"← "}</span>{t("admin.user.detail.backToUsers")}</Link>
+    <header className="admin-user-detail-v2__identity">
+      <Typography.Title level={1}>{user.login}</Typography.Title>
+      <Typography.Text type="secondary">{identityFacts.join(" · ")}</Typography.Text>
+    </header>
+  </>;
+}
+
+export function AdminUserAccountOverview({ user, onManageAccess }: Readonly<{ user: AdminManagedUser; onManageAccess(): void }>) {
+  const { locale, t } = useI18n();
+  const authoritySummary = adminUserAuthoritySummary(user, locale);
+  const authorityPermissions = user.role === "USER" && user.permissions.length > 0 ? user.permissions.map((permission) => permissionLabel(permission, locale)).join(", ") : null;
+  const telegramConnected = user.telegramStatus === "CONNECTED";
+  return <section className="admin-user-detail-v2__overview" aria-labelledby="admin-user-overview-title">
+    <Typography.Title level={2} id="admin-user-overview-title">{t("admin.user.detail.accountOverview")}</Typography.Title>
+      <Descriptions bordered column={{ xs: 1, sm: 1, md: 1, lg: 2, xl: 2, xxl: 2 }}>
+      <Descriptions.Item label={t("admin.user.login")}>{user.login}</Descriptions.Item>
+      <Descriptions.Item label={t("admin.user.role")}>{roleLabel(user.role, locale)}</Descriptions.Item>
+      <Descriptions.Item label={t("admin.user.status")}>{user.disabled ? t("admin.user.disabled") : t("admin.user.active")}</Descriptions.Item>
+      <Descriptions.Item label={t("admin.user.detail.passwordChange")}>{user.mustChangePassword ? t("admin.user.passwordChangeRequired") : t("admin.user.detail.passwordNotRequired")}</Descriptions.Item>
+        <Descriptions.Item label={t("admin.users.authority")}><span className="admin-user-detail-v2__authority"><span>{authoritySummary}</span>{authorityPermissions ? <Typography.Text type="secondary">{authorityPermissions}</Typography.Text> : null}</span></Descriptions.Item>
+        <Descriptions.Item label={t("admin.user.telegramStatus")}>{telegramConnected ? t("admin.users.telegramConnected") : t("admin.users.telegramNotConnected")}</Descriptions.Item>
+      <Descriptions.Item label={t("admin.user.createdAt")}><time dateTime={user.createdAt}>{formatDateTime(locale, user.createdAt) ?? "—"}</time></Descriptions.Item>
+      <Descriptions.Item label={t("admin.user.updatedAt")}><time dateTime={user.updatedAt}>{formatDateTime(locale, user.updatedAt) ?? "—"}</time></Descriptions.Item>
+    </Descriptions>
+    <Typography.Link className="admin-user-detail-v2__manage" href="#access-security" onClick={onManageAccess}>{t("admin.user.detail.manageAccess")} <span aria-hidden="true">→</span></Typography.Link>
+  </section>;
 }
 
 export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser: AdminManagedUser; actorId: string }>) {
@@ -88,19 +125,21 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
   const closeConfirmation = (kind: "demote" | "disable" | "reset" | "telegram") => (open: boolean) => { if (open) setConfirm(kind); else setConfirm(null); };
   const dialogError = (kind: "demote" | "disable" | "reset" | "telegram") => confirm === kind && error ? <Alert variant="danger" live="assertive" title={error} /> : null;
   const demoting = user.role === "ADMIN" && role === "USER";
+  function focusAccessSecurity(): void {
+    window.requestAnimationFrame(() => {
+      document.getElementById("access-security")?.focus({ preventScroll: true });
+    });
+  }
 
-  return <div className="admin-user-detail">
-    <section className="details-section">
-      <h2>{user.login} {self && <span className="badge badge-fresh">{t("admin.user.yourAccount")}</span>}</h2>
-      <dl className="details-list">
-        <div><dt>{t("admin.user.status")}</dt><dd>{user.disabled ? t("admin.user.disabled") : t("admin.user.active")}</dd></div>
-        <div><dt>{t("admin.user.passwordChangeRequired")}</dt><dd>{user.mustChangePassword ? t("common.yes") : t("common.no")}</dd></div>
-        <div><dt>{t("admin.user.createdAt")}</dt><dd>{formatDateTime(locale, user.createdAt) ?? "—"}</dd></div>
-        <div><dt>{t("admin.user.updatedAt")}</dt><dd>{formatDateTime(locale, user.updatedAt) ?? "—"}</dd></div>
-        <div><dt>{t("admin.user.telegramStatus")}</dt><dd>{t(`admin.user.telegram.${user.telegramStatus}`)}</dd></div>
-      </dl>
-      {self && <p className="admin-note">{t("admin.user.selfProtection")}</p>}
-    </section>
+  return <div className="admin-user-detail-v2">
+    <AdminUserIdentity user={user} self={self} />
+    <AdminNavigationTabs />
+    <AdminUserAccountOverview user={user} onManageAccess={focusAccessSecurity} />
+    <Divider />
+    <section id="access-security" tabIndex={-1} aria-labelledby="admin-user-access-title" className="admin-user-detail-v2__access">
+      <Typography.Title level={2} id="admin-user-access-title">{t("admin.user.detail.accessSecurity")}</Typography.Title>
+      <Typography.Paragraph type="secondary">{t("admin.user.detail.accessDescription")}</Typography.Paragraph>
+      {self && <Alert variant="info" title={t("admin.user.selfProtection")} />}
     <form className="admin-form" onSubmit={save}>
       <label>{t("admin.user.role")}<select value={role} disabled={self} onChange={(event) => { setRole(event.currentTarget.value as "USER" | "ADMIN"); setConfirm(null); }}><option value="USER">{roleLabel("USER", locale)}</option><option value="ADMIN">{roleLabel("ADMIN", locale)}</option></select></label>
       {role === "USER" ? <PermissionSelector value={permissions} onChange={setPermissions} disabled={self} /> : <p className="admin-note">{t("admin.user.adminFullAccessCompact")}</p>}
@@ -115,5 +154,6 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
       </div>
     </section>}
     {error && confirm === null && <p className="admin-error" role="alert">{error}</p>}
+    </section>
   </div>;
 }

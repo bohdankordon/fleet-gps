@@ -20,7 +20,6 @@ test("Administration uses permission-aware real links and a compact mobile switc
 test("every supported Administration screen mounts the shared navigation after its page header", () => {
   const directFiles = [
     "src/app/admin/users/new/page.tsx",
-    "src/app/admin/users/[userId]/page.tsx",
     "src/app/admin/settings/page.tsx",
   ];
   for (const file of directFiles) {
@@ -29,6 +28,12 @@ test("every supported Administration screen mounts the shared navigation after i
     const headerEnd = Math.max(source.indexOf("</header>"), source.indexOf("<PageHeader"));
     assert.ok(headerEnd >= 0 && source.indexOf("<AdminNavigationTabs", headerEnd) > headerEnd, file);
   }
+  const userDetailPage = readFileSync("src/app/admin/users/[userId]/page.tsx", "utf8");
+  assert.match(userDetailPage, /<AdminUserDetail initialUser=\{user\} actorId=\{actor\.id\} \/>/);
+  const userDetail = readFileSync("src/components/admin-user-detail.tsx", "utf8");
+  const recordHeaderEnd = userDetail.indexOf("</header>");
+  assert.ok(recordHeaderEnd >= 0 && userDetail.indexOf("<AdminNavigationTabs", recordHeaderEnd) > recordHeaderEnd, "user detail identity header precedes navigation");
+  assert.ok(userDetail.indexOf("AdminUserAccountOverview user=") > userDetail.indexOf("<AdminNavigationTabs"), "user detail navigation precedes overview");
   const usersPage = readFileSync("src/app/admin/users/page.tsx", "utf8");
   assert.ok(usersPage.indexOf("<AdminNavigationTabs") > usersPage.indexOf("<AdminUsersPageHeader"));
   const auditPage = readFileSync("src/app/admin/audit/page.tsx", "utf8");

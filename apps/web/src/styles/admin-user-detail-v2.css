@@ -1,0 +1,58 @@
+.admin-user-detail-page-v2 {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.admin-user-detail-v2 {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 1020px;
+  min-width: 0;
+}
+
+.admin-user-detail-v2__back {
+  justify-self: start;
+}
+
+.admin-user-detail-v2__identity h1 {
+  margin-bottom: var(--space-1);
+}
+
+.admin-user-detail-v2__overview {
+  display: grid;
+  max-width: 800px;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.admin-user-detail-v2__overview h2,
+.admin-user-detail-v2__access h2 {
+  margin: 0;
+}
+
+.admin-user-detail-v2__authority {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.admin-user-detail-v2__manage {
+  justify-self: start;
+}
+
+.admin-user-detail-v2__access {
+  display: grid;
+  gap: var(--space-3);
+  scroll-margin-top: var(--space-4);
+}
+
+.admin-user-detail-v2__access:focus {
+  outline: none;
+}
+
+@media (max-width: 767px) {
+  .admin-user-detail-page-v2,
+  .admin-user-detail-v2 {
+    gap: var(--space-3);
+  }
+}

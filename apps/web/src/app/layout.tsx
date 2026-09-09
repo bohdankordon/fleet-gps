@@ -15,6 +15,7 @@ import "../styles/vehicle-details.css";
 import "../styles/vehicle-trips.css";
 import "../styles/vehicle-track.css";
 import "../styles/admin-users.css";
+import "../styles/admin-user-detail-v2.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 export async function generateMetadata(): Promise<Metadata> { const { t } = await getServerI18n(); return { title: t("document.title"), description: t("document.description") }; }
