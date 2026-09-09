@@ -98,4 +98,4 @@ function StateCell({ user }: Readonly<{ user: AdminManagedUser }>) { const { t }
 function TelegramCell({ user }: Readonly<{ user: AdminManagedUser }>) { const { t } = useI18n(); return <Typography.Text type={user.telegramStatus === "CONNECTED" ? undefined : "secondary"}>{user.telegramStatus === "CONNECTED" ? t("admin.users.telegramConnected") : t("admin.users.telegramNotConnected")}</Typography.Text>; }
 function OpenUser({ user }: Readonly<{ user: AdminManagedUser }>) { const { t } = useI18n(); return <Button type="link" size="small" href={`/admin/users/${user.id}`} aria-label={t("admin.users.openAccount", { login: user.login })}>{t("admin.users.open")} <RightOutlined aria-hidden /></Button>; }
 
-export function AdminUsersLoadingWorkspace() { const { t } = useI18n(); return <div className="admin-users-loading" role="status" aria-live="polite"><Spin tip={t("admin.users.loading")}><div /></Spin></div>; }
+export function AdminUsersLoadingWorkspace() { const { t } = useI18n(); return <div className="admin-users-loading" role="status" aria-live="polite"><Spin description={t("admin.users.loading")}><div /></Spin></div>; }
