@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AuditQueryError, normalizeAuditFilters, normalizeAuditLocalFilters, parseAuditRequestQuery, serializeAuditRequestQuery } from "./audit-query";
+import { AuditQueryError, hasAuditFilters, normalizeAuditFilters, normalizeAuditLocalFilters, parseAuditPageQuery, parseAuditRequestQuery, serializeAuditPageQuery, serializeAuditRequestQuery } from "./audit-query";
 
 test("accepts and serializes only approved filters plus cursor", () => {
   const params = new URLSearchParams({ eventType: "USER_DISABLED", actorType: "USER", targetType: "USER", from: "2026-08-11T05:00:00+03:00", to: "2026-08-12T02:00:00.000Z", cursor: "opaque_cursor" });
@@ -36,4 +36,21 @@ test("audit controls reject invalid, nonexistent, ambiguous, and reversed Kyiv c
     { from: "2026-10-25T03:30", to: "" },
     { from: "2026-08-11T09:00", to: "2026-08-11T08:00" },
   ]) assert.throws(() => normalizeAuditLocalFilters({ eventType: "", actorType: "", targetType: "", ...filters }), AuditQueryError);
+});
+
+test("open-ended Kyiv ranges preserve their missing bound through canonical URL round trips", () => {
+  for (const bound of ["from", "to"] as const) {
+    const filters = normalizeAuditLocalFilters({ eventType: "", actorType: "SYSTEM", targetType: "", from: "", to: "", [bound]: "2026-08-10T08:30" });
+    assert.deepEqual(filters, { actorType: "SYSTEM", [bound]: "2026-08-10T05:30:00.000Z" });
+    assert.deepEqual(parseAuditPageQuery(new URLSearchParams(serializeAuditPageQuery(filters))), { valid: true, filters });
+  }
+});
+
+test("page URL accepts only canonical applied filters and never a cursor", () => {
+  const parsed = parseAuditPageQuery(new URLSearchParams("eventType=USER_DISABLED&from=2026-08-11T02%3A00%3A00.000Z"));
+  assert.equal(parsed.valid, true);
+  assert.deepEqual(parsed.filters, { eventType: "USER_DISABLED", from: "2026-08-11T02:00:00.000Z" });
+  assert.equal(serializeAuditPageQuery(parsed.filters), "eventType=USER_DISABLED&from=2026-08-11T02%3A00%3A00.000Z");
+  assert.equal(hasAuditFilters(parsed.filters), true);
+  for (const query of ["cursor=opaque", "search=x", "eventType=OTHER", "eventType=USER_DISABLED&eventType=USER_ENABLED"]) assert.deepEqual(parseAuditPageQuery(new URLSearchParams(query)), { filters: {}, valid: false }, query);
 });

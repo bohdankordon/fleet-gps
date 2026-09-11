@@ -4,7 +4,10 @@ import { kyivLocalToAbsolute } from "../vehicle-track/vehicle-track-custom-range
 
 export type AuditFilters = Readonly<{ eventType?: AuditEventType; actorType?: AuditActorType; targetType?: AuditTargetType; from?: string; to?: string }>;
 export type AuditRequestQuery = AuditFilters & Readonly<{ cursor?: string }>;
+export type AuditPageQuery = Readonly<{ filters: AuditFilters; valid: boolean }>;
 export class AuditQueryError extends Error { public constructor() { super("Invalid audit query"); this.name = "AuditQueryError"; } }
+
+type AuditQuerySource = URLSearchParams | Readonly<Record<string, string | readonly string[] | undefined>>;
 
 function one(params: URLSearchParams, key: string): string | undefined {
   const values = params.getAll(key);
@@ -43,6 +46,35 @@ export function serializeAuditRequestQuery(query: AuditRequestQuery): string {
   const params = new URLSearchParams();
   for (const key of ["eventType", "actorType", "targetType", "from", "to", "cursor"] as const) if (query[key] !== undefined) params.set(key, query[key]);
   return params.toString();
+}
+
+function sourceParams(source: AuditQuerySource): URLSearchParams {
+  if (source instanceof URLSearchParams) return new URLSearchParams(source);
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(source)) {
+    if (Array.isArray(value)) for (const item of value) params.append(key, item);
+    else if (typeof value === "string") params.set(key, value);
+  }
+  return params;
+}
+
+/** Canonical page state deliberately excludes continuation cursors. */
+export function parseAuditPageQuery(source: AuditQuerySource): AuditPageQuery {
+  try {
+    const parsed = parseAuditRequestQuery(sourceParams(source));
+    if (parsed.cursor !== undefined) throw new AuditQueryError();
+    return Object.freeze({ filters: parsed, valid: true });
+  } catch {
+    return Object.freeze({ filters: Object.freeze({}), valid: false });
+  }
+}
+
+export function serializeAuditPageQuery(filters: AuditFilters): string {
+  return serializeAuditRequestQuery(filters);
+}
+
+export function hasAuditFilters(filters: AuditFilters): boolean {
+  return filters.eventType !== undefined || filters.actorType !== undefined || filters.targetType !== undefined || filters.from !== undefined || filters.to !== undefined;
 }
 
 export function normalizeAuditFilters(filters: Readonly<Record<keyof AuditFilters, string | undefined>>): AuditFilters {

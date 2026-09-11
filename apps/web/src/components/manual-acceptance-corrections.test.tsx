@@ -26,9 +26,11 @@ test("selected Map vehicle details use the contextual Ant Design inspector with 
   assert.match(css, /grid-template-columns: minmax\(0, 1fr\) minmax\(300px, 340px\)/);
 });
 
-test("Audit controls use Kyiv datetime-local values and convert only at the filter boundary", () => {
+test("Audit reuses the accepted period shell with Ant pickers and converts Kyiv civil values only at apply", () => {
   const viewer = source("src/components/audit-viewer.tsx");
-  assert.equal((viewer.match(/type="datetime-local"/g) ?? []).length, 2);
+  assert.doesNotMatch(viewer, /type="datetime-local"/);
+  assert.match(viewer, /<PeriodPopover/);
+  assert.equal((viewer.match(/<DatePicker/g) ?? []).length, 2);
   assert.match(viewer, /normalizeAuditLocalFilters/);
   assert.match(viewer, /track\.controls\.timezone/);
   assert.doesNotMatch(viewer, /placeholder="\d{4}-\d{2}-\d{2}T.*Z"/);

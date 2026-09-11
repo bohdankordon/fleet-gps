@@ -19,6 +19,7 @@ import "../styles/admin-user-detail-v2.css";
 import "../styles/admin-user-detail-access.css";
 import "../styles/admin-user-create-v2.css";
 import "../styles/business-settings.css";
+import "../styles/admin-audit.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 export async function generateMetadata(): Promise<Metadata> { const { t } = await getServerI18n(); return { title: t("document.title"), description: t("document.description") }; }
