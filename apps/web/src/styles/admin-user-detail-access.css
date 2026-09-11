@@ -1,0 +1,132 @@
+.admin-user-detail-access {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 820px;
+  min-width: 0;
+}
+
+.admin-user-detail-access section h3 {
+  margin: 0;
+}
+
+.admin-user-detail-access__block {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.admin-user-detail-access__form {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.admin-user-detail-access__form > * {
+  min-width: 0;
+}
+
+.admin-user-detail-access__save {
+  justify-self: start;
+}
+
+.admin-user-detail-access__pending {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.admin-user-detail-access__pending h4 {
+  margin: 0;
+}
+
+.admin-user-detail-access__label {
+  font-weight: var(--font-weight-semibold);
+}
+
+.admin-user-detail-access__matrix {
+  display: grid;
+  min-width: 0;
+  border: 1px solid var(--line);
+}
+
+.admin-user-detail-access__matrix-row {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.admin-user-detail-access__matrix-row + .admin-user-detail-access__matrix-row {
+  border-top: 1px solid var(--line);
+}
+
+.admin-user-detail-access__matrix-label {
+  padding: var(--space-3) var(--space-4);
+  font-weight: var(--font-weight-semibold);
+}
+
+.admin-user-detail-access__matrix-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.admin-user-detail-access__option {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.admin-user-detail-access__pending-access {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.admin-user-detail-access__security-rows {
+  display: grid;
+  min-width: 0;
+  border: 1px solid var(--line);
+}
+
+.admin-user-detail-access__security-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-4);
+  align-items: start;
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.admin-user-detail-access__security-row + .admin-user-detail-access__security-row {
+  border-top: 1px solid var(--line);
+}
+
+.admin-user-detail-access__security-fact {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.admin-user-detail-access__security-action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 767px) {
+  .admin-user-detail-access {
+    gap: var(--space-3);
+  }
+  .admin-user-detail-access__matrix-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-user-detail-access__matrix-controls {
+    flex-direction: column;
+    padding-top: 0;
+  }
+  .admin-user-detail-access__security-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-user-detail-access__security-action {
+    display: grid;
+  }
+}

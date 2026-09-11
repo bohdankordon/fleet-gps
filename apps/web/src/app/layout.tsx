@@ -16,6 +16,7 @@ import "../styles/vehicle-trips.css";
 import "../styles/vehicle-track.css";
 import "../styles/admin-users.css";
 import "../styles/admin-user-detail-v2.css";
+import "../styles/admin-user-detail-access.css";
 import "../styles/admin-user-create-v2.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
