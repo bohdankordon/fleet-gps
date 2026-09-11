@@ -1,0 +1,119 @@
+.admin-user-create-page-v2 {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.admin-user-create-page-v2__header {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.admin-user-create-page-v2__header h1 {
+  margin: 0;
+}
+
+.admin-user-create-page-v2__description {
+  margin: 0;
+}
+
+.admin-user-create-v2__back {
+  justify-self: start;
+}
+
+.admin-user-create-v2__form {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 760px;
+  min-width: 0;
+}
+
+.admin-user-create-v2__form section {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.admin-user-create-v2__form section h3 {
+  margin: 0;
+}
+
+.admin-user-create-v2__label {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* One shared matrix: left column names the capability group, right column holds its permissions. */
+.admin-user-create-v2__matrix {
+  display: grid;
+  min-width: 0;
+  border: 1px solid var(--line);
+}
+
+.admin-user-create-v2__matrix-row {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.admin-user-create-v2__matrix-row + .admin-user-create-v2__matrix-row {
+  border-top: 1px solid var(--line);
+}
+
+.admin-user-create-v2__matrix-label {
+  padding: var(--space-3) var(--space-4);
+  font-weight: var(--font-weight-semibold);
+}
+
+.admin-user-create-v2__matrix-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.admin-user-create-v2__result-access {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.admin-user-create-v2__option {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.admin-user-create-v2__error {
+  margin: 0;
+}
+
+.admin-user-create-v2__success {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 760px;
+  min-width: 0;
+}
+
+.admin-user-create-v2__success:focus {
+  outline: none;
+}
+
+.admin-user-create-v2__submit {
+  justify-self: start;
+}
+
+@media (max-width: 767px) {
+  .admin-user-create-page-v2,
+  .admin-user-create-v2__form {
+    gap: var(--space-3);
+  }
+  .admin-user-create-v2__matrix-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-user-create-v2__matrix-controls {
+    flex-direction: column;
+  }
+  .admin-user-create-v2__submit {
+    justify-self: stretch;
+  }
+}
