@@ -43,5 +43,5 @@ test("confirmation consumers use Taxi GPS primitives and retain no direct Radix 
   assert.match(consumers[1], /pendingRequest\.current/);
   assert.match(consumers[2], /submitting\.current/);
   assert.match(consumers[3], /retention-execute/);
-  assert.match(consumers[3], /<Alert variant="danger" live="assertive" title=\{error\} \/>/);
+  assert.match(consumers[3], /<Alert variant="danger" live="assertive" title=\{t\(failureKeys\[failure\]\)\}/);
 });
