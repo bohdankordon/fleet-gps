@@ -9,7 +9,7 @@ function requiredPermission(path: string): readonly AuthPermission[] | null {
   if (path === "/api/alert-events/map") return ["map.view", "events.view"];
   if (path === "/api/city-geofence/map") return ["map.view", "trips.view"];
   if (path === "/reports" || path === "/api/reports/fleet-activity") return ["reports.view"];
-  if (path === "/admin/history" || path === "/api/system/position-history/horizon-status" || path === "/api/system/position-history/population-runs/active" || path === "/api/system/position-history/population-runs/recent" || path === "/api/system/position-history/retention-plan") return ["historyAdmin.view"];
+  if (path === "/admin/history" || path === "/admin/history/population" || path === "/api/system/position-history/horizon-status" || path === "/api/system/position-history/population-runs/active" || path === "/api/system/position-history/population-runs/recent" || path === "/api/system/position-history/retention-plan") return ["historyAdmin.view"];
   if (path === "/api/system/position-history/horizon-populate") return ["historyAdmin.populate"];
   if (path === "/api/system/position-history/population-runs") return ["historyAdmin.populate"];
   if (/^\/vehicles\/[^/]+$/.test(path) || /^\/api\/vehicles\/[^/]+\/details$/.test(path)) return ["vehicles.view"];
@@ -17,7 +17,7 @@ function requiredPermission(path: string): readonly AuthPermission[] | null {
   return null;
 }
 
-function requiresAdmin(path: string): boolean { return path === "/admin/users" || path.startsWith("/admin/users/") || path === "/api/admin/users" || path.startsWith("/api/admin/users/") || path === "/api/system/position-history/retention-execute"; }
+function requiresAdmin(path: string): boolean { return path === "/admin/users" || path.startsWith("/admin/users/") || path === "/api/admin/users" || path.startsWith("/api/admin/users/") || path === "/admin/history/retention" || path === "/api/system/position-history/retention-execute"; }
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const path = request.nextUrl.pathname;

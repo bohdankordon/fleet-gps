@@ -1,37 +1,32 @@
 "use client";
 
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { Typography } from "antd";
 import { useI18n } from "../i18n/client";
 import { formatDateTime, formatNumber, formatUnit } from "../i18n/formatting";
-import { absoluteToKyivLocal, kyivLocalToAbsolute } from "../lib/vehicle-track/vehicle-track-custom-range";
 import type { PositionHistoryStatusResponse } from "../lib/position-history-status/position-history-status-contract";
 import type { SafeDurableRun } from "../lib/position-history-durable-runs/position-history-durable-run-contract";
+import { PositionHistoryCheckpointControl } from "./position-history-checkpoint-control";
 import { PositionHistoryPopulation } from "./position-history-population";
 import { PositionHistoryDurableRuns } from "./position-history-durable-runs";
+import { CompactPageHeading } from "./compact-page-heading";
 import { WarningIcon } from "./ui/icons";
 
-type Props = Readonly<{ anchor: string | null; data: PositionHistoryStatusResponse | null; error: "INVALID_ANCHOR" | "UNAVAILABLE" | null; navigation?: ReactNode; canPopulate?: boolean; showDurableRuns?: boolean; initialDurableActive?: SafeDurableRun | null; initialDurableRecent?: readonly SafeDurableRun[]; initialDurableActiveUnavailable?: boolean; initialDurableRecentUnavailable?: boolean }>;
+type Props = Readonly<{ anchor: string | null; data: PositionHistoryStatusResponse | null; error: "INVALID_ANCHOR" | "UNAVAILABLE" | null; navigation?: ReactNode; formAction?: string; canPopulate?: boolean; showDurableRuns?: boolean; initialDurableActive?: SafeDurableRun | null; initialDurableRecent?: readonly SafeDurableRun[]; initialDurableActiveUnavailable?: boolean; initialDurableRecentUnavailable?: boolean }>;
 
-export function PositionHistoryStatusView({ anchor, data, error, navigation, canPopulate = false, showDurableRuns = false, initialDurableActive = null, initialDurableRecent = [], initialDurableActiveUnavailable = false, initialDurableRecentUnavailable = false }: Props) {
+export function PositionHistoryStatusView({ anchor, data, error, navigation, formAction = "/admin/history", canPopulate = false, showDurableRuns = false, initialDurableActive = null, initialDurableRecent = [], initialDurableActiveUnavailable = false, initialDurableRecentUnavailable = false }: Props) {
   const { locale, t } = useI18n();
-  const [anchorDraft, setAnchorDraft] = useState(() => anchor === null ? "" : (absoluteToKyivLocal(anchor) ?? ""));
-  const [anchorInputError, setAnchorInputError] = useState(false);
-  const anchorQueryInput = useRef<HTMLInputElement>(null);
   const newestFirst = data ? [...data.sliceStatuses].reverse() : [];
   const number = (value: number) => formatNumber(locale, value);
   const instant = (value: string | null) => value === null ? t("history.observations.none") : (formatDateTime(locale, value) ?? t("common.notAvailable"));
 
-  function recalculate(event: FormEvent<HTMLFormElement>): void {
-    const converted = kyivLocalToAbsolute(anchorDraft);
-    if (converted.error || converted.instant === null) { event.preventDefault(); setAnchorInputError(true); return; }
-    setAnchorInputError(false);
-    if (anchorQueryInput.current) anchorQueryInput.current.value = converted.instant;
-  }
-
   return <>
-    <header className="hero admin-history-hero"><p className="eyebrow">{t("history.eyebrow")}</p><h1>{t("history.title")}</h1><p>{t("history.description")}</p></header>
+    <header className="history-overview__heading"><CompactPageHeading title={t("history.title")} subtitle={t("history.population.workspaceDescription")} /></header>
     {navigation}
-    <section className="admin-history-controls" aria-labelledby="policy-anchor-title"><h2 id="policy-anchor-title">{t("history.policy.title")}</h2><p><strong>{data ? t("history.policy.days", { days: formatUnit(locale, data.policyDays, "day") }) : t("common.notAvailable")}</strong></p><p>{t("history.policy.architecture")}</p><form action="/admin/history" method="get" onSubmit={recalculate}><label>{t("history.anchor.label")}<input type="datetime-local" step="60" value={anchorDraft} aria-invalid={anchorInputError || undefined} onChange={(event) => { setAnchorDraft(event.target.value); setAnchorInputError(false); }} required /></label><input ref={anchorQueryInput} type="hidden" name="to" defaultValue={anchor ?? ""} /><button type="submit">{t("history.anchor.recalculate")}</button></form><p>{t("track.controls.timezone")}</p><p>{t("history.anchor.help")}</p>{anchorInputError && <p className="admin-error" role="alert">{t("history.anchor.invalidText")}</p>}</section>
+    <section className="history-context" aria-labelledby="history-context-title">
+      <div className="history-context__copy"><Typography.Title level={2} id="history-context-title">{t("history.overview.checkpoint.title")}</Typography.Title><Typography.Paragraph type="secondary">{t("history.overview.checkpoint.help")}</Typography.Paragraph><Typography.Paragraph type="secondary">{data ? t("history.policy.days", { days: formatUnit(locale, data.policyDays, "day") }) : t("common.notAvailable")} · {t("history.policy.architecture")}</Typography.Paragraph></div>
+      <PositionHistoryCheckpointControl anchor={anchor} formAction={formAction} />
+    </section>
     {error === "INVALID_ANCHOR" && <section className="notice" role="alert"><WarningIcon className="notice-icon" /><div><strong>{t("history.anchor.invalidTitle")}</strong><span>{t("history.anchor.invalidText")}</span></div></section>}
     {error === "UNAVAILABLE" && <section className="notice" role="alert"><WarningIcon className="notice-icon" /><div><strong>{t("history.unavailableTitle")}</strong><span>{t("history.unavailableText")}</span></div></section>}
     {data && <>

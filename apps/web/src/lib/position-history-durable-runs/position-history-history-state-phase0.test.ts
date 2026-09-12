@@ -8,7 +8,7 @@ const exact = "2026-08-11T02:00:00.000Z";
 const run = { id: "00000000-0000-4000-8000-000000000123", status: "RUNNING", initiatorType: "USER", to: exact, excludeProviderDisabled: true, windowBudget: 1000, committedWindows: 24, createdAt: exact, startedAt: exact, finishedAt: null, failureCategory: null } satisfies SafeDurableRun;
 
 test("Phase0 history 25: read failure visible as unavailable, not neutral none", () => {
-  const page = readFileSync("src/app/admin/history/page.tsx", "utf8");
+  const page = readFileSync("src/app/admin/history/population/page.tsx", "utf8");
   assert.match(page, /initialDurableActiveUnavailable/);
   assert.match(page, /initialDurableRecentUnavailable/);
   const comp = readFileSync("src/components/position-history-durable-runs.tsx", "utf8");

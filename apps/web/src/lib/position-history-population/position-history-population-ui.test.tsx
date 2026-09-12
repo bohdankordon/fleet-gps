@@ -20,6 +20,6 @@ test("populate UI source has exact defaults, confirmation gate, pending guard, s
 });
 
 test("history page grants the block through effective populate authority including ADMIN", () => {
-  const page = readFileSync("src/app/admin/history/page.tsx", "utf8"); const proxy = readFileSync("src/proxy.ts", "utf8");
+  const page = readFileSync("src/app/admin/history/population/page.tsx", "utf8"); const proxy = readFileSync("src/proxy.ts", "utf8");
   assert.match(page, /hasPermission\(user, "historyAdmin\.populate"\)/); assert.match(proxy, /horizon-populate"\) return \["historyAdmin\.populate"\]/);
 });

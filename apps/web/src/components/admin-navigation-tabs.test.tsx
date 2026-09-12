@@ -39,9 +39,9 @@ test("every supported Administration screen mounts the shared navigation after i
   const auditPage = readFileSync("src/app/admin/audit/page.tsx", "utf8");
   const historyPage = readFileSync("src/app/admin/history/page.tsx", "utf8");
   const auditView = readFileSync("src/components/audit-viewer.tsx", "utf8");
-  const historyView = readFileSync("src/components/position-history-status-view.tsx", "utf8");
+  const historyView = readFileSync("src/components/position-history-overview.tsx", "utf8");
   assert.match(auditPage, /<AuditViewer navigation=\{<AdminNavigationTabs \/>\}/);
-  assert.match(historyPage, /<PositionHistoryStatusView[\s\S]*navigation=\{<AdminNavigationTabs \/>\}/);
+  assert.match(historyPage, /<PositionHistoryOverview[\s\S]*administrationNavigation=\{<AdminNavigationTabs \/>\}/);
   assert.ok(auditView.indexOf("{navigation}") > auditView.indexOf("</header>"));
-  assert.ok(historyView.indexOf("{navigation}") > historyView.indexOf("</header>"));
+  assert.ok(historyView.indexOf("{administrationNavigation}") > historyView.indexOf("</header>"));
 });

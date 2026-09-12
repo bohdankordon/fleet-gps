@@ -8,7 +8,7 @@ const exact = "2026-08-11T02:00:00.000Z";
 const terminal = (status: "SUCCEEDED" | "FAILED", committedWindows: number): SafeDurableRun => ({ id: status === "SUCCEEDED" ? "00000000-0000-4000-8000-000000000123" : "00000000-0000-4000-8000-000000000124", status, initiatorType: "USER", to: exact, excludeProviderDisabled: true, windowBudget: 1000, committedWindows, createdAt: exact, startedAt: exact, finishedAt: exact, failureCategory: status === "FAILED" ? "EXECUTION" : null });
 
 test("view-only integration receives active/recent truth while create controls stay permission-conditional", () => {
-  const source = readFileSync("src/components/position-history-durable-runs.tsx", "utf8"); const page = readFileSync("src/app/admin/history/page.tsx", "utf8");
+  const source = readFileSync("src/components/position-history-durable-runs.tsx", "utf8"); const page = readFileSync("src/app/admin/history/population/page.tsx", "utf8");
   assert.match(source, /active &&/); assert.match(source, /recent\.map/); assert.match(source, /shouldShowDurableCreateControls/);
   assert.match(page, /showDurableRuns/); assert.match(page, /hasPermission\(user, "historyAdmin\.populate"\)/); assert.match(page, /fetchActiveDurableRun/); assert.match(page, /fetchRecentDurableRuns/);
   assert.equal(source.includes("leaseOwner"), false); assert.equal(source.includes("safeFailureCode"), false);
