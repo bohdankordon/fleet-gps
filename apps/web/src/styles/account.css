@@ -563,6 +563,70 @@
   margin-top: var(--space-1);
 }
 
+/* No-access landing: one restrained factual surface on the shared axis. */
+.account-noaccess-card {
+  min-width: 0;
+}
+
+.account-noaccess__title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-section-title);
+}
+
+.account-noaccess__state {
+  margin: var(--space-3) 0 0;
+  min-width: 0;
+}
+
+.account-noaccess__state .ant-tag {
+  margin-inline-end: 0;
+}
+
+.account-noaccess__supporting {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  overflow-wrap: anywhere;
+}
+
+.account-noaccess__fact {
+  margin-top: var(--space-3);
+  min-width: 0;
+}
+
+.account-noaccess__label {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-label);
+}
+
+.account-noaccess__value {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  overflow-wrap: anywhere;
+}
+
+.account-noaccess__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  margin-top: var(--space-4);
+  min-width: 0;
+}
+
+.account-noaccess__actions .ant-btn {
+  flex: none;
+}
+
 .account-notifications__dirtybar {
   display: flex;
   align-items: center;
@@ -693,6 +757,12 @@
 
   .account-notifications__selector .ant-segmented {
     width: 100%;
+  }
+
+  /* No-access recovery stays thumb-reachable without stretching desktop. */
+  .account-noaccess__actions .ant-btn-primary {
+    width: 100%;
+    min-height: 44px;
   }
 
   /* Prerequisite action drops below its row content, staying owned by it. */

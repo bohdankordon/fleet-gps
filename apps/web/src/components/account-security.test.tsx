@@ -17,7 +17,7 @@ test("Security reuses the shared centered Account workspace and navigation", () 
   assert.equal((html.match(/<h2\b/g) ?? []).length, 2);
   assert.ok((html.match(/<h3\b/g) ?? []).length >= 3);
   assert.match(html, />Security</);
-  assert.match(html, /Manage the password for your Taxi GPS account\./);
+  assert.match(html, /Manage the password for your Fleet GPS account\./);
   const axisCss = readFileSync("src/styles/account.css", "utf8");
   assert.match(axisCss, /max-width:\s*820px/);
   assert.match(axisCss, /margin-inline:\s*auto/);
@@ -54,7 +54,7 @@ test("security copy is localized in UK, RU, and EN", () => {
   const expected = {
     uk: {
       title: "Безпека",
-      subtitle: "Керуйте паролем свого облікового запису Taxi GPS.",
+      subtitle: "Керуйте паролем свого облікового запису Fleet GPS.",
       status: "Статус",
       quiet: "Змінювати пароль не потрібно",
       sessions: "Сеанси",
@@ -65,7 +65,7 @@ test("security copy is localized in UK, RU, and EN", () => {
     },
     ru: {
       title: "Безопасность",
-      subtitle: "Управляйте паролем своей учётной записи Taxi GPS.",
+      subtitle: "Управляйте паролем своей учётной записи Fleet GPS.",
       status: "Статус",
       quiet: "Изменение пароля не требуется",
       sessions: "Сеансы",
@@ -76,7 +76,7 @@ test("security copy is localized in UK, RU, and EN", () => {
     },
     en: {
       title: "Security",
-      subtitle: "Manage the password for your Taxi GPS account.",
+      subtitle: "Manage the password for your Fleet GPS account.",
       status: "Status",
       quiet: "Password change not required",
       sessions: "Sessions",

@@ -36,7 +36,7 @@ test("Telegram reuses the shared centered Account workspace and navigation", () 
   const html = render({ availability: "unavailable" });
   assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
   assert.match(html, />Telegram</);
-  assert.match(html, /Connect your Taxi GPS account to a private Telegram chat\./);
+  assert.match(html, /Connect your Fleet GPS account to a private Telegram chat\./);
   assert.match(html, /<nav[^>]+aria-label="Account sections"/);
   assert.match(html, /aria-current="page" href="\/account\/telegram"/);
   assert.match(html, /account-telegram-card/);
@@ -48,7 +48,7 @@ test("NOT_CONNECTED stays neutral with a single Connect action", () => {
   const html = render(available("NOT_CONNECTED"));
   assert.match(html, /ant-tag[^>]*>Not connected</);
   // One useful sentence follows the Tag; nothing restates it.
-  assert.match(html, /Connect a private Telegram chat to receive personal Taxi GPS notifications\./);
+  assert.match(html, /Connect a private Telegram chat to receive personal Fleet GPS notifications\./);
   assert.doesNotMatch(html, /Telegram is not connected\./);
   assert.match(html, />Connect Telegram</);
   assert.doesNotMatch(html, />Disconnect Telegram</);
@@ -144,9 +144,9 @@ test("unavailable reads stay unavailable without guessed actions", () => {
 
 test("telegram copy is localized in UK, RU, and EN", () => {
   const expected = {
-    uk: { subtitle: "Підключіть свій обліковий запис Taxi GPS", help: "отримувати особисті сповіщення Taxi GPS", connect: ">Підключити Telegram<", expired: "Прострочено", replace: ">Замінити підключення<", confirm: "Підтвердження підключення", broken: "не може використовувати збережене підключення" },
-    ru: { subtitle: "Подключите свой аккаунт Taxi GPS", help: "получать личные уведомления Taxi GPS", connect: ">Подключить Telegram<", expired: "Просрочена", replace: ">Заменить подключение<", confirm: "Подтверждение подключения", broken: "не может использовать сохранённое подключение" },
-    en: { subtitle: "Connect your Taxi GPS account", help: "receive personal Taxi GPS notifications", connect: ">Connect Telegram<", expired: ">Expired<", replace: ">Replace connection<", confirm: "Connection confirmation", broken: "cannot use the saved connection" },
+    uk: { subtitle: "Підключіть свій обліковий запис Fleet GPS", help: "отримувати особисті сповіщення Fleet GPS", connect: ">Підключити Telegram<", expired: "Прострочено", replace: ">Замінити підключення<", confirm: "Підтвердження підключення", broken: "не може використовувати збережене підключення" },
+    ru: { subtitle: "Подключите свой аккаунт Fleet GPS", help: "получать личные уведомления Fleet GPS", connect: ">Подключить Telegram<", expired: "Просрочена", replace: ">Заменить подключение<", confirm: "Подтверждение подключения", broken: "не может использовать сохранённое подключение" },
+    en: { subtitle: "Connect your Fleet GPS account", help: "receive personal Fleet GPS notifications", connect: ">Connect Telegram<", expired: ">Expired<", replace: ">Replace connection<", confirm: "Connection confirmation", broken: "cannot use the saved connection" },
   } as const;
   for (const locale of ["uk", "ru", "en"] as const) {
     const copy = expected[locale];

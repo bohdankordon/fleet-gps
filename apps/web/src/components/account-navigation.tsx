@@ -8,7 +8,10 @@ import { AccountNavigationSelect } from "./account-navigation-select";
 
 export function AccountNavigation({ activePath, locale }: Readonly<{ activePath: string; locale: AppLocale }>) {
   const items = accountNavigationFor(locale);
-  const activeHref = activeAccountNavigationPath(activePath) ?? "/account";
+  // Routes outside the four Account destinations (for example
+  // /account/no-access) truthfully select nothing instead of borrowing
+  // another section's active state.
+  const activeHref = activeAccountNavigationPath(activePath);
   const label = translate(locale, "account.navigation.label");
   const mobileLabel = translate(locale, "account.navigation.mobileLabel");
 
@@ -19,7 +22,7 @@ export function AccountNavigation({ activePath, locale }: Readonly<{ activePath:
     <div className="account-navigation__desktop">
       <Menu
         mode="horizontal"
-        selectedKeys={[activeHref]}
+        selectedKeys={activeHref ? [activeHref] : []}
         items={items.map((item) => ({
           key: item.href,
           label: <Link href={item.href} aria-current={item.href === activeHref ? "page" : undefined}>{item.label}</Link>,
