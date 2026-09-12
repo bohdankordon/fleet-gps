@@ -1,0 +1,304 @@
+.account-workspace {
+  display: grid;
+  gap: var(--space-4);
+  width: min(100%, 960px);
+  margin-inline: auto;
+  min-width: 0;
+}
+
+/* One shared centered axis: heading, navigation, and body content align to
+   the same bounded column while text itself stays left-aligned. */
+.account-workspace__heading,
+.account-navigation,
+.account-workspace__body {
+  width: 100%;
+  max-width: 820px;
+  margin-inline: auto;
+}
+
+.account-workspace__heading {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* Route navigation uses the accepted Taxi GPS horizontal menu grammar. */
+.account-navigation {
+  min-width: 0;
+}
+
+.account-navigation .ant-menu {
+  background: transparent;
+}
+
+.account-navigation__desktop {
+  min-width: 0;
+}
+
+.account-navigation > .account-navigation__mobile {
+  display: none;
+  width: 100%;
+}
+
+.account-navigation__mobile .ant-select {
+  width: 100%;
+}
+
+.account-workspace__body {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  align-content: start;
+}
+
+/* Identity surface: one restrained block carrying the primary account facts.
+   Quieter than the page h1; login leads, role and access follow. */
+.account-identity-card {
+  min-width: 0;
+}
+
+.account-identity-card > .ant-card-body {
+  padding: var(--space-4);
+}
+
+.account-identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: center;
+  min-width: 0;
+}
+
+/* Chained .ant-avatar keeps this rule strictly above Ant's dynamically injected
+   `.ant-avatar` size rule (same family as the sign-out hover fix below),
+   which otherwise wins on injection order and pins the avatar at 32px. */
+.account-identity__avatar.ant-avatar {
+  width: 68px;
+  height: 68px;
+  font-size: 28px;
+}
+
+.account-identity__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account-identity__text p {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.account-identity__login {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-section-title);
+}
+
+.account-identity__role {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+}
+
+.account-identity__access {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+}
+
+.account-settings {
+  min-width: 0;
+}
+
+.account-settings__title,
+.account-signout__title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-section-title);
+}
+
+.account-signout__help {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+}
+
+/* One coherent Personal Settings list: each row owns its state + action. */
+.account-settings__list {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-settings__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-6);
+  align-items: center;
+  min-width: 0;
+  padding: var(--space-4) 0;
+}
+
+.account-settings__row:first-child {
+  padding-top: var(--space-1);
+}
+
+.account-settings__row:last-child {
+  padding-bottom: 0;
+}
+
+.account-settings__row + .account-settings__row {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.account-settings__fact {
+  min-width: 0;
+}
+
+.account-settings__name {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-label);
+}
+
+.account-settings__status {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-label);
+  overflow-wrap: anywhere;
+}
+
+.account-settings__supporting {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  overflow-wrap: anywhere;
+}
+
+.account-settings__supporting a {
+  color: var(--color-text-link);
+}
+
+/* Discrete status facts use Ant Tag; the tag carries the row state inline. */
+.account-settings__status .ant-tag {
+  margin-inline-end: 0;
+}
+
+.account-settings__action {
+  justify-self: end;
+  min-width: 0;
+}
+
+/* Secondary sign-out surface: visibly subordinate; the action itself carries
+   the restrained Ant danger treatment with its own accessible name. */
+.account-signout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-6);
+  align-items: center;
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-subtle);
+}
+
+.account-signout__fact {
+  min-width: 0;
+}
+
+.account-signout__action {
+  justify-self: end;
+}
+
+/* Scoped Account sign-out danger interaction: outlined at rest, filled Ant
+   danger red with white text on hover and keyboard focus, Ant danger active
+   red when pressed. The fill is Ant's `colorError` (#ff4d4f) — the same
+   token that paints the header account-dropdown Sign-out item
+   (`dangerItemColor`/`dangerItemHoverColor`), so both danger interactions
+   stay in one visual system; the pressed state is Ant's `colorErrorActive`
+   (#d9363e). The app does not override Ant's error seed, so these track
+   Ant defaults. Scoped to this surface only; global .ant-btn and other
+   Logout usages (for example change-password) are unaffected.
+   The chained .ant-btn class keeps this rule strictly above Ant's generic
+   `:where()`-zeroed variant hover rule, which otherwise wins on injection
+   order and leaves the button outlined on hover. This rule never touches
+   outline or box-shadow, so the project focus ring stays visible. */
+.account-signout__action .ant-btn.ant-btn-dangerous:not(:disabled):hover,
+.account-signout__action .ant-btn.ant-btn-dangerous:not(:disabled):focus-visible {
+  color: var(--color-text-inverse);
+  border-color: #ff4d4f;
+  background: #ff4d4f;
+}
+
+.account-signout__action .ant-btn.ant-btn-dangerous:not(:disabled):active {
+  color: var(--color-text-inverse);
+  border-color: #d9363e;
+  background: #d9363e;
+}
+
+/* Below 800px the compact labelled selector owns route navigation: it stays
+   usable on tablets without risking a cramped four-label row. */
+@media (max-width: 799px) {
+  .account-workspace {
+    gap: var(--space-3);
+  }
+
+  .account-navigation__desktop {
+    display: none;
+  }
+
+  .account-navigation > .account-navigation__mobile {
+    display: flex;
+  }
+
+  .account-workspace__body {
+    gap: var(--space-3);
+  }
+
+  .account-settings__row,
+  .account-signout {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .account-settings__row {
+    gap: var(--space-2);
+  }
+
+  .account-identity {
+    gap: var(--space-3);
+  }
+
+  .account-identity__avatar.ant-avatar {
+    width: 56px;
+    height: 56px;
+    font-size: 22px;
+  }
+
+  .account-settings__action,
+  .account-signout__action {
+    justify-self: start;
+  }
+
+  .account-signout {
+    gap: var(--space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-workspace * {
+    scroll-behavior: auto;
+    transition: none !important;
+  }
+}

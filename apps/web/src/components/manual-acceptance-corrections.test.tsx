@@ -78,7 +78,9 @@ test("accepted correction hooks cover the Users workspace, permissions, account,
   assert.match(permissions, /permission-copy/);
   assert.match(permissions, /permission-title/);
   assert.match(permissions, /permission-helper/);
-  assert.match(source("src/app/account/page.tsx"), /account-heading/);
+  const account = source("src/app/account/page.tsx");
+  assert.match(account, /<AccountOverview/);
+  assert.doesNotMatch(account, /account-heading|auth-card|account-card/);
   const css = source("src/app/globals.css");
   for (const hook of ["trip-result-message", "danger-button", "grid-template-columns:16px minmax(0,1fr)", "input[type=\"checkbox\"]", "grid-template-rows:minmax(1.35em,auto) minmax(2.7em,auto)"]) assert.ok(css.includes(hook), hook);
   assert.match(source("src/components/dashboard-client.tsx"), /<Statistic/);

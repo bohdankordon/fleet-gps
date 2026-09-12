@@ -10,7 +10,7 @@ export function useLogout() {
   return { busy, logout, label: busy ? t("auth.logout.submitting") : t("auth.logout.submit") };
 }
 
-export function LogoutButton({ size = "default" }: Readonly<{ size?: "compact" | "default" | "comfortable" }>) {
+export function LogoutButton({ size = "default", danger = false }: Readonly<{ size?: "compact" | "default" | "comfortable"; danger?: boolean }>) {
   const { busy, label, logout } = useLogout();
-  return <Button size={size === "compact" ? "small" : size === "comfortable" ? "large" : "middle"} loading={busy} onClick={() => { void logout(); }}>{label}</Button>;
+  return <Button danger={danger} size={size === "compact" ? "small" : size === "comfortable" ? "large" : "middle"} loading={busy} onClick={() => { void logout(); }}>{label}</Button>;
 }
