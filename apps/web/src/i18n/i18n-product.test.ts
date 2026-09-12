@@ -28,7 +28,7 @@ test("known errors are localized and unknown raw backend messages never become U
   const raw = "СЕКРЕТНОЕ СООБЩЕНИЕ BACKEND";
   for (const locale of SUPPORTED_LOCALES) {
     const t = createTranslator(locale);
-    for (const key of ["auth.login.invalidCredentials", "auth.login.rateLimited", "history.population.already", "history.retention.error.stale", "audit.loadError"] as const) assert.ok(t(key).length > 5, `${locale}:${key}`);
+    for (const key of ["auth.login.invalidCredentials", "auth.login.rateLimited", "history.population.shortConflictTitle", "history.retention.error.stale", "audit.loadError"] as const) assert.ok(t(key).length > 5, `${locale}:${key}`);
     assert.equal(adminUserErrorMessage({ error: "DUPLICATE_LOGIN", message: raw }, t, "create"), t("admin.user.error.DUPLICATE_LOGIN"));
     assert.equal(adminUserErrorMessage({ error: "Internal Server Error", message: raw }, t, "create"), t("admin.user.createError"));
     assert.equal(adminUserErrorMessage({ message: raw }, t), t("admin.user.actionError"));

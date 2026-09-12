@@ -37,8 +37,9 @@ test("Audit reuses the accepted period shell with Ant pickers and converts Kyiv 
 });
 
 test("GPS History formats user-visible ranges while retaining exact instants for operations", () => {
-  const files = ["position-history-status-view.tsx", "position-history-population.tsx", "position-history-durable-runs.tsx", "position-history-retention.tsx"];
+  const files = ["position-history-overview.tsx", "position-history-population-workspace.tsx", "position-history-durable-runs.tsx", "position-history-retention.tsx"];
   const history = files.map((file) => source(`src/components/${file}`)).join("\n");
+  const retention = source("src/components/position-history-retention.tsx");
   const shared = source("src/components/position-history-checkpoint-control.tsx");
   const overview = source("src/components/position-history-overview.tsx");
   assert.match(history, /formatDateTime/);
@@ -50,6 +51,8 @@ test("GPS History formats user-visible ranges while retaining exact instants for
   assert.match(shared, /placeholder="HH:mm"/);
   assert.match(overview, /PositionHistoryCheckpointControl/);
   assert.match(history, /PositionHistoryCheckpointControl/);
+  assert.doesNotMatch(retention, /PositionHistoryCheckpointControl/);
+  assert.doesNotMatch(retention, /to: anchor/);
   assert.doesNotMatch(history, /<strong>\{data\.(?:from|to)\}<\/strong>|<td>\{slice\.(?:from|to)\}<\/td>|<strong>\{plan\.(?:canonicalAnchor|policyCutoff)\}<\/strong>/);
 });
 

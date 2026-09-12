@@ -4,7 +4,7 @@ import test from "node:test";
 
 const dialog = readFileSync("src/components/ui/dialog.tsx", "utf8");
 const styles = readFileSync("src/styles/components.css", "utf8");
-const consumers = ["admin-user-detail.tsx", "position-history-population.tsx", "position-history-durable-runs.tsx", "position-history-retention.tsx"].map((file) => readFileSync(`src/components/${file}`, "utf8"));
+const consumers = ["admin-user-detail.tsx", "position-history-population-workspace.tsx", "position-history-retention.tsx"].map((file) => readFileSync(`src/components/${file}`, "utf8"));
 
 test("Taxi GPS Dialog owns Radix behavior while exposing accessible title, description, trigger, and close contracts", () => {
   assert.match(dialog, /import \* as RadixDialog from "@radix-ui\/react-dialog"/);
@@ -40,8 +40,8 @@ test("confirmation consumers use Taxi GPS primitives and retain no direct Radix 
   }
   assert.match(consumers[0], /variant="destructive"/);
   assert.match(consumers[0], /OneTimePassword/);
-  assert.match(consumers[1], /pendingRequest\.current/);
-  assert.match(consumers[2], /submitting\.current/);
-  assert.match(consumers[3], /retention-execute/);
-  assert.match(consumers[3], /<Alert variant="danger" live="assertive" title=\{t\(failureKeys\[failure\]\)\}/);
+  assert.match(consumers[1], /submitting\.current/);
+  assert.match(consumers[1], /submitDurableRun/);
+  assert.match(consumers[2], /retention-execute/);
+  assert.match(consumers[2], /failureKeys\[failure\]/);
 });

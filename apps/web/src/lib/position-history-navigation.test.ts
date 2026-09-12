@@ -31,13 +31,15 @@ test("all supported locales provide the three accepted destination labels", () =
   assert.deepEqual(positionHistoryNavigationFor(null, true, "en").map((item) => item.label), ["Overview", "Population & Runs", "Retention"]);
 });
 
-test("transitional routes share the compact GPS History page identity without changing inner operations", () => {
-  const population = readFileSync("src/components/position-history-status-view.tsx", "utf8");
+test("accepted History routes share the compact GPS History page identity without changing inner operations", () => {
+  const overview = readFileSync("src/components/position-history-overview.tsx", "utf8");
+  const population = readFileSync("src/components/position-history-population-workspace.tsx", "utf8");
   const retention = readFileSync("src/app/admin/history/retention/page.tsx", "utf8");
+  assert.match(overview, /CompactPageHeading title=\{t\("history\.title"\)\} subtitle=\{t\("history\.overview\.description"\)\}/);
   assert.match(population, /CompactPageHeading title=\{t\("history\.title"\)\} subtitle=\{t\("history\.population\.workspaceDescription"\)\}/);
-  assert.doesNotMatch(population, /className="hero admin-history-hero"/);
   assert.match(retention, /CompactPageHeading title=\{t\("history\.title"\)\} subtitle=\{t\("history\.retention\.workspaceDescription"\)\}/);
-  assert.match(population, /PositionHistoryPopulation/);
-  assert.match(population, /PositionHistoryDurableRuns/);
+  for (const source of [overview, population, retention]) assert.doesNotMatch(source, /className="hero admin-history-hero"/);
+  assert.match(population, /PositionHistoryPopulationWorkspace/);
   assert.match(retention, /PositionHistoryRetention/);
+  assert.doesNotMatch(retention, /PositionHistoryCheckpointControl/);
 });
