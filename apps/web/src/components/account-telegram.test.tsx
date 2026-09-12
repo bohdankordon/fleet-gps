@@ -202,10 +202,10 @@ test("Telegram actions use compact natural width on desktop, full-width primary 
   const source = readFileSync("src/components/account-telegram-workspace.tsx", "utf8");
   assert.doesNotMatch(source, /size="large"/);
   const css = readFileSync("src/styles/account.css", "utf8");
-  const base = css.slice(0, css.indexOf("@media (max-width: 799px)"));
-  const baseActions = base.slice(base.indexOf(".account-telegram__actions {"));
-  assert.match(baseActions, /flex:\s*none/);
-  assert.doesNotMatch(baseActions, /width:\s*100%|display:\s*block/);
+  const ruleStart = css.indexOf(".account-telegram__actions {");
+  const baseActions = css.slice(ruleStart, css.indexOf("}", ruleStart));
+  assert.doesNotMatch(baseActions, /(?<!min-)width\s*:|display\s*:\s*block/);
+  assert.match(css, /\.account-telegram__actions \.ant-btn \{[\s\S]{0,60}flex:\s*none/);
   const mobile = css.slice(css.indexOf("@media (max-width: 799px)"));
   assert.match(mobile, /\.account-telegram__actions[\s\S]{0,400}width:\s*100%/);
 });

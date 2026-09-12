@@ -1,7 +1,12 @@
-import { TelegramNotificationsPanel } from "@/components/telegram-notifications-panel";
-import { requireAuthUser } from "@/lib/auth/auth-user";
+import { AccountNotifications } from "@/components/account-notifications";
+import { hasPermission, requireAuthUser } from "@/lib/auth/auth-user";
 import { getServerI18n } from "@/i18n/server";
-import { parseWebConfig } from "@/lib/web-config";
-import { cookies } from "next/headers";
 export const dynamic = "force-dynamic";
-export default async function NotificationsPage() { await requireAuthUser(); const [i18n, jar] = await Promise.all([getServerI18n(), cookies()]); let initial = { status: "NOT_CONNECTED" as const, pendingExpiresAt: null, preferences: { enabled: false, speedingEnabled: true, inactivityEnabled: true, vehicleScope: "ALL" as const, selectedVehicleIds: [] as string[], revision: 0, canSelectVehicles: false, vehicles: [] as { id: string; name: string; disabled: boolean }[] } }; try { const response = await fetch(`${parseWebConfig(process.env).apiInternalBaseUrl}/api/account/notifications`, { headers: { Cookie: jar.toString() }, cache: "no-store" }); const value = await response.json(); if (response.ok && value && ["NOT_CONNECTED", "LINK_PENDING", "CONNECTED", "BROKEN"].includes(value.status) && value.preferences) initial = value; } catch {} return <div><header className="hero"><div><p className="eyebrow">{i18n.t("telegram.title")}</p><h1>{i18n.t("telegram.heading")}</h1></div></header><TelegramNotificationsPanel initial={initial} /></div>; }
+export default async function NotificationsPage() {
+  const [user, { locale }] = await Promise.all([requireAuthUser(), getServerI18n()]);
+  // Delivery needs ADMIN authority or both product permissions; anything
+  // less stays editable but is flagged as undeliverable. Mirrors the
+  // backend planner/dispatcher rule without moving access control here.
+  const deliveryLimited = !(hasPermission(user, "events.view") && hasPermission(user, "vehicles.view"));
+  return <AccountNotifications locale={locale} deliveryLimited={deliveryLimited} />;
+}

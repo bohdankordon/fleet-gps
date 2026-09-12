@@ -396,6 +396,214 @@
   line-height: var(--line-height-label);
 }
 
+/* Notifications preferences surface: one factual workspace with separated
+   concern groups, owned by the same working column as Security/Telegram. */
+.account-notifications-card {
+  min-width: 0;
+}
+
+.account-notifications__title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-section-title);
+}
+
+.account-notifications__prereq {
+  margin-top: var(--space-3);
+  min-width: 0;
+}
+
+.account-notifications__prereqrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.account-notifications__prereqrow .ant-tag {
+  margin-inline-end: 0;
+}
+
+.account-notifications__spacer {
+  flex: 1 1 auto;
+}
+
+.account-notifications__label {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-label);
+}
+
+.account-notifications__supporting {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  overflow-wrap: anywhere;
+}
+
+.account-notifications__section {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  min-width: 0;
+}
+
+.account-notifications__masterrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-6);
+  min-width: 0;
+}
+
+.account-notifications__masterrow .account-notifications__fact {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Settings-like rows: label owns the left, the control owns the right. */
+.account-notifications__rows {
+  display: grid;
+  margin-top: var(--space-1);
+  min-width: 0;
+}
+
+.account-notifications__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-6);
+  align-items: center;
+  min-width: 0;
+  padding: var(--space-2) 0;
+}
+
+.account-notifications__row + .account-notifications__row {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.account-notifications__rowlabel {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.account-notifications__row .ant-checkbox-wrapper {
+  justify-self: end;
+  margin-inline: 0;
+}
+
+/* Vehicle selector: compact mode control, bounded paged list. */
+.account-notifications__selector {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  margin-top: var(--space-3);
+  min-width: 0;
+}
+
+.account-notifications__selector > .account-notifications__supporting {
+  margin-top: 0;
+}
+
+.account-notifications__search {
+  display: grid;
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 0;
+}
+
+.account-notifications__vehicles {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  min-width: 0;
+}
+
+.account-notifications__vehicle {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  min-width: 0;
+  padding: var(--space-2) 0;
+}
+
+.account-notifications__vehicle + .account-notifications__vehicle {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.account-notifications__vehicle .ant-checkbox-wrapper {
+  margin-inline: 0;
+  margin-top: 2px;
+  flex: none;
+}
+
+.account-notifications__vehiclename {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  overflow-wrap: anywhere;
+}
+
+.account-notifications__vehicle .ant-tag {
+  flex: none;
+  margin-inline-end: 0;
+}
+
+.account-notifications__selector .ant-pagination {
+  margin-top: var(--space-1);
+}
+
+.account-notifications__dirtybar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-subtle);
+  min-width: 0;
+}
+
+.account-notifications__conflict {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  min-width: 0;
+}
+
+.account-notifications__conflictlist {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.account-notifications__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  margin-top: var(--space-3);
+  min-width: 0;
+}
+
+.account-notifications-card .ant-alert {
+  margin-top: var(--space-3);
+}
+
 /* Below 800px the compact labelled selector owns route navigation: it stays
    usable on tablets without risking a cramped four-label row. */
 @media (max-width: 799px) {
@@ -456,6 +664,56 @@
     width: auto;
     align-self: flex-start;
   }
+
+  /* Mobile notifications: stacked dirty bar with full-width actions and
+     touch-sized option rows without gigantic controls. */
+  .account-notifications__dirtybar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .account-notifications__dirtybar .ant-btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* Mobile rows keep generous touch targets without giant controls. */
+  .account-notifications__row {
+    min-height: 44px;
+  }
+
+  .account-notifications__vehicle {
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .account-notifications__vehicle .ant-checkbox-wrapper {
+    margin-top: 0;
+  }
+
+  .account-notifications__selector .ant-segmented {
+    width: 100%;
+  }
+
+  /* Prerequisite action drops below its row content, staying owned by it. */
+  .account-notifications__action {
+    flex-basis: 100%;
+  }
+
+  .account-notifications__action .ant-btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .account-notifications__row .ant-checkbox-wrapper {
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .account-notifications__masterrow {
+    align-items: flex-start;
+  }
+
 
   .account-signout {
     gap: var(--space-3);
