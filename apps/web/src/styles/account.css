@@ -247,6 +247,86 @@
   background: #d9363e;
 }
 
+/* Security surface: one focused card carrying the password working form.
+   Context, divider, and form share one centered working column below. */
+.account-security-card {
+  min-width: 0;
+}
+
+.account-security__title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-section-title);
+}
+
+.account-security__summary {
+  min-width: 0;
+}
+
+.account-security__summary .ant-alert {
+  margin-top: var(--space-3);
+}
+
+.account-security__notice {
+  margin-top: var(--space-3);
+}
+
+.account-security__form {
+  min-width: 0;
+}
+
+/* One deliberate centered working column: context and form belong together. */
+.account-security__inner {
+  width: 100%;
+  max-width: 610px;
+  margin-inline: auto;
+  min-width: 0;
+}
+
+.account-security__context {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  min-width: 0;
+}
+
+.account-security__fact {
+  min-width: 0;
+}
+
+.account-security__label {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-label);
+}
+
+.account-security__value {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  overflow-wrap: anywhere;
+}
+
+.account-security__value .ant-tag {
+  margin-inline-end: 0;
+}
+
+.account-security__divider.ant-divider-horizontal {
+  margin: var(--space-4) 0;
+}
+
+.account-security__actions .ant-form-item-control-input-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+}
+
 /* Below 800px the compact labelled selector owns route navigation: it stays
    usable on tablets without risking a cramped four-label row. */
 @media (max-width: 799px) {

@@ -178,9 +178,13 @@ test("settings copy is localized in UK, RU, and EN", () => {
 });
 
 test("sign out uses the restrained Ant danger treatment", () => {
-  const source = readFileSync("src/components/account-overview.tsx", "utf8");
-  assert.match(source, /<LogoutButton danger/);
-  assert.doesNotMatch(source, /danger="primary"|type="primary"/);
+  // Both Account screens share one sign-out surface with the restrained
+  // Ant danger action; the CSS contract below pins its hover/focus/active.
+  const shared = readFileSync("src/components/account-sign-out-section.tsx", "utf8");
+  assert.match(shared, /<LogoutButton danger \/>/);
+  assert.doesNotMatch(shared, /danger="primary"|type="primary"/);
+  const overview = readFileSync("src/components/account-overview.tsx", "utf8");
+  assert.match(overview, /<AccountSignOutSection/);
 });
 
 test("danger hover/focus treatment is scoped and other Logout usages are unchanged", () => {
@@ -195,9 +199,11 @@ test("danger hover/focus treatment is scoped and other Logout usages are unchang
   assert.match(css, /#d9363e/);
   assert.doesNotMatch(css, /--color-danger-foreground/);
   assert.doesNotMatch(css, /^\.ant-btn-dangerous/m);
-  const changePassword = readFileSync("src/app/account/change-password/page.tsx", "utf8");
-  assert.match(changePassword, /<LogoutButton \/>/);
-  assert.doesNotMatch(changePassword, /<LogoutButton danger/);
+  // The change-password route renders inside the Account Security surface,
+  // which reuses the same shared sign-out surface as Overview.
+  const changePassword = readFileSync("src/components/account-security.tsx", "utf8");
+  assert.match(changePassword, /<AccountSignOutSection/);
+  assert.doesNotMatch(changePassword, /<LogoutButton/);
 });
 
 test("identity avatar shows the first login letter neutrally and stays hidden from assistive tech", () => {

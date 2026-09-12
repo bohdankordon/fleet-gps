@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Avatar, Button, Card, Tag } from "antd";
-import { LogoutButton } from "./logout-button";
 import { CompactPageHeading } from "./compact-page-heading";
 import { AccountNavigation } from "./account-navigation";
+import { AccountSignOutSection } from "./account-sign-out-section";
 import type { AuthUser } from "../lib/auth/auth-contract";
 import type { AccountNotificationSummaryState, AccountTelegramStatus } from "../lib/account/account-notification-summary";
 import { permissionLabel, roleLabel } from "../i18n/domain-labels";
@@ -111,13 +111,7 @@ export function AccountOverview({ user, summaryState, locale, signOutAction }: R
         </ul>
       </Card>
 
-      <section className="account-signout" aria-labelledby="account-signout-heading">
-        <div className="account-signout__fact">
-          <h2 id="account-signout-heading" className="account-signout__title">{t("account.overview.signout.title")}</h2>
-          <p className="account-signout__help">{t("account.overview.signout.help")}</p>
-        </div>
-        <div className="account-signout__action">{signOutAction ?? <LogoutButton danger />}</div>
-      </section>
+      <AccountSignOutSection locale={locale} action={signOutAction} />
     </div>
   </div>;
 }
