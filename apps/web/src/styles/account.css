@@ -327,6 +327,75 @@
   align-items: center;
 }
 
+/* Telegram connection surface: one factual workspace owning status, the
+   subordinate replacement workflow, and contextual actions. */
+.account-telegram-card {
+  min-width: 0;
+}
+
+.account-telegram__title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-section-title);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-section-title);
+}
+
+.account-telegram__body {
+  margin-top: var(--space-3);
+  min-width: 0;
+}
+
+.account-telegram__state {
+  margin: 0;
+  min-width: 0;
+}
+
+.account-telegram__state .ant-tag {
+  margin-inline-end: 0;
+}
+
+.account-telegram__supporting {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  overflow-wrap: anywhere;
+}
+
+.account-telegram__body .ant-alert {
+  margin-top: var(--space-3);
+}
+
+.account-telegram__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  justify-content: flex-start;
+  margin-top: var(--space-4);
+  min-width: 0;
+}
+
+.account-telegram__actions .ant-btn {
+  flex: none;
+}
+
+.account-telegram__replacement {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  min-width: 0;
+}
+
+.account-telegram__subtitle {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-label);
+}
+
 /* Below 800px the compact labelled selector owns route navigation: it stays
    usable on tablets without risking a cramped four-label row. */
 @media (max-width: 799px) {
@@ -369,6 +438,23 @@
   .account-settings__action,
   .account-signout__action {
     justify-self: start;
+  }
+
+  /* Mobile Telegram actions stack with touch-sized targets; the primary
+     action takes the full width while the link-style refresh stays small. */
+  .account-telegram__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .account-telegram__actions .ant-btn {
+    min-height: 44px;
+    width: 100%;
+  }
+
+  .account-telegram__actions .ant-btn-link {
+    width: auto;
+    align-self: flex-start;
   }
 
   .account-signout {

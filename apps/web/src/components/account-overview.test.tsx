@@ -156,7 +156,11 @@ test("Overview server boundary uses the session-only authenticated fetch and no 
   assert.doesNotMatch(page, /auth-page|auth-card|account-card|cookies\(/);
   assert.match(serverRead, /authenticatedApiFetch/);
   assert.doesNotMatch(serverRead, /cookies\(|Cookie|jar\.toString/);
-  assert.match(telegramCompatibility, /redirect\("\/account\/notifications#telegram"\)/);
+  // Screen 3 replaced the compatibility redirect with the real workspace,
+  // still behind the session-only server boundary.
+  assert.match(telegramCompatibility, /<AccountTelegram/);
+  assert.match(telegramCompatibility, /loadAccountTelegramState/);
+  assert.doesNotMatch(telegramCompatibility, /cookies\(|jar\.toString|redirect\(/);
 });
 
 test("settings copy is localized in UK, RU, and EN", () => {
