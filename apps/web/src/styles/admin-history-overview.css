@@ -56,6 +56,46 @@
 .history-overview-loading { display:grid; gap:16px; min-width:0; }
 .history-overview-loading__context,.history-overview-loading__facts,.history-overview-loading__workspace { border-block:1px solid var(--color-line); padding-block:16px; }
 
+.history-population-workspace { min-width:0; }
+.history-population-context { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px 32px; align-items:center; margin-bottom:16px; padding-block:14px; border-block:1px solid var(--color-line); }
+.history-population-context h2,.history-population-active h2,.history-population-composer h2,.history-population-recent h2,.history-population-short-result h2 { margin:0 !important; font-size:1.08rem !important; }
+.history-population-context__copy { display:grid; gap:4px; min-width:0; }
+.history-population-context__copy p { margin:0; overflow-wrap:anywhere; }
+.history-population-active,.history-population-composer,.history-population-recent,.history-population-short-result { min-width:0; border:1px solid var(--color-line); border-radius:var(--radius-lg); background:var(--color-surface); }
+.history-population-active { display:grid; gap:12px; margin-bottom:16px; padding:16px; }
+.history-population-active-unavailable { margin-bottom:16px; }
+.history-population-section-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
+.history-population-active__facts table { table-layout:fixed; }
+.history-population-active__facts .ant-descriptions-item-content { font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.history-population-main { display:grid; grid-template-columns:minmax(300px,1fr) minmax(0,2fr); gap:16px; align-items:start; margin-bottom:16px; }
+.history-population-main--without-composer { grid-template-columns:minmax(0,1fr); }
+.history-population-composer { display:grid; gap:16px; padding:16px; }
+.history-population-field { display:grid; gap:8px; min-width:0; }
+.history-population-field > .ant-segmented,.history-population-field > .ant-radio-group { justify-self:start; max-width:100%; }
+.history-population-field > .ant-segmented { max-width:520px; }
+.history-population-field > .ant-radio-group { max-width:480px; }
+.history-population-composer .ant-radio-group { display:flex; }
+.history-population-composer .ant-radio-button-wrapper { flex:1; text-align:center; }
+.history-population-composer__checkpoint { margin:0; overflow-wrap:anywhere; }
+.history-population-composer__action { justify-self:start; }
+.history-population-composer .ant-typography { margin-bottom:0; }
+.history-population-composer > .ant-alert { margin-top:0; }
+.history-population-recent { padding:16px; }
+.history-population-recent > .history-population-section-heading { margin-bottom:12px; }
+.history-population-inline-alert { margin-bottom:12px; }
+.history-population-recent__table { min-width:0; }
+.history-population-recent__table .ant-table { min-width:0; }
+.history-population-recent__table .ant-table-cell { padding:10px !important; overflow-wrap:anywhere; font-size:.84rem; vertical-align:top; }
+.history-population-recent__table time { font-variant-numeric:tabular-nums; }
+.history-population-recent__records { display:none; }
+.history-population-short-result { display:grid; gap:10px; padding:16px; }
+.history-population-short-result > .ant-typography { margin:0; }
+.history-population-short-result__summary table { table-layout:fixed; }
+.history-population-result-details { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0 24px; margin:0; }
+.history-population-result-details > div { display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px solid var(--color-line); }
+.history-population-result-details dt { color:var(--color-text-secondary); }
+.history-population-result-details dd { margin:0; font-weight:650; text-align:right; font-variant-numeric:tabular-nums; }
+
 @media (max-width:991px) {
   .history-context { grid-template-columns:minmax(0,1fr); align-items:start; }
   .history-fact-groups { grid-template-columns:minmax(0,1fr); }
@@ -70,11 +110,30 @@
   .history-slices__records dl > div { display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-bottom:1px solid var(--color-line); }
   .history-slices__records dt { color:var(--color-text-secondary); }
   .history-slices__records dd { margin:0; font-weight:650; text-align:right; }
+  .history-population-context { grid-template-columns:minmax(0,1fr); align-items:start; }
+  .history-population-result-details { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+@media (max-width:1349px) {
+  .history-population-main { grid-template-columns:minmax(0,1fr); }
 }
 
 @media (max-width:767px) {
   .history-overview__heading,.history-transitional-page > header { margin-bottom:12px; }
   .history-navigation { margin-bottom:16px; }
+}
+
+@media (max-width:768px) {
+  .history-population-recent__table { display:none; }
+  .history-population-recent__records { display:block; }
+  .history-population-recent__records article { min-width:0; padding:14px 0; border-bottom:1px solid var(--color-line); }
+  .history-population-recent__records article:first-child { padding-top:0; }
+  .history-population-recent__records article:last-child { padding-bottom:0; border-bottom:0; }
+  .history-population-record__heading { display:flex; align-items:start; justify-content:space-between; gap:12px; margin-bottom:8px; }
+  .history-population-recent__records dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 20px; margin:0; }
+  .history-population-recent__records dl > div { min-width:0; padding:6px 0; }
+  .history-population-recent__records dt { color:var(--color-text-secondary); font-size:.78rem; }
+  .history-population-recent__records dd { margin:2px 0 0; overflow-wrap:anywhere; font-weight:650; font-variant-numeric:tabular-nums; }
 }
 
 @media (max-width:480px) {
@@ -87,4 +146,10 @@
   .history-fact-descriptions .ant-descriptions-item-label { width:62%; }
   .history-slices__records dl { grid-template-columns:minmax(0,1fr); }
   .history-slices__heading,.history-slices__records article { padding-inline:12px; }
+  .history-population-active,.history-population-composer,.history-population-recent,.history-population-short-result { padding:12px; }
+  .history-population-composer .ant-segmented-item-label { white-space:normal; }
+  .history-population-composer__action { justify-self:stretch; width:100%; }
+  .history-population-field > .ant-segmented,.history-population-field > .ant-radio-group { justify-self:stretch; width:100%; max-width:none; }
+  .history-population-recent__records dl,.history-population-result-details { grid-template-columns:minmax(0,1fr); }
+  .history-population-record__heading { align-items:flex-start; flex-direction:column; }
 }

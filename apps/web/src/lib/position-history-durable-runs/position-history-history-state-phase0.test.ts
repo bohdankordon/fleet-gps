@@ -9,15 +9,16 @@ const run = { id: "00000000-0000-4000-8000-000000000123", status: "RUNNING", ini
 
 test("Phase0 history 25: read failure visible as unavailable, not neutral none", () => {
   const page = readFileSync("src/app/admin/history/population/page.tsx", "utf8");
-  assert.match(page, /initialDurableActiveUnavailable/);
-  assert.match(page, /initialDurableRecentUnavailable/);
-  const comp = readFileSync("src/components/position-history-durable-runs.tsx", "utf8");
-  assert.match(comp, /history\.durable\.activeUnavailable/);
+  assert.match(page, /initialActiveUnavailable/);
+  assert.match(page, /initialRecentUnavailable/);
+  const comp = readFileSync("src/components/position-history-population-workspace.tsx", "utf8");
+  assert.match(comp, /history\.population\.activeUnavailableTitle/);
   assert.match(comp, /shouldShowDurableCreateControls/);
 });
 test("Phase0 history 26: successful none remains neutral none", () => {
-  const comp = readFileSync("src/components/position-history-durable-runs.tsx", "utf8");
-  assert.match(comp, /history\.durable\.none/);
+  const comp = readFileSync("src/components/position-history-population-workspace.tsx", "utf8");
+  assert.match(comp, /history\.population\.noRecentRuns/);
+  assert.doesNotMatch(comp, /No active run|Нет активного запуска|Немає активного запуску/);
 });
 test("Phase0 history 27: subsequent failure does not falsely erase truth", async () => {
   let callback!: () => void;

@@ -55,15 +55,14 @@ test("Overview route owns only relevant reads and responsive CSS replaces the ta
 test("checkpoint uses the accepted popover grammar with explicit Kyiv civil fields and actions", () => {
   const shared = readFileSync("src/components/position-history-checkpoint-control.tsx", "utf8");
   const overview = readFileSync("src/components/position-history-overview.tsx", "utf8");
-  const population = readFileSync("src/components/position-history-status-view.tsx", "utf8");
-  const populationPage = readFileSync("src/app/admin/history/population/page.tsx", "utf8");
+  const population = readFileSync("src/components/position-history-population-workspace.tsx", "utf8");
   for (const expected of ["PeriodPopover", "history-checkpoint-trigger", "history-checkpoint-editor", "history-checkpoint-date", "history-checkpoint-time", 'placeholder="DD.MM.YYYY"', 'placeholder="HH:mm"', "common.cancel", "history.overview.checkpoint.apply", "kyivLocalToAbsolute", "positionHistoryCheckpointCivil", "positionHistoryCheckpointDraft", 'action={formAction}', 'name="to"']) assert.ok(shared.includes(expected), expected);
   assert.equal((shared.match(/<Input/g) ?? []).length, 2);
   assert.doesNotMatch(shared, /datetime-local|DatePicker|RangePicker|TimePicker|showTime|AM|PM/);
   for (const page of [overview, population]) { assert.match(page, /PositionHistoryCheckpointControl/); assert.doesNotMatch(page, /datetime-local|DatePicker|RangePicker|TimePicker|showTime|anchorDraft|anchorQueryInput/); }
   assert.match(overview, /formAction="\/admin\/history"/);
-  assert.match(populationPage, /formAction="\/admin\/history\/population"/);
-  assert.match(population, /<PositionHistoryCheckpointControl anchor=\{anchor\} formAction=\{formAction\} \/>/);
+  assert.match(population, /formAction="\/admin\/history\/population"/);
+  assert.match(population, /<PositionHistoryCheckpointControl anchor=\{anchor\}/);
   assert.doesNotMatch(overview, /datetime-local|DatePicker|RangePicker|TimePicker|showTime|AM|PM/);
   assert.doesNotMatch(population, /datetime-local|DatePicker|RangePicker|TimePicker|showTime|AM|PM/);
   for (const locale of ["uk", "ru", "en"] as const) {
