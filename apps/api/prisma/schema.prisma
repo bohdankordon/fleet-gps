@@ -294,11 +294,24 @@ model Vehicle {
   dailyStats                  DailyVehicleStat[]
   positionObservations        VehiclePositionObservation[]
   positionBackfillCheckpoints VehiclePositionBackfillCheckpoint[]
+  historyIngestionCursor      VehicleHistoryIngestionCursor?
   alertEvents                 AlertEvent[]
   alertEvaluationObservations AlertEvaluationObservation[]
   notificationSelections      UserNotificationVehicle[]
 
   @@map("vehicles")
+}
+
+model VehicleHistoryIngestionCursor {
+  vehicleId        String   @id @map("vehicle_id") @db.Uuid
+  coverageFrom     DateTime @map("coverage_from") @db.Timestamptz(6)
+  confirmedThrough DateTime @map("confirmed_through") @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  vehicle          Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
+  @@index([confirmedThrough], map: "vehicle_history_ingestion_cursors_confirmed_through_idx")
+  @@map("vehicle_history_ingestion_cursors")
 }
 
 model VehiclePositionObservation {

@@ -57,6 +57,8 @@
     "position-history:backfill-acceptance": "npm --workspace @taxi-gps/api run position-history:backfill-acceptance",
     "position-history:coverage": "npm --workspace @taxi-gps/api run position-history:coverage --",
     "position-history:coverage-test": "npm --workspace @taxi-gps/api run position-history:coverage-test",
+    "position-history:cursor-test": "npm --workspace @taxi-gps/api run position-history:cursor-test",
+    "position-history:cursor-real-db-test": "powershell -NoProfile -ExecutionPolicy Bypass -File ./test-db.ps1 api-test apps/api/scripts/position-history-ingestion-cursor-real-db.test.cjs",
     "position-history:horizon-plan": "npm --workspace @taxi-gps/api run position-history:horizon-plan --",
     "position-history:horizon-plan-test": "npm --workspace @taxi-gps/api run position-history:horizon-plan-test",
     "position-history:horizon-populate": "npm --workspace @taxi-gps/api run position-history:horizon-populate --",
