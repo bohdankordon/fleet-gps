@@ -61,6 +61,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build eQuGPS dependency
+        run: npm run equgps:build
+
       - name: Test API and production build
         run: npm run api:test
 
