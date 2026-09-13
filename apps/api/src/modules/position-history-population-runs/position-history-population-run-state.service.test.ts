@@ -20,6 +20,7 @@ function harness(initial: PositionHistoryPopulationRun) {
     if (where.status !== undefined && where.status !== value.status) return false;
     if (where.leaseOwner !== undefined && where.leaseOwner !== value.leaseOwner) return false;
     if (where.leaseExpiresAt?.lte !== undefined && (value.leaseExpiresAt === null || value.leaseExpiresAt > where.leaseExpiresAt.lte)) return false;
+    if (where.leaseExpiresAt?.gt !== undefined && (value.leaseExpiresAt === null || value.leaseExpiresAt <= where.leaseExpiresAt.gt)) return false;
     if (where.OR !== undefined && !where.OR.some((item: Record<string, any>) => matches(item))) return false;
     return true;
   };
@@ -72,6 +73,30 @@ test("stale owner cannot finalize; matching success/failure clears lease", async
   assert.equal(item.get().leaseOwner, null);
   assert.equal(item.get().leaseExpiresAt, null);
   assert.equal(item.get().safeFailureCode, "SAFE_CODE");
+});
+
+test("yield is owner- and live-lease-conditional, preserves progress/start, and makes the run reclaimable", async () => {
+  const owner = "123e4567-e89b-42d3-a456-426614174013";
+  const startedAt = new Date("2026-08-13T09:00:00Z");
+  const item = harness(run({ status: PositionHistoryPopulationRunStatus.RUNNING, startedAt, committedWindows: 24, leaseOwner: owner, leaseExpiresAt: new Date(baseTime.getTime() + 1_000) }));
+  assert.equal(await item.state.yield(item.get().id, "123e4567-e89b-42d3-a456-426614174099"), false);
+  assert.equal(await item.state.yield(item.get().id, owner), true);
+  assert.equal(item.get().status, PositionHistoryPopulationRunStatus.PENDING);
+  assert.equal(item.get().committedWindows, 24);
+  assert.equal(item.get().startedAt?.getTime(), startedAt.getTime());
+  assert.equal(item.get().leaseOwner, null);
+  assert.equal((await item.state.claim(item.get().id, "123e4567-e89b-42d3-a456-426614174014"))?.committedWindows, 24);
+});
+
+test("expired ownership cannot heartbeat, read owned state, yield, succeed, or fail", async () => {
+  const owner = "123e4567-e89b-42d3-a456-426614174013";
+  const item = harness(run({ status: PositionHistoryPopulationRunStatus.RUNNING, startedAt: baseTime, leaseOwner: owner, leaseExpiresAt: new Date(baseTime.getTime() + 1) }));
+  item.setNow(new Date(baseTime.getTime() + 2));
+  assert.equal(await item.state.heartbeat(item.get().id, owner), false);
+  assert.equal(await item.state.getOwned(item.get().id, owner), null);
+  assert.equal(await item.state.yield(item.get().id, owner), false);
+  assert.equal(await item.state.succeed(item.get().id, owner), false);
+  assert.equal(await item.state.fail(item.get().id, owner, "SAFE_CODE"), false);
 });
 
 test("SUCCEEDED and FAILED history are never automatically claimable", async () => {

@@ -3,6 +3,7 @@ import { EquGpsHttpError, EquGpsRateLimitError } from "@taxi-gps/equgps";
 import { PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
 import { recordedPositionHistoryHistoricalWindowFailureAccounting } from "../position-history-historical-window/position-history-historical-window-failure-diagnostics";
 import { PositionHistoryIngestionCursorService, type VehicleHistoryIngestionCursor } from "../position-history-ingestion-cursor";
+import { PositionHistoryAutomaticRequestPacer } from "../position-history-horizon-execution";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
 import { POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS, POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS, POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE, POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS } from "./position-history-continuous-ingestion.constants";
 import { contiguousBacklogRange, recentTailRange } from "./position-history-continuous-ingestion-planning";
@@ -24,7 +25,6 @@ export class PositionHistoryContinuousIngestionWorkerService {
   private readonly failureCounts = new Map<string, number>();
   private readonly recentSuccess = new Map<string, number>();
   private readonly blockedUntil = new Map<string, number>();
-  private lastRequestStart: number | null = null;
   private globalCooldownUntil = 0;
 
   public constructor(
@@ -36,7 +36,8 @@ export class PositionHistoryContinuousIngestionWorkerService {
     @Inject(POSITION_HISTORY_CONTINUOUS_SLEEPER) private readonly sleeper: PositionHistoryContinuousSleeper,
   ) {}
 
-  public async processCycle(): Promise<PositionHistoryContinuousCycleResult> {
+  public async processCycle(maxOpportunities = POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE): Promise<PositionHistoryContinuousCycleResult> {
+    if (!Number.isSafeInteger(maxOpportunities) || maxOpportunities < 1 || maxOpportunities > POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE) throw new Error("Invalid continuous history opportunity budget.");
     const now = this.now();
     const safeNow = new Date(now.getTime() - POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS);
     const vehicles = await this.repository.listMappedVehicles();
@@ -45,7 +46,7 @@ export class PositionHistoryContinuousIngestionWorkerService {
 
     const result = emptyResult();
     result.vehicles = states.length;
-    const plan = this.plan(states, now, safeNow);
+    const plan = this.plan(states, now, safeNow, maxOpportunities);
     for (const work of plan) {
       if (this.now().getTime() < this.globalCooldownUntil) break;
       await this.processWork(work, safeNow, result);
@@ -53,7 +54,7 @@ export class PositionHistoryContinuousIngestionWorkerService {
     return Object.freeze(result);
   }
 
-  private plan(states: readonly PositionHistoryContinuousVehicleState[], now: Date, safeNow: Date): readonly Work[] {
+  private plan(states: readonly PositionHistoryContinuousVehicleState[], now: Date, safeNow: Date, maxOpportunities: number): readonly Work[] {
     const tailFrom = recentTailRange(safeNow).fetchFrom.getTime();
     const due = (lane: PositionHistoryContinuousLane, state: PositionHistoryContinuousVehicleState): boolean => {
       const vehicleId = state.vehicle.vehicleId;
@@ -79,7 +80,7 @@ export class PositionHistoryContinuousIngestionWorkerService {
     const plan: Work[] = [];
     let recentIndex = 0;
     let backlogIndex = 0;
-    for (let slot = 0; slot < POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE; slot += 1) {
+    for (let slot = 0; slot < maxOpportunities; slot += 1) {
       const preferRecent = slot % 2 === 0;
       const recentState = recent[recentIndex];
       const backlogState = backlog[backlogIndex];
@@ -101,10 +102,9 @@ export class PositionHistoryContinuousIngestionWorkerService {
         if ((this.blockedUntil.get(vehicle.vehicleId) ?? 0) > now.getTime() || (this.nextEligible.get(streamKey) ?? 0) > now.getTime()) return;
         const cursor = await this.cursors.findCursor(vehicle.vehicleId);
         if (cursor === null) return;
-        let requestStarts = 0;
+        const pacer = new PositionHistoryAutomaticRequestPacer(this.clock, this.sleeper, POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS);
         const beforeRequestStart = async (): Promise<void> => {
-          await this.waitForRequestStart();
-          requestStarts += 1;
+          await pacer.beforeRequestStart();
           result.requests += 1;
         };
         try {
@@ -115,7 +115,7 @@ export class PositionHistoryContinuousIngestionWorkerService {
           result.failedWork += 1;
           const failedAt = this.now();
           const failureAccounting = recordedPositionHistoryHistoricalWindowFailureAccounting(error);
-          result.retries += failureAccounting?.retries ?? Math.max(0, requestStarts - 1);
+          result.retries += failureAccounting?.retries ?? Math.max(0, pacer.requestStarts() - 1);
           result.rateLimitResponses += failureAccounting?.rateLimitResponses ?? (error instanceof EquGpsRateLimitError ? 1 : 0);
           if ((failureAccounting?.rateLimitResponses ?? 0) > 0 || error instanceof EquGpsRateLimitError) {
             this.globalCooldownUntil = failedAt.getTime() + POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS[0];
@@ -125,7 +125,7 @@ export class PositionHistoryContinuousIngestionWorkerService {
             this.blockedUntil.set(vehicle.vehicleId, failedAt.getTime() + POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS);
           } else this.scheduleFailure(streamKey, vehicle.vehicleId, failedAt);
         } finally {
-          if (requestStarts > 0) await this.coolBeforeUnlock();
+          await pacer.coolBeforeLockRelease();
         }
       });
     } catch (error) {
@@ -174,21 +174,6 @@ export class PositionHistoryContinuousIngestionWorkerService {
     const delay = POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS[Math.min(failures - 1, POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS.length - 1)]!;
     this.nextEligible.set(streamKey, now.getTime() + delay);
     this.blockedUntil.set(vehicleId, now.getTime() + delay);
-  }
-
-  private async waitForRequestStart(): Promise<void> {
-    let now = this.now().getTime();
-    if (this.lastRequestStart !== null) {
-      const remaining = POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS - (now - this.lastRequestStart);
-      if (remaining > 0) { await this.sleeper.sleep(remaining); now = this.now().getTime(); }
-    }
-    this.lastRequestStart = now;
-  }
-
-  private async coolBeforeUnlock(): Promise<void> {
-    if (this.lastRequestStart === null) return;
-    const remaining = POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS - (this.now().getTime() - this.lastRequestStart);
-    if (remaining > 0) await this.sleeper.sleep(remaining);
   }
 
   private now(): Date {

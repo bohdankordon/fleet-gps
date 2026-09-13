@@ -12,6 +12,7 @@ function run(windowBudget: number, committedWindows = 0): PositionHistoryPopulat
 }
 
 function harness(windowBudget: number, committedWindows = 0, behavior: "advance" | "horizon" | "zero" | "fail" = "advance") {
+  let currentTime = Date.parse("2026-08-13T00:00:00Z");
   let value = run(windowBudget, committedWindows);
   const budgets: number[] = [];
   let claims = 0;
@@ -24,9 +25,10 @@ function harness(windowBudget: number, committedWindows = 0, behavior: "advance"
     heartbeat: async () => true,
     succeed: async (_id: string, owner: string) => { if (value.leaseOwner !== owner) return false; value = { ...value, status: PositionHistoryPopulationRunStatus.SUCCEEDED, leaseOwner: null, leaseExpiresAt: null, finishedAt: new Date() }; return true; },
     fail: async (_id: string, owner: string, code: string) => { if (value.leaseOwner !== owner) return false; value = { ...value, status: PositionHistoryPopulationRunStatus.FAILED, leaseOwner: null, leaseExpiresAt: null, finishedAt: new Date(), safeFailureCode: code }; return true; },
+    yield: async (_id: string, owner: string) => { if (value.leaseOwner !== owner) return false; value = { ...value, status: PositionHistoryPopulationRunStatus.PENDING, leaseOwner: null, leaseExpiresAt: null }; return true; },
   } as unknown as PositionHistoryPopulationRunStateService;
   const lock = { runExclusive: async <T>(work: () => Promise<T>) => work() } as PositionHistoryHorizonExecutionLockService;
-  const population = { run: async (_to: Date, options: { maxWindows: number; durableAccounting?: { runId: string; leaseOwner: string } }) => {
+  const population = { run: async (_to: Date, options: { maxWindows: number; beforeRequestStart?: () => Promise<void>; durableAccounting?: { runId: string; leaseOwner: string } }) => {
     budgets.push(options.maxWindows);
     assert.equal(options.durableAccounting?.runId, value.id);
     assert.equal(options.durableAccounting?.leaseOwner, value.leaseOwner);
@@ -36,25 +38,30 @@ function harness(windowBudget: number, committedWindows = 0, behavior: "advance"
     return { horizonComplete: behavior === "horizon" };
   } } as unknown as PositionHistoryHorizonPopulationService;
   const scheduler = { start: () => { starts += 1; return () => { stops += 1; }; } };
-  return { worker: new PositionHistoryPopulationRunWorkerService(state, lock, population, scheduler), budgets, get: () => value, claims: () => claims, timers: () => ({ starts, stops }) };
+  const clock = { now: () => new Date(currentTime) };
+  const sleeper = { sleep: async (durationMs: number) => { currentTime += durationMs; } };
+  return { worker: new PositionHistoryPopulationRunWorkerService(state, lock, population, scheduler, clock, sleeper), budgets, get: () => value, claims: () => claims, timers: () => ({ starts, stops }) };
 }
 
-test("durable budgets use internal chunks no larger than 24 and persisted truth chooses every remainder", async () => {
-  for (const [budget, expected] of [[6, [6]], [24, [24]], [25, [24, 1]], [50, [24, 24, 2]]] as const) {
+test("each invocation processes at most one 24-window chunk, yields, and later polls resume", async () => {
+  for (const [budget, expectedBudgets, expectedOutcomes] of [[6, [6], ["SUCCEEDED"]], [24, [24], ["SUCCEEDED"]], [25, [24, 1], ["YIELDED", "SUCCEEDED"]], [50, [24, 24, 2], ["YIELDED", "YIELDED", "SUCCEEDED"]]] as const) {
     const item = harness(budget);
-    const result = await item.worker.processNextAvailableRun();
-    assert.equal(result.outcome, "SUCCEEDED");
-    assert.deepEqual(item.budgets, expected);
+    const outcomes = [];
+    for (let index = 0; index < expectedBudgets.length; index += 1) outcomes.push((await item.worker.processNextAvailableRun()).outcome);
+    assert.deepEqual(outcomes, expectedOutcomes);
+    assert.deepEqual(item.budgets, expectedBudgets);
     assert.equal(item.get().committedWindows, budget);
     assert.equal(item.get().leaseOwner, null);
     assert.equal(item.get().leaseExpiresAt, null);
-    assert.deepEqual(item.timers(), { starts: 1, stops: 1 });
+    assert.deepEqual(item.timers(), { starts: expectedBudgets.length, stops: expectedBudgets.length });
   }
 });
 
-test("crash recovery starts from persisted 24 of 50 and requests only 24 plus 2, never 51", async () => {
+test("restart recovery starts from persisted 24 of 50 and resumes one bounded chunk per poll", async () => {
   const item = harness(50, 24);
-  await item.worker.processNextAvailableRun();
+  assert.equal((await item.worker.processNextAvailableRun()).outcome, "YIELDED");
+  assert.equal(item.get().committedWindows, 48);
+  assert.equal((await item.worker.processNextAvailableRun()).outcome, "SUCCEEDED");
   assert.deepEqual(item.budgets, [24, 2]);
   assert.equal(item.get().committedWindows, 50);
 });

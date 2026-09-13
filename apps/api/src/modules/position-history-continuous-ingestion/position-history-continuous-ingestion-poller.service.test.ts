@@ -5,7 +5,7 @@ import { POSITION_HISTORY_CONTINUOUS_POLL_INTERVAL_MS } from "./position-history
 import { POSITION_HISTORY_CONTINUOUS_POLL_TIMER, POSITION_HISTORY_CONTINUOUS_STARTUP_TIMER, PositionHistoryContinuousIngestionPollerService } from "./position-history-continuous-ingestion-poller.service";
 import { PositionHistoryContinuousIngestionStatusService } from "./position-history-continuous-ingestion-status.service";
 import type { PositionHistoryContinuousCycleResult, PositionHistoryContinuousTimer } from "./position-history-continuous-ingestion.types";
-import type { PositionHistoryContinuousIngestionWorkerService } from "./position-history-continuous-ingestion-worker.service";
+import type { PositionHistoryWorkloadCoordinatorService } from "./position-history-workload-coordinator.service";
 
 const empty: PositionHistoryContinuousCycleResult = { vehicles: 0, requests: 0, providerRows: 0, inserted: 0, duplicates: 0, invalid: 0, retries: 0, rateLimitResponses: 0, cursorAdvancements: 0, recentTailCompleted: 0, backlogCompleted: 0, providerBlocked: 0, failedWork: 0, lockUnavailable: 0 };
 
@@ -19,7 +19,7 @@ function harness(enabled: boolean, processCycle: () => Promise<PositionHistoryCo
     deleteInterval: (name) => { intervals.delete(name); },
   };
   const status = new PositionHistoryContinuousIngestionStatusService();
-  const poller = new PositionHistoryContinuousIngestionPollerService({ positionHistoryContinuousIngestion: { enabled } } as ApiConfig, { processCycle } as PositionHistoryContinuousIngestionWorkerService, status, timer);
+  const poller = new PositionHistoryContinuousIngestionPollerService({ positionHistoryContinuousIngestion: { enabled } } as ApiConfig, { processCycle } as PositionHistoryWorkloadCoordinatorService, status, timer);
   return { poller, timeouts, intervals, status };
 }
 

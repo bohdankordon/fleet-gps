@@ -54,30 +54,42 @@ export class PositionHistoryPopulationRunStateService {
   public async heartbeat(runId: string, leaseOwner: string): Promise<boolean> {
     const now = this.clock.now();
     const renewed = await this.database.getClient().positionHistoryPopulationRun.updateMany({
-      where: { id: runId, status: PositionHistoryPopulationRunStatus.RUNNING, leaseOwner },
+      where: { id: runId, status: PositionHistoryPopulationRunStatus.RUNNING, leaseOwner, leaseExpiresAt: { gt: now } },
       data: { leaseExpiresAt: new Date(now.getTime() + POSITION_HISTORY_POPULATION_RUN_LEASE_DURATION_MS) },
     });
     return renewed.count === 1;
   }
 
   public async getOwned(runId: string, leaseOwner: string): Promise<PositionHistoryPopulationRun | null> {
+    const now = this.clock.now();
     return this.database.getClient().positionHistoryPopulationRun.findFirst({
-      where: { id: runId, status: PositionHistoryPopulationRunStatus.RUNNING, leaseOwner },
+      where: { id: runId, status: PositionHistoryPopulationRunStatus.RUNNING, leaseOwner, leaseExpiresAt: { gt: now } },
     });
   }
 
+  public async yield(runId: string, leaseOwner: string): Promise<boolean> {
+    const now = this.clock.now();
+    const yielded = await this.database.getClient().positionHistoryPopulationRun.updateMany({
+      where: { id: runId, status: PositionHistoryPopulationRunStatus.RUNNING, leaseOwner, leaseExpiresAt: { gt: now } },
+      data: { status: PositionHistoryPopulationRunStatus.PENDING, leaseOwner: null, leaseExpiresAt: null },
+    });
+    return yielded.count === 1;
+  }
+
   public async succeed(runId: string, leaseOwner: string): Promise<boolean> {
+    const now = this.clock.now();
     const finished = await this.database.getClient().positionHistoryPopulationRun.updateMany({
-      where: { id: runId, status: PositionHistoryPopulationRunStatus.RUNNING, leaseOwner },
-      data: { status: PositionHistoryPopulationRunStatus.SUCCEEDED, finishedAt: this.clock.now(), leaseOwner: null, leaseExpiresAt: null, safeFailureCode: null },
+      where: { id: runId, status: PositionHistoryPopulationRunStatus.RUNNING, leaseOwner, leaseExpiresAt: { gt: now } },
+      data: { status: PositionHistoryPopulationRunStatus.SUCCEEDED, finishedAt: now, leaseOwner: null, leaseExpiresAt: null, safeFailureCode: null },
     });
     return finished.count === 1;
   }
 
   public async fail(runId: string, leaseOwner: string, safeFailureCode: string): Promise<boolean> {
+    const now = this.clock.now();
     const finished = await this.database.getClient().positionHistoryPopulationRun.updateMany({
-      where: { id: runId, status: PositionHistoryPopulationRunStatus.RUNNING, leaseOwner },
-      data: { status: PositionHistoryPopulationRunStatus.FAILED, finishedAt: this.clock.now(), leaseOwner: null, leaseExpiresAt: null, safeFailureCode },
+      where: { id: runId, status: PositionHistoryPopulationRunStatus.RUNNING, leaseOwner, leaseExpiresAt: { gt: now } },
+      data: { status: PositionHistoryPopulationRunStatus.FAILED, finishedAt: now, leaseOwner: null, leaseExpiresAt: null, safeFailureCode },
     });
     return finished.count === 1;
   }

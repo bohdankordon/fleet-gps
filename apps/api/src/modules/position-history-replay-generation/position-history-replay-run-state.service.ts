@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { PositionHistoryReplayRunStatus, Prisma, type PositionHistoryReplayRun } from "../../generated/prisma/client";
+import { PositionHistoryReplayKind, PositionHistoryReplayRunStatus, Prisma, type PositionHistoryReplayRun } from "../../generated/prisma/client";
 import { DatabaseService } from "../database/database.service";
 import { PositionHistoryReplayInputError } from "./position-history-replay-generation.errors";
 import type { ClaimPositionHistoryReplayRunInput, OwnedPositionHistoryReplayRun, OwnPositionHistoryReplayRunInput, RenewPositionHistoryReplayRunLeaseInput } from "./position-history-replay-generation.types";
@@ -18,10 +18,11 @@ function validOwnership(input: OwnPositionHistoryReplayRunInput): boolean {
 export class PositionHistoryReplayRunStateService {
   public constructor(private readonly database: DatabaseService) {}
 
-  public findClaimable(now: Date): Promise<PositionHistoryReplayRun | null> {
-    if (!finiteDate(now)) throw new PositionHistoryReplayInputError();
+  public findClaimable(now: Date, kind?: PositionHistoryReplayKind): Promise<PositionHistoryReplayRun | null> {
+    if (!finiteDate(now) || (kind !== undefined && !Object.values(PositionHistoryReplayKind).includes(kind))) throw new PositionHistoryReplayInputError();
     return this.database.getClient().positionHistoryReplayRun.findFirst({
       where: {
+        ...(kind === undefined ? {} : { kind }),
         OR: [
           { status: PositionHistoryReplayRunStatus.PENDING },
           { status: PositionHistoryReplayRunStatus.RUNNING, leaseExpiresAt: { lte: now } },

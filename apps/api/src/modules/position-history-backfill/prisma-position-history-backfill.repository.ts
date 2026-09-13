@@ -41,6 +41,7 @@ export class PrismaPositionHistoryBackfillRepository implements PositionHistoryB
           WHERE "id" = ${input.durableAccounting.runId}::uuid
             AND "status" = 'RUNNING'
             AND "lease_owner" = ${input.durableAccounting.leaseOwner}::uuid
+            AND "lease_expires_at" > CURRENT_TIMESTAMP
             AND "committed_windows" < "window_budget"
         `);
         if (accounted !== 1) throw new PositionHistoryBackfillDurableAccountingError();

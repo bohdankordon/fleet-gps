@@ -4,3 +4,4 @@ export * from "./position-history-horizon-execution.service";
 export * from "./position-history-horizon-execution-runner.service";
 export * from "./position-history-horizon-execution.types";
 export * from "./position-history-horizon-execution.validation";
+export * from "./position-history-automatic-request-pacer";

@@ -45,7 +45,10 @@ export class PositionHistoryBackfillService {
     if (options.paceBeforeFirstWindow === true && cursor.getTime() < checkpoint.rangeTo.getTime()) await this.sleeper.sleep(POSITION_HISTORY_BACKFILL_PACING_MS);
     while (cursor.getTime() < checkpoint.rangeTo.getTime()) {
       const windowTo = new Date(Math.min(cursor.getTime() + POSITION_HISTORY_BACKFILL_WINDOW_MS, checkpoint.rangeTo.getTime()));
-      const response = await this.historicalWindow.read({ externalDeviceId: checkpoint.externalDeviceId, from: cursor, to: windowTo });
+      const response = await this.historicalWindow.read(
+        { externalDeviceId: checkpoint.externalDeviceId, from: cursor, to: windowTo },
+        options.beforeRequestStart === undefined ? {} : { beforeRequestStart: options.beforeRequestStart },
+      );
       aggregate.requests += response.requests;
       aggregate.providerRows += response.providerRows;
       aggregate.historyCandidates += response.candidates.length;

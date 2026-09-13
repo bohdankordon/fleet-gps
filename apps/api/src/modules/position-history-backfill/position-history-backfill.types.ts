@@ -63,6 +63,7 @@ export type PositionHistoryBackfillResult = Readonly<{
 export type PositionHistoryBackfillRunOptions = Readonly<{
   maxWindows?: number;
   paceBeforeFirstWindow?: boolean;
+  beforeRequestStart?: () => Promise<void>;
   durableAccounting?: PositionHistoryDurableAccountingContext;
 }>;
 
@@ -93,6 +94,7 @@ export type PositionHistoryFleetBackfillRunOptions = Readonly<{
   plan?: boolean;
   excludeProviderDisabled?: boolean;
   paceBeforeFirstWindow?: boolean;
+  beforeRequestStart?: () => Promise<void>;
   durableAccounting?: PositionHistoryDurableAccountingContext;
 }>;
 

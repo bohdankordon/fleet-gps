@@ -3,6 +3,7 @@ import type { PositionHistoryDurableAccountingContext } from "../position-histor
 export type PositionHistoryHorizonPopulationOptions = Readonly<{
   maxWindows: number;
   excludeProviderDisabled?: boolean;
+  beforeRequestStart?: () => Promise<void>;
   durableAccounting?: PositionHistoryDurableAccountingContext;
 }>;
 

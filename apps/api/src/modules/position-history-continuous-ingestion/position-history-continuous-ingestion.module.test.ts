@@ -10,11 +10,13 @@ test("continuous ingestion module is integrated exactly once and has no controll
   assert.equal(imports.filter((value) => value === PositionHistoryContinuousIngestionModule).length, 1);
   assert.deepEqual(Reflect.getMetadata("controllers", PositionHistoryContinuousIngestionModule) ?? [], []);
   const names = (Reflect.getMetadata("imports", PositionHistoryContinuousIngestionModule) as Array<{ name: string }>).map(({ name }) => name);
-  assert.deepEqual(names, ["ApiConfigModule", "DatabaseModule", "PositionHistoryIngestionCursorModule", "PositionHistoryHistoricalWindowModule", "PositionHistoryHorizonExecutionLockModule"]);
+  assert.deepEqual(names, ["ApiConfigModule", "DatabaseModule", "PositionHistoryIngestionCursorModule", "PositionHistoryHistoricalWindowModule", "PositionHistoryHorizonExecutionLockModule", "PositionHistoryReplayGenerationModule"]);
 });
 
-test("PR 3 contains no broad replay or retention integration", () => {
+test("PR 4B replay remains outside retention and completeness-cursor persistence", () => {
   const folder = path.resolve(__dirname);
   const source = fs.readdirSync(folder).filter((name) => name.endsWith(".js") && !name.endsWith(".test.js")).map((name) => fs.readFileSync(path.join(folder, name), "utf8")).join("\n");
-  assert.doesNotMatch(source, /seven.day|7.day|ninety.day|90.day|RetentionService|PositionHistoryRetentionModule/i);
+  const replaySource = fs.readdirSync(folder).filter((name) => name.includes("replay") && name.endsWith(".js") && !name.endsWith(".test.js")).map((name) => fs.readFileSync(path.join(folder, name), "utf8")).join("\n");
+  assert.doesNotMatch(source, /RetentionService|PositionHistoryRetentionModule/i);
+  assert.doesNotMatch(replaySource, /persistContiguousResult|confirmedThrough|coverageFrom|PositionHistoryIngestionCursor/i);
 });

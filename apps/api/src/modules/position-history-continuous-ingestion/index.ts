@@ -5,3 +5,6 @@ export * from "./position-history-continuous-ingestion-poller.service";
 export * from "./position-history-continuous-ingestion-status.service";
 export * from "./position-history-continuous-ingestion.types";
 export * from "./position-history-continuous-ingestion-worker.service";
+export * from "./position-history-replay-planning";
+export * from "./position-history-replay-worker.service";
+export * from "./position-history-workload-coordinator.service";

@@ -7,8 +7,8 @@ import { PositionHistoryPopulationRunAdminController } from "./position-history-
 import { PositionHistoryPopulationRunAdminService } from "./position-history-population-run-admin.service";
 import { PositionHistoryPopulationRunPollerService } from "./position-history-population-run-poller.service";
 import { PositionHistoryPopulationRunStateService } from "./position-history-population-run-state.service";
-import { POSITION_HISTORY_POPULATION_RUN_CLOCK, POSITION_HISTORY_POPULATION_RUN_HEARTBEAT_SCHEDULER } from "./position-history-population-run.tokens";
-import type { PositionHistoryPopulationRunClock, PositionHistoryPopulationRunHeartbeatScheduler } from "./position-history-population-run.types";
+import { POSITION_HISTORY_POPULATION_RUN_CLOCK, POSITION_HISTORY_POPULATION_RUN_HEARTBEAT_SCHEDULER, POSITION_HISTORY_POPULATION_RUN_SLEEPER } from "./position-history-population-run.tokens";
+import type { PositionHistoryPopulationRunClock, PositionHistoryPopulationRunHeartbeatScheduler, PositionHistoryPopulationRunSleeper } from "./position-history-population-run.types";
 import { PositionHistoryPopulationRunWorkerService } from "./position-history-population-run-worker.service";
 import { AuditModule } from "../audit";
 
@@ -17,6 +17,7 @@ import { AuditModule } from "../audit";
   controllers: [PositionHistoryPopulationRunAdminController],
   providers: [
     { provide: POSITION_HISTORY_POPULATION_RUN_CLOCK, useValue: { now: (): Date => new Date() } satisfies PositionHistoryPopulationRunClock },
+    { provide: POSITION_HISTORY_POPULATION_RUN_SLEEPER, useValue: { sleep: (durationMs: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, durationMs)) } satisfies PositionHistoryPopulationRunSleeper },
     {
       provide: POSITION_HISTORY_POPULATION_RUN_HEARTBEAT_SCHEDULER,
       useValue: {
