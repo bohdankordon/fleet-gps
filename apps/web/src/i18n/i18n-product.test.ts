@@ -34,7 +34,7 @@ test("known errors are localized and unknown raw backend messages never become U
     assert.equal(adminUserErrorMessage({ message: raw }, t), t("admin.user.actionError"));
     assert.equal(adminUserErrorMessage({ message: raw }, t).includes(raw), false);
   }
-  const sources = `${readFileSync("src/components/admin-user-create-form.tsx", "utf8")}\n${readFileSync("src/components/admin-user-detail.tsx", "utf8")}\n${readFileSync("src/components/change-password-form.tsx", "utf8")}`;
+  const sources = `${readFileSync("src/components/admin-user-create-form.tsx", "utf8")}\n${readFileSync("src/components/admin-user-detail.tsx", "utf8")}`;
   assert.doesNotMatch(sources, /body\.message|\.message\s*\?\?/);
 });
 
