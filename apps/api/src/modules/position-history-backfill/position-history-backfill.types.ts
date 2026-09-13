@@ -43,8 +43,7 @@ export interface PositionHistoryBackfillRepository {
   persistWindow(input: PersistBackfillWindowInput): Promise<PersistBackfillWindowResult>;
 }
 
-export type PositionHistoryBackfillClock = Readonly<{ now(): Date }>;
-export type PositionHistoryBackfillSleeper = Readonly<{ sleep(durationMs: number): Promise<void> }>;
+export type { PositionHistoryHistoricalWindowClock as PositionHistoryBackfillClock, PositionHistoryHistoricalWindowSleeper as PositionHistoryBackfillSleeper } from "../position-history-historical-window";
 
 export type PositionHistoryBackfillResult = Readonly<{
   alreadyCompleted: boolean;

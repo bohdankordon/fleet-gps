@@ -12,7 +12,28 @@ The live lane remains responsible for fresh current state and low-latency observ
 
 Both lanes write `VehiclePositionObservation`. The stable `fixFingerprint` and unique `(vehicleId, fixFingerprint)` constraint deduplicate a fix first seen by `FLEET_SYNC` and later returned by `HISTORICAL_BACKFILL`; ingestion source and fetch time are not part of fix identity.
 
-This foundation PR adds no history poller, startup catch-up, scheduler, provider request, or runtime finality behavior.
+The current lossless-ingestion stages add no history poller, startup catch-up, scheduler, automatic provider request, or runtime finality behavior.
+
+## Reusable historical-window core
+
+All historical-endpoint callers share one provider/transformation pipeline:
+
+```text
+provider historical request
+→ reusable historical-window core
+→ immutable normalized candidate result
+→ caller-owned persistence and progress
+```
+
+The core accepts one positive external device ID and one finite, non-empty fetch range. It defensively limits a request window to one hour, the currently proven ordinary execution size. The existing finite backfill still accepts targets up to seven days, partitions them into one-hour windows, and calls the core for each window. Future adaptive or wider replay orchestration must partition before calling the core; adaptive subdivision and 24-hour automatic requests are not implemented.
+
+For each invocation the core performs the provider request, bounded transient retry, whole-response device/range/10,000-row validation, provider-row mapping, normalization, and invalid-row accounting. It returns fetch boundaries, the successful attempt's `fetchedAt`, provider row count, normalized `PositionHistoryCandidate` values, skipped-invalid count, request count, retry count, and rate-limit-response count. Raw provider rows, response bodies, credentials, checkpoint state, and cursor state are not returned.
+
+The 10,000-row guard belongs to the reusable core so every present and future caller fails safely on an oversized response. Fetch boundaries are inclusive. A usable timestamp outside them or a mismatched device fails the whole window; rows that cannot produce a usable timestamp continue to count as skipped invalid candidates, preserving the established behavior.
+
+Retry delay and successful-window pacing have different owners. The core owns at most three attempts for network, timeout, HTTP 429, and HTTP 5xx failures. It honors `Retry-After` up to 60 seconds and otherwise sleeps for one second then two seconds. Stable HTTP 4xx and provider/schema contract failures are not retried. The finite backfill caller separately retains 500 ms pacing before an explicitly requested first window and between successful windows. Future fleet-wide request budgeting remains an orchestration concern.
+
+The existing finite backfill now consumes this same core. Its checkpoint identity, resume/completion behavior, durable accounting, `maxWindows`, persistence transaction, aggregate result, and range ordering remain unchanged.
 
 ## Durable completeness cursor
 
@@ -54,7 +75,7 @@ expectedConfirmedThrough = old confirmedThrough
 nextConfirmedThrough = safeNow
 ```
 
-Candidates earlier than `expectedConfirmedThrough` are valid overlap and must not be rejected by persistence. The future fetch and validation layer remains responsible for proving that a provider response belongs to the requested fetch range and is safe to advance. The persistence layer does not make provider-finality decisions.
+Candidates earlier than `expectedConfirmedThrough` are valid overlap and must not be rejected by persistence. The historical-window core validates only `fetchFrom <= candidate.observedAt <= fetchTo`; it has no `coverageFrom`, `expectedConfirmedThrough`, or `nextConfirmedThrough` input. The future caller remains responsible for deciding whether a successful result is safe to persist and advance. The persistence layer does not make provider-finality decisions.
 
 ## Atomic persistence and CAS fence
 

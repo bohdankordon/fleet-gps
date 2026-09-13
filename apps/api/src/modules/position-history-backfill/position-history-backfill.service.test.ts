@@ -4,6 +4,7 @@ import { EquGpsHttpError, EquGpsRateLimitError, EquGpsTimeoutError, type EquGpsP
 import { PositionBackfillStatus, PositionIngestionSource } from "../../generated/prisma/client";
 import type { EquGpsGatewayService } from "../equgps/equgps-gateway.service";
 import { normalizePositionHistoryCandidate } from "../position-history";
+import { PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
 import { PositionHistoryBackfillProviderContractError, PositionHistoryBackfillTargetError } from "./position-history-backfill.errors";
 import { POSITION_HISTORY_BACKFILL_MAX_ROWS_PER_WINDOW, PositionHistoryBackfillService } from "./position-history-backfill.service";
 import type { PositionHistoryBackfillCheckpoint, PositionHistoryBackfillRepository, PositionHistoryBackfillTarget, PositionHistoryDurableAccountingContext } from "./position-history-backfill.types";
@@ -40,7 +41,10 @@ function harness(options: { checkpoint?: Partial<PositionHistoryBackfillCheckpoi
     },
   };
   let clockIndex = 0;
-  const service = new PositionHistoryBackfillService(gateway, repository, { now: () => new Date((options.clockValues?.[clockIndex++] ?? new Date("2026-08-10T12:30:00Z")).getTime()) }, { sleep: async (durationMs) => { sleeps.push(durationMs); } });
+  const clock = { now: () => new Date((options.clockValues?.[clockIndex++] ?? new Date("2026-08-10T12:30:00Z")).getTime()) };
+  const sleeper = { sleep: async (durationMs: number) => { sleeps.push(durationMs); } };
+  const historicalWindow = new PositionHistoryHistoricalWindowService(gateway, clock, sleeper);
+  const service = new PositionHistoryBackfillService(historicalWindow, repository, sleeper);
   return { service, calls, sleeps, persistedSources, persistedFetchedAt, known, getCursor: () => cursor };
 }
 
@@ -57,11 +61,20 @@ test("processes sequential inclusive one-hour windows with deterministic overlap
     { deviceId: 7, from: "2026-08-10T02:00:00.000Z", to: "2026-08-10T03:00:00.000Z" },
   ]);
   assert.deepEqual(item.sleeps, [500, 500]);
-  assert.equal(result.providerRows, 4);
-  assert.equal(result.historyCandidates, 4);
-  assert.equal(result.historyInserted, 3);
-  assert.equal(result.historyDuplicates, 1);
-  assert.equal(result.windowsCompleted, 3);
+  assert.deepEqual(result, {
+    alreadyCompleted: false,
+    resumed: false,
+    requests: 3,
+    providerRows: 4,
+    historyCandidates: 4,
+    historyInserted: 3,
+    historyDuplicates: 1,
+    historySkippedInvalid: 0,
+    windowsCompleted: 3,
+    retries: 0,
+    rateLimitResponses: 0,
+    completed: true,
+  });
   assert.equal(item.persistedSources.every((source) => source === PositionIngestionSource.HISTORICAL_BACKFILL), true);
 });
 
@@ -169,7 +182,9 @@ test("internal durable ownership context reaches every truly persisted window an
     prepare: async (value) => ({ id: "checkpoint", vehicleId, externalDeviceId: 7, rangeFrom: value.from, rangeTo: value.to, nextFrom: value.from, status: PositionBackfillStatus.PENDING }),
     persistWindow: async (input) => { contexts.push(input.durableAccounting); return { inserted: 0, duplicates: 0 }; },
   };
-  const service = new PositionHistoryBackfillService({ getHistoricalPositions: async () => [] } as unknown as EquGpsGatewayService, repository, { now: () => new Date() }, { sleep: async () => undefined });
+  const sleeper = { sleep: async () => undefined };
+  const historicalWindow = new PositionHistoryHistoricalWindowService({ getHistoricalPositions: async () => [] } as unknown as EquGpsGatewayService, { now: () => new Date() }, sleeper);
+  const service = new PositionHistoryBackfillService(historicalWindow, repository, sleeper);
   await service.run(target(2), { durableAccounting });
   assert.deepEqual(contexts, [durableAccounting, durableAccounting]);
 
