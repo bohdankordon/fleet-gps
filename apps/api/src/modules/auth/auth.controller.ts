@@ -21,7 +21,8 @@ export class AuthController {
     try { const result = await this.auth.login(body?.login, body?.password); response.setHeader("Set-Cookie", sessionCookie(result.token)); return result.user; }
     catch (error) {
       if (error instanceof LoginRateLimitedError) throw new HttpException({ statusCode: 429, error: "LOGIN_RATE_LIMITED" }, 429);
-      throw invalidCredentials();
+      if (error instanceof InvalidCredentialsError) throw invalidCredentials();
+      throw error;
     }
   }
 

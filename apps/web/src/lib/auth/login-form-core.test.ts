@@ -43,6 +43,16 @@ test("only the stable LOGIN_RATE_LIMITED code becomes the localized rate-limit s
   assert.deepEqual(unknown, { kind: "unavailable" });
   assert.equal(JSON.stringify([limited, unknown]).includes("raw backend text"), false);
 });
+
+test("BFF-shaped 503 unavailable never becomes invalid credentials", async () => {
+  const result = await attemptLogin(
+    "operator",
+    "present",
+    async () => Response.json({ statusCode: 503, error: "Service Unavailable" }, { status: 503 }),
+  );
+  assert.deepEqual(result, { kind: "unavailable" });
+  assert.notDeepEqual(result, { kind: "invalid-credentials" });
+});
 test("abort signals forward to the request and aborted flights become unavailable", async () => {
   let seen: AbortSignal | null | undefined;
   const controller = new AbortController();

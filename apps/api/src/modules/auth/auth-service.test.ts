@@ -195,6 +195,40 @@ test("session authentication is read-only and resolves current role/permissions"
   assert.equal(await service.authenticate("b".repeat(43), now), null);
 });
 
+test("disabled account with otherwise valid credentials still fails as invalid credentials", async () => {
+  const material = await hashPassword("correct password value");
+  let transactions = 0;
+  const disabledUser = {
+    id: userId,
+    login: "User.One",
+    normalizedLogin: "user.one",
+    role: AuthRole.USER,
+    disabled: true,
+    mustChangePassword: false,
+    passwordHashVersion: material.version,
+    passwordSalt: new Uint8Array(material.salt),
+    passwordHash: new Uint8Array(material.hash),
+    passwordChangedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    permissions: [{ key: "trips.view" }],
+  };
+  const client = {
+    authUser: { findUnique: async () => disabledUser },
+    $transaction: async () => {
+      transactions += 1;
+      throw new Error("disabled login must not reach session transaction");
+    },
+  };
+  const service = new AuthService(
+    { getClient: () => client } as unknown as DatabaseService,
+    { append: async () => ({ id: "unused" }) } as never,
+    new LoginRateLimiter(),
+  );
+  await assert.rejects(service.login("user.one", "correct password value", now), InvalidCredentialsError);
+  assert.equal(transactions, 0);
+});
+
 test("login final authority check still locks exact verified credential state before session creation", () => {
   const source = readFileSync("src/modules/auth/auth.service.ts", "utf8");
   const lock = source.indexOf("FOR UPDATE");
