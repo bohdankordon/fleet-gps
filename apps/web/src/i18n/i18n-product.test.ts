@@ -9,6 +9,7 @@ import { adminUserErrorMessage } from "./errors";
 import { createTranslator } from "./core";
 import { permissionLabel, roleLabel } from "./domain-labels";
 import { SUPPORTED_LOCALES } from "./locales";
+import { MESSAGES } from "./messages";
 
 test("roles and every canonical permission have localized labels while codes stay unchanged", () => {
   assert.deepEqual(AUTH_PERMISSIONS, ["fleet.view", "map.view", "events.view", "vehicles.view", "trips.view", "reports.view", "historyAdmin.view", "historyAdmin.populate"]);
@@ -97,6 +98,31 @@ test("selector is header-integrated, native, single-POST, non-retrying, and rout
   assert.match(selector, /router\.refresh\(\)/);
   assert.equal((selector.match(/fetch\("\/api\/preferences\/locale"/g) ?? []).length, 1);
   assert.doesNotMatch(selector, /router\.(?:push|replace)|logout|taxi_session|retry|setTimeout|setInterval/i);
+});
+
+test("global document metadata uses Fleet GPS and login keeps its route-specific title", () => {
+  assert.deepEqual(
+    (["ru", "uk", "en"] as const).map((locale) => createTranslator(locale)("document.title")),
+    ["Fleet GPS", "Fleet GPS", "Fleet GPS"],
+  );
+  assert.deepEqual(createTranslator("en")("document.description"), "Fleet monitoring and GPS tracking.");
+  assert.deepEqual(createTranslator("uk")("document.description"), "Моніторинг автопарку та GPS-відстеження.");
+  assert.deepEqual(createTranslator("ru")("document.description"), "Мониторинг автопарка и GPS-отслеживание.");
+  assert.deepEqual(createTranslator("en")("auth.login.metaTitle"), "Sign in | Fleet GPS");
+  assert.deepEqual(createTranslator("uk")("auth.login.metaTitle"), "Вхід | Fleet GPS");
+  assert.deepEqual(createTranslator("ru")("auth.login.metaTitle"), "Вход | Fleet GPS");
+});
+
+test("user-visible web catalog values do not regress to legacy product branding", () => {
+  for (const locale of SUPPORTED_LOCALES) {
+    for (const key of ["document.title", "document.description", "admin.user.disconnectTelegramPrompt"] as const) {
+      const text = MESSAGES[locale][key];
+      assert.equal(/Таксопарк|Taxi fleet/.test(text), false, `${locale}:${key}`);
+      assert.equal(text.includes("Taxi GPS"), false, `${locale}:${key}`);
+    }
+    assert.ok(MESSAGES[locale]["document.title"].includes("Fleet GPS"), locale);
+    assert.ok(MESSAGES[locale]["admin.user.disconnectTelegramPrompt"].includes("Fleet GPS"), locale);
+  }
 });
 
 function filesUnder(directory: string): string[] {

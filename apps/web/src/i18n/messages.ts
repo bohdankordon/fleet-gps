@@ -59,8 +59,8 @@ export const MESSAGE_CATALOG = Object.freeze({
   "telegram.preferences.error.generic": { ru: "Не удалось сохранить настройки.", uk: "Не вдалося зберегти налаштування.", en: "Preferences could not be saved." },
   "telegram.preferences.error.selection": { ru: "Выберите хотя бы один автомобиль.", uk: "Виберіть хоча б один автомобіль.", en: "Select at least one vehicle." },
 
-  "document.title": { ru: "Таксопарк: Автопарк и события", uk: "Таксопарк: Автопарк і події", en: "Taxi fleet: Fleet and events" },
-  "document.description": { ru: "Автопарк, события и уведомления таксопарка", uk: "Автопарк, події та сповіщення таксопарку", en: "Taxi fleet vehicles, events and notifications" },
+  "document.title": { ru: "Fleet GPS", uk: "Fleet GPS", en: "Fleet GPS" },
+  "document.description": { ru: "Мониторинг автопарка и GPS-отслеживание.", uk: "Моніторинг автопарку та GPS-відстеження.", en: "Fleet monitoring and GPS tracking." },
 
   "language.label": { ru: "Язык приложения", uk: "Мова застосунку", en: "Application language" },
   "language.changeError": { ru: "Не удалось изменить язык.", uk: "Не вдалося змінити мову.", en: "The language could not be changed." },
@@ -406,7 +406,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "admin.user.confirmReset": { ru: "Подтвердить сброс", uk: "Підтвердити скидання", en: "Confirm reset" },
   "admin.user.disconnectTelegram": { ru: "Отключить Telegram", uk: "Відключити Telegram", en: "Disconnect Telegram" },
   "admin.user.confirmDisconnectTelegram": { ru: "Подтвердить отключение Telegram", uk: "Підтвердити відключення Telegram", en: "Confirm Telegram disconnect" },
-  "admin.user.disconnectTelegramPrompt": { ru: "Это отключит этот аккаунт Taxi GPS от Telegram. Учётная запись, сеансы и разрешения не изменятся.", uk: "Це відключить цей обліковий запис Taxi GPS від Telegram. Обліковий запис, сеанси й дозволи не зміняться.", en: "This disconnects this Taxi GPS account from Telegram. The account, sessions, and permissions do not change." },
+  "admin.user.disconnectTelegramPrompt": { ru: "Это отключит этот аккаунт Fleet GPS от Telegram. Учётная запись, сеансы и разрешения не изменятся.", uk: "Це відключить цей обліковий запис Fleet GPS від Telegram. Обліковий запис, сеанси й дозволи не зміняться.", en: "This disconnects this Fleet GPS account from Telegram. The account, sessions, and permissions do not change." },
   "admin.user.newTemporaryPassword": { ru: "Новый временный пароль", uk: "Новий тимчасовий пароль", en: "New temporary password" },
   "admin.user.actionError": { ru: "Не удалось выполнить административное действие.", uk: "Не вдалося виконати адміністративну дію.", en: "The administrative action could not be completed." },
   "admin.user.createError": { ru: "Не удалось создать пользователя.", uk: "Не вдалося створити користувача.", en: "The user could not be created." },
