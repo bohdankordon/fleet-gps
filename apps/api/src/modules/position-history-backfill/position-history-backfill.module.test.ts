@@ -24,7 +24,7 @@ test("backfill module is lazy and structurally excludes fleet, CurrentState, ale
     assert.ok(module.get(PositionHistoryFleetBackfillService));
     assert.equal(sql, 0);
     assert.equal(http, 0);
-    assert.deepEqual((Reflect.getMetadata("imports", PositionHistoryBackfillModule) as Array<{ name: string }>).map((value) => value.name), ["DatabaseModule", "EquGpsModule"]);
+    assert.deepEqual((Reflect.getMetadata("imports", PositionHistoryBackfillModule) as Array<{ name: string }>).map((value) => value.name), ["DatabaseModule", "PositionHistoryHistoricalWindowModule"]);
     assert.deepEqual(Reflect.getMetadata("exports", PositionHistoryBackfillModule), [PositionHistoryBackfillService, PositionHistoryFleetBackfillService]);
     const providerNames = (Reflect.getMetadata("providers", PositionHistoryBackfillModule) as Array<{ name?: string }>).map((value) => value?.name).filter(Boolean);
     for (const forbidden of ["FleetSyncService", "FleetAlertIngestionService", "AlertObservationIngestionService", "AlertEvaluationService", "AlertNotificationDispatcherService"]) assert.equal(providerNames.includes(forbidden), false);
