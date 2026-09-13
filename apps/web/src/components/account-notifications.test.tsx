@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { ConfigProvider } from "antd";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AccountNotificationsWorkspace } from "./account-notifications-workspace";
+import { AccountNotificationsError, AccountNotificationsSuccess, AccountNotificationsWorkspace } from "./account-notifications-workspace";
 import { I18nProvider } from "../i18n/client";
 import type { PreferenceBaseline } from "../lib/account/account-notification-preferences";
 import type { TelegramConnectionView } from "../lib/account/account-telegram-connection";
@@ -42,6 +42,8 @@ const render = (
     />
   </I18nProvider></ConfigProvider>,
 );
+
+const roleCount = (html: string, role: string): number => (html.match(new RegExp(`role="${role}"`, "g")) ?? []).length;
 
 test("prerequisite context stays factual for every connection state", () => {
   const connected = render({});
@@ -148,7 +150,7 @@ test("interaction guards and secret hygiene hold in the live component", () => {
   assert.match(source, /generation\.current !== run/);
   assert.match(source, /response\.status === 409/);
   assert.match(source, /<AlertDialog/);
-  assert.match(source, /aria-live="polite"/);
+  assert.match(source, /<AccountNotificationsSuccess/);
   assert.match(source, /account\.notifications\.unsavedChanges/);
   assert.match(source, /telegram\.preferences\.save/);
   assert.match(source, /account\.notifications\.discardConfirm/);
@@ -196,4 +198,22 @@ test("LINK_PENDING prerequisite and unavailable shell stay truthful", () => {
   assert.match(shell, /availability === "unavailable"/);
   assert.match(shell, /account\.overview\.statusUnavailable/);
   assert.match(shell, /Personal notifications|account\.notifications\.personalTitle/);
+});
+
+test("notification feedback has one live-region owner with unchanged Alert types and copy", () => {
+  const error = renderToStaticMarkup(<ConfigProvider><AccountNotificationsError title="Could not save preferences" /></ConfigProvider>);
+  assert.equal(roleCount(error, "alert"), 1);
+  assert.equal(roleCount(error, "status"), 0);
+  assert.match(error, /ant-alert-error/);
+  assert.match(error, />Could not save preferences</);
+
+  const success = renderToStaticMarkup(<ConfigProvider><AccountNotificationsSuccess title="Preferences saved" /></ConfigProvider>);
+  assert.equal(roleCount(success, "status"), 1);
+  assert.equal(roleCount(success, "alert"), 0);
+  assert.match(success, /ant-alert-success/);
+  assert.match(success, />Preferences saved</);
+
+  const source = readFileSync("src/components/account-notifications-workspace.tsx", "utf8");
+  assert.doesNotMatch(source, /<div role="alert"><Alert/);
+  assert.doesNotMatch(source, /<div role="status"[^>]*>[\s\S]{0,100}<Alert/);
 });

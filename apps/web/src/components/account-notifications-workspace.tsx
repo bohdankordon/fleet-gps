@@ -28,6 +28,14 @@ type ConflictState = Readonly<{
   loadError: boolean;
 }>;
 
+export function AccountNotificationsError({ title }: Readonly<{ title: string }>) {
+  return <Alert type="error" showIcon title={title} />;
+}
+
+export function AccountNotificationsSuccess({ title }: Readonly<{ title: string }>) {
+  return <Alert role="status" type="success" showIcon title={title} />;
+}
+
 export function AccountNotificationsWorkspace({ baseline: initialBaseline, connection, deliveryLimited }: Readonly<{
   baseline: PreferenceBaseline;
   connection: TelegramConnectionView;
@@ -392,7 +400,7 @@ export function AccountNotificationsWorkspace({ baseline: initialBaseline, conne
               {anyDisabledListed ? <p className="account-notifications__supporting">{t("account.notifications.disabledVehiclesNote")}</p> : null}
             </div>
           ) : null}
-          {vehiclesInvalid ? <div role="alert"><Alert type="error" showIcon title={t("telegram.preferences.error.selection")} /></div> : null}
+          {vehiclesInvalid ? <AccountNotificationsError title={t("telegram.preferences.error.selection")} /> : null}
         </div>
       ) : (
         <>
@@ -417,7 +425,7 @@ export function AccountNotificationsWorkspace({ baseline: initialBaseline, conne
           <p className="account-notifications__supporting">{t("account.notifications.conflictBody")}</p>
           {conflict.loadError ? (
             <>
-              <div role="alert"><Alert type="error" showIcon title={t("account.notifications.refreshFailed")} /></div>
+              <AccountNotificationsError title={t("account.notifications.refreshFailed")} />
               <div className="account-notifications__actions">
                 <Button onClick={() => { void startConflictFlow(); }} loading={conflictLoading} disabled={conflictLoading}>
                   {t("common.retry")}
@@ -443,10 +451,8 @@ export function AccountNotificationsWorkspace({ baseline: initialBaseline, conne
         </div>
       </section>
     ) : null}
-    <div role="status" aria-live="polite">
-      {success ? <Alert type="success" showIcon title={t("telegram.preferences.saved")} /> : null}
-    </div>
-    {saveErrorKey ? <div role="alert"><Alert type="error" showIcon title={t(saveErrorKey)} /></div> : null}
+    {success ? <AccountNotificationsSuccess title={t("telegram.preferences.saved")} /> : null}
+    {saveErrorKey ? <AccountNotificationsError title={t(saveErrorKey)} /> : null}
     <AlertDialog
       open={discardOpen}
       onOpenChange={setDiscardOpen}

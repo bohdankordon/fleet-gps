@@ -5,7 +5,7 @@ import test from "node:test";
 import { ConfigProvider } from "antd";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AccountTelegram } from "./account-telegram";
-import { AccountTelegramWorkspace } from "./account-telegram-workspace";
+import { AccountTelegramOperationError, AccountTelegramWorkspace } from "./account-telegram-workspace";
 import { I18nProvider } from "../i18n/client";
 import type { TelegramWorkspaceInitial } from "./account-telegram-workspace";
 
@@ -31,6 +31,8 @@ const render = (initial: TelegramWorkspaceInitial, locale: "uk" | "ru" | "en" = 
 const renderWorkspace = (initial: TelegramWorkspaceInitial, initialLink: typeof LINK | null = null, locale: "uk" | "ru" | "en" = "en") => renderToStaticMarkup(
   <ConfigProvider><I18nProvider locale={locale}><AccountTelegramWorkspace initial={initial} locale={locale} initialLink={initialLink} /></I18nProvider></ConfigProvider>,
 );
+
+const roleCount = (html: string, role: string): number => (html.match(new RegExp(`role="${role}"`, "g")) ?? []).length;
 
 test("Telegram reuses the shared centered Account workspace and navigation", () => {
   const html = render({ availability: "unavailable" });
@@ -140,6 +142,16 @@ test("unavailable reads stay unavailable without guessed actions", () => {
   assert.doesNotMatch(html, />Connect Telegram</);
   assert.doesNotMatch(html, />Disconnect Telegram</);
   assert.doesNotMatch(html, /ant-tag/);
+});
+
+test("operation error Alert owns one assertive live region without changing its visual type or copy", () => {
+  const html = renderToStaticMarkup(<ConfigProvider><AccountTelegramOperationError title="Connection failed" /></ConfigProvider>);
+  assert.equal(roleCount(html, "alert"), 1);
+  assert.equal(roleCount(html, "status"), 0);
+  assert.match(html, /ant-alert-error/);
+  assert.match(html, />Connection failed</);
+  const source = readFileSync("src/components/account-telegram-workspace.tsx", "utf8");
+  assert.doesNotMatch(source, /<div role="alert"><Alert/);
 });
 
 test("telegram copy is localized in UK, RU, and EN", () => {

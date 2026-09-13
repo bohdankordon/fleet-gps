@@ -27,6 +27,10 @@ export type TelegramWorkspaceInitial =
 
 type Operation = "link" | "disconnect" | "refresh";
 
+export function AccountTelegramOperationError({ title }: Readonly<{ title: string }>) {
+  return <Alert type="error" showIcon title={title} />;
+}
+
 function tagColor(status: TelegramConnectionView["status"]): "success" | "default" | "processing" | "warning" {
   if (status === "CONNECTED") return "success";
   if (status === "BROKEN") return "warning";
@@ -212,7 +216,7 @@ export function AccountTelegramWorkspace({ initial, locale, initialLink = null }
           {t("common.retry")}
         </Button>
       </div>
-      {operationErrorKey ? <div role="alert"><Alert type="error" showIcon title={t(operationErrorKey)} /></div> : null}
+      {operationErrorKey ? <AccountTelegramOperationError title={t(operationErrorKey)} /> : null}
     </>;
   }
 
@@ -233,7 +237,7 @@ export function AccountTelegramWorkspace({ initial, locale, initialLink = null }
     </div>
     {updateStale ? <Alert type="warning" showIcon title={t("account.telegram.updateStale")} /> : null}
     {noticeKey ? <Alert type="success" showIcon title={t(noticeKey)} /> : null}
-    {operationErrorKey ? <div role="alert"><Alert type="error" showIcon title={t(operationErrorKey)} /></div> : null}
+    {operationErrorKey ? <AccountTelegramOperationError title={t(operationErrorKey)} /> : null}
     {status === "NOT_CONNECTED" ? (
       <div className="account-telegram__actions">
         <Button type="primary" onClick={() => { void createLink(); }} loading={operation === "link"} disabled={busy}>
