@@ -33,8 +33,8 @@ export class TelegramProductBotHttpTransport implements TelegramProductBotTransp
       throw new TelegramProductTransportError("NETWORK", true);
     } finally { clearTimeout(timeout); }
   }
-  public sendLinkSuccess(chatId: bigint): Promise<void> { return this.send(chatId, "Telegram підключено до Taxi GPS.", true); }
-  public sendLinkFailure(chatId: bigint): Promise<void> { return this.send(chatId, "Посилання недійсне. Створіть нове в Taxi GPS.", true); }
-  public sendHelp(chatId: bigint): Promise<void> { return this.send(chatId, "Відкрийте Taxi GPS, щоб підключити Telegram.", true); }
+  public sendLinkSuccess(chatId: bigint): Promise<void> { return this.send(chatId, "Telegram підключено до Fleet GPS.", true); }
+  public sendLinkFailure(chatId: bigint): Promise<void> { return this.send(chatId, "Посилання недійсне. Створіть нове в Fleet GPS.", true); }
+  public sendHelp(chatId: bigint): Promise<void> { return this.send(chatId, "Відкрийте Fleet GPS, щоб підключити Telegram.", true); }
   public sendAlertConfirmed(chatId: bigint, text: string): Promise<void> { return this.send(chatId, text, false); }
 }

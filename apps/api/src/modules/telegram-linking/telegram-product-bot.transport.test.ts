@@ -11,7 +11,7 @@ test("product transport sends only the explicit webhook chat ID and a minimal Uk
   const sender = transport((async (input, init) => { calls.push(new Request(input, init)); return Response.json({ ok: true, result: { message_id: 1 } }); }) as typeof fetch);
   await sender.sendLinkSuccess(chatId);
   assert.equal(calls.length, 1); assert.match(calls[0]!.url, /bottest-product-token\/sendMessage$/);
-  assert.deepEqual(await calls[0]!.json(), { chat_id: "4000000001", text: "Telegram підключено до Taxi GPS." });
+  assert.deepEqual(await calls[0]!.json(), { chat_id: "4000000001", text: "Telegram підключено до Fleet GPS." });
   assert.equal(calls[0]!.url.includes("TELEGRAM_CHAT_ID"), false);
 });
 
@@ -45,6 +45,19 @@ test("product bot messages provide only minimal Ukrainian linking guidance", asy
   const messages: string[] = [];
   const sender = transport((async (_input, init) => { messages.push(JSON.parse(String(init?.body)).text); return Response.json({ ok: true, result: {} }); }) as typeof fetch);
   await sender.sendLinkFailure(chatId); await sender.sendHelp(chatId);
-  assert.deepEqual(messages, ["Посилання недійсне. Створіть нове в Taxi GPS.", "Відкрийте Taxi GPS, щоб підключити Telegram."]);
+  assert.deepEqual(messages, ["Посилання недійсне. Створіть нове в Fleet GPS.", "Відкрийте Fleet GPS, щоб підключити Telegram."]);
   for (const message of messages) for (const sensitive of ["4000000001", "token", "secret", "hash"]) assert.equal(message.toLowerCase().includes(sensitive), false);
+
+});
+
+test("product bot messages use Fleet GPS and never the legacy Taxi GPS brand", async () => {
+  const messages: string[] = [];
+  const sender = transport((async (_input, init) => { messages.push(JSON.parse(String(init?.body)).text); return Response.json({ ok: true, result: {} }); }) as typeof fetch);
+  await sender.sendLinkSuccess(chatId); await sender.sendLinkFailure(chatId); await sender.sendHelp(chatId);
+  assert.equal(messages.length, 3);
+  for (const message of messages) {
+    assert.ok(message.includes("Fleet GPS"), message);
+    assert.equal(message.includes("Taxi GPS"), false);
+    assert.equal(/Таксопарк|Taxi fleet/.test(message), false);
+  }
 });
