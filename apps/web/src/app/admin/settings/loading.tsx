@@ -13,6 +13,7 @@ export default async function AdminSettingsLoading() {
       <AdminNavigationTabs />
       <div className="business-settings__loading" role="status" aria-live="polite">
         <Spin size="large" />
+        <span className="sr-only">{t("common.loading")}</span>
       </div>
     </div>
   );
