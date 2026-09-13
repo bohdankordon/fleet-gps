@@ -1,0 +1,17 @@
+/* Login: one focused sign-in surface under the minimal public header. The shell owns viewport sizing; this page never nests 100vh math. */
+.login-page { display: flex; justify-content: center; align-items: flex-start; padding-block: clamp(40px, 9vh, 96px) var(--space-8); padding-inline: var(--space-4); min-width: 0; }
+.login-card { width: min(100%, 440px); min-width: 0; padding: var(--space-8); border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-surface); }
+.login-card__title { margin: 0; font-size: 30px; line-height: 1.2; letter-spacing: -0.02em; }
+.login-card__subtitle { margin: var(--space-2) 0 0; color: var(--color-text-secondary); font-size: var(--font-size-label); line-height: var(--line-height-label); }
+.login-card__summary { margin-top: var(--space-4); border-radius: var(--radius-sm); }
+.login-card__summary:empty { display: none; }
+.login-card__summary:focus { outline: none; }
+.login-card__summary:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; }
+/* Chained .ant-form keeps this rule strictly above Ant's SSR-injected `:where(...).ant-form` margin reset (same family as the Account avatar and sign-out fixes): equal specificity plus later injection order otherwise pins the form margin at 0 and the intro gap never renders. */
+.login-card__form.ant-form { margin-top: var(--space-6); }
+.login-card__form .ant-form-item-label > label { color: var(--color-text-primary); font-size: var(--font-size-label); font-weight: var(--font-weight-semibold); }
+.login-card__form .ant-input, .login-card__form .ant-input-password { font-size: 16px; }
+.login-card__actions { margin-bottom: 0; }
+.login-card__actions .ant-btn-primary { min-height: var(--control-height-default); }
+@media (max-width: 480px) { .login-page { padding-block: var(--space-6) var(--space-8); padding-inline: var(--space-4); } .login-card { padding: var(--space-6); } .login-card__form .ant-input, .login-card__form .ant-input-password input, .login-card__actions .ant-btn-primary { min-height: 44px; } .login-card__form .ant-input, .login-card__form .ant-input-password input { font-size: 16px; } }
+@media (prefers-reduced-motion: reduce) { .login-page * { scroll-behavior: auto; transition: none !important; } }

@@ -83,6 +83,8 @@ export const MESSAGE_CATALOG = Object.freeze({
   "navigation.settings": { ru: "Настройки бизнеса", uk: "Налаштування бізнесу", en: "Business settings" },
 
   "auth.login.title": { ru: "Вход", uk: "Вхід", en: "Sign in" },
+  "auth.login.subtitle": { ru: "Доступ к рабочему пространству Fleet GPS.", uk: "Доступ до робочого простору Fleet GPS.", en: "Access your Fleet GPS workspace." },
+  "auth.login.metaTitle": { ru: "Вход | Fleet GPS", uk: "Вхід | Fleet GPS", en: "Sign in | Fleet GPS" },
   "auth.login.loginLabel": { ru: "Логин", uk: "Логін", en: "Login" },
   "auth.login.passwordLabel": { ru: "Пароль", uk: "Пароль", en: "Password" },
   "auth.login.submit": { ru: "Войти", uk: "Увійти", en: "Sign in" },

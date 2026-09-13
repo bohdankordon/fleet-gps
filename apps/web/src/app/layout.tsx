@@ -22,6 +22,7 @@ import "../styles/business-settings.css";
 import "../styles/admin-audit.css";
 import "../styles/admin-history-overview.css";
 import "../styles/account.css";
+import "../styles/login.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 export async function generateMetadata(): Promise<Metadata> { const { t } = await getServerI18n(); return { title: t("document.title"), description: t("document.description") }; }

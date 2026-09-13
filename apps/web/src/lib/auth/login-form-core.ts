@@ -12,9 +12,19 @@ export function validateLoginForm(login: string, password: string): LoginFormErr
   return null;
 }
 
-export async function attemptLogin(login: string, password: string, fetcher: typeof fetch = fetch): Promise<LoginAttemptResult> {
+export async function attemptLogin(
+  login: string,
+  password: string,
+  fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<LoginAttemptResult> {
   try {
-    const response = await fetcher(LOGIN_ACTION, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login, password }) });
+    const response = await fetcher(LOGIN_ACTION, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ login, password }),
+      ...(signal ? { signal } : {}),
+    });
     if (response.status === 401) return { kind: "invalid-credentials" };
     if (response.status === 429) {
       try { const body = await response.json() as { error?: unknown }; return body.error === "LOGIN_RATE_LIMITED" ? { kind: "rate-limited" } : { kind: "unavailable" }; }

@@ -1,20 +1,84 @@
-import { FormEvent } from "react";
-import { LOGIN_ACTION, LoginFormError } from "../lib/auth/login-form-core";
+import type { FormInstance } from "antd";
+import { Alert, Button, Form, Input } from "antd";
+import { LOGIN_ACTION, LOGIN_PATTERN, type LoginFormError } from "../lib/auth/login-form-core";
+import type { MessageKey } from "../i18n/messages";
 import { useI18n } from "../i18n/client";
 
+export type LoginFormValues = Readonly<{ login: string; password: string }>;
+
+export function loginFormErrorKey(error: LoginFormError): MessageKey {
+  switch (error) {
+    case "LOGIN_REQUIRED":
+      return "auth.login.loginRequired";
+    case "LOGIN_INVALID":
+      return "auth.login.loginInvalid";
+    case "PASSWORD_REQUIRED":
+      return "auth.login.passwordRequired";
+    case "INVALID_CREDENTIALS":
+      return "auth.login.invalidCredentials";
+    case "RATE_LIMITED":
+      return "auth.login.rateLimited";
+    case "UNAVAILABLE":
+      return "auth.login.unavailable";
+  }
+}
+
 type LoginFormViewProps = Readonly<{
+  form: FormInstance<LoginFormValues>;
   busy: boolean;
+  locked: boolean;
   error: LoginFormError | null;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  summaryRef: React.RefObject<HTMLDivElement | null>;
+  onFinish: (values: LoginFormValues) => void;
+  onFinishFailed: () => void;
 }>;
 
-export function LoginFormView({ busy, error, onSubmit }: LoginFormViewProps) {
+// Ant Design owns the form grammar (labels, validation, Alert, focus);
+// this view carries no request logic. Credentials are never trimmed here.
+export function LoginFormView({ form, busy, locked, error, summaryRef, onFinish, onFinishFailed }: LoginFormViewProps) {
   const { t } = useI18n();
-  const errorMessage = error === "LOGIN_REQUIRED" ? t("auth.login.loginRequired") : error === "LOGIN_INVALID" ? t("auth.login.loginInvalid") : error === "PASSWORD_REQUIRED" ? t("auth.login.passwordRequired") : error === "INVALID_CREDENTIALS" ? t("auth.login.invalidCredentials") : error === "RATE_LIMITED" ? t("auth.login.rateLimited") : error === "UNAVAILABLE" ? t("auth.login.unavailable") : null;
-  return <form className="auth-form" action={LOGIN_ACTION} method="post" noValidate onSubmit={onSubmit}>
-    <label>{t("auth.login.loginLabel")}<input name="login" autoComplete="username" minLength={3} maxLength={64} /></label>
-    <label>{t("auth.login.passwordLabel")}<input name="password" type="password" autoComplete="current-password" /></label>
-    {errorMessage && <p role="alert">{errorMessage}</p>}
-    <button type="submit" disabled={busy}>{busy ? t("auth.login.submitting") : t("auth.login.submit")}</button>
-  </form>;
+  return (
+    <>
+      <div ref={summaryRef} tabIndex={-1} className="login-card__summary">
+        {error ? <Alert type="error" showIcon role="alert" title={t(loginFormErrorKey(error))} /> : null}
+      </div>
+      <Form<LoginFormValues>
+        form={form}
+        layout="vertical"
+        className="login-card__form"
+        action={LOGIN_ACTION}
+        method="post"
+        initialValues={{ login: "", password: "" }}
+        disabled={locked}
+        aria-busy={busy}
+        preserve
+        onFinish={onFinish}
+        onFinishFailed={onFinishFailed}
+        requiredMark={false}
+      >
+        <Form.Item
+          name="login"
+          label={t("auth.login.loginLabel")}
+          rules={[
+            { required: true, message: t("auth.login.loginRequired") },
+            { pattern: LOGIN_PATTERN, message: t("auth.login.loginInvalid") },
+          ]}
+        >
+          <Input name="login" autoComplete="username" maxLength={64} />
+        </Form.Item>
+        <Form.Item
+          name="password"
+          label={t("auth.login.passwordLabel")}
+          rules={[{ required: true, message: t("auth.login.passwordRequired") }]}
+        >
+          <Input.Password name="password" autoComplete="current-password" />
+        </Form.Item>
+        <Form.Item className="login-card__actions">
+          <Button type="primary" htmlType="submit" block loading={busy} disabled={locked} aria-live="polite">
+            {busy ? t("auth.login.submitting") : t("auth.login.submit")}
+          </Button>
+        </Form.Item>
+      </Form>
+    </>
+  );
 }

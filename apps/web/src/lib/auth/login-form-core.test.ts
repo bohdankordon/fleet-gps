@@ -43,3 +43,22 @@ test("only the stable LOGIN_RATE_LIMITED code becomes the localized rate-limit s
   assert.deepEqual(unknown, { kind: "unavailable" });
   assert.equal(JSON.stringify([limited, unknown]).includes("raw backend text"), false);
 });
+test("abort signals forward to the request and aborted flights become unavailable", async () => {
+  let seen: AbortSignal | null | undefined;
+  const controller = new AbortController();
+  const result = await attemptLogin(
+    "operator",
+    "present",
+    async (_url, options) => {
+      seen = options?.signal;
+      return Response.json(safeUser);
+    },
+    controller.signal,
+  );
+  assert.equal(result.kind, "success");
+  assert.equal(seen, controller.signal);
+  const aborted = new AbortController();
+  aborted.abort();
+  const failed = await attemptLogin("operator", "present", fetch, aborted.signal);
+  assert.deepEqual(failed, { kind: "unavailable" });
+});
