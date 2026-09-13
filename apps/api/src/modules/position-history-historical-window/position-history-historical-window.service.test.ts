@@ -4,6 +4,7 @@ import { EquGpsHttpError, EquGpsNetworkError, EquGpsRateLimitError, EquGpsRespon
 import { PositionIngestionSource } from "../../generated/prisma/client";
 import type { EquGpsGatewayService } from "../equgps/equgps-gateway.service";
 import { recordedPositionHistoryBackfillProviderFailure } from "../position-history-backfill/position-history-backfill-failure-diagnostics";
+import { recordedPositionHistoryHistoricalWindowFailureAccounting } from "./position-history-historical-window-failure-diagnostics";
 import { POSITION_HISTORY_HISTORICAL_WINDOW_MAX_ROWS } from "./position-history-historical-window.constants";
 import { PositionHistoryBackfillProviderContractError, PositionHistoryBackfillTargetError } from "./position-history-historical-window.errors";
 import { PositionHistoryHistoricalWindowService } from "./position-history-historical-window.service";
@@ -150,6 +151,7 @@ test("three transient failures exhaust attempts and propagate the original final
   await assert.rejects(item.service.read(request), (error) => error === failures[2]);
   assert.equal(item.calls.length, 3);
   assert.deepEqual(item.sleeps, [1_000, 2_000]);
+  assert.deepEqual(recordedPositionHistoryHistoricalWindowFailureAccounting(failures[2]), { requests: 3, retries: 2, rateLimitResponses: 0 });
 });
 
 test("excessive Retry-After propagates without sleeping", async () => {
@@ -161,6 +163,13 @@ test("excessive Retry-After propagates without sleeping", async () => {
   assert.deepEqual(recordedPositionHistoryBackfillProviderFailure(failure), { category: "rate_limit", status: 429, retryable: false, retryAfterPolicy: "exceeds_limit" });
 });
 
+test("exhausted rate limiting records all bounded attempts for outer scheduling", async () => {
+  const failures = [new EquGpsRateLimitError("getHistoricalPositions", null), new EquGpsRateLimitError("getHistoricalPositions", null), new EquGpsRateLimitError("getHistoricalPositions", null)];
+  const item = harness({ responses: failures });
+  await assert.rejects(item.service.read(request), (error) => error === failures[2]);
+  assert.deepEqual(recordedPositionHistoryHistoricalWindowFailureAccounting(failures[2]), { requests: 3, retries: 2, rateLimitResponses: 3 });
+});
+
 test("mixed retries expose cumulative request, retry, rate-limit, and successful-attempt time", async () => {
   const item = harness({
     responses: [new EquGpsRateLimitError("getHistoricalPositions", null), new EquGpsHttpError(500, "getHistoricalPositions"), [point("2026-08-10T00:10:00Z")]],
@@ -169,4 +178,13 @@ test("mixed retries expose cumulative request, retry, rate-limit, and successful
   const result = await item.service.read(request);
   assert.deepEqual({ requests: result.requests, retries: result.retries, rateLimitResponses: result.rateLimitResponses, fetchedAt: result.fetchedAt.toISOString() }, { requests: 3, retries: 2, rateLimitResponses: 1, fetchedAt: "2026-08-10T12:00:02.000Z" });
   assert.deepEqual(item.sleeps, [1_000, 2_000]);
+});
+
+test("an optional caller budget hook runs before every provider attempt without changing default retry semantics", async () => {
+  const item = harness({ responses: [new EquGpsTimeoutError("getHistoricalPositions"), []] });
+  let starts = 0;
+  const result = await item.service.read(request, { beforeRequestStart: async () => { starts += 1; } });
+  assert.equal(starts, 2);
+  assert.equal(result.requests, 2);
+  assert.deepEqual(item.sleeps, [1_000]);
 });

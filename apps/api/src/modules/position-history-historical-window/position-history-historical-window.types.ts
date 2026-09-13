@@ -6,6 +6,10 @@ export type PositionHistoryHistoricalWindowRequest = Readonly<{
   to: Date;
 }>;
 
+export type PositionHistoryHistoricalWindowReadOptions = Readonly<{
+  beforeRequestStart?: () => Promise<void>;
+}>;
+
 export type PositionHistoryHistoricalWindowResult = Readonly<{
   fetchFrom: Date;
   fetchTo: Date;

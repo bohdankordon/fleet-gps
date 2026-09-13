@@ -5,9 +5,9 @@ import { EquGpsGatewayService } from "../equgps/equgps-gateway.service";
 import { mapEquGpsPositionToHistoryInput, normalizePositionHistoryCandidate, type PositionHistoryCandidate } from "../position-history";
 import { POSITION_HISTORY_HISTORICAL_WINDOW_MAX_ATTEMPTS, POSITION_HISTORY_HISTORICAL_WINDOW_MAX_DURATION_MS, POSITION_HISTORY_HISTORICAL_WINDOW_MAX_RETRY_AFTER_MS, POSITION_HISTORY_HISTORICAL_WINDOW_MAX_ROWS } from "./position-history-historical-window.constants";
 import { PositionHistoryBackfillProviderContractError, PositionHistoryBackfillTargetError } from "./position-history-historical-window.errors";
-import { classifyPositionHistoryHistoricalWindowProviderFailure, recordPositionHistoryHistoricalWindowProviderFailure } from "./position-history-historical-window-failure-diagnostics";
+import { classifyPositionHistoryHistoricalWindowProviderFailure, recordPositionHistoryHistoricalWindowFailureAccounting, recordPositionHistoryHistoricalWindowProviderFailure } from "./position-history-historical-window-failure-diagnostics";
 import { POSITION_HISTORY_HISTORICAL_WINDOW_CLOCK, POSITION_HISTORY_HISTORICAL_WINDOW_SLEEPER } from "./position-history-historical-window.tokens";
-import type { PositionHistoryHistoricalWindowClock, PositionHistoryHistoricalWindowRequest, PositionHistoryHistoricalWindowResult, PositionHistoryHistoricalWindowSleeper } from "./position-history-historical-window.types";
+import type { PositionHistoryHistoricalWindowClock, PositionHistoryHistoricalWindowReadOptions, PositionHistoryHistoricalWindowRequest, PositionHistoryHistoricalWindowResult, PositionHistoryHistoricalWindowSleeper } from "./position-history-historical-window.types";
 
 function validRequest(request: PositionHistoryHistoricalWindowRequest): boolean {
   const from = request.from.getTime();
@@ -30,9 +30,9 @@ export class PositionHistoryHistoricalWindowService {
     @Inject(POSITION_HISTORY_HISTORICAL_WINDOW_SLEEPER) private readonly sleeper: PositionHistoryHistoricalWindowSleeper,
   ) {}
 
-  public async read(request: PositionHistoryHistoricalWindowRequest): Promise<PositionHistoryHistoricalWindowResult> {
+  public async read(request: PositionHistoryHistoricalWindowRequest, options: PositionHistoryHistoricalWindowReadOptions = {}): Promise<PositionHistoryHistoricalWindowResult> {
     if (!validRequest(request)) throw new PositionHistoryBackfillTargetError();
-    const response = await this.fetch(request);
+    const response = await this.fetch(request, options);
     if (response.positions.length > POSITION_HISTORY_HISTORICAL_WINDOW_MAX_ROWS) throw new PositionHistoryBackfillProviderContractError();
     const candidates: PositionHistoryCandidate[] = [];
     let skippedInvalid = 0;
@@ -57,11 +57,12 @@ export class PositionHistoryHistoricalWindowService {
     });
   }
 
-  private async fetch(request: PositionHistoryHistoricalWindowRequest): Promise<Readonly<{ positions: readonly EquGpsPosition[]; fetchedAt: Date; requests: number; retries: number; rateLimitResponses: number }>> {
+  private async fetch(request: PositionHistoryHistoricalWindowRequest, options: PositionHistoryHistoricalWindowReadOptions): Promise<Readonly<{ positions: readonly EquGpsPosition[]; fetchedAt: Date; requests: number; retries: number; rateLimitResponses: number }>> {
     let requests = 0;
     let retries = 0;
     let rateLimitResponses = 0;
     for (let attempt = 1; attempt <= POSITION_HISTORY_HISTORICAL_WINDOW_MAX_ATTEMPTS; attempt += 1) {
+      await options.beforeRequestStart?.();
       const fetchedAt = this.clock.now();
       if (!Number.isFinite(fetchedAt.getTime())) throw new PositionHistoryBackfillTargetError();
       requests += 1;
@@ -71,12 +72,14 @@ export class PositionHistoryHistoricalWindowService {
       } catch (error) {
         if (error instanceof EquGpsRateLimitError) rateLimitResponses += 1;
         if (!transient(error) || attempt === POSITION_HISTORY_HISTORICAL_WINDOW_MAX_ATTEMPTS) {
+          recordPositionHistoryHistoricalWindowFailureAccounting(error, { requests, retries, rateLimitResponses });
           recordPositionHistoryHistoricalWindowProviderFailure(error, classifyPositionHistoryHistoricalWindowProviderFailure(error, { retryable: false, maxRetryAfterMs: POSITION_HISTORY_HISTORICAL_WINDOW_MAX_RETRY_AFTER_MS }));
           throw error;
         }
         const retryAfter = error instanceof EquGpsRateLimitError ? error.retryAfterMs : null;
         const delay = retryAfter ?? 1_000 * 2 ** (attempt - 1);
         if (delay > POSITION_HISTORY_HISTORICAL_WINDOW_MAX_RETRY_AFTER_MS) {
+          recordPositionHistoryHistoricalWindowFailureAccounting(error, { requests, retries, rateLimitResponses });
           recordPositionHistoryHistoricalWindowProviderFailure(error, classifyPositionHistoryHistoricalWindowProviderFailure(error, { retryable: false, maxRetryAfterMs: POSITION_HISTORY_HISTORICAL_WINDOW_MAX_RETRY_AFTER_MS }));
           throw error;
         }
