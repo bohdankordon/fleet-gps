@@ -9,7 +9,7 @@ import { AuthenticationGuard } from "../auth/authentication.guard";
 import { PermissionGuard } from "../auth/permission.guard";
 import type { AuthenticatedPrincipal } from "../auth/auth.types";
 import { AccountNotificationsController, AdminTelegramController, TelegramProductWebhookController } from "./telegram-linking.controller";
-import { TelegramLinkingError, TelegramLinkingService } from "./telegram-linking.service";
+import { NotificationPreferencesError, TelegramLinkingError, TelegramLinkingService } from "./telegram-linking.service";
 
 const token = (character: string) => character.repeat(43);
 function principal(role: AuthRole, id: string, mustChangePassword = false): AuthenticatedPrincipal {
@@ -59,6 +59,45 @@ test("public webhook requires its secret, bounded JSON content, and acknowledges
     assert.equal((await fetch(url(app, "/api/telegram/product/webhook"))).status >= 400, true);
     assert.equal((await fetch(url(app, "/api/telegram/product/webhook"), { method: "PUT" })).status >= 400, true);
   } finally { await app.close(); }
+});
+
+test("unexpected webhook processing failures return a safe 500 so Telegram can retry", async () => {
+  const raw = "private persistence failure with token and chat details";
+  const app = await appWith({
+    verifySecret: (value: string | null) => value === "expected-secret",
+    consume: async () => { throw new Error(raw); },
+  });
+  try {
+    const response = await fetch(url(app, "/api/telegram/product/webhook"), {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-telegram-bot-api-secret-token": "expected-secret" },
+      body: JSON.stringify({ update_id: 4_000_000_001, message: { chat: { id: 4_000_000_002, type: "private" }, from: { id: 4_000_000_003 }, text: `/start ${token("w")}` } }),
+    });
+    const body = await response.text();
+    assert.equal(response.status, 500);
+    for (const forbidden of [raw, token("w"), "expected-secret", "4000000002", "private persistence"]) assert.equal(body.includes(forbidden), false);
+  } finally { await app.close(); }
+});
+
+test("preference conflicts remain 409 while unexpected failures use the safe 500 path", async () => {
+  const user = principal(AuthRole.USER, "00000000-0000-4000-8000-000000000011");
+  const requestBody = JSON.stringify({ expectedRevision: 0, enabled: true, speedingEnabled: true, inactivityEnabled: true });
+  for (const [failure, expectedStatus] of [
+    [new NotificationPreferencesError("CONFLICT"), 409],
+    [new Error("private database details"), 500],
+  ] as const) {
+    const app = await appWith({ updatePreferences: async () => { throw failure; } }, { [token("p")]: user });
+    try {
+      const response = await fetch(url(app, "/api/account/notifications/preferences"), {
+        method: "PATCH",
+        headers: { cookie: `taxi_session=${token("p")}`, "content-type": "application/json" },
+        body: requestBody,
+      });
+      const body = await response.text();
+      assert.equal(response.status, expectedStatus);
+      assert.equal(body.includes("private database details"), false);
+    } finally { await app.close(); }
+  }
 });
 
 test("account linking routes derive identity from the authenticated session and expose only safe projections", async () => {

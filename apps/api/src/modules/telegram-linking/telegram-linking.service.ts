@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import type { Prisma } from "../../generated/prisma/client";
+import { Prisma } from "../../generated/prisma/client";
 import { NotificationVehicleScope, TelegramConnectionStatus } from "../../generated/prisma/enums";
 import type { ApiConfig } from "../../config/api-config";
 import { API_CONFIG } from "../../config/api-config.tokens";
@@ -19,7 +19,7 @@ const TOKEN_TTL_MS = 10 * 60 * 1_000;
 function tokenHash(token: string): Uint8Array<ArrayBuffer> { return new Uint8Array(createHash("sha256").update(token, "utf8").digest()) as Uint8Array<ArrayBuffer>; }
 function token(): string { return randomBytes(32).toString("base64url"); }
 function safeTelegramId(value: bigint): boolean { return value > 0n && value <= 9_007_199_254_740_991n; }
-function duplicate(error: unknown): boolean { return typeof error === "object" && error !== null && "code" in error && error.code === "P2002"; }
+function duplicate(error: unknown): boolean { return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"; }
 
 export class TelegramLinkingError extends Error { public constructor(public readonly code: "DISABLED" | "INELIGIBLE" | "NOT_FOUND" | "RATE_LIMITED") { super(code); } }
 export class NotificationPreferencesError extends Error { public constructor(public readonly code: "INVALID_INPUT" | "CONFLICT" | "FORBIDDEN") { super(code); } }
@@ -54,7 +54,8 @@ export class TelegramLinkingService {
       if (!current) {
         if (input.expectedRevision !== 0) throw new NotificationPreferencesError("CONFLICT");
         if (allowed) { const count = await tx.vehicle.count({ where: { id: { in: [...input.selectedVehicleIds] } } }); if (count !== input.selectedVehicleIds.length) throw new NotificationPreferencesError("INVALID_INPUT"); }
-        try { await tx.userNotificationPreferences.create({ data: { userId, enabled: input.enabled, speedingEnabled: input.speedingEnabled, inactivityEnabled: input.inactivityEnabled, vehicleScope: allowed ? input.vehicleScope as NotificationVehicleScope : NotificationVehicleScope.ALL, ...(allowed ? { vehicles: { createMany: { data: input.selectedVehicleIds.map((vehicleId) => ({ vehicleId })) } } } : {}) } }); } catch { throw new NotificationPreferencesError("CONFLICT"); }
+        try { await tx.userNotificationPreferences.create({ data: { userId, enabled: input.enabled, speedingEnabled: input.speedingEnabled, inactivityEnabled: input.inactivityEnabled, vehicleScope: allowed ? input.vehicleScope as NotificationVehicleScope : NotificationVehicleScope.ALL, ...(allowed ? { vehicles: { createMany: { data: input.selectedVehicleIds.map((vehicleId) => ({ vehicleId })) } } } : {}) } }); }
+        catch (error) { if (duplicate(error)) throw new NotificationPreferencesError("CONFLICT"); throw error; }
         return;
       }
       if (current.revision !== input.expectedRevision) throw new NotificationPreferencesError("CONFLICT");
@@ -110,25 +111,23 @@ export class TelegramLinkingService {
     if (!this.enabled() || !safeTelegramId(inbound.updateId) || !safeTelegramId(inbound.chatId) || !safeTelegramId(inbound.userId) || inbound.chatType !== "private") return "IGNORED";
     const match = /^\/start(?:\s+([A-Za-z0-9_-]{43}))?\s*$/.exec(inbound.text ?? "");
     if (!match?.[1]) { if (inbound.chatType === "private" && (inbound.text === "/help" || inbound.text === "/start")) void this.bot.sendHelp(inbound.chatId).catch(() => undefined); return "IGNORED"; }
-    try {
-      const outcome = await this.database.getClient().$transaction(async (tx) => {
-        try { await tx.telegramWebhookReceipt.create({ data: { updateId: inbound.updateId } }); } catch (error) { if (duplicate(error)) return "DUPLICATE" as const; throw error; }
-        const now = new Date(); const hashed = tokenHash(match[1]!);
-        const link = await tx.telegramLinkToken.findUnique({ where: { tokenHash: hashed } });
-        if (!link || link.consumedAt || link.revokedAt || link.expiresAt <= now) return "INVALID" as const;
-        const user = await tx.authUser.findUnique({ where: { id: link.userId }, select: { disabled: true, mustChangePassword: true, login: true } });
-        if (!user || user.disabled || user.mustChangePassword) return "DISABLED" as const;
-        const existing = await tx.telegramConnection.findFirst({ where: { OR: [{ telegramUserId: inbound.userId }, { telegramChatId: inbound.chatId }], NOT: { userId: link.userId } } });
-        if (existing?.status === TelegramConnectionStatus.CONNECTED) return "INVALID" as const;
-        await tx.telegramConnection.upsert({ where: { userId: link.userId }, create: { userId: link.userId, telegramUserId: inbound.userId, telegramChatId: inbound.chatId, status: TelegramConnectionStatus.CONNECTED, linkedAt: now }, update: { telegramUserId: inbound.userId, telegramChatId: inbound.chatId, status: TelegramConnectionStatus.CONNECTED, linkedAt: now, brokenAt: null, connectionRevision: { increment: 1 } } });
-        await tx.telegramLinkToken.update({ where: { id: link.id }, data: { consumedAt: now } });
-        await this.audit.append(tx, buildTelegramLinkedAuditEvent({ actorType: "USER", actorUserId: link.userId, actorLoginSnapshot: user.login }, link.userId));
-        return "LINKED" as const;
-      });
-      if (outcome === "LINKED") void this.bot.sendLinkSuccess(inbound.chatId).catch(() => undefined);
-      else if (outcome === "INVALID" || outcome === "DISABLED") void this.bot.sendLinkFailure(inbound.chatId).catch(() => undefined);
-      return outcome;
-    } catch { return "INVALID"; }
+    const outcome = await this.database.getClient().$transaction(async (tx) => {
+      try { await tx.telegramWebhookReceipt.create({ data: { updateId: inbound.updateId } }); } catch (error) { if (duplicate(error)) return "DUPLICATE" as const; throw error; }
+      const now = new Date(); const hashed = tokenHash(match[1]!);
+      const link = await tx.telegramLinkToken.findUnique({ where: { tokenHash: hashed } });
+      if (!link || link.consumedAt || link.revokedAt || link.expiresAt <= now) return "INVALID" as const;
+      const user = await tx.authUser.findUnique({ where: { id: link.userId }, select: { disabled: true, mustChangePassword: true, login: true } });
+      if (!user || user.disabled || user.mustChangePassword) return "DISABLED" as const;
+      const existing = await tx.telegramConnection.findFirst({ where: { OR: [{ telegramUserId: inbound.userId }, { telegramChatId: inbound.chatId }], NOT: { userId: link.userId } } });
+      if (existing?.status === TelegramConnectionStatus.CONNECTED) return "INVALID" as const;
+      await tx.telegramConnection.upsert({ where: { userId: link.userId }, create: { userId: link.userId, telegramUserId: inbound.userId, telegramChatId: inbound.chatId, status: TelegramConnectionStatus.CONNECTED, linkedAt: now }, update: { telegramUserId: inbound.userId, telegramChatId: inbound.chatId, status: TelegramConnectionStatus.CONNECTED, linkedAt: now, brokenAt: null, connectionRevision: { increment: 1 } } });
+      await tx.telegramLinkToken.update({ where: { id: link.id }, data: { consumedAt: now } });
+      await this.audit.append(tx, buildTelegramLinkedAuditEvent({ actorType: "USER", actorUserId: link.userId, actorLoginSnapshot: user.login }, link.userId));
+      return "LINKED" as const;
+    });
+    if (outcome === "LINKED") void this.bot.sendLinkSuccess(inbound.chatId).catch(() => undefined);
+    else if (outcome === "INVALID" || outcome === "DISABLED") void this.bot.sendLinkFailure(inbound.chatId).catch(() => undefined);
+    return outcome;
   }
 }
 
