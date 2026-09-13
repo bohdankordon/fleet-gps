@@ -41,6 +41,7 @@ test("API config applies safe defaults, freezes config, and preserves the input 
   assert.deepEqual(config.alertIngestion, { enabled: false });
   assert.deepEqual(config.positionHistoryMaintenance, { enabled: false, windowBudget: 5_000 });
   assert.deepEqual(config.positionHistoryRetention, { enabled: false });
+  assert.deepEqual(config.positionHistoryContinuousIngestion, { enabled: false });
   assert.deepEqual(config.telegramNotifications, { enabled: false, botToken: null, chatId: null, dispatchIntervalMs: 60_000, batchSize: 20 });
   assert.deepEqual(config.telegramPerUserNotifications, { enabled: false });
   assert.deepEqual(config.telegramPerUserDispatch, { enabled: false, dispatchIntervalMs: 60_000, batchSize: 20, dispatchNotBefore: null });
@@ -50,10 +51,16 @@ test("API config applies safe defaults, freezes config, and preserves the input 
   assert.equal(Object.isFrozen(config.alertIngestion), true);
   assert.equal(Object.isFrozen(config.positionHistoryMaintenance), true);
   assert.equal(Object.isFrozen(config.positionHistoryRetention), true);
+  assert.equal(Object.isFrozen(config.positionHistoryContinuousIngestion), true);
   assert.equal(Object.isFrozen(config.telegramNotifications), true);
   assert.equal(Object.isFrozen(config.telegramPerUserNotifications!), true);
   assert.equal(Object.isFrozen(config.database), true);
   assert.equal(Object.isFrozen(config.equGps), true);
+});
+
+test("continuous history ingestion is independently opt-in and strict", () => {
+  assert.deepEqual(parseApiConfig({ ...valid(), POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED: "true" }).positionHistoryContinuousIngestion, { enabled: true });
+  assert.throws(() => parseApiConfig({ ...valid(), POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED: "TRUE" }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes("POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED"));
 });
 
 test("Telegram product linking is opt-in, normalizes a bot username, and never requires linking secrets while disabled", () => {
@@ -419,11 +426,11 @@ test("production rejects malformed database URLs and obvious repository placehol
 });
 
 test("production strict booleans fail closed while missing dangerous flags stay disabled", () => {
-  for (const field of ["SYNC_SCHEDULER_ENABLED", "ALERT_INGESTION_ENABLED", "TELEGRAM_NOTIFICATIONS_ENABLED", "TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED", "POSITION_HISTORY_MAINTENANCE_ENABLED", "POSITION_HISTORY_RETENTION_ENABLED"] as const) {
+  for (const field of ["SYNC_SCHEDULER_ENABLED", "ALERT_INGESTION_ENABLED", "TELEGRAM_NOTIFICATIONS_ENABLED", "TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED", "POSITION_HISTORY_MAINTENANCE_ENABLED", "POSITION_HISTORY_RETENTION_ENABLED", "POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED"] as const) {
     assert.throws(() => parseApiConfig({ ...productionValid(), [field]: "TRUE" }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes(field));
   }
   const config = parseApiConfig(productionValid());
-  assert.deepEqual([config.syncScheduler.enabled, config.alertIngestion.enabled, config.telegramNotifications.enabled, config.positionHistoryMaintenance.enabled, config.positionHistoryRetention?.enabled], [false, false, false, false, false]);
+  assert.deepEqual([config.syncScheduler.enabled, config.alertIngestion.enabled, config.telegramNotifications.enabled, config.positionHistoryMaintenance.enabled, config.positionHistoryRetention?.enabled, config.positionHistoryContinuousIngestion?.enabled], [false, false, false, false, false, false]);
 });
 
 test("a malformed nonempty NODE_ENV cannot silently select insecure cookie behavior", () => {

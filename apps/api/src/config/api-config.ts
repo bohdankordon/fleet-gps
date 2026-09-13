@@ -22,6 +22,9 @@ export type PositionHistoryMaintenanceConfig = Readonly<{
 export type PositionHistoryRetentionConfig = Readonly<{
   enabled: boolean;
 }>;
+export type PositionHistoryContinuousIngestionConfig = Readonly<{
+  enabled: boolean;
+}>;
 export type TelegramNotificationsConfig = Readonly<{
   enabled: boolean;
   botToken: string | null;
@@ -53,6 +56,7 @@ export type ApiConfig = Readonly<{
   alertIngestion: AlertIngestionConfig;
   positionHistoryMaintenance: PositionHistoryMaintenanceConfig;
   positionHistoryRetention?: PositionHistoryRetentionConfig;
+  positionHistoryContinuousIngestion?: PositionHistoryContinuousIngestionConfig;
   telegramNotifications: TelegramNotificationsConfig;
   telegramProductLinking?: TelegramProductLinkingConfig;
   telegramPerUserNotifications?: TelegramPerUserNotificationsConfig;
@@ -155,6 +159,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
   const positionHistoryMaintenanceWindowBudget = parseInteger(env.POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET, 5_000, 1, 5_000);
   const positionHistoryMaintenanceWindowBudgetExplicit = env.POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET !== undefined && env.POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET !== "";
   const positionHistoryRetentionEnabled = parseBoolean(env.POSITION_HISTORY_RETENTION_ENABLED);
+  const positionHistoryContinuousIngestionEnabled = parseBoolean(env.POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED);
   const telegramNotificationsEnabled = parseBoolean(env.TELEGRAM_NOTIFICATIONS_ENABLED);
   const telegramBotToken = env.TELEGRAM_BOT_TOKEN?.trim() || null;
   const telegramChatId = env.TELEGRAM_CHAT_ID?.trim() || null;
@@ -189,6 +194,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
     || (positionHistoryMaintenanceEnabled === true && !positionHistoryMaintenanceWindowBudgetExplicit)
   ) issues.push("POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET");
   if (positionHistoryRetentionEnabled === undefined) issues.push("POSITION_HISTORY_RETENTION_ENABLED");
+  if (positionHistoryContinuousIngestionEnabled === undefined) issues.push("POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED");
   if (telegramNotificationsEnabled === undefined) issues.push("TELEGRAM_NOTIFICATIONS_ENABLED");
   if (telegramNotificationsEnabled === true && telegramBotToken === null) issues.push("TELEGRAM_BOT_TOKEN");
   if (telegramNotificationsEnabled === true && telegramChatId === null) issues.push("TELEGRAM_CHAT_ID");
@@ -227,6 +233,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
     positionHistoryMaintenanceEnabled === undefined ||
     positionHistoryMaintenanceWindowBudget === undefined ||
     positionHistoryRetentionEnabled === undefined ||
+    positionHistoryContinuousIngestionEnabled === undefined ||
     telegramNotificationsEnabled === undefined ||
     telegramDispatchIntervalMs === undefined ||
     telegramBatchSize === undefined ||
@@ -253,6 +260,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
       alertIngestion: Object.freeze({ enabled: alertIngestionEnabled }),
       positionHistoryMaintenance: Object.freeze({ enabled: positionHistoryMaintenanceEnabled, windowBudget: positionHistoryMaintenanceWindowBudget }),
       positionHistoryRetention: Object.freeze({ enabled: positionHistoryRetentionEnabled }),
+      positionHistoryContinuousIngestion: Object.freeze({ enabled: positionHistoryContinuousIngestionEnabled }),
       telegramNotifications: Object.freeze({ enabled: telegramNotificationsEnabled, botToken: telegramBotToken, chatId: telegramChatId, dispatchIntervalMs: telegramDispatchIntervalMs, batchSize: telegramBatchSize }),
       telegramProductLinking: Object.freeze({ enabled: telegramProductLinkingEnabled, botUsername: telegramProductBotUsername, botToken: telegramProductBotToken, webhookSecret: telegramProductWebhookSecret }),
       telegramPerUserNotifications: Object.freeze({ enabled: telegramPerUserNotificationsEnabled }),

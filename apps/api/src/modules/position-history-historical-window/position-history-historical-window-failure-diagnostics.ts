@@ -10,6 +10,13 @@ export type PositionHistoryHistoricalWindowProviderFailureDiagnostic = Readonly<
 }>;
 
 const failureDiagnostic = Symbol("positionHistoryHistoricalWindowFailureDiagnostic");
+const failureAccounting = Symbol("positionHistoryHistoricalWindowFailureAccounting");
+
+export type PositionHistoryHistoricalWindowFailureAccounting = Readonly<{
+  requests: number;
+  retries: number;
+  rateLimitResponses: number;
+}>;
 
 export function classifyPositionHistoryHistoricalWindowProviderFailure(error: unknown, options: Readonly<{ retryable?: boolean; maxRetryAfterMs: number }>): PositionHistoryHistoricalWindowProviderFailureDiagnostic {
   const retryable = options.retryable;
@@ -39,4 +46,16 @@ export function recordedPositionHistoryHistoricalWindowProviderFailure(error: un
   if ((typeof error !== "object" && typeof error !== "function") || error === null) return undefined;
   const value = (error as Record<PropertyKey, unknown>)[failureDiagnostic];
   return value !== undefined ? value as PositionHistoryHistoricalWindowProviderFailureDiagnostic : undefined;
+}
+
+export function recordPositionHistoryHistoricalWindowFailureAccounting(error: unknown, accounting: PositionHistoryHistoricalWindowFailureAccounting): void {
+  if ((typeof error !== "object" && typeof error !== "function") || error === null) return;
+  try { Object.defineProperty(error, failureAccounting, { value: Object.freeze({ ...accounting }), configurable: true }); }
+  catch { /* Accounting must never alter provider failure propagation. */ }
+}
+
+export function recordedPositionHistoryHistoricalWindowFailureAccounting(error: unknown): PositionHistoryHistoricalWindowFailureAccounting | undefined {
+  if ((typeof error !== "object" && typeof error !== "function") || error === null) return undefined;
+  const value = (error as Record<PropertyKey, unknown>)[failureAccounting];
+  return value !== undefined ? value as PositionHistoryHistoricalWindowFailureAccounting : undefined;
 }
