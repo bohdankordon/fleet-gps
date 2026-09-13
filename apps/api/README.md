@@ -2,17 +2,17 @@
 
 ## Alert rule settings
 
-Stage 6A.1 exposes read-only `GET /api/system/alert-settings`. Its business rules are stored in the PostgreSQL `ApplicationSettings` singleton, not in `.env`: `50/90/10/2/300/60` for city/outside limits, tolerance, confirmation updates, inactivity distance, and inactivity duration. Effective speed thresholds are calculated on every read (defaults: `60/100`), and settings are not cached so a later UI update needs no restart. The nullable GeoJSON Polygon city geofence is currently unconfigured; there is no detector, Telegram integration, or edit endpoint yet. See [`docs/alert-rule-settings.md`](../../docs/alert-rule-settings.md).
+Stage 6A.1 exposes read-only `GET /api/system/alert-settings`. Its business rules are stored in the PostgreSQL `ApplicationSettings` singleton, not in `.env`: `50/90/10/2/300/60` for city/outside limits, tolerance, confirmation updates, inactivity distance, and inactivity duration. Effective speed thresholds are calculated on every read (defaults: `60/100`), and settings are not cached so a later UI update needs no restart. The nullable GeoJSON Polygon city geofence is currently unconfigured. SPEEDING/INACTIVITY detection, alert events, and per-user Telegram delivery consume this snapshot, and ADMIN business-settings management is revision-protected and audited. See [`docs/alert-rule-settings.md`](../../docs/alert-rule-settings.md).
 
 ## City geofence
 
-Stage 6A.2 adds read-only `GET /api/system/city-geofence` and a pure local GeoJSON Polygon classifier. Positions are `[longitude, latitude]`; holes and boundaries are supported. Boundary is deliberately the conservative `CITY` speed zone, while null geometry and invalid GPS points are `UNKNOWN`, never outside-city. The planar algorithm is a city-scale MVP tradeoff; runtime uses no geofence network service or PostGIS. A future authenticated UI will use the internal management service; there is no HTTP write endpoint now.
+Stage 6A.2 adds read-only `GET /api/system/city-geofence` and a pure local GeoJSON Polygon classifier. Positions are `[longitude, latitude]`; holes and boundaries are supported. Boundary is deliberately the conservative `CITY` speed zone, while null geometry and invalid GPS points are `UNKNOWN`, never outside-city. The planar algorithm is a city-scale MVP tradeoff; runtime uses no geofence network service or PostGIS. Authenticated ADMIN business-settings flows use the internal management service; the controlled local import still requires explicit `--apply` and performs no network lookup.
 
 Use `npm run city-geofence:import -- --file <path> --dry-run` to validate a local raw Polygon without database initialization. Only explicit `--apply` can write, and `--clear --apply` clears it. The offline Vinnytsia candidate Polygon, source metadata, ODbL license, checksum, and control points are present in data/geofences/vinnytsia-city; the runtime does not automatically read that dataset. It has not been imported into PostgreSQL, ApplicationSettings.cityGeofenceGeoJson remains null, and --apply has not been run. Run `npm run city-geofence:smoke` separately for the compiled read-only runtime smoke.
 
 ## Scheduler
 
-The in-memory scheduler is disabled by default. When enabled, fleet runs every 60 seconds and daily runs every 300 seconds, with no immediate execution or retry. The read-only `GET /api/system/sync-status` endpoint is intended only for localhost or a closed network; multi-replica deployments need a distributed lock or queue.
+The in-memory scheduler is disabled by default. When enabled, fleet runs every 60 seconds and daily runs every 300 seconds, with no immediate execution or retry. The read-only `GET /api/system/sync-status` endpoint requires an authenticated account with `fleet.view`; multi-replica deployments need a distributed lock or queue.
 
 Stage 15B exposes accepted derived position analytics at read-only `GET /api/vehicles/:vehicleId/trip-analysis?from=<absolute-iso>&to=<absolute-iso>`. It accepts at most exactly seven absolute days and returns product-facing trip, meaningful-stop, and separate GPS-gap DTOs. `endClipped` represents an unconfirmed natural ending without extending `endAt` beyond the final persisted fix. The endpoint uses local history only and performs no provider call, history population, write, routing, geocoding, or persistence of derived entities. See [../../docs/trip-stop-analytics.md](../../docs/trip-stop-analytics.md).
 
@@ -22,11 +22,11 @@ For a manual, opt-in production-credential verification of the compiled schedule
 
 ## Read-only Dashboard API
 
-Этап 3C добавляет `GET /api/dashboard/vehicles`. Endpoint читает только локальный PostgreSQL-кэш, не запускает синхронизацию и не обращается к eQuGPS. До появления пользовательской авторизации он предназначен только для локальной или закрытой сети.
+Этап 3C добавляет `GET /api/dashboard/vehicles`. Endpoint читает только локальный PostgreSQL-кэш, не запускает синхронизацию и не обращается к eQuGPS. Он требует аутентифицированный аккаунт с `fleet.view`; Nest-авторизация остаётся решающей границей.
 
-На этапе 1E backend подключает `@taxi-gps/equgps` только через `EquGpsModule` и `EquGpsGatewayService`. Gateway скрывает session token и отдельные capability-клиенты. Клиенты создаются лениво: запуск приложения и `GET /api/health` не выполняют внешних запросов. Публичные fleet endpoint на этом этапе отсутствуют.
+На этапе 1E backend подключает `@taxi-gps/equgps` только через `EquGpsModule` и `EquGpsGatewayService`. Gateway скрывает session token и отдельные capability-клиенты. Клиенты создаются лениво: запуск приложения и `GET /api/health` не выполняют внешних запросов. Аутентифицированные fleet endpoint существуют и защищены проверками разрешений.
 
-Этап 2A добавляет локальный PostgreSQL и Prisma schema/migrations, но Prisma ещё не зарегистрирована в NestJS: запуск и health-check не открывают DB-соединение. Команды базы описаны в `docs/database.md`.
+Этап 2A добавляет локальный PostgreSQL и Prisma schema/migrations. Команды базы описаны в `docs/database.md`.
 
 Этап 2B добавляет `DatabaseModule`: один lazy Prisma Client с `PrismaPg` adapter на backend-процесс. `/api/health` остаётся liveness без PostgreSQL, а `/api/health/ready` проверяет readiness. Controllers и application services не должны использовать `DatabaseService.getClient()` напрямую: это граница только для будущих infrastructure repositories.
 # FleetModule

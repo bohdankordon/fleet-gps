@@ -1,4 +1,4 @@
-# Taxi GPS development roadmap
+# Fleet GPS development roadmap
 
 This document is the primary living record of the project's development direction, active work, deferred work, production follow-up, design experiments, and release readiness. It is a roadmap, not a historical changelog.
 
@@ -16,10 +16,11 @@ This document is the primary living record of the project's development directio
 
 - Canonical feature-development branch: `main`.
 - Accepted Telegram 2D production source: `e59268fe471d22426359bec419a9a03a244d2909` (`sha-e59268fe471d`).
+- Current stable release: `v1.1.0`.
 - Immutable baseline release: `v1.0.0`.
 - `v1.0.0` annotated tag object: `82fdee34c7eaff7a07fabd47e38fd6a32bbcc6c8`.
 - `v1.0.0` peeled commit: `9bbd9b98c148b2ffed0078078d175d778c67f7ba`.
-- `v1.0.0` and `v1.0.0-rc.4` remain immutable. Normal feature development continues from `main`.
+- `v1.1.0`, `v1.0.0`, and `v1.0.0-rc.4` are immutable release tags. Normal feature development continues from `main`.
 
 ## DONE — Post-release scheduled history soak
 
@@ -79,7 +80,7 @@ environment values, or migrations were needed. The original magic-number
 configurability requirement is complete. See
 [`docs/magic-numbers-final-reconciliation.md`](./magic-numbers-final-reconciliation.md).
 
-## NOW — Fresh frontend design direction
+## DONE — Fleet GPS Ant Design interface refresh
 
 The old DeepSeek design experiment branches were intentionally retired without
 being merged or selected for reuse. Future design work starts as a fresh
@@ -111,8 +112,10 @@ Fleet screen is the canonical visual reference for subsequent redesign slices.
 Each screen inherits its design language while adapting the system to its own
 workflow rather than copying Fleet's exact layout.
 
-**NOW — Frontend redesign.** Behavior-preserving redesign continues in small,
-human-reviewed slices using the accepted Fleet design reference.
+**DONE / HUMAN ACCEPTED — Frontend redesign.** The behavior-preserving redesign
+is complete for the `v1.1.0` Fleet, Map, vehicle details, trips, movement
+history, events, reports, account, and administration surfaces using the
+accepted Fleet design reference.
 
 **DONE / HUMAN ACCEPTED — Map redesign.** The behavior-preserving Map redesign
 applies the accepted Fleet design language,
@@ -155,20 +158,20 @@ visual candidate is human accepted: semantic Event accents share Vehicle Overvie
 grammar, Fleet/Map/Events use compact page headings, and period presentation shares
 the accepted Vehicle-family shell while retaining Events range semantics.
 
-## NOW — Administration Phase 0 correctness baseline IN PROGRESS
+## DONE — Administration correctness baseline and workspaces
 
-Administration discovery is complete. Direction A is accepted: shared Administration identity with separate route-based domain workspaces Users, Business Settings, Audit, GPS History. Telegram notification preferences remain under the individual Account area. No visual redesign has started.
+Administration uses a shared identity with separate route-based domain workspaces for Users, Business Settings, Audit, GPS History Overview, GPS History Population and Runs, and GPS History Retention. Telegram notification preferences remain under the individual Account area alongside the Account overview, security, and Telegram connection workspaces. These current `v1.1.0` areas are implemented and accepted.
 
-Phase 0 repairs six source-backed correctness and truthful-state areas only: audit frontend/backend contract drift including Telegram events and bounded 16-change settings payload; geofence coordinate-change detection comparing validated polygon structure while keeping ring/point counts for safe audit presentation; user mutation Telegram projection via one authoritative read projection; durable active-run explicit JSON envelope for SUCCESS plus NO ACTIVE RUN versus READ FAILURE; settings frontend validation parity with truthful blank-versus-zero handling and human-readable labels; GPS-history read-failure truthfulness preserving last-known data with explicit unavailable indication. Permissions, retention ADMIN-only irreversibility, self-lockout, last-enabled-ADMIN, revision and concurrency guards remain unchanged. Account notifications improvements remain deferred as the adjacent follow-up. Legacy direct geofence management/import remains outside the revision/audit/notifier lifecycle; that gap is documented as a prerequisite before any future browser geofence editor. No migration is expected.
+Phase 0 repaired six source-backed correctness and truthful-state areas: audit frontend/backend contract drift including Telegram events and bounded 16-change settings payload; geofence coordinate-change detection comparing validated polygon structure while keeping ring/point counts for safe audit presentation; user mutation Telegram projection via one authoritative read projection; durable active-run explicit JSON envelope for SUCCESS plus NO ACTIVE RUN versus READ FAILURE; settings frontend validation parity with truthful blank-versus-zero handling and human-readable labels; GPS-history read-failure truthfulness preserving last-known data with explicit unavailable indication. Permissions, retention ADMIN-only irreversibility, self-lockout, last-enabled-ADMIN, revision and concurrency guards remain unchanged. Legacy direct geofence management/import remains outside the revision/audit/notifier lifecycle; that gap is documented as a prerequisite before any future browser geofence editor. The correctness baseline required no migration.
 
 ## LATER — Final production hardening
 
 - Remove the temporary passwordless sudo configuration that remains intentionally available for continued development and operations.
 - Do not remove it casually during unrelated development. Treat removal as a dedicated final hardening stage, then verify operational, systemd, backup, and recovery workflows.
 
-## LATER — Next release readiness
+## LATER — Future release readiness
 
-No next release is currently scheduled. Before creating another immutable release tag:
+No release after `v1.1.0` is currently scheduled. Before creating another immutable release tag:
 
 - Finish the intended feature scope.
 - Complete regression checks, typechecking, linting, tests, and builds.

@@ -2,7 +2,7 @@
 
 This is the manual procedure for a permanently enabled local scheduler. It does not mean the scheduler is already enabled on this machine. Scheduler jobs make real eQuGPS requests and PostgreSQL writes.
 
-The local port scheme is fixed: Nest API is `http://127.0.0.1:3001`; Next Web and the observer default target are `http://127.0.0.1:3000`. `PORT` belongs to the Nest API. Next runs separately on port 3000. The browser calls Next only and never calls API port 3001 directly; Next uses `API_INTERNAL_BASE_URL` server-side.
+For this manual procedure, the port assignment is: Nest API is `http://127.0.0.1:3001`; Next Web and the observer default target are `http://127.0.0.1:3000`. `PORT` belongs to the Nest API. Next runs separately on port 3000. The browser calls Next only and never calls API port 3001 directly; Next uses `API_INTERNAL_BASE_URL` server-side. (The `dev.ps1` helper uses the opposite default assignment: API on 3000, Web on 3001. Do not run both schemes at once.)
 
 Before starting, confirm PostgreSQL is available. Run exactly one API replica: multiple backend replicas are prohibited for the MVP. Do not run a development API and a compiled API at the same time. `.env` is local and must never be committed.
 

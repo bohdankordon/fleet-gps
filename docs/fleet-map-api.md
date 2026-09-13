@@ -1,6 +1,6 @@
 # Fleet map read API
 
-`GET /api/fleet/map` returns a read-only snapshot built exclusively from local PostgreSQL `Vehicle` and `VehicleCurrentState` data. The request does not run fleet synchronization, alert evaluation, database writes, eQuGPS calls, or Telegram calls. The API currently has no authentication and must remain reachable only locally or from a trusted private network.
+`GET /api/fleet/map` returns a read-only snapshot built exclusively from local PostgreSQL `Vehicle` and `VehicleCurrentState` data. The request does not run fleet synchronization, alert evaluation, database writes, eQuGPS calls, or Telegram calls. The endpoint requires an authenticated account with `map.view`; Nest authorization remains authoritative.
 
 The response is bounded to 1,000 local vehicles and ordered deterministically by persisted vehicle name and then local vehicle ID. Fleets above the guard fail safely instead of returning a silently truncated snapshot. `generatedAt` is the backend clock instant used for all freshness calculations in that response.
 

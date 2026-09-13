@@ -1,6 +1,6 @@
 # Authentication and permissions
 
-Taxi GPS is an internal application with local username/password accounts. There is no public registration, email identity or recovery, OAuth, or MFA. The migration creates no users; an operator creates the first account interactively with `npm run auth:user-create`.
+Fleet GPS is an internal application with local username/password accounts. There is no public registration, email identity or recovery, OAuth, or MFA. The migration creates no users; an operator creates the first account interactively with `npm run auth:user-create`.
 
 ## Accounts and passwords
 
@@ -32,6 +32,23 @@ The cookie is `HttpOnly; SameSite=Lax; Path=/`, with `Secure` in production and 
 Nest is authoritative. Global guards protect routes by default. Missing/invalid/expired sessions receive 401; authenticated principals lacking authority receive 403. Disabled accounts cannot authorize existing sessions. A `mustChangePassword` account may use only `/api/auth/me`, `/api/auth/logout`, and `/api/auth/change-password`; product APIs return 403 until the password changes.
 
 Public exceptions are `POST /api/auth/login`, `GET /api/health`, and `GET /api/health/ready`. The same-origin Next BFF exposes matching auth routes, relays Nest `Set-Cookie`, and forwards only the named application cookie on protected upstream calls. All state-changing auth/admin BFF requests require an explicit browser `Origin` equal to the BFF request origin; missing or cross-origin values receive 403 before the write reaches Nest. Forwarded-origin headers are not authority, permissive CORS is not enabled, and state changes never use GET. Health/readiness remain available before login. Provider and operator CLIs do not use browser sessions.
+
+### Auth resolution: authenticated, unauthenticated, unavailable
+
+The Web layer resolves the session into exactly one of three states
+(`apps/web/src/lib/auth/auth-resolution.ts`):
+
+- `authenticated` — `/api/auth/me` returned 200 with a valid user payload.
+- `unauthenticated` — no session token is present, or `/api/auth/me`
+  returned 401. Only a true 401 means unauthenticated.
+- `unavailable` — anything else: transport failure, an unexpected non-401
+  status, or a 200 response whose payload fails validation.
+
+Infrastructure uncertainty therefore never logs the user out and never
+presents the session as rejected; it surfaces an explicit temporarily
+unavailable experience with a retry path instead. Nest remains authoritative:
+missing/invalid/expired sessions receive 401, and authenticated principals
+lacking authority receive 403, as above.
 
 ## Current access matrix
 

@@ -1,13 +1,13 @@
-# Taxi GPS
+# Fleet GPS
 
-Taxi GPS is an internal fleet and commercial-vehicle monitoring application.
+Fleet GPS is an internal fleet and commercial-vehicle monitoring application.
 It is designed for company fleets, service and delivery vehicles, work
 vehicles, and mixed commercial fleets. The system synchronizes operational data
 from eQuGPS, stores an application-owned view in PostgreSQL, presents it through
 an authenticated Web application, evaluates fleet alerts, and delivers
 account-specific Telegram notifications.
 
-## What it does
+## Overview
 
 The application gives operators a current fleet overview, vehicle details,
 maps, position history, trip/stop analysis, alert history, and a daily activity
@@ -19,30 +19,56 @@ Product behavior is driven by persisted settings and explicit feature gates.
 Normal reads use the local PostgreSQL data set; a dashboard or history request
 does not silently call the provider or start a synchronization job.
 
-## Current features
+## Key capabilities
+
+### Fleet and live monitoring
+
+- Provider-backed fleet synchronization into a local vehicle registry, current
+  vehicle state, and daily statistics.
+- Permission-controlled dashboard, current fleet map, and alert map built from
+  allow-listed local data.
+
+### Vehicle details, trips, and movement history
+
+- Permission-controlled vehicle details with current position freshness,
+  connectivity, daily statistics, and recent events.
+- Stored GPS position history with an exact track for ranges up to 24 hours and
+  a deterministic sampled overview for ranges up to seven days.
+- On-demand trip/stop analysis and a daily fleet activity report derived from
+  stored observations under the current global policy.
+
+### Events and reports
+
+- SPEEDING and INACTIVITY detection, durable alert events, and query and
+  summary views with a read-only operational inbox and history.
+- Daily fleet activity report with fleet-wide summary and permission-aware
+  investigation actions.
+
+### GPS history administration
+
+- Controlled history population, status, automatic maintenance, retention
+  planning, and bounded retention execution.
+- Revision-protected global business settings for timezone, minimum daily
+  distance, position freshness, speeding, inactivity, and trip/stop policy.
+
+### Users, permissions, and business settings
 
 - Local username/password authentication with opaque sessions, forced initial
   password change, `ADMIN` and `USER` roles, and explicit USER permissions.
 - ADMIN account management, permission replacement, password reset, account
   enable/disable controls, and a durable administrative audit trail.
-- Provider-backed fleet synchronization into a local vehicle registry, current
-  vehicle state, and daily statistics.
-- Permission-controlled dashboard, vehicle details, current fleet map, and
-  alert map built from allow-listed local data.
-- Stored GPS position history with an exact track for ranges up to 24 hours and
-  a deterministic sampled overview for ranges up to seven days.
-- Controlled history population, status, automatic maintenance, retention
-  planning, and bounded retention execution.
-- On-demand trip/stop analysis and a daily fleet activity report derived from
-  stored observations under the current global policy.
-- SPEEDING and INACTIVITY detection, durable alert events, query and summary
-  views, and recipient-aware notification planning.
-- Revision-protected global business settings for timezone, minimum daily
-  distance, position freshness, speeding, inactivity, and trip/stop policy.
 - Russian, Ukrainian, and English product localization with explicit
   application timezone semantics.
+
+### Account and Telegram notifications
+
 - Per-user Telegram linking, notification preferences, event-type controls,
   `ALL` or `SELECTED` vehicle scope, recipient planning, and delivery.
+- Account overview, security, and notification-preference workspaces with a
+  no-access experience for accounts without product permissions.
+
+### Reliability and monitoring
+
 - Liveness/readiness endpoints, production monitoring, bounded logs, verified
   backups, off-host recovery support, and source-controlled operational
   runbooks.
@@ -162,7 +188,7 @@ timezone, daily-distance and freshness thresholds, SPEEDING and INACTIVITY
 rules, and trip/stop detection. Do not place secrets in Git or expose
 server-only configuration through `NEXT_PUBLIC_*` variables.
 
-## Testing and validation
+## Testing
 
 The workspaces expose focused validation rather than one synthetic umbrella
 command for every subsystem:
@@ -177,6 +203,16 @@ npm run web:build
 npm run equgps:typecheck
 npm run equgps:test
 ```
+
+- `npm run api:test` builds the API, compiles the unit tests, verifies the
+  compiled test inventory matches the current TypeScript sources, and then
+  discovers and runs all safe compiled unit tests. Tests that require a real
+  database are excluded from this command and remain opt-in through the
+  explicit `*-real-db-test` scripts and the isolated test-database harness.
+- `npm run web:test` compiles the Web unit tests and runs them with Node's
+  built-in test runner, plus the standalone-preparation contract test.
+- `npm run web:lint`, `npm run web:typecheck`, and `npm run api:typecheck`
+  cover lint and types; `npm run web:build` covers the production Web build.
 
 Root `npm run typecheck`, `npm run build`, and `npm test` validate the retained
 standalone provider/probe code. Database-backed tests use the explicit
@@ -238,14 +274,23 @@ configuration. Use the authoritative runbooks:
 ## Project status
 
 The project has an immutable `v1.0.0` release. Active development on `main`
-contains accepted post-v1.0.0 product work, including completed per-user
-Telegram delivery; current production is therefore not described as running
-the `v1.0.0` source tree.
+contains accepted post-v1.0.0 product work: completed per-user Telegram
+delivery, the behavior-preserving Ant Design redesign across Fleet, Map,
+vehicle details, trips, movement history, events, reports, account, and
+administration, and administration correctness work. Current production is
+therefore not described as running the `v1.0.0` source tree.
 
-The next roadmap item is a fresh design iteration based on current `main`. The
-old design experiment branches were retired and are not merge or reuse inputs.
-See the [development roadmap](docs/development-roadmap.md) for current status
-instead of treating proposed work as implemented functionality.
+The old design experiment branches were retired and are not merge or reuse
+inputs. See the [development roadmap](docs/development-roadmap.md) for current
+status instead of treating proposed work as implemented functionality.
+
+## Release / version
+
+`v1.1.0` is the current stable Fleet GPS release. Stable releases are immutable
+Git tags; release candidates use the corresponding `-rc.*` suffix. See
+[CHANGELOG.md](CHANGELOG.md) for release history. Package versions in
+`package.json` files (`0.1.0`) are internal workspace versions, not the product
+release version.
 
 ## Security notes
 

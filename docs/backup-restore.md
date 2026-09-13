@@ -137,7 +137,7 @@ no partial restore is reported as success and no automatic salvage is attempted.
 5.  Explicitly select the production target (--target-db, plus --allow-non-empty
     only where the disaster procedure requires overwriting a non-empty target).
 6.  Restore into the fresh target.
-7.  Validate schema / migration state (11 migrations).
+7.  Validate schema / migration state (17 migrations).
 8.  Start the API and verify readiness.
 9.  Start/verify web and proxy.
 10. Perform representative login/read checks.

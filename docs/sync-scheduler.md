@@ -4,7 +4,7 @@ The scheduler is disabled by default. Fleet synchronization runs every 60 second
 
 Fleet and runs use independent overlap locks. Their status is in memory only and resets on restart. Shutdown waits for active work for at most the configured timeout (50 seconds by default); after a forced timeout, late completions do not update status.
 
-The scheduler calls the existing sync services and has no manual sync HTTP endpoints. MVP requires one active backend replica; multiple replicas need a distributed lock or queue. `GET /api/system/sync-status` is read-only and must be available only on localhost or a closed network.
+The scheduler calls the existing sync services and has no manual sync HTTP endpoints. MVP requires one active backend replica; multiple replicas need a distributed lock or queue. `GET /api/system/sync-status` is read-only and requires an authenticated account with `fleet.view`; Nest authorization remains authoritative.
 
 Alert ingestion does not add an interval, cron job, replay timer, or bootstrap work. When its separate feature flag is enabled, the existing fleet timer reaches it through `SyncSchedulerService -> FleetSyncService -> FleetAlertIngestionService` after fleet persistence commits. See [fleet alert ingestion](fleet-alert-ingestion.md).
 
