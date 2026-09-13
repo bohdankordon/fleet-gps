@@ -258,6 +258,8 @@ configuration. Use the authoritative runbooks:
 
 ## Documentation
 
+- [Development workflow](docs/development-workflow.md) — branch, pull request,
+  CI, review, and squash-merge policy.
 - [Development roadmap](docs/development-roadmap.md) — current accepted,
   active, deferred, and operational work.
 - [Authentication and permissions](docs/authentication.md) and

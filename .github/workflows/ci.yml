@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Web tests
+        run: npm run web:test
+
+      - name: Lint Web
+        run: npm run web:lint
+
+      - name: Type-check Web
+        run: npm run web:typecheck
+
+      - name: Build and prepare standalone Web
+        run: npm run web:standalone:build
+
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test API and production build
+        run: npm run api:test
+
+      - name: Type-check API
+        run: npm run api:typecheck
+
+  repository-safety:
+    name: Packages and repository safety
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run root tests
+        run: npm test
+
+      - name: Type-check eQuGPS package
+        run: npm run equgps:typecheck
+
+      - name: Test eQuGPS package
+        run: npm run equgps:test
+
+      - name: Verify eQuGPS public API
+        run: npm run equgps:public-api-smoke
+
+      - name: Test production preflight
+        run: npm run stage-22:preflight-test
+
+      - name: Test monitoring
+        run: npm run monitor:test
+
+      - name: Test scheduler observer
+        run: npm run scheduler:observe:test
+
+      - name: Test fixture safety
+        run: npm run dev:fixtures:vehicle-detail:test
