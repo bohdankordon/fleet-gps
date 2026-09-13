@@ -58,6 +58,30 @@ function assertAllowed(response: Response): void {
   assert.equal(response.headers.get("x-middleware-next"), "1");
 }
 
+async function proxyWithMe(
+  path: string,
+  me: () => Promise<Response>,
+  cookie: string | null = "taxi_session=session-token",
+): Promise<{ response: Response; fetches: number }> {
+  const originalFetch = globalThis.fetch;
+  const originalApiBaseUrl = process.env.API_INTERNAL_BASE_URL;
+  process.env.API_INTERNAL_BASE_URL = "http://api.test";
+  let fetches = 0;
+  globalThis.fetch = (async () => {
+    fetches += 1;
+    return me();
+  }) as typeof fetch;
+  try {
+    const init = cookie === null ? undefined : { headers: { Cookie: cookie } };
+    const response = await proxy(new NextRequest("http://app.test" + path, init));
+    return { response, fetches };
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiBaseUrl === undefined) delete process.env.API_INTERNAL_BASE_URL;
+    else process.env.API_INTERNAL_BASE_URL = originalApiBaseUrl;
+  }
+}
+
 test("all accepted Administration pages receive direct unauthenticated proxy redirects", async () => {
   for (const path of administrationPages) assertRedirect(await proxy(request(path)), "/login");
 });
@@ -93,9 +117,102 @@ test("Administration BFFs use the same unauthenticated, USER, ADMIN, and forced-
   }
 });
 
-test("public, Account, and permission-based product routes remain outside ADMIN classification", async () => {
+test("public, sibling, and permission-based product routes remain outside ADMIN classification", async () => {
   assertAllowed(await proxy(request("/login")));
-  assertAllowed(await proxy(request("/account")));
+  assertAllowed(await proxy(request("/admin/settings-old")));
+  const sibling = await proxyWithMe("/admin/settings-old", async () => Response.json(admin));
+  assertAllowed(sibling.response);
+  assert.equal(sibling.fetches, 0);
   assertAllowed(await proxyAs("/map", { ...user, permissions: ["map.view"] }));
   assertRedirect(await proxyAs("/map", user), "/forbidden");
+});
+
+test("absent session cookie needs no auth fetch: pages redirect, BFF keeps 401", async () => {
+  for (const path of ["/admin/settings", "/account", "/forbidden"]) {
+    const { response, fetches } = await proxyWithMe(path, async () => Response.json(admin), null);
+    assert.equal(fetches, 0);
+    assertRedirect(response, "/login");
+  }
+  const bff = await proxyWithMe("/api/admin/settings", async () => Response.json(admin), null);
+  assert.equal(bff.fetches, 0);
+  assert.equal(bff.response.status, 401);
+});
+
+test("unavailable auth returns localized HTTP 503 for protected pages, never login", async () => {
+  const failures: Array<() => Promise<Response>> = [
+    async () => {
+      throw new Error("private network failure");
+    },
+    async () => Response.json({ statusCode: 500, error: "Internal" }, { status: 500 }),
+    async () => Response.json({ statusCode: 403, error: "Forbidden" }, { status: 403 }),
+    async () => Response.json({ passwordHash: "must not surface" }, { status: 200 }),
+  ];
+  for (const me of failures) {
+    const { response } = await proxyWithMe("/admin/settings", me);
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get("content-type"), "text/html; charset=utf-8");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("location"), null);
+    assert.equal(response.headers.get("set-cookie"), null);
+    const html = await response.text();
+    assert.ok(html.includes("Fleet GPS"));
+    assert.equal(html.includes("private network failure"), false);
+    assert.equal(html.includes("passwordHash"), false);
+    assert.equal(html.includes("taxi_session"), false);
+    assert.ok(html.includes('href="/admin/settings"'));
+  }
+});
+
+test("protected page 503 follows the request locale", async () => {
+  const down = async () => {
+    throw new Error("down");
+  };
+  const uk = await proxyWithMe("/admin/settings", down, "taxi_session=t; taxi_locale=uk");
+  assert.equal(uk.response.status, 503);
+  assert.match(await uk.response.text(), /\u0442\u0438\u043c\u0447\u0430\u0441\u043e\u0432\u043e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0438\u0439/);
+  const ru = await proxyWithMe("/admin/settings", down);
+  assert.match(await ru.response.text(), /\u0432\u0440\u0435\u043c\u0435\u043d\u043d\u043e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d/);
+  const en = await proxyWithMe("/admin/settings", down, "taxi_session=t; taxi_locale=en");
+  assert.match(await en.response.text(), /temporarily unavailable/);
+});
+
+test("unavailable auth returns stable JSON 503 for protected BFF routes", async () => {
+  const { response } = await proxyWithMe("/api/admin/settings", async () => {
+    throw new Error("private upstream body");
+  });
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { statusCode: 503, error: "Service Unavailable" });
+  assert.equal(response.headers.get("cache-control"), "no-store");
+});
+
+test("stale cookie 401 stays unauthenticated and never clears the session", async () => {
+  const me401 = async () => Response.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 });
+  const page = await proxyWithMe("/admin/settings", me401);
+  assertRedirect(page.response, "/login");
+  assert.equal(page.response.headers.get("set-cookie"), null);
+  const bff = await proxyWithMe("/api/admin/settings", me401);
+  assert.equal(bff.response.status, 401);
+  assert.equal(bff.response.headers.get("set-cookie"), null);
+});
+
+test("account routes need authentication but skip the forced-password redirect", async () => {
+  const anon = await proxyWithMe("/account", async () => Response.json(admin), null);
+  assertRedirect(anon.response, "/login");
+  const down = await proxyWithMe("/account", async () => {
+    throw new Error("down");
+  });
+  assert.equal(down.response.status, 503);
+  assertAllowed(await proxyAs("/account", user));
+  assertAllowed(await proxyAs("/account/change-password", { ...user, mustChangePassword: true }));
+  assertAllowed(await proxyAs("/account", { ...user, mustChangePassword: true }));
+});
+
+test("forbidden stays reachable for authenticated users and 503s when unavailable", async () => {
+  assertAllowed(await proxyAs("/forbidden", user));
+  const anon = await proxyWithMe("/forbidden", async () => Response.json(admin), null);
+  assertRedirect(anon.response, "/login");
+  const down = await proxyWithMe("/forbidden", async () => {
+    throw new Error("down");
+  });
+  assert.equal(down.response.status, 503);
 });

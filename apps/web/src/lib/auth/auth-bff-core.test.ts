@@ -54,6 +54,26 @@ test("oversized login body is rejected before upstream auth work", async () => {
   assert.equal(calls, 0);
 });
 
+test("/me preserves valid 200, 401, safe 503 and 502 without raw bodies", async () => {
+  const me = () => new Request("http://app.test/api/auth/me", { headers: { Cookie: "taxi_session=token" } });
+  const ok = await forwardAuthToUpstream(me(), "/api/auth/me", "http://api.test", [], async () => Response.json(safeUser));
+  assert.equal(ok.status, 200);
+  assert.deepEqual(await ok.json(), safeUser);
+  const unauthenticated = await forwardAuthToUpstream(me(), "/api/auth/me", "http://api.test", [], async () => Response.json({ statusCode: 401 }, { status: 401 }));
+  assert.equal(unauthenticated.status, 401);
+  assert.deepEqual(await unauthenticated.json(), { statusCode: 401, error: "Unauthorized" });
+  const failed = await forwardAuthToUpstream(me(), "/api/auth/me", "http://api.test", [], async () => Response.json({ stack: "SECRET_SENTINEL" }, { status: 500 }));
+  assert.equal(failed.status, 503);
+  assert.equal((await failed.text()).includes("SECRET_SENTINEL"), false);
+  const network = await forwardAuthToUpstream(me(), "/api/auth/me", "http://api.test", [], async () => {
+    throw new Error("private network failure");
+  });
+  assert.equal(network.status, 503);
+  const malformed = await forwardAuthToUpstream(me(), "/api/auth/me", "http://api.test", [], async () => Response.json({ passwordHash: "must not surface" }));
+  assert.equal(malformed.status, 502);
+  assert.equal((await malformed.text()).includes("passwordHash"), false);
+});
+
 test("production refuses an insecure or domain-scoped upstream auth cookie", async () => {
   const request = () => new Request("https://app.test/api/auth/login", { method: "POST", headers: { Origin: "https://app.test", "Content-Type": "application/json" }, body: JSON.stringify({ login: "operator", password: "private" }) });
   for (const cookie of [localSessionCookie, `${localSessionCookie}; Secure; Domain=app.test`]) {

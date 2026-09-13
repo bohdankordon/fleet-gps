@@ -147,8 +147,8 @@ test("landing keeps mustChangePassword first and no-access last", () => {
 });
 
 test("authenticated GET on login still redirects without redirect query support", () => {
-  assert.match(pageSource, /getAuthUser\(\)/);
-  assert.match(pageSource, /redirect\(landingFor\(user\)\)/);
+  assert.match(pageSource, /resolveAuthUser\(\)/);
+  assert.match(pageSource, /redirect\(landingFor\(resolution\.user\)\)/);
   assert.doesNotMatch(pageSource, /returnTo|callback|redirect\?|searchParams/i);
   assert.doesNotMatch(render(), /returnTo|callbackUrl/i);
 });

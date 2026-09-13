@@ -13,5 +13,8 @@
 .login-card__form .ant-input, .login-card__form .ant-input-password { font-size: 16px; }
 .login-card__actions { margin-bottom: 0; }
 .login-card__actions .ant-btn-primary { min-height: var(--control-height-default); }
+.login-card__unavailable-title { margin: 0; color: var(--color-text-primary); font-size: var(--font-size-label); font-weight: var(--font-weight-semibold); line-height: var(--line-height-label); }
+.login-card__unavailable-body { margin: var(--space-2) 0 0; color: var(--color-text-secondary); font-size: var(--font-size-label); line-height: var(--line-height-label); }
+.login-card__summary + .login-card__actions { margin-top: var(--space-6); }
 @media (max-width: 480px) { .login-page { padding-block: var(--space-6) var(--space-8); padding-inline: var(--space-4); } .login-card { padding: var(--space-6); } .login-card__form .ant-input, .login-card__form .ant-input-password input, .login-card__actions .ant-btn-primary { min-height: 44px; } .login-card__form .ant-input, .login-card__form .ant-input-password input { font-size: 16px; } }
 @media (prefers-reduced-motion: reduce) { .login-page * { scroll-behavior: auto; transition: none !important; } }

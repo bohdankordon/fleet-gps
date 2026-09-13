@@ -6,7 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { AuthProvider } from "@/components/auth-provider";
 import { I18nProvider } from "@/i18n/client";
 import { getServerI18n } from "@/i18n/server";
-import { getAuthUser } from "@/lib/auth/auth-user";
+import { resolveAuthUser } from "@/lib/auth/auth-user";
 import "./globals.css";
 import "../styles/shell.css";
 import "../styles/dashboard.css";
@@ -26,4 +26,4 @@ import "../styles/login.css";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 export async function generateMetadata(): Promise<Metadata> { const { t } = await getServerI18n(); return { title: t("document.title"), description: t("document.description") }; }
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { const [user, { locale, t }] = await Promise.all([getAuthUser(), getServerI18n()]); return <html lang={locale}><body><AntdRegistry><AntDesignProvider locale={locale}><I18nProvider locale={locale}><AuthProvider user={user}><AppShell skipLabel={t("navigation.skipToMain")} navigation={<AppNavigation />}>{children}</AppShell></AuthProvider></I18nProvider></AntDesignProvider></AntdRegistry></body></html>; }
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { const [resolution, { locale, t }] = await Promise.all([resolveAuthUser(), getServerI18n()]); const user = resolution.kind === "authenticated" ? resolution.user : null; return <html lang={locale}><body><AntdRegistry><AntDesignProvider locale={locale}><I18nProvider locale={locale}><AuthProvider user={user}><AppShell skipLabel={t("navigation.skipToMain")} navigation={<AppNavigation />}>{children}</AppShell></AuthProvider></I18nProvider></AntDesignProvider></AntdRegistry></body></html>; }
