@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AUTH_COOKIE_NAME, hasPermission, parseAuthUser, type AuthPermission } from "@/lib/auth/auth-contract";
-import { parseWebConfig } from "@/lib/web-config";
+import { AUTH_COOKIE_NAME, hasPermission, parseAuthUser, type AuthPermission } from "./lib/auth/auth-contract";
+import { parseWebConfig } from "./lib/web-config";
+
+const ADMIN_ONLY_ROUTE_PREFIXES = [
+  "/admin/users",
+  "/admin/settings",
+  "/admin/audit",
+  "/admin/history/retention",
+  "/api/admin/users",
+  "/api/admin/settings",
+  "/api/admin/audit",
+  "/api/system/position-history/retention-execute",
+] as const;
 
 function requiredPermission(path: string): readonly AuthPermission[] | null {
   if (path === "/" || path.startsWith("/api/dashboard/") || path === "/api/system/sync-status") return ["fleet.view"];
@@ -17,7 +28,9 @@ function requiredPermission(path: string): readonly AuthPermission[] | null {
   return null;
 }
 
-function requiresAdmin(path: string): boolean { return path === "/admin/users" || path.startsWith("/admin/users/") || path === "/api/admin/users" || path.startsWith("/api/admin/users/") || path === "/admin/history/retention" || path === "/api/system/position-history/retention-execute"; }
+function requiresAdmin(path: string): boolean {
+  return ADMIN_ONLY_ROUTE_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const path = request.nextUrl.pathname;

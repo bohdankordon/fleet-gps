@@ -22,7 +22,7 @@ test("transitional routes enforce their established product permissions", () => 
   assert.match(population, /hasPermission\(user, "historyAdmin\.populate"\)/);
   assert.match(retention, /user\.role !== "ADMIN"/);
   assert.match(proxy, /path === "\/admin\/history\/population"/);
-  assert.match(proxy, /path === "\/admin\/history\/retention"/);
+  assert.match(proxy, /ADMIN_ONLY_ROUTE_PREFIXES[\s\S]*"\/admin\/history\/retention"/);
 });
 
 test("all supported locales provide the three accepted destination labels", () => {
