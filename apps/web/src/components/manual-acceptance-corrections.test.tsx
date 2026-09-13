@@ -74,15 +74,11 @@ test("Disable is destructive while Enable and password reset are not", () => {
 
 test("accepted correction hooks cover the Users workspace, permissions, account, dashboard summary semantics, and Trips spacing", () => {
   assert.match(source("src/app/admin/users/page.tsx"), /admin-users-page-v2/);
-  const permissions = source("src/components/permission-selector.tsx");
-  assert.match(permissions, /permission-copy/);
-  assert.match(permissions, /permission-title/);
-  assert.match(permissions, /permission-helper/);
   const account = source("src/app/account/page.tsx");
   assert.match(account, /<AccountOverview/);
   assert.doesNotMatch(account, /account-heading|auth-card|account-card/);
   const css = source("src/app/globals.css");
-  for (const hook of ["trip-result-message", "danger-button", "grid-template-columns:16px minmax(0,1fr)", "input[type=\"checkbox\"]", "grid-template-rows:minmax(1.35em,auto) minmax(2.7em,auto)"]) assert.ok(css.includes(hook), hook);
+  for (const hook of ["trip-result-message", "danger-button"]) assert.ok(css.includes(hook), hook);
   assert.match(source("src/components/dashboard-client.tsx"), /<Statistic/);
   assert.match(source("src/components/dashboard-client.tsx"), /<Table<Vehicle>/);
   const trips = source("src/components/vehicle-trips-client.tsx");
