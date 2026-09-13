@@ -81,6 +81,17 @@ enum PositionHistoryPopulationRunInitiatorType {
   SYSTEM
 }
 
+enum PositionHistoryReplayKind {
+  DAILY_7_DAY
+  ROLLING_90_DAY
+}
+
+enum PositionHistoryReplayRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+}
+
 enum AuditEventType {
   USER_CREATED
   USER_ACCESS_CHANGED
@@ -284,22 +295,62 @@ model AuthSession {
 }
 
 model Vehicle {
-  id                          String                              @id @default(uuid()) @map("id") @db.Uuid
-  externalDeviceId            Int                                 @unique @map("external_device_id")
-  name                        String                              @map("name") @db.VarChar(255)
-  disabled                    Boolean                             @default(false) @map("disabled")
-  createdAt                   DateTime                            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                   DateTime                            @updatedAt @map("updated_at") @db.Timestamptz(6)
-  currentState                VehicleCurrentState?
-  dailyStats                  DailyVehicleStat[]
-  positionObservations        VehiclePositionObservation[]
-  positionBackfillCheckpoints VehiclePositionBackfillCheckpoint[]
-  historyIngestionCursor      VehicleHistoryIngestionCursor?
-  alertEvents                 AlertEvent[]
-  alertEvaluationObservations AlertEvaluationObservation[]
-  notificationSelections      UserNotificationVehicle[]
+  id                               String                              @id @default(uuid()) @map("id") @db.Uuid
+  externalDeviceId                 Int                                 @unique @map("external_device_id")
+  name                             String                              @map("name") @db.VarChar(255)
+  disabled                         Boolean                             @default(false) @map("disabled")
+  createdAt                        DateTime                            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                        DateTime                            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  currentState                     VehicleCurrentState?
+  dailyStats                       DailyVehicleStat[]
+  positionObservations             VehiclePositionObservation[]
+  positionBackfillCheckpoints      VehiclePositionBackfillCheckpoint[]
+  historyIngestionCursor           VehicleHistoryIngestionCursor?
+  positionHistoryReplayCheckpoints PositionHistoryReplayCheckpoint[]
+  alertEvents                      AlertEvent[]
+  alertEvaluationObservations      AlertEvaluationObservation[]
+  notificationSelections           UserNotificationVehicle[]
 
   @@map("vehicles")
+}
+
+model PositionHistoryReplayRun {
+  id               String                            @id @default(uuid()) @map("id") @db.Uuid
+  kind             PositionHistoryReplayKind         @map("kind")
+  generationAnchor DateTime                          @map("generation_anchor") @db.Timestamptz(6)
+  rangeFrom        DateTime                          @map("range_from") @db.Timestamptz(6)
+  rangeTo          DateTime                          @map("range_to") @db.Timestamptz(6)
+  status           PositionHistoryReplayRunStatus    @default(PENDING) @map("status")
+  createdAt        DateTime                          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  startedAt        DateTime?                         @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime?                         @map("completed_at") @db.Timestamptz(6)
+  leaseOwner       String?                           @map("lease_owner") @db.Uuid
+  leaseExpiresAt   DateTime?                         @map("lease_expires_at") @db.Timestamptz(6)
+  checkpoints      PositionHistoryReplayCheckpoint[]
+
+  @@unique([kind, generationAnchor], map: "position_history_replay_runs_generation_key")
+  @@index([status, leaseExpiresAt, createdAt], map: "position_history_replay_runs_claim_idx")
+  @@map("position_history_replay_runs")
+}
+
+model PositionHistoryReplayCheckpoint {
+  id        String                   @id @default(uuid()) @map("id") @db.Uuid
+  runId     String                   @map("run_id") @db.Uuid
+  vehicleId String                   @map("vehicle_id") @db.Uuid
+  rangeFrom DateTime                 @map("range_from") @db.Timestamptz(6)
+  rangeTo   DateTime                 @map("range_to") @db.Timestamptz(6)
+  nextFrom  DateTime                 @map("next_from") @db.Timestamptz(6)
+  status    PositionBackfillStatus   @default(PENDING) @map("status")
+  createdAt DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
+  run       PositionHistoryReplayRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  vehicle   Vehicle                  @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
+  @@unique([runId, vehicleId, rangeFrom, rangeTo], map: "position_history_replay_checkpoints_target_key")
+  @@index([runId, status, rangeFrom, vehicleId], map: "position_history_replay_checkpoints_work_idx")
+  @@index([vehicleId], map: "position_history_replay_checkpoints_vehicle_id_idx")
+  @@map("position_history_replay_checkpoints")
 }
 
 model VehicleHistoryIngestionCursor {

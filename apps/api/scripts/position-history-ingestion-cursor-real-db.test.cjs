@@ -48,12 +48,13 @@ test("migration applies over the previous schema without changing observations o
   const migrationsRoot = path.resolve(__dirname, "../prisma/migrations");
   const migrationNames = fs.readdirSync(migrationsRoot).filter((name) => fs.existsSync(path.join(migrationsRoot, name, "migration.sql"))).sort();
   const cursorMigration = "20260913000000_add_vehicle_history_ingestion_cursors";
-  assert.equal(migrationNames.at(-1), cursorMigration);
+  const cursorMigrationIndex = migrationNames.indexOf(cursorMigration);
+  assert.ok(cursorMigrationIndex > 0);
   await client.connect();
   try {
     await client.query(`CREATE SCHEMA "${schema}"`);
     await client.query(`SET search_path TO "${schema}"`);
-    for (const migrationName of migrationNames.slice(0, -1)) {
+    for (const migrationName of migrationNames.slice(0, cursorMigrationIndex)) {
       await applyMigrationSql(client, fs.readFileSync(path.join(migrationsRoot, migrationName, "migration.sql"), "utf8"));
     }
 

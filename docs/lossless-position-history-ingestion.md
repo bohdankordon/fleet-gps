@@ -4,7 +4,7 @@
 
 For every provider-mapped vehicle, Fleet GPS must eventually persist every unique, structurally valid normalized GPS fix that remains obtainable through the historical provider API, regardless of live polling interval, temporary failures, restart, or short downtime.
 
-The v1.1.0 system did not provide that invariant. PR 3 adds a default-off continuous lane that materially advances it, but wider replay, durable-population fairness, retention integration, and production enablement remain incomplete.
+The v1.1.0 system did not provide that invariant. PR 3 adds a default-off continuous lane that materially advances it. PR 4A adds dormant replay-generation durability, but wider replay execution, durable-population fairness, retention integration, and production enablement remain incomplete.
 
 ## Two independent lanes
 
@@ -108,6 +108,23 @@ The conditional update must affect exactly one row. Otherwise a stale-progress e
 
 The CAS is the per-vehicle correctness fence. Orchestration and the existing shared history coordination domain remain separate; this foundation adds no per-vehicle advisory lock.
 
+## Durable replay generations
+
+Finite backfill checkpoints cannot represent recurring replay. Their unique identity is `(vehicleId, rangeFrom, rangeTo)`, and `COMPLETED` truthfully means that finite target has been processed. A weekly-shifted 90-day horizon reuses 11 completed seven-day finite targets, which would suppress roughly 77 days that a new replay generation must intentionally fetch again. Existing finite checkpoints therefore remain unchanged and are never reset or reinterpreted.
+
+PR 4A introduces two dormant, generation-scoped structures:
+
+- `PositionHistoryReplayRun` identifies one immutable `DAILY_7_DAY` or `ROLLING_90_DAY` generation by unique `(kind, generationAnchor)` plus its captured `rangeFrom` and `rangeTo`. A repeated ensure with different boundaries fails rather than changing an existing generation.
+- `PositionHistoryReplayCheckpoint` records one vehicle/range obligation within a run. Its identity is `(runId, vehicleId, rangeFrom, rangeTo)`, so two generations may intentionally contain the same absolute range without sharing completion state. `nextFrom` supports bounded restart-safe progress and is constrained to the checkpoint range.
+
+Replay runs are unowned and retryable while `PENDING`, exclusively leased while `RUNNING`, and become `COMPLETED` only when at least one checkpoint exists and all generation checkpoints are complete. Ownership-conditional claim, renewal, yield, and completion transitions provide the durable foundation for a future multi-replica worker. Temporary provider/database failure policy and scheduling are intentionally not implemented in PR 4A.
+
+One replay persistence transaction inserts normalized observations with the established fingerprint uniqueness and conditionally advances the owned generation checkpoint by expected-`nextFrom` CAS. Empty candidate sets may advance replay progress. Stale progress, stale/expired ownership, or database failure rolls back inserted observations and progress together.
+
+Replay state never reads or updates `VehicleHistoryIngestionCursor`. A completed replay generation proves only that every checkpoint in that generation was processed; it does not advance `confirmedThrough` or `coverageFrom` and does not prove contiguous completeness.
+
+PR 4A adds no worker, poller, provider request, daily schedule, weekly schedule, continuous-worker change, or population-lock fairness change. PR 4B will add bounded population yielding and consume these structures for recurring replay orchestration. Retention/cursor-floor integration remains PR 5. The continuous feature remains default-off, and the system is not yet production-ready.
+
 ## Retention compatibility
 
 The active local guarantee domain is approximately 90 days. A later retention integration can move `coverageFrom` forward to a newer cutoff and, when necessary, move `confirmedThrough` to that cutoff under the shared history lock. That narrows the explicit guarantee domain without claiming completeness for deleted history. PR 3 does not change retention execution; PR 5 must integrate retention and cursor boundaries before production enablement.
@@ -127,4 +144,4 @@ Controlled read-only discovery on 2026-09-13 observed a maximum near-now histori
 
 These values are observations and conservative operating policy, not provider contractual guarantees. Discovery also observed HTTP 400 for one disabled sample's historical reads; later orchestration must treat that state as unresolved and must not initialize such a vehicle as complete.
 
-Daily trailing-seven-day and weekly rolling-90-day replay are still required because no finite late-insertion or correction bound was established; neither exists in PR 3. Together with the PR 4 durable-population fairness work and PR 5 retention integration, these are explicit reasons the default-off continuous lane is not yet production-ready or production-enabled.
+Daily trailing-seven-day and weekly rolling-90-day replay execution are still required because no finite late-insertion or correction bound was established; PR 4A provides only their dormant durable generation foundation. Together with PR 4B durable-population fairness/orchestration and PR 5 retention integration, these are explicit reasons the default-off continuous lane is not yet production-ready or production-enabled.
