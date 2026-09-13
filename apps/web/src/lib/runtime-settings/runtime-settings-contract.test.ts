@@ -13,9 +13,11 @@ test("runtime business date clients have no browser-timezone fallback on runtime
   const reports = readFileSync("src/app/reports/page.tsx", "utf8");
   const reportLoader = readFileSync("src/lib/fleet-activity-report/fleet-activity-report-page-loader.ts", "utf8");
   const trips = readFileSync("src/app/vehicles/[vehicleId]/trips/page.tsx", "utf8");
+  const tripsLoader = readFileSync("src/lib/trip-analysis/vehicle-trips-page-loader.ts", "utf8");
   assert.match(client, /cache: "no-store"/); assert.match(client, /throw new Error\("Runtime settings unavailable\."\)/);
   assert.ok(reports.includes("runtime: fetchRuntimeSettings"));
   assert.ok(reportLoader.includes("(await deps.runtime()).timezone"));
-  assert.match(trips, /runtime\.timezone/);
-  assert.doesNotMatch(`${reports}\n${reportLoader}\n${trips}`, /Europe\/Kyiv/);
+  assert.match(trips, /fetchSettings: fetchRuntimeSettings/);
+  assert.match(tripsLoader, /settings\?\.timezone/);
+  assert.doesNotMatch(`${reports}\n${reportLoader}\n${trips}\n${tripsLoader}`, /Europe\/Kyiv/);
 });

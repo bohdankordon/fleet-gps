@@ -31,7 +31,7 @@ test("all three vehicle routes reuse the shell and select one exact active route
   assert.match(overview, /<VehicleDetailShell[^>]*activeTab="overview"/);
   assert.match(trips, /<VehicleDetailShell[^>]*activeTab="trips"/);
   assert.match(history, /<VehicleDetailShell[^>]*activeTab="history"/);
-  assert.match(tripsPage, /fetchVehicleDetails\(vehicleId\)/);
+  assert.match(tripsPage, /fetchDetails: \(id\) => fetchVehicleDetails\(id\)/);
   assert.match(historyPage, /fetchVehicleDetails\(vehicleId\)/);
   assert.equal((trips.match(/<header className="vehicle-trips__workspace-header"/g) ?? []).length, 2);
   assert.doesNotMatch(trips, /<PageHeader|<header className="vehicle-detail/);

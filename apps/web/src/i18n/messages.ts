@@ -965,6 +965,8 @@ export const MESSAGE_CATALOG = Object.freeze({
   "trips.controls.title": { ru: "Период", uk: "Період", en: "Period" },
   "trips.loadError": { ru: "Не удалось загрузить аналитику поездок", uk: "Не вдалося завантажити аналітику поїздок", en: "Trip analytics could not be loaded" },
   "trips.loadErrorText": { ru: "Попробуйте обновить выбранный период.", uk: "Спробуйте оновити вибраний період.", en: "Try refreshing the selected period." },
+  "trips.contextUnavailable.title": { ru: "Поездки временно недоступны", uk: "Поїздки тимчасово недоступні", en: "Trips are temporarily unavailable" },
+  "trips.contextUnavailable.body": { ru: "Не удалось подготовить период для отображения поездок.", uk: "Не вдалося підготувати період для відображення поїздок.", en: "We couldn’t prepare the period required to show trips." },
   "trips.summary.label": { ru: "Сводка поездок", uk: "Зведення поїздок", en: "Trip summary" },
   "trips.summary.trips": { ru: "Поездки", uk: "Поїздки", en: "Trips" },
   "trips.summary.stops": { ru: "Остановки", uk: "Зупинки", en: "Stops" },
