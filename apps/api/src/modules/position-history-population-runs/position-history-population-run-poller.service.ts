@@ -15,7 +15,10 @@ export class PositionHistoryPopulationRunPollerService {
   public async poll(): Promise<void> {
     if (this.invoking) return;
     this.invoking = true;
-    try { await this.worker.processNextAvailableRun(); }
+    try {
+      const result = await this.worker.processNextAvailableRun();
+      if (result.outcome === "YIELDED") this.logger.log("Durable position-history population yielded after one bounded chunk.", { outcome: result.outcome, committedWindows: result.committedWindows });
+    }
     catch { this.logger.error("Durable position-history population poll failed safely."); }
     finally { this.invoking = false; }
   }

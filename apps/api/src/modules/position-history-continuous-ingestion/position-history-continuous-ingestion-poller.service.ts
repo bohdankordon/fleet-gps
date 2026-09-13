@@ -5,7 +5,7 @@ import { POSITION_HISTORY_CONTINUOUS_POLL_INTERVAL_MS } from "./position-history
 import { PositionHistoryContinuousIngestionStatusService } from "./position-history-continuous-ingestion-status.service";
 import { POSITION_HISTORY_CONTINUOUS_TIMER } from "./position-history-continuous-ingestion.tokens";
 import type { PositionHistoryContinuousStatus, PositionHistoryContinuousTimer } from "./position-history-continuous-ingestion.types";
-import { PositionHistoryContinuousIngestionWorkerService } from "./position-history-continuous-ingestion-worker.service";
+import { PositionHistoryWorkloadCoordinatorService } from "./position-history-workload-coordinator.service";
 
 export const POSITION_HISTORY_CONTINUOUS_STARTUP_TIMER = "taxi-gps:position-history-continuous:startup";
 export const POSITION_HISTORY_CONTINUOUS_POLL_TIMER = "taxi-gps:position-history-continuous:poll";
@@ -19,7 +19,7 @@ export class PositionHistoryContinuousIngestionPollerService implements OnApplic
 
   public constructor(
     @Inject(API_CONFIG) private readonly config: ApiConfig,
-    private readonly worker: PositionHistoryContinuousIngestionWorkerService,
+    private readonly worker: PositionHistoryWorkloadCoordinatorService,
     private readonly status: PositionHistoryContinuousIngestionStatusService,
     @Inject(POSITION_HISTORY_CONTINUOUS_TIMER) private readonly timer: PositionHistoryContinuousTimer,
   ) {}

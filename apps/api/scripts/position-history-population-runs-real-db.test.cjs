@@ -1,15 +1,21 @@
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const test = require("node:test");
+const { assertContainerTestDatabaseUrl } = require("./assert-container-test-database-url.cjs");
+const { assertTestDatabaseUrl } = require("./assert-test-database-url.cjs");
 const { PrismaPg } = require("@prisma/adapter-pg");
-const { PrismaClient, PositionHistoryPopulationRunInitiatorType, PositionHistoryPopulationRunStatus } = require("../dist/generated/prisma/client");
+const { AuditTargetType, PrismaClient, PositionHistoryPopulationRunInitiatorType, PositionHistoryPopulationRunStatus } = require("../dist/generated/prisma/client");
+const { AuditEventRepository } = require("../dist/modules/audit");
 const { PositionHistoryPopulationRunCreationService } = require("../dist/modules/position-history-population-runs/position-history-population-run-creation.service");
 const { PositionHistoryPopulationRunConflictError } = require("../dist/modules/position-history-population-runs/position-history-population-run.errors");
 const { PositionHistoryPopulationRunStateService } = require("../dist/modules/position-history-population-runs/position-history-population-run-state.service");
 
+if (process.env.TEST_DATABASE_RUNNER === "linux") assertContainerTestDatabaseUrl();
+else assertTestDatabaseUrl();
+
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 const database = { getClient: () => prisma };
-const creation = new PositionHistoryPopulationRunCreationService(database);
+const creation = new PositionHistoryPopulationRunCreationService(database, new AuditEventRepository(database));
 const ids = new Set();
 const protectedTables = [
   "vehicles", "vehicle_current_states", "daily_vehicle_stats", "vehicle_position_observations", "vehicle_position_backfill_checkpoints",
@@ -26,7 +32,9 @@ async function protectedSnapshot() {
 }
 
 async function cleanup() {
-  if (ids.size > 0) await prisma.positionHistoryPopulationRun.deleteMany({ where: { id: { in: [...ids] } } });
+  await prisma.auditEvent.deleteMany({ where: { targetType: AuditTargetType.POSITION_HISTORY_POPULATION_RUN } });
+  await prisma.positionHistoryPopulationRun.deleteMany();
+  ids.clear();
 }
 
 function input(windowBudget = 50) {
@@ -38,8 +46,8 @@ test("real PostgreSQL durable-run constraints, concurrency, terminal history, an
   await cleanup();
   try {
     const migrations = await prisma.$queryRaw`SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name`;
-    assert.equal(migrations.length, 11);
-    assert.equal(migrations.at(-1)?.migration_name, "20260813185936_add_audit_trail_foundation");
+    assert.equal(migrations.length, 19);
+    assert.equal(migrations.at(-1)?.migration_name, "20260913210000_add_position_history_replay_generations");
 
     const constraintRows = await prisma.$queryRaw`SELECT conname, confdeltype::text AS confdeltype FROM pg_constraint WHERE conrelid = 'position_history_population_runs'::regclass`;
     assert.equal(constraintRows.some(({ conname }) => conname === "position_history_population_runs_window_budget_positive"), true);
@@ -80,7 +88,13 @@ test("real PostgreSQL durable-run constraints, concurrency, terminal history, an
     assert.equal(reclaimed.startedAt.toISOString(), startedAt.toISOString());
     assert.equal(reclaimed.leaseOwner, newOwner);
 
-    assert.equal(await state.succeed(stale.id, newOwner), true);
+    assert.equal(await state.yield(stale.id, crypto.randomUUID()), false);
+    assert.equal(await state.yield(stale.id, newOwner), true);
+    const resumedOwner = crypto.randomUUID();
+    const resumed = await state.claim(stale.id, resumedOwner);
+    assert.equal(resumed.committedWindows, 24);
+    assert.equal(resumed.startedAt.toISOString(), startedAt.toISOString());
+    assert.equal(await state.succeed(stale.id, resumedOwner), true);
     const later = await creation.createRun(input(5_000));
     ids.add(later.id);
     await prisma.positionHistoryPopulationRun.update({ where: { id: later.id }, data: { status: PositionHistoryPopulationRunStatus.FAILED, finishedAt: new Date(), safeFailureCode: "ACCEPTANCE_ONLY" } });

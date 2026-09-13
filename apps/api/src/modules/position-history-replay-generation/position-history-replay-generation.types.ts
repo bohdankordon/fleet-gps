@@ -55,10 +55,20 @@ export type OwnedPositionHistoryReplayRun = PositionHistoryReplayRun & Readonly<
   leaseExpiresAt: Date;
 }>;
 
+export type PositionHistoryReplayVehicle = Readonly<{
+  vehicleId: string;
+  externalDeviceId: number;
+  disabled: boolean;
+}>;
+
 export interface PositionHistoryReplayRepository {
   ensureRun(input: EnsurePositionHistoryReplayRunInput): Promise<PositionHistoryReplayRun>;
   findRun(kind: PositionHistoryReplayKind, generationAnchor: Date): Promise<PositionHistoryReplayRun | null>;
   ensureCheckpoints(runId: string, checkpoints: readonly EnsurePositionHistoryReplayCheckpointInput[]): Promise<readonly PositionHistoryReplayCheckpoint[]>;
+  countCheckpoints(runId: string): Promise<number>;
+  countIncompleteCheckpoints(runId: string): Promise<number>;
   listIncompleteCheckpoints(runId: string, limit: number): Promise<readonly PositionHistoryReplayCheckpoint[]>;
+  listEligibleVehicles(): Promise<readonly PositionHistoryReplayVehicle[]>;
+  findMappedVehicle(vehicleId: string): Promise<PositionHistoryReplayVehicle | null>;
   persistReplayWindow(input: PersistPositionHistoryReplayWindowInput): Promise<PersistPositionHistoryReplayWindowResult>;
 }

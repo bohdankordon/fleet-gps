@@ -67,3 +67,17 @@ test("public repository inputs reject malformed identities, dates, ranges, and u
   assert.throws(() => item.repository.listIncompleteCheckpoints("not-a-uuid", 1), PositionHistoryReplayInputError);
   assert.throws(() => item.repository.listIncompleteCheckpoints("123e4567-e89b-42d3-a456-426614174000", 10_001), PositionHistoryReplayInputError);
 });
+
+test("replay membership discovery is deterministic and excludes provider-disabled mapped vehicles", async () => {
+  const calls: unknown[] = [];
+  const client = {
+    vehicle: {
+      findMany: async (input: unknown) => { calls.push(input); return [
+        { id: "123e4567-e89b-42d3-a456-426614174001", externalDeviceId: 11, disabled: false },
+      ]; },
+    },
+  } as unknown as PrismaClient;
+  const repository = new PrismaPositionHistoryReplayRepository({ getClient: () => client } as DatabaseService);
+  assert.deepEqual(await repository.listEligibleVehicles(), [{ vehicleId: "123e4567-e89b-42d3-a456-426614174001", externalDeviceId: 11, disabled: false }]);
+  assert.deepEqual(calls, [{ where: { disabled: false }, orderBy: { id: "asc" }, select: { id: true, externalDeviceId: true, disabled: true } }]);
+});

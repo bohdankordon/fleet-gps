@@ -19,12 +19,13 @@ export type CreatePositionHistoryPopulationRunInput =
     }>);
 
 export type PositionHistoryPopulationRunWorkerResult = Readonly<{
-  outcome: "NO_WORK" | "LOCK_UNAVAILABLE" | "SUCCEEDED" | "FAILED" | "STALE";
+  outcome: "NO_WORK" | "LOCK_UNAVAILABLE" | "YIELDED" | "SUCCEEDED" | "FAILED" | "STALE";
   runId: string | null;
   committedWindows: number | null;
 }>;
 
 export type PositionHistoryPopulationRunClock = Readonly<{ now(): Date }>;
+export type PositionHistoryPopulationRunSleeper = Readonly<{ sleep(durationMs: number): Promise<void> }>;
 export type PositionHistoryPopulationRunHeartbeatScheduler = Readonly<{
   start(work: () => Promise<void>, intervalMs: number): () => void;
 }>;

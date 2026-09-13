@@ -105,6 +105,7 @@ export class PositionHistoryFleetBackfillService {
         {
           ...(perVehicleMaxWindows === undefined ? {} : { maxWindows: perVehicleMaxWindows }),
           ...(previousWindowCommitted ? { paceBeforeFirstWindow: true } : {}),
+          ...(options.beforeRequestStart === undefined ? {} : { beforeRequestStart: options.beforeRequestStart }),
           ...(options.durableAccounting === undefined ? {} : { durableAccounting: options.durableAccounting }),
         },
       );

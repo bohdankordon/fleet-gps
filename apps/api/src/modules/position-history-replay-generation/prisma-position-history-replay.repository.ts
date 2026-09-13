@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PositionBackfillStatus, PositionHistoryReplayKind, PositionHistoryReplayRunStatus, Prisma, type PositionHistoryReplayCheckpoint, type PositionHistoryReplayRun } from "../../generated/prisma/client";
 import { DatabaseService } from "../database/database.service";
 import { PositionHistoryReplayCheckpointInitializationError, PositionHistoryReplayCheckpointStaleProgressError, PositionHistoryReplayGenerationConflictError, PositionHistoryReplayInputError, PositionHistoryReplayRunNotFoundError } from "./position-history-replay-generation.errors";
-import type { EnsurePositionHistoryReplayCheckpointInput, EnsurePositionHistoryReplayRunInput, PersistPositionHistoryReplayWindowInput, PersistPositionHistoryReplayWindowResult, PositionHistoryReplayRepository } from "./position-history-replay-generation.types";
+import type { EnsurePositionHistoryReplayCheckpointInput, EnsurePositionHistoryReplayRunInput, PersistPositionHistoryReplayWindowInput, PersistPositionHistoryReplayWindowResult, PositionHistoryReplayRepository, PositionHistoryReplayVehicle } from "./position-history-replay-generation.types";
 
 const transactionTimeoutMs = 30_000;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -117,6 +117,32 @@ export class PrismaPositionHistoryReplayRepository implements PositionHistoryRep
       orderBy: [{ rangeFrom: "asc" }, { vehicleId: "asc" }, { rangeTo: "asc" }, { id: "asc" }],
       take: limit,
     });
+  }
+
+  public countCheckpoints(runId: string): Promise<number> {
+    if (!uuid.test(runId)) throw new PositionHistoryReplayInputError();
+    return this.database.getClient().positionHistoryReplayCheckpoint.count({ where: { runId } });
+  }
+
+  public countIncompleteCheckpoints(runId: string): Promise<number> {
+    if (!uuid.test(runId)) throw new PositionHistoryReplayInputError();
+    return this.database.getClient().positionHistoryReplayCheckpoint.count({ where: { runId, status: { not: PositionBackfillStatus.COMPLETED } } });
+  }
+
+  public listEligibleVehicles(): Promise<readonly PositionHistoryReplayVehicle[]> {
+    return this.database.getClient().vehicle.findMany({
+      where: { disabled: false },
+      orderBy: { id: "asc" },
+      select: { id: true, externalDeviceId: true, disabled: true },
+    }).then((vehicles) => Object.freeze(vehicles.map(({ id, externalDeviceId, disabled }) => Object.freeze({ vehicleId: id, externalDeviceId, disabled }))));
+  }
+
+  public findMappedVehicle(vehicleId: string): Promise<PositionHistoryReplayVehicle | null> {
+    if (!uuid.test(vehicleId)) throw new PositionHistoryReplayInputError();
+    return this.database.getClient().vehicle.findUnique({
+      where: { id: vehicleId },
+      select: { id: true, externalDeviceId: true, disabled: true },
+    }).then((vehicle) => vehicle === null ? null : Object.freeze({ vehicleId: vehicle.id, externalDeviceId: vehicle.externalDeviceId, disabled: vehicle.disabled }));
   }
 
   public async persistReplayWindow(input: PersistPositionHistoryReplayWindowInput): Promise<PersistPositionHistoryReplayWindowResult> {
