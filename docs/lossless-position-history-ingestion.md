@@ -169,8 +169,7 @@ Controlled read-only discovery on 2026-09-13 observed a maximum near-now histori
 
 These values are observations and conservative operating policy, not provider contractual guarantees. Discovery also observed HTTP 400 for one disabled sample's historical reads; later orchestration must treat that state as unresolved and must not initialize such a vehicle as complete.
 
-Daily trailing-seven-day and weekly rolling-90-day replay remain operational safeguards because no finite late-insertion or correction bound was established. With six-hour replay windows, planning models estimate combined steady-state demand of 12.76, 14.80, and 25.52 starts/minute for 50, 58, and 100 vehicles respectively. Those values are capacity estimates—not provider throughput guarantees or SLAs—and leave progressively less room for initial backlog and retries. Replay runs only behind the default-off history feature. Capacity is no longer the known rollout blocker, but production activation remains forbidden pending operational observability and a new controlled-rollout assessment.
-Daily trailing-seven-day and weekly rolling-90-day replay remain operational safeguards because no finite late-insertion or correction bound was established. With six-hour replay windows, planning models estimate combined steady-state demand of 12.76, 14.80, and 25.52 starts/minute for 50, 58, and 100 vehicles respectively. Those values are capacity estimates—not provider throughput guarantees or SLAs—and leave progressively less room for initial backlog and retries. Replay runs only behind the default-off history feature. PR 6A resolved the capacity blocker. PR 6B resolves the observability blocker. Production activation remains forbidden pending a new read-only controlled-rollout assessment.
+Daily trailing-seven-day and weekly rolling-90-day replay remain operational safeguards because no finite late-insertion or correction bound was established. With six-hour replay windows, planning models estimate combined steady-state demand of 12.76, 14.80, and 25.52 starts/minute for 50, 58, and 100 vehicles respectively. Those values are capacity estimates—not provider throughput guarantees or SLAs—and leave progressively less room for initial backlog and retries. Replay runs only behind the default-off history feature. PR 6A resolved the capacity blocker. PR 6B resolved the first observability blocker and PR 6C completed production-edge, replay-debt, and retention observability. Production activation remains forbidden pending controlled-rollout assessment #3.
 
 ## PR 6B operator status (ADMIN-only, read-only)
 
@@ -178,10 +177,11 @@ An authorized operator with `historyAdmin.view` can obtain the supported lossles
 
 ```text
 GET /api/system/position-history/ingestion-status
-Cache-Control: no-store
 ```
 
 The route lives on the existing ADMIN-only `system/position-history` controller and requires the same `historyAdmin.view` authority as the horizon-status surface. Unauthenticated and authorized-without-permission callers are rejected; no new public or unauthenticated health surface was added. Reading status makes zero provider requests, performs zero DB mutations, creates no cursor, creates no replay generation, claims no lease, acquires no mutation advisory lock, and triggers no scheduler.
+
+Both the supported Next.js production-edge response and the internal Nest response carry an explicit `Cache-Control: no-store` header (covered by HTTP tests); the BFF route additionally opts out of static rendering and cached fetching. Supported production-edge access is `GET /api/system/position-history/ingestion-status` through Next.js, which forwards the operator session to Nest through the established authenticated BFF mechanism and preserves `historyAdmin.view` authorization end to end; container login is not the supported operator method and the Nest service is not exposed directly through the edge.
 
 The response is aggregate-only. It never exposes coordinates, raw positions, provider device IDs, vehicle names, fingerprints, raw error messages, stack traces, response bodies, credentials, tokens, advisory-lock owners, or replay lease owners.
 
@@ -193,13 +193,42 @@ Process-local telemetry (request rate, failure counters, retries, lock contentio
 - `coordination`: `historyLockContentionSinceProcessStart`, current `providerBlockedStreams` (process-local 6-hour stable-4xx cooldowns; resets on restart; cursor truth remains durable), and aggregate `durablePopulationActive`.
 - `cursor`: `mappedVehicles`, `cursorCount`, `missingCursorCount`, `medianLagSeconds`, `worstLagSeconds`, `oldestConfirmedThrough`, and `currentSafeBoundary`, where `lag = max(0, safeBoundary - confirmedThrough)`.
 - `recentTail`: process-local `lastSuccessAt`, successes, and failures. No durable recent completeness is invented.
-- `replay.daily` / `replay.rolling`: current/latest generation anchor, `PENDING` / `RUNNING` / `COMPLETED` or truthful `NOT_CREATED`, checkpoint totals/completed/remaining, `progressPercent`, `isCurrent`, and simple `debtSuspected` (incomplete generation older than the current anchor). No checkpoint enumeration and no generation creation on read.
+- `replay.daily` / `replay.rolling`: current/latest generation anchor, `PENDING` / `RUNNING` / `COMPLETED` or truthful `NOT_CREATED`, checkpoint totals/completed/remaining, `progressPercent`, `isCurrent`, and simple `debtSuspected` (incomplete generation older than the current anchor), plus cross-generation debt aggregates `incompleteGenerations`, `overdueIncompleteGenerations`, `oldestIncompleteGenerationAnchor`, `oldestOverdueGenerationAnchor`, and `hasReplayDebt`, so an older incomplete generation cannot be hidden by a newer current generation. A generation is overdue only when a newer canonical daily/weekly boundary has become due; a still-processing current generation alone is not debt. No checkpoint enumeration and no generation creation on read.
+- `retention`: `enabled`, process-local runtime (`running`, `lastAttemptAt`, `lastCompletedAt`, `lastOutcome` of `NOT_OBSERVED_THIS_PROCESS` / `SUCCESS` / `SKIPPED` / `FAILED`, safe `lastSkipCategory` of `LOCK_UNAVAILABLE` / `ACTIVE_POPULATION`), `nextScheduledExecutionAt` (daily 06:00 UTC, null when disabled), durable `currentRetentionPolicyFloor` with `cursorsBehindRetentionFloor` / `cursorsAtOrBeyondRetentionFloor` / `retentionFloorAligned` derived from cursor `coverageFrom` only. Process-local execution history resets on API restart; report `NOT_OBSERVED_THIS_PROCESS` after restart until a new automatic execution is observed rather than claiming no historical run ever occurred.
 - `meta`: explicit process-local vs durable scope note.
 
 Production safety: `POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED=true` requires automatic retention (`POSITION_HISTORY_RETENTION_ENABLED=true`). The compiled API production configuration check rejects `continuous=true` with `retention=false` by variable names only. Valid combinations are false/false, false/true, and true/true; only true/false is invalid for rollout.
 
 GREEN (bootstrap trending healthy): request rate at or below 30/min, cursor median/worst lag trending downward, recent-tail successes continuing, no sustained growth in 429/5xx/timeout counters, daily/rolling remaining counts declining, and lock contention bounded.
 
-ROLLBACK (stop and investigate): health/readiness degradation, request rate above 30/min, sustained 429/5xx/timeouts, cursor lag flat or worsening while requests continue, replay debt increasing (`debtSuspected` true with growing remaining), or abnormal lock contention.
+ROLLBACK (stop and investigate): health/readiness degradation, request rate above 30/min, sustained 429/5xx/timeouts, cursor lag flat or worsening while requests continue, replay debt increasing (`hasReplayDebt` true or growing remaining), retention floors misaligned while retention is enabled, or abnormal lock contention.
 
-Monitoring integration was intentionally not forced in PR 6B; operators consume the ADMIN status above manually during the controlled rollout. No Admin UI redesign was made and no migration was added.
+Monitoring integration was intentionally not forced in PR 6B; operators consume the ADMIN status above manually during the controlled rollout. No Admin UI redesign was made and no migration was added. PR 6C keeps that scope: production-edge BFF route, replay-debt aggregates, and automatic-retention observability only.
+## PR 6C complete rollout observability (production edge, debt, retention)
+
+PR 6C closes the four remaining assessment #2 blockers without touching ingestion correctness, pacing, capacity, retries, locking, cursor/replay/retention execution semantics, or the database schema.
+
+### Supported production-edge route
+
+Production topology exposes Caddy to Next.js only, so the Nest route is not directly reachable. The supported operator path mirrors the existing authenticated BFF pattern (same shape as the horizon-status and durable-run BFF routes):
+
+    GET /api/system/position-history/ingestion-status
+
+The Next route is force-dynamic with revalidate 0, forwards the operator session cookie to the internal Nest route through the established authenticated fetch mechanism with a no-store upstream fetch, validates the payload against a strict aggregate contract, preserves safe auth semantics (unauthenticated to 401, unauthorized to 403, contract mismatch to 502, transport failure to 503), and always responds with Cache-Control no-store. It makes zero provider calls and zero DB writes and duplicates no ingestion logic. Nest remains authoritative for historyAdmin.view; no client-supplied role or permission header is trusted.
+
+### Real no-store contract
+
+Assessment #2 correctly found the PR 6B docs showed no-store while neither implementation set it. Both surfaces now set the header explicitly and HTTP tests assert the actual header value. Repeated reads reflect live fake runtime telemetry rather than a cached payload (covered by tests). No global caching behavior was changed for unrelated routes.
+### Replay debt semantics
+
+Newest-generation-only status could hide an older incomplete generation behind a current one. Each replay summary now also exposes incompleteGenerations, overdueIncompleteGenerations, oldestIncompleteGenerationAnchor, oldestOverdueGenerationAnchor, and hasReplayDebt, derived from bounded replay-run metadata queries (aggregate count plus oldest matching runs, no checkpoint or observation loading, no N+1 by vehicle). A generation is overdue only when a newer canonical daily or weekly boundary has become due, using the same canonical anchor helpers as the scheduler; a still-processing current generation alone is not debt. Completed generations are never counted. Status reads never create or mutate replay state.
+
+### Automatic retention status and first-day interpretation
+
+Configuration alone cannot prove retention is operating. The retention object now reports enabled, process-local runtime (running, lastAttemptAt, lastCompletedAt, lastOutcome, safe lastSkipCategory), nextScheduledExecutionAt for the daily 06:00 UTC schedule (null when disabled), and durable currentRetentionPolicyFloor with cursorsBehindRetentionFloor, cursorsAtOrBeyondRetentionFloor, and retentionFloorAligned derived from cursor coverageFrom against the shared policy-floor helper (no observation scan; never aligned when no cursor rows exist).
+
+Safe outcomes reuse existing execution semantics: scheduler ticks while disabled record nothing and stay NOT_OBSERVED_THIS_PROCESS, successful cycles (including no-work cycles) record SUCCESS, lock contention and active durable runs record SKIPPED with LOCK_UNAVAILABLE or ACTIVE_POPULATION, and unexpected failures record FAILED with no raw error content. Telemetry only observes execution; scheduling, locking, and retention behavior are unchanged.
+
+First-day rollout answers with supported surfaces only: (1) retention configured on comes from retention.enabled; (2) an attempt observed in this process comes from lastOutcome differing from NOT_OBSERVED_THIS_PROCESS with lastAttemptAt set; (3) the latest safe outcome comes from lastOutcome and lastSkipCategory; (4) durable floor alignment comes from retentionFloorAligned with the behind and at-or-beyond counts; (5) the next expected execution comes from nextScheduledExecutionAt. After an API restart the runtime fields reset to NOT_OBSERVED_THIS_PROCESS until a new automatic execution is observed; the durable alignment counts remain available across restarts.
+
+Feature remains default-off and production-disabled. No schema change and no migration were added; retention execution truth combines process-local scheduler telemetry with durable cursor alignment, which the assessment accepted as sufficient. Controlled-rollout assessment #3 is still required before enablement.

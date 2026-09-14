@@ -24,10 +24,11 @@ const safeResponse = Object.freeze({
   cursor: Object.freeze({ mappedVehicles: 0, cursorCount: 0, missingCursorCount: 0, medianLagSeconds: null, worstLagSeconds: null, oldestConfirmedThrough: null, currentSafeBoundary: "2026-09-14T11:58:00.000Z" }),
   recentTail: Object.freeze({ lastSuccessAt: null, successesSinceProcessStart: 0, failuresSinceProcessStart: 0 }),
   replay: Object.freeze({
-    daily: Object.freeze({ state: "NOT_CREATED", generationAnchor: null, rangeFrom: null, rangeTo: null, checkpointsTotal: 0, checkpointsCompleted: 0, checkpointsRemaining: 0, progressPercent: null, isCurrent: false, debtSuspected: false }),
-    rolling: Object.freeze({ state: "NOT_CREATED", generationAnchor: null, rangeFrom: null, rangeTo: null, checkpointsTotal: 0, checkpointsCompleted: 0, checkpointsRemaining: 0, progressPercent: null, isCurrent: false, debtSuspected: false }),
+    daily: Object.freeze({ state: "NOT_CREATED", generationAnchor: null, rangeFrom: null, rangeTo: null, checkpointsTotal: 0, checkpointsCompleted: 0, checkpointsRemaining: 0, progressPercent: null, isCurrent: false, debtSuspected: false, incompleteGenerations: 0, overdueIncompleteGenerations: 0, oldestIncompleteGenerationAnchor: null, oldestOverdueGenerationAnchor: null, hasReplayDebt: false }),
+    rolling: Object.freeze({ state: "NOT_CREATED", generationAnchor: null, rangeFrom: null, rangeTo: null, checkpointsTotal: 0, checkpointsCompleted: 0, checkpointsRemaining: 0, progressPercent: null, isCurrent: false, debtSuspected: false, incompleteGenerations: 0, overdueIncompleteGenerations: 0, oldestIncompleteGenerationAnchor: null, oldestOverdueGenerationAnchor: null, hasReplayDebt: false }),
   }),
   meta: Object.freeze({ telemetryScope: "process-local", durableScope: "database", countersResetOnRestart: true }),
+  retention: Object.freeze({ enabled: false, running: false, lastAttemptAt: null, lastCompletedAt: null, lastOutcome: "NOT_OBSERVED_THIS_PROCESS", lastSkipCategory: null, nextScheduledExecutionAt: null, currentRetentionPolicyFloor: "2026-06-15T02:00:00.000Z", cursorsBehindRetentionFloor: 0, cursorsAtOrBeyondRetentionFloor: 0, retentionFloorAligned: false }),
 });
 
 async function appWith(): Promise<INestApplication> {
@@ -82,5 +83,8 @@ test("ingestion status accepts authorized operators with historyAdmin.view and i
     assert.equal(body.configuration.continuousIngestionEnabled, false);
     assert.equal(body.cursor.mappedVehicles, 0);
     assert.equal(JSON.stringify(body).includes("leaseOwner"), false);
+    assert.ok((res.headers.get("cache-control") ?? "").includes("no-store"));
+    assert.equal(body.retention.lastOutcome, "NOT_OBSERVED_THIS_PROCESS");
+    assert.equal(body.replay.daily.hasReplayDebt, false);
   } finally { await app.close(); }
 });
