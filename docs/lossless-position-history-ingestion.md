@@ -170,3 +170,36 @@ Controlled read-only discovery on 2026-09-13 observed a maximum near-now histori
 These values are observations and conservative operating policy, not provider contractual guarantees. Discovery also observed HTTP 400 for one disabled sample's historical reads; later orchestration must treat that state as unresolved and must not initialize such a vehicle as complete.
 
 Daily trailing-seven-day and weekly rolling-90-day replay remain operational safeguards because no finite late-insertion or correction bound was established. With six-hour replay windows, planning models estimate combined steady-state demand of 12.76, 14.80, and 25.52 starts/minute for 50, 58, and 100 vehicles respectively. Those values are capacity estimates—not provider throughput guarantees or SLAs—and leave progressively less room for initial backlog and retries. Replay runs only behind the default-off history feature. Capacity is no longer the known rollout blocker, but production activation remains forbidden pending operational observability and a new controlled-rollout assessment.
+Daily trailing-seven-day and weekly rolling-90-day replay remain operational safeguards because no finite late-insertion or correction bound was established. With six-hour replay windows, planning models estimate combined steady-state demand of 12.76, 14.80, and 25.52 starts/minute for 50, 58, and 100 vehicles respectively. Those values are capacity estimates—not provider throughput guarantees or SLAs—and leave progressively less room for initial backlog and retries. Replay runs only behind the default-off history feature. PR 6A resolved the capacity blocker. PR 6B resolves the observability blocker. Production activation remains forbidden pending a new read-only controlled-rollout assessment.
+
+## PR 6B operator status (ADMIN-only, read-only)
+
+An authorized operator with `historyAdmin.view` can obtain the supported lossless-history health snapshot without SQL, source debugging, global verbose logging, or provider data:
+
+```text
+GET /api/system/position-history/ingestion-status
+Cache-Control: no-store
+```
+
+The route lives on the existing ADMIN-only `system/position-history` controller and requires the same `historyAdmin.view` authority as the horizon-status surface. Unauthenticated and authorized-without-permission callers are rejected; no new public or unauthenticated health surface was added. Reading status makes zero provider requests, performs zero DB mutations, creates no cursor, creates no replay generation, claims no lease, acquires no mutation advisory lock, and triggers no scheduler.
+
+The response is aggregate-only. It never exposes coordinates, raw positions, provider device IDs, vehicle names, fingerprints, raw error messages, stack traces, response bodies, credentials, tokens, advisory-lock owners, or replay lease owners.
+
+Process-local telemetry (request rate, failure counters, retries, lock contention, provider-blocked streams, recent-tail activity, cycle timestamps) resets when the API process restarts; `processStartedAt` makes resets obvious. Durable truth (cursors, confirmedThrough, replay runs/checkpoints, durable population) survives restart. `currentSafeBoundary` is the single deterministic boundary (`now - 2 minutes`) used for all cursor-lag math in the response; observation MAX timestamps are never used as completeness.
+
+- `configuration`: `continuousIngestionEnabled` (`POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED`), `automaticRetentionEnabled` (`POSITION_HISTORY_RETENTION_ENABLED`). Feature remains default-off.
+- `runtime`: `pollerStarted`, `cycleInFlight`, `lastCycleStartedAt`, `lastCycleCompletedAt`, `processStartedAt`.
+- `providerTraffic`: trailing-60s `requestStartsLastMinute` (actual shared-pacer request starts across continuous recent/backlog, daily/rolling replay, coordinated population, and retries) plus since-process-start totals for starts, PR 2 retries, 429s, 5xx, network, timeout, contract, storage, provider-blocked, and unknown.
+- `coordination`: `historyLockContentionSinceProcessStart`, current `providerBlockedStreams` (process-local 6-hour stable-4xx cooldowns; resets on restart; cursor truth remains durable), and aggregate `durablePopulationActive`.
+- `cursor`: `mappedVehicles`, `cursorCount`, `missingCursorCount`, `medianLagSeconds`, `worstLagSeconds`, `oldestConfirmedThrough`, and `currentSafeBoundary`, where `lag = max(0, safeBoundary - confirmedThrough)`.
+- `recentTail`: process-local `lastSuccessAt`, successes, and failures. No durable recent completeness is invented.
+- `replay.daily` / `replay.rolling`: current/latest generation anchor, `PENDING` / `RUNNING` / `COMPLETED` or truthful `NOT_CREATED`, checkpoint totals/completed/remaining, `progressPercent`, `isCurrent`, and simple `debtSuspected` (incomplete generation older than the current anchor). No checkpoint enumeration and no generation creation on read.
+- `meta`: explicit process-local vs durable scope note.
+
+Production safety: `POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED=true` requires automatic retention (`POSITION_HISTORY_RETENTION_ENABLED=true`). The compiled API production configuration check rejects `continuous=true` with `retention=false` by variable names only. Valid combinations are false/false, false/true, and true/true; only true/false is invalid for rollout.
+
+GREEN (bootstrap trending healthy): request rate at or below 30/min, cursor median/worst lag trending downward, recent-tail successes continuing, no sustained growth in 429/5xx/timeout counters, daily/rolling remaining counts declining, and lock contention bounded.
+
+ROLLBACK (stop and investigate): health/readiness degradation, request rate above 30/min, sustained 429/5xx/timeouts, cursor lag flat or worsening while requests continue, replay debt increasing (`debtSuspected` true with growing remaining), or abnormal lock contention.
+
+Monitoring integration was intentionally not forced in PR 6B; operators consume the ADMIN status above manually during the controlled rollout. No Admin UI redesign was made and no migration was added.

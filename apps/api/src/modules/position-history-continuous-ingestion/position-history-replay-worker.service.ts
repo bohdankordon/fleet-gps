@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { EquGpsHttpError, EquGpsRateLimitError } from "@taxi-gps/equgps";
 import { PositionHistoryReplayKind, type PositionHistoryReplayRun } from "../../generated/prisma/client";
 import { PositionHistoryHistoricalWindowOversizedError, PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
 import { recordedPositionHistoryHistoricalWindowFailureAccounting } from "../position-history-historical-window/position-history-historical-window-failure-diagnostics";
 import { PositionHistoryAutomaticRequestPacer, POSITION_HISTORY_AUTOMATIC_REQUEST_START_GAP_MS } from "../position-history-horizon-execution";
+import type { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
 import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
 import { POSITION_HISTORY_REPLAY_REPOSITORY, PositionHistoryReplayRunStateService, type PositionHistoryReplayRepository } from "../position-history-replay-generation";
@@ -35,6 +36,7 @@ export class PositionHistoryReplayWorkerService {
     @Inject(POSITION_HISTORY_CONTINUOUS_CLOCK) private readonly clock: PositionHistoryContinuousClock,
     @Inject(POSITION_HISTORY_CONTINUOUS_SLEEPER) private readonly sleeper: PositionHistoryContinuousSleeper,
     @Inject(POSITION_HISTORY_REPLAY_HEARTBEAT_SCHEDULER) private readonly heartbeatScheduler: PositionHistoryReplayHeartbeatScheduler,
+    @Optional() private readonly telemetry?: PositionHistoryIngestionTelemetryService,
   ) {}
 
   public async inspectPressure(kind: PositionHistoryReplayKind): Promise<PositionHistoryReplayPressure> {
@@ -57,6 +59,7 @@ export class PositionHistoryReplayWorkerService {
       return await this.historyLock.runExclusive(async () => this.processUnderLock(kind, result));
     } catch (error) {
       if (error instanceof PositionHistoryHorizonAlreadyRunningError) result.outcome = "LOCK_UNAVAILABLE";
+      if (error instanceof PositionHistoryHorizonAlreadyRunningError) this.telemetry?.recordLockContention();
       else {
         result.outcome = "FAILED";
         this.scheduleFailure(kind, error);
@@ -133,7 +136,7 @@ export class PositionHistoryReplayWorkerService {
           try {
             response = await this.historicalWindow.read(
               { externalDeviceId: vehicle.externalDeviceId, from: checkpoint.nextFrom, to: windowTo },
-              { beforeRequestStart: async () => { await pacer.beforeRequestStart(); result.requests += 1; } },
+              { beforeRequestStart: async () => { await pacer.beforeRequestStart(); result.requests += 1; this.telemetry?.recordRequestStart(); } },
             );
             break;
           } catch (error) {
@@ -156,6 +159,10 @@ export class PositionHistoryReplayWorkerService {
         result.invalid += response.skippedInvalid;
         result.retries += response.retries;
         result.rateLimitResponses += response.rateLimitResponses;
+        if (this.telemetry !== undefined && this.telemetry !== null) {
+          if (response.retries > 0) this.telemetry.recordProviderRetry(response.retries);
+          if (response.rateLimitResponses > 0) this.telemetry.recordRateLimitResponses(response.rateLimitResponses);
+        }
         result.checkpointWindowsCompleted += 1;
         result.checkpointsRemaining = await this.repository.countIncompleteCheckpoints(claimed.id);
         this.failures.delete(claimed.id);
@@ -166,6 +173,15 @@ export class PositionHistoryReplayWorkerService {
         const accounting = recordedPositionHistoryHistoricalWindowFailureAccounting(error);
         result.retries += accounting?.retries ?? Math.max(0, pacer.requestStarts() - 1);
         result.rateLimitResponses += accounting?.rateLimitResponses ?? (error instanceof EquGpsRateLimitError ? 1 : 0);
+        if (this.telemetry !== undefined && this.telemetry !== null) {
+          const retriesToAdd = accounting?.retries ?? Math.max(0, pacer.requestStarts() - 1);
+          const rateLimitToAdd = accounting?.rateLimitResponses ?? (error instanceof EquGpsRateLimitError ? 1 : 0);
+          if (retriesToAdd > 0) this.telemetry.recordProviderRetry(retriesToAdd);
+          const failureCategory = this.telemetry.recordProviderFailure(error);
+          if (failureCategory === "rate_limit") {
+            if (rateLimitToAdd > 1) this.telemetry.recordRateLimitResponses(rateLimitToAdd - 1);
+          } else if (rateLimitToAdd > 0) this.telemetry.recordRateLimitResponses(rateLimitToAdd);
+        }
         await this.state.yieldRun({ runId: claimed.id, leaseOwner, now: this.now() });
         result.outcome = "FAILED";
         this.scheduleRunFailure(claimed, error);
@@ -181,6 +197,7 @@ export class PositionHistoryReplayWorkerService {
     const now = this.now().getTime();
     if (error instanceof EquGpsHttpError && error.status !== undefined && error.status >= 400 && error.status < 500) {
       this.nextEligible.set(run.id, now + POSITION_HISTORY_REPLAY_STABLE_FAILURE_BACKOFF_MS);
+      this.telemetry?.setProviderBlocked(`replay:${run.id}`, now + POSITION_HISTORY_REPLAY_STABLE_FAILURE_BACKOFF_MS);
       return;
     }
     const count = (this.failures.get(run.id) ?? 0) + 1;

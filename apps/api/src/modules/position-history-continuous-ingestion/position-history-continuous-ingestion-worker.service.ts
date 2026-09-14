@@ -1,9 +1,10 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { EquGpsHttpError, EquGpsRateLimitError } from "@taxi-gps/equgps";
 import { PositionHistoryHistoricalWindowOversizedError, PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
 import { recordedPositionHistoryHistoricalWindowFailureAccounting } from "../position-history-historical-window/position-history-historical-window-failure-diagnostics";
 import { PositionHistoryIngestionCursorService, type VehicleHistoryIngestionCursor } from "../position-history-ingestion-cursor";
 import { PositionHistoryAutomaticRequestPacer } from "../position-history-horizon-execution";
+import type { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
 import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
 import { POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS, POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS, POSITION_HISTORY_CONTINUOUS_MAX_OPPORTUNITIES_PER_CYCLE, POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE, POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS } from "./position-history-continuous-ingestion.constants";
@@ -35,6 +36,7 @@ export class PositionHistoryContinuousIngestionWorkerService {
     private readonly historyLock: PositionHistoryHorizonExecutionLockService,
     @Inject(POSITION_HISTORY_CONTINUOUS_CLOCK) private readonly clock: PositionHistoryContinuousClock,
     @Inject(POSITION_HISTORY_CONTINUOUS_SLEEPER) private readonly sleeper: PositionHistoryContinuousSleeper,
+    @Optional() private readonly telemetry?: PositionHistoryIngestionTelemetryService,
   ) {}
 
   public async processCycle(maxOpportunities = POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE, preferredLanes?: readonly PositionHistoryContinuousLane[]): Promise<PositionHistoryContinuousCycleResult> {
@@ -108,6 +110,7 @@ export class PositionHistoryContinuousIngestionWorkerService {
         const beforeRequestStart = async (): Promise<void> => {
           await pacer.beforeRequestStart();
           result.requests += 1;
+          this.telemetry?.recordRequestStart();
         };
         try {
           if (work.lane === "RECENT_TAIL") await this.processRecent(vehicle.externalDeviceId, cursor, safeNow, beforeRequestStart, result);
@@ -119,12 +122,23 @@ export class PositionHistoryContinuousIngestionWorkerService {
           const failureAccounting = recordedPositionHistoryHistoricalWindowFailureAccounting(error);
           result.retries += failureAccounting?.retries ?? Math.max(0, pacer.requestStarts() - 1);
           result.rateLimitResponses += failureAccounting?.rateLimitResponses ?? (error instanceof EquGpsRateLimitError ? 1 : 0);
+          if (this.telemetry !== undefined && this.telemetry !== null) {
+            const retriesToAdd = failureAccounting?.retries ?? Math.max(0, pacer.requestStarts() - 1);
+            const rateLimitToAdd = failureAccounting?.rateLimitResponses ?? (error instanceof EquGpsRateLimitError ? 1 : 0);
+            if (retriesToAdd > 0) this.telemetry.recordProviderRetry(retriesToAdd);
+            const failureCategory = this.telemetry.recordProviderFailure(error);
+            if (failureCategory === "rate_limit") {
+              if (rateLimitToAdd > 1) this.telemetry.recordRateLimitResponses(rateLimitToAdd - 1);
+            } else if (rateLimitToAdd > 0) this.telemetry.recordRateLimitResponses(rateLimitToAdd);
+            if (work.lane === "RECENT_TAIL") this.telemetry.recordRecentTailFailure();
+          }
           if ((failureAccounting?.rateLimitResponses ?? 0) > 0 || error instanceof EquGpsRateLimitError) {
             this.globalCooldownUntil = failedAt.getTime() + POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS[0];
           }
           if (error instanceof EquGpsHttpError && error.status !== undefined && error.status >= 400 && error.status < 500) {
             result.providerBlocked += 1;
             this.blockedUntil.set(vehicle.vehicleId, failedAt.getTime() + POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS);
+            this.telemetry?.setProviderBlocked(`continuous:${vehicle.vehicleId}`, failedAt.getTime() + POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS);
           } else this.scheduleFailure(streamKey, vehicle.vehicleId, failedAt);
         } finally {
           await pacer.coolBeforeLockRelease();
@@ -132,6 +146,7 @@ export class PositionHistoryContinuousIngestionWorkerService {
       });
     } catch (error) {
       if (error instanceof PositionHistoryHorizonAlreadyRunningError) result.lockUnavailable += 1;
+      if (error instanceof PositionHistoryHorizonAlreadyRunningError) this.telemetry?.recordLockContention();
       else result.failedWork += 1;
     }
   }
@@ -145,6 +160,11 @@ export class PositionHistoryContinuousIngestionWorkerService {
     const persisted = await this.repository.persistReplay(cursor.vehicleId, response.candidates);
     this.account(response, persisted, result);
     result.recentTailCompleted += 1;
+    if (this.telemetry !== undefined && this.telemetry !== null) {
+      if (response.retries > 0) this.telemetry.recordProviderRetry(response.retries);
+      if (response.rateLimitResponses > 0) this.telemetry.recordRateLimitResponses(response.rateLimitResponses);
+      this.telemetry.recordRecentTailSuccess();
+    }
     const now = this.now().getTime();
     this.recentSuccess.set(cursor.vehicleId, now);
     this.nextEligible.set(key("RECENT_TAIL", cursor.vehicleId), now + POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS);
@@ -165,6 +185,10 @@ export class PositionHistoryContinuousIngestionWorkerService {
         this.account(response, persisted, result);
         result.cursorAdvancements += 1;
         result.backlogCompleted += 1;
+        if (this.telemetry !== undefined && this.telemetry !== null) {
+          if (response.retries > 0) this.telemetry.recordProviderRetry(response.retries);
+          if (response.rateLimitResponses > 0) this.telemetry.recordRateLimitResponses(response.rateLimitResponses);
+        }
         const now = this.now().getTime();
         if (disabled) this.nextEligible.set(key("CONTIGUOUS_BACKLOG", cursor.vehicleId), now + POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS);
         else if (range.nextConfirmedThrough.getTime() >= safeNow.getTime()) this.nextEligible.set(key("CONTIGUOUS_BACKLOG", cursor.vehicleId), now + POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS);
