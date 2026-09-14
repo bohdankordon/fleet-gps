@@ -4,7 +4,7 @@
 
 For every provider-mapped vehicle, Fleet GPS must eventually persist every unique, structurally valid normalized GPS fix that remains obtainable through the historical provider API, regardless of live polling interval, temporary failures, restart, or short downtime.
 
-The v1.1.0 system did not provide that invariant. PR 3 adds a default-off continuous lane, PR 4A adds replay-generation durability, PR 4B activates fair recurring replay behind the same default-off feature, and PR 5 integrates those correctness facts with retention. PR 6A removes the rollout-assessment capacity blocker without changing those correctness semantics. Production rollout remains no-go until the separate operational-observability work and a new readiness assessment are complete.
+The v1.1.0 system did not provide that invariant. PR 3 adds a default-off continuous lane, PR 4A adds replay-generation durability, PR 4B activates fair recurring replay behind the same default-off feature, and PR 5 integrates those correctness facts with retention. PR 6A removes the rollout-assessment capacity blocker without changing those correctness semantics, and PR 6B with PR 6C resolves the operational-observability blockers the same way. Controlled rollout readiness assessment #3 returned GO FOR CONTROLLED ROLLOUT; the rollout itself has not been executed and stays intentionally deferred while further product features are developed.
 
 ## Two independent lanes
 
@@ -68,7 +68,7 @@ Each vehicle may have exactly one `VehicleHistoryIngestionCursor`:
 - `confirmedThrough` is the greatest contiguous historical boundary successfully processed under the active historical-finality policy.
 - The database enforces `coverageFrom <= confirmedThrough` and finite timestamps.
 
-`confirmedThrough` is not a claim that the provider can never publish a correction behind that boundary. Replay sweeps are part of the future strong lossless contract. Provider finality is policy, not an immutable database fact.
+`confirmedThrough` is not a claim that the provider can never publish a correction behind that boundary. Recurring replay generations cover that correction surface as described below. Provider finality is policy, not an immutable database fact.
 
 The cursor uses a restrictive vehicle foreign key. Vehicle deletion therefore cannot silently erase a completeness claim and create historical ambiguity. Provider-disabled mapped vehicles are not excluded from cursor existence.
 
@@ -169,7 +169,7 @@ Controlled read-only discovery on 2026-09-13 observed a maximum near-now histori
 
 These values are observations and conservative operating policy, not provider contractual guarantees. Discovery also observed HTTP 400 for one disabled sample's historical reads; later orchestration must treat that state as unresolved and must not initialize such a vehicle as complete.
 
-Daily trailing-seven-day and weekly rolling-90-day replay remain operational safeguards because no finite late-insertion or correction bound was established. With six-hour replay windows, planning models estimate combined steady-state demand of 12.76, 14.80, and 25.52 starts/minute for 50, 58, and 100 vehicles respectively. Those values are capacity estimates—not provider throughput guarantees or SLAs—and leave progressively less room for initial backlog and retries. Replay runs only behind the default-off history feature. PR 6A resolved the capacity blocker. PR 6B resolved the first observability blocker and PR 6C completed production-edge, replay-debt, and retention observability. Production activation remains forbidden pending controlled-rollout assessment #3.
+Daily trailing-seven-day and weekly rolling-90-day replay remain operational safeguards because no finite late-insertion or correction bound was established. With six-hour replay windows, planning models estimate combined steady-state demand of 12.76, 14.80, and 25.52 starts/minute for 50, 58, and 100 vehicles respectively. Those values are capacity estimates—not provider throughput guarantees or SLAs—and leave progressively less room for initial backlog and retries. Replay runs only behind the default-off history feature. PR 6A resolved the capacity blocker. PR 6B resolved the first observability blocker and PR 6C completed production-edge, replay-debt, and retention observability. Controlled rollout readiness assessment #3 returned GO FOR CONTROLLED ROLLOUT; the rollout itself has not been executed and stays intentionally deferred while further product features are developed.
 
 ## PR 6B operator status (ADMIN-only, read-only)
 
@@ -231,4 +231,4 @@ Safe outcomes reuse existing execution semantics: scheduler ticks while disabled
 
 First-day rollout answers with supported surfaces only: (1) retention configured on comes from retention.enabled; (2) an attempt observed in this process comes from lastOutcome differing from NOT_OBSERVED_THIS_PROCESS with lastAttemptAt set; (3) the latest safe outcome comes from lastOutcome and lastSkipCategory; (4) durable floor alignment comes from retentionFloorAligned with the behind and at-or-beyond counts; (5) the next expected execution comes from nextScheduledExecutionAt. After an API restart the runtime fields reset to NOT_OBSERVED_THIS_PROCESS until a new automatic execution is observed; the durable alignment counts remain available across restarts.
 
-Feature remains default-off and production-disabled. No schema change and no migration were added; retention execution truth combines process-local scheduler telemetry with durable cursor alignment, which the assessment accepted as sufficient. Controlled-rollout assessment #3 is still required before enablement.
+Feature remains default-off and production-disabled. No schema change and no migration were added; retention execution truth combines process-local scheduler telemetry with durable cursor alignment. Controlled rollout readiness assessment #3 returned GO FOR CONTROLLED ROLLOUT; the rollout itself has not been executed and stays intentionally deferred while further product features are developed.

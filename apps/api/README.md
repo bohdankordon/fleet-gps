@@ -20,6 +20,10 @@ Stage 15C exposes `GET /api/reports/fleet-activity?from=<absolute-iso>&to=<absol
 
 For a manual, opt-in production-credential verification of the compiled scheduler, see [`docs/sync-scheduler-live-verification.md`](../../docs/sync-scheduler-live-verification.md). It is not part of tests, builds, or safe smokes.
 
+## Position history
+
+The lossless position-history subsystem adds durable per-vehicle completeness cursors, default-off continuous reconciliation (recent-tail plus contiguous-backlog lanes) with restart catch-up, and durable daily 7-day plus rolling 90-day replay generations with retention-aware completeness. Continuous and replay ingestion remain default-off and have not been enabled in production. The read-only operational surface is `GET /api/system/position-history/ingestion-status` (ADMIN `historyAdmin.view` authority, aggregate-only, `Cache-Control: no-store`); production preflight requires automatic retention when continuous ingestion is enabled. See [lossless position-history ingestion](../../docs/lossless-position-history-ingestion.md).
+
 ## Read-only Dashboard API
 
 Этап 3C добавляет `GET /api/dashboard/vehicles`. Endpoint читает только локальный PostgreSQL-кэш, не запускает синхронизацию и не обращается к eQuGPS. Он требует аутентифицированный аккаунт с `fleet.view`; Nest-авторизация остаётся решающей границей.

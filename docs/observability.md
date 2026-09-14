@@ -236,9 +236,12 @@ which prevents an environment typo from chmodding an arbitrary host directory.
 
 The monitor makes no provider health calls (no eQuGPS, OpenFreeMap, routing,
 geocoding, or translation), performs zero application database writes, adds no
-schema/migration, adds no monitoring endpoint/page/permission, and adds no
-Prometheus/Grafana/Loki/ELK/OpenTelemetry/Sentry/PagerDuty/Redis. Application
-scheduler semantics are unchanged.
+schema/migration, and adds no Prometheus/Grafana/Loki/ELK/OpenTelemetry/Sentry/PagerDuty/Redis. Application
+scheduler semantics are unchanged. The host monitor itself added no application endpoint, page, or permission: it only reads existing health signals from the host side.
+
+## Host monitoring vs application history-ingestion status
+
+Host failure monitoring (this document) and application history-ingestion operational status are distinct subsystems that do not replace each other. The monitor watches host, container, edge, readiness, disk, and backup health and notifies operators about failures. Separately, the lossless history subsystem exposes a permissioned, read-only aggregate status for rollout observability: the protected same-origin BFF route `GET /api/system/position-history/ingestion-status` (forwarded to the internal Nest API, `historyAdmin.view` authority, `Cache-Control: no-store` on both responses), covering request-rate, failure, retry, lock, cursor-lag, replay-debt, and retention execution and alignment telemetry. See [lossless position-history ingestion](lossless-position-history-ingestion.md).
 
 ## Troubleshooting safe logs
 
