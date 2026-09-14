@@ -47,8 +47,11 @@ does not silently call the provider or start a synchronization job.
 ### GPS history administration and lossless reconciliation
 
 - Controlled history population, status, automatic maintenance, retention
-  planning, and bounded retention execution.
-  planning, and bounded retention execution. Lossless reconciliation adds durable per-vehicle completeness cursors, default-off continuous lanes with restart catch-up, daily 7-day and rolling 90-day replay generations, and a protected aggregate ingestion-status surface. See [lossless position-history ingestion](docs/lossless-position-history-ingestion.md).
+  planning, and bounded retention execution. Lossless reconciliation adds
+  durable per-vehicle completeness cursors, default-off continuous lanes with
+  restart catch-up, daily 7-day and rolling 90-day replay generations, and a
+  protected aggregate ingestion-status surface. See
+  [lossless position-history ingestion](docs/lossless-position-history-ingestion.md).
 - Revision-protected global business settings for timezone, minimum daily
   distance, position freshness, speeding, inactivity, and trip/stop policy.
 
@@ -268,7 +271,7 @@ configuration. Use the authoritative runbooks:
 - [Fleet map API](docs/fleet-map-api.md),
   [vehicle track API](docs/vehicle-track-api.md), and
   [historical track UI](docs/vehicle-track-map-ui.md).
- - [Lossless position-history ingestion](docs/lossless-position-history-ingestion.md) — completeness cursors, continuous reconciliation, replay generations, retention integration, and rollout telemetry.
+- [Lossless position-history ingestion](docs/lossless-position-history-ingestion.md) — completeness cursors, continuous reconciliation, replay generations, retention integration, and rollout telemetry.
 - [Trip/stop analytics](docs/trip-stop-analytics.md) and
   [fleet daily activity report](docs/fleet-daily-activity-report.md).
 - [Alert ingestion](docs/fleet-alert-ingestion.md) and
