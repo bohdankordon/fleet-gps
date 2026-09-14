@@ -30,6 +30,15 @@ export type PersistPositionHistoryReplayWindowResult = Readonly<{
   checkpointStatus: PositionBackfillStatus;
 }>;
 
+export type RetirePositionHistoryReplayPrefixInput = Readonly<{
+  runId: string;
+  leaseOwner: string;
+  checkpointId: string;
+  vehicleId: string;
+  expectedNextFrom: Date;
+  nextFrom: Date;
+}>;
+
 export type ClaimPositionHistoryReplayRunInput = Readonly<{
   runId: string;
   leaseOwner: string;
@@ -71,4 +80,5 @@ export interface PositionHistoryReplayRepository {
   listEligibleVehicles(): Promise<readonly PositionHistoryReplayVehicle[]>;
   findMappedVehicle(vehicleId: string): Promise<PositionHistoryReplayVehicle | null>;
   persistReplayWindow(input: PersistPositionHistoryReplayWindowInput): Promise<PersistPositionHistoryReplayWindowResult>;
+  retireReplayCheckpointPrefix(input: RetirePositionHistoryReplayPrefixInput): Promise<PositionBackfillStatus>;
 }

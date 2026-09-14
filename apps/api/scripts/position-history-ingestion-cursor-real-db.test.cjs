@@ -111,38 +111,38 @@ test("real PostgreSQL cursor contract is conservative, idempotent, atomic, and r
     const ensuredAgain = await service.ensureCursor(vehicleId, new Date("2026-09-20T12:00:00Z"));
     assert.equal(ensuredAgain.coverageFrom.toISOString(), t0.toISOString());
     assert.equal(ensuredAgain.confirmedThrough.toISOString(), t0.toISOString());
-    assert.deepEqual(await service.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [] }), { inserted: 0, duplicates: 0 });
+    assert.deepEqual(await service.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [] }), { inserted: 0, duplicates: 0 });
 
     const duplicateLive = candidate({ observedAt: new Date("2026-06-10T02:01:00Z"), source: PositionIngestionSource.FLEET_SYNC, latitude: 49.21 });
     await prisma.vehiclePositionObservation.create({ data: { vehicleId, ...duplicateLive } });
     const duplicateHistorical = { ...duplicateLive, ingestionSource: PositionIngestionSource.HISTORICAL_BACKFILL };
     const normal = candidate({ observedAt: new Date("2026-06-10T02:07:00Z"), latitude: 49.22 });
     const overlap = candidate({ observedAt: new Date("2026-06-10T02:03:00Z"), latitude: 49.23 });
-    const persisted = await service.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t1, nextConfirmedThrough: t2, candidates: [duplicateHistorical, normal, overlap] });
+    const persisted = await service.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t1, nextConfirmedThrough: t2, candidates: [duplicateHistorical, normal, overlap] });
     assert.deepEqual(persisted, { inserted: 2, duplicates: 1 });
     assert.ok(overlap.observedAt < t1);
     assert.equal((await prisma.vehiclePositionObservation.findUnique({ where: { vehicleId_fixFingerprint: { vehicleId, fixFingerprint: duplicateLive.fixFingerprint } } })).ingestionSource, PositionIngestionSource.FLEET_SYNC);
 
     const staleOnly = candidate({ observedAt: new Date("2026-06-10T02:11:00Z"), latitude: 49.24 });
-    await assert.rejects(service.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t1, nextConfirmedThrough: t3, candidates: [staleOnly] }), PositionHistoryIngestionCursorStaleProgressError);
+    await assert.rejects(service.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t1, nextConfirmedThrough: t3, candidates: [staleOnly] }), PositionHistoryIngestionCursorStaleProgressError);
     assert.equal(await prisma.vehiclePositionObservation.count({ where: { vehicleId, fixFingerprint: staleOnly.fixFingerprint } }), 0);
 
     const invalid = { ...candidate({ observedAt: new Date("2026-06-10T02:12:00Z"), latitude: 49.25 }), fixFingerprint: "invalid" };
-    await assert.rejects(service.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t2, nextConfirmedThrough: t3, candidates: [invalid] }));
+    await assert.rejects(service.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t2, nextConfirmedThrough: t3, candidates: [invalid] }));
     assert.equal((await service.findCursor(vehicleId)).confirmedThrough.toISOString(), t2.toISOString());
 
     const raceA = candidate({ observedAt: new Date("2026-06-10T02:13:00Z"), latitude: 49.26 });
     const raceB = candidate({ observedAt: new Date("2026-06-10T02:14:00Z"), latitude: 49.27 });
     const race = await Promise.allSettled([
-      service.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t2, nextConfirmedThrough: t3, candidates: [raceA] }),
-      service.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t2, nextConfirmedThrough: t3, candidates: [raceB] }),
+      service.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t2, nextConfirmedThrough: t3, candidates: [raceA] }),
+      service.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t2, nextConfirmedThrough: t3, candidates: [raceB] }),
     ]);
     assert.equal(race.filter(({ status }) => status === "fulfilled").length, 1);
     assert.equal(race.filter(({ status, reason }) => status === "rejected" && reason instanceof PositionHistoryIngestionCursorStaleProgressError).length, 1);
     assert.equal(await prisma.vehiclePositionObservation.count({ where: { vehicleId, fixFingerprint: { in: [raceA.fixFingerprint, raceB.fixFingerprint] } } }), 1);
     assert.equal((await service.findCursor(vehicleId)).confirmedThrough.toISOString(), t3.toISOString());
 
-    await assert.rejects(service.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t3, nextConfirmedThrough: new Date(t0.getTime() - 1), candidates: [] }), PositionHistoryIngestionCursorInvalidAdvanceError);
+    await assert.rejects(service.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t3, nextConfirmedThrough: new Date(t0.getTime() - 1), candidates: [] }), PositionHistoryIngestionCursorInvalidAdvanceError);
     await assert.rejects(service.ensureCursor(crypto.randomUUID(), fixedNow), PositionHistoryIngestionCursorVehicleNotFoundError);
   } finally {
     await cleanup();

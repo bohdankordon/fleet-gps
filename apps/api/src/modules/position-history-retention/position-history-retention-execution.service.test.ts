@@ -13,12 +13,13 @@ const actor = buildUserActor("00000000-0000-4000-8000-000000000001", "admin");
 
 function facts(fullyObsolete: number, candidates: number): PositionHistoryRetentionFacts {
   return {
+    policyReconciliation: { cursorFloorCandidates: 0, replayCheckpointCandidates: 0 },
     observations: { total: candidates, olderThanPolicyCutoff: candidates, atOrAfterPolicyCutoff: 0, oldestObservedAt: null, newestObservedAt: null, vehiclesWithObservationsOlderThanCutoff: candidates > 0 ? 1 : 0, executableObservationCandidates: candidates },
     checkpoints: { total: fullyObsolete, fullyObsolete, boundaryOverlap: 0, protected: 0, fullyObsoleteByStatus: { pending: fullyObsolete, running: 0, completed: 0 }, boundaryOverlapByStatus: { pending: 0, running: 0, completed: 0 }, protectedByStatus: { pending: 0, running: 0, completed: 0 }, endingExactlyAtCutoff: 0, startingExactlyAtCutoff: 0, strictlyCrossingCutoff: 0 },
   };
 }
 
-type Scenario = Readonly<{ active?: number; fullyObsolete?: number; candidates?: number; deleteCheckpoints?: (limit: number, remaining: number) => number | Promise<number>; deleteObservations?: (limit: number, remaining: number) => number | Promise<number> }>;
+type Scenario = Readonly<{ active?: number; fullyObsolete?: number; candidates?: number; advancedCursorFloors?: number; advancedReplayCheckpoints?: number; completedReplayCheckpoints?: number; reconciliationFailure?: Error; deleteCheckpoints?: (limit: number, remaining: number) => number | Promise<number>; deleteObservations?: (limit: number, remaining: number) => number | Promise<number> }>;
 function fixture(scenario: Scenario = {}, auditOverride?: { appendWithDatabase(event: unknown): Promise<unknown> }) {
   const events: string[] = [];
   const auditEvents: unknown[] = [];
@@ -27,6 +28,11 @@ function fixture(scenario: Scenario = {}, auditOverride?: { appendWithDatabase(e
   const repository: PositionHistoryRetentionRepository = {
     inspect: async () => { events.push("inspect"); return facts(remainingCheckpoints, remainingCandidates); },
     countActiveDurableRuns: async () => { events.push("active"); return scenario.active ?? 0; },
+    reconcilePolicyFloor: async () => {
+      events.push("reconcile");
+      if (scenario.reconciliationFailure) throw scenario.reconciliationFailure;
+      return { advancedCursorFloors: scenario.advancedCursorFloors ?? 0, advancedReplayCheckpoints: scenario.advancedReplayCheckpoints ?? 0, completedReplayCheckpoints: scenario.completedReplayCheckpoints ?? 0 };
+    },
     deleteFullyObsoleteCheckpointBatch: async (_policyCutoff, limit) => { events.push(`delete-cp:${limit}`); const deleted = scenario.deleteCheckpoints ? await scenario.deleteCheckpoints(limit, remainingCheckpoints) : Math.min(limit, remainingCheckpoints); remainingCheckpoints -= deleted; return deleted; },
     countFullyObsoleteCheckpoints: async () => { events.push("count-cp"); return remainingCheckpoints; },
     deleteExecutableObservationBatch: async (_policyCutoff, limit) => { events.push(`delete-obs:${limit}`); const deleted = scenario.deleteObservations ? await scenario.deleteObservations(limit, remainingCandidates) : Math.min(limit, remainingCandidates); remainingCandidates -= deleted; return deleted; },
@@ -40,9 +46,32 @@ function fixture(scenario: Scenario = {}, auditOverride?: { appendWithDatabase(e
 test("fresh no-work execution performs no destructive repository call", async () => {
   const state = fixture();
   const result = await state.service.executeRetention(request);
-  assert.deepEqual(result, { canonicalAnchor: anchor.toISOString(), policyCutoff: cutoff.toISOString(), deletedCheckpoints: 0, deletedObservations: 0, remainingFullyObsoleteCheckpoints: 0, remainingExecutableObservationCandidates: 0, stoppedByBudget: false, noWork: true });
+  assert.deepEqual(result, { canonicalAnchor: anchor.toISOString(), policyCutoff: cutoff.toISOString(), advancedCursorFloors: 0, advancedReplayCheckpoints: 0, completedReplayCheckpoints: 0, deletedCheckpoints: 0, deletedObservations: 0, remainingFullyObsoleteCheckpoints: 0, remainingExecutableObservationCandidates: 0, stoppedByBudget: false, noWork: true });
   assert.equal(state.events.some((event) => event.startsWith("delete-")), false);
-  assert.deepEqual(state.events, ["lock", "active", "inspect", "count-cp", "count-obs", "unlock"]);
+  assert.deepEqual(state.events, ["lock", "active", "inspect", "reconcile", "count-cp", "count-obs", "unlock"]);
+});
+
+test("policy reconciliation commits before checkpoint and observation deletion", async () => {
+  const state = fixture({ fullyObsolete: 1, candidates: 1, advancedCursorFloors: 2, advancedReplayCheckpoints: 3, completedReplayCheckpoints: 1 });
+  const result = await state.service.executeRetention(request);
+  assert.deepEqual({ cursors: result.advancedCursorFloors, replay: result.advancedReplayCheckpoints, completed: result.completedReplayCheckpoints }, { cursors: 2, replay: 3, completed: 1 });
+  assert.ok(state.events.indexOf("reconcile") < state.events.findIndex((event) => event.startsWith("delete-cp")));
+  assert.ok(state.events.indexOf("reconcile") < state.events.findIndex((event) => event.startsWith("delete-obs")));
+});
+
+test("policy reconciliation failure prevents every destructive deletion", async () => {
+  const failure = new Error("policy reconciliation failure");
+  const state = fixture({ fullyObsolete: 1, candidates: 1, reconciliationFailure: failure });
+  await assert.rejects(state.service.executeRetention(request), failure);
+  assert.equal(state.events.some((event) => event.startsWith("delete-")), false);
+  assert.deepEqual(state.events, ["lock", "active", "inspect", "reconcile", "unlock"]);
+});
+
+test("deletion failure after policy reconciliation leaves the conservative floor transition in place", async () => {
+  const state = fixture({ fullyObsolete: 1, advancedCursorFloors: 1, deleteCheckpoints: () => { throw new Error("deletion failure"); } });
+  await assert.rejects(state.service.executeRetention(request), /deletion failure/);
+  assert.ok(state.events.indexOf("reconcile") < state.events.findIndex((event) => event.startsWith("delete-cp")));
+  assert.equal(state.events.includes("unlock"), true);
 });
 
 test("successful manual disposable deletion appends exactly one factual RETENTION_EXECUTED audit", async () => {
@@ -217,7 +246,7 @@ test("manual and automatic paths contain only one destructive implementation and
   const source = readFileSync("src/modules/position-history-retention/position-history-retention.service.ts", "utf8");
   assert.equal((source.match(/deleteFullyObsoleteCheckpointBatch\(/g) ?? []).length, 1);
   assert.equal((source.match(/deleteExecutableObservationBatch\(/g) ?? []).length, 1);
-  assert.equal((source.match(/executeBoundedDestructivePass\(plan\)/g) ?? []).length, 1);
+  assert.equal((source.match(/executeBoundedDestructivePass\(plan, policyReconciliation\)/g) ?? []).length, 1);
   assert.match(source, /POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET/);
   assert.match(source, /POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET/);
 });

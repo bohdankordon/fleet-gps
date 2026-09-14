@@ -33,7 +33,10 @@ export class PositionHistoryRetentionMaintenanceService {
     if (this.config.positionHistoryRetention?.enabled !== true) return Object.freeze({ outcome: "DISABLED", result: null });
 
     const precheck = await this.retention.getRetentionPlan();
-    if (precheck.checkpoints.fullyObsolete === 0 && precheck.observations.executableObservationCandidates === 0) {
+    if (precheck.policyReconciliation.cursorFloorCandidates === 0
+      && precheck.policyReconciliation.replayCheckpointCandidates === 0
+      && precheck.checkpoints.fullyObsolete === 0
+      && precheck.observations.executableObservationCandidates === 0) {
       return Object.freeze({ outcome: "NO_WORK", result: null });
     }
 
@@ -53,7 +56,7 @@ export class PositionHistoryRetentionMaintenanceService {
 
   private logResult(result: PositionHistoryAutomaticRetentionOutcome): void {
     if (result.outcome === "EXECUTED" && result.result !== null) {
-      this.logger.log(`Automatic position-history retention completed: checkpoints=${result.result.deletedCheckpoints}, observations=${result.result.deletedObservations}, stoppedByBudget=${result.result.stoppedByBudget}.`);
+      this.logger.log(`Automatic position-history retention completed: cursorFloors=${result.result.advancedCursorFloors}, replayCheckpoints=${result.result.advancedReplayCheckpoints}, replayCompleted=${result.result.completedReplayCheckpoints}, checkpoints=${result.result.deletedCheckpoints}, observations=${result.result.deletedObservations}, stoppedByBudget=${result.result.stoppedByBudget}.`);
     } else if (result.outcome === "NO_WORK") this.logger.log("Automatic position-history retention found no work.");
     else if (result.outcome === "LOCK_UNAVAILABLE") this.logger.log("Automatic position-history retention skipped because the shared mutation lock is busy.");
     else if (result.outcome === "ACTIVE_POPULATION") this.logger.log("Automatic position-history retention skipped because a durable population run is active.");

@@ -81,3 +81,25 @@ test("replay membership discovery is deterministic and excludes provider-disable
   assert.deepEqual(await repository.listEligibleVehicles(), [{ vehicleId: "123e4567-e89b-42d3-a456-426614174001", externalDeviceId: 11, disabled: false }]);
   assert.deepEqual(calls, [{ where: { disabled: false }, orderBy: { id: "asc" }, select: { id: true, externalDeviceId: true, disabled: true } }]);
 });
+
+test("policy retirement uses the same lease and checkpoint CAS fences without observation persistence", async () => {
+  let query = "";
+  const client = { $queryRaw: async (sql: { strings?: readonly string[] }) => {
+    query = sql.strings?.join("?") ?? "";
+    return [{ status: "RUNNING" }];
+  } } as unknown as PrismaClient;
+  const repository = new PrismaPositionHistoryReplayRepository({ getClient: () => client } as DatabaseService);
+  const status = await repository.retireReplayCheckpointPrefix({
+    runId: "123e4567-e89b-42d3-a456-426614174000",
+    leaseOwner: "123e4567-e89b-42d3-a456-426614174001",
+    checkpointId: "123e4567-e89b-42d3-a456-426614174002",
+    vehicleId: "123e4567-e89b-42d3-a456-426614174003",
+    expectedNextFrom: rangeFrom,
+    nextFrom: new Date(rangeFrom.getTime() + 1),
+  });
+  assert.equal(status, "RUNNING");
+  assert.match(query, /UPDATE "position_history_replay_checkpoints"/);
+  assert.match(query, /run\."lease_owner"/);
+  assert.match(query, /checkpoint\."next_from" =/);
+  assert.doesNotMatch(query, /vehicle_position_observations|confirmed_through|coverage_from/);
+});

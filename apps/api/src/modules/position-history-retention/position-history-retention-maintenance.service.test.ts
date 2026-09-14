@@ -11,11 +11,12 @@ import { PositionHistoryRetentionExecutionError, type PositionHistoryRetentionEx
 const anchor = "2026-08-11T02:00:00.000Z";
 const cutoff = "2026-05-13T02:00:00.000Z";
 
-function plan(fullyObsolete = 1, candidates = 2): PositionHistoryRetentionPlan {
+function plan(fullyObsolete = 1, candidates = 2, cursorFloors = 0, replayCheckpoints = 0): PositionHistoryRetentionPlan {
   return {
     policyDays: 90,
     canonicalAnchor: anchor,
     policyCutoff: cutoff,
+    policyReconciliation: { cursorFloorCandidates: cursorFloors, replayCheckpointCandidates: replayCheckpoints },
     observations: { total: candidates, olderThanPolicyCutoff: candidates, atOrAfterPolicyCutoff: 0, oldestObservedAt: null, newestObservedAt: null, vehiclesWithObservationsOlderThanCutoff: candidates > 0 ? 1 : 0, executableObservationCandidates: candidates },
     checkpoints: { total: fullyObsolete, fullyObsolete, boundaryOverlap: 0, protected: 0, fullyObsoleteByStatus: { pending: 0, running: 0, completed: fullyObsolete }, boundaryOverlapByStatus: { pending: 0, running: 0, completed: 0 }, protectedByStatus: { pending: 0, running: 0, completed: 0 }, endingExactlyAtCutoff: 0, startingExactlyAtCutoff: 0, strictlyCrossingCutoff: 0 },
     safety: { hasBoundaryOverlap: false, boundaryOverlapCheckpointCount: 0, policyEligibleObservationCount: candidates, destructiveExecutionApproved: false },
@@ -23,7 +24,7 @@ function plan(fullyObsolete = 1, candidates = 2): PositionHistoryRetentionPlan {
 }
 
 function execution(overrides: Partial<PositionHistoryRetentionExecutionResult> = {}): PositionHistoryRetentionExecutionResult {
-  return { canonicalAnchor: anchor, policyCutoff: cutoff, deletedCheckpoints: 1, deletedObservations: 2, remainingFullyObsoleteCheckpoints: 0, remainingExecutableObservationCandidates: 0, stoppedByBudget: false, noWork: false, ...overrides };
+  return { canonicalAnchor: anchor, policyCutoff: cutoff, advancedCursorFloors: 0, advancedReplayCheckpoints: 0, completedReplayCheckpoints: 0, deletedCheckpoints: 1, deletedObservations: 2, remainingFullyObsoleteCheckpoints: 0, remainingExecutableObservationCandidates: 0, stoppedByBudget: false, noWork: false, ...overrides };
 }
 
 function fixture(options: Readonly<{ enabled?: boolean; precheck?: PositionHistoryRetentionPlan; result?: PositionHistoryRetentionExecutionResult; failure?: Error }> = {}) {
@@ -58,6 +59,13 @@ test("read-only precheck avoids the mutation lock when there is clearly no work"
   assert.deepEqual(await item.service.evaluate(), { outcome: "NO_WORK", result: null });
   assert.equal(item.prechecks(), 1);
   assert.equal(item.executions(), 0);
+});
+
+test("policy-floor candidates trigger locked reconciliation even without deletion candidates", async () => {
+  const result = execution({ advancedCursorFloors: 1, advancedReplayCheckpoints: 2, completedReplayCheckpoints: 1, deletedCheckpoints: 0, deletedObservations: 0 });
+  const item = fixture({ precheck: plan(0, 0, 1, 2), result });
+  assert.deepEqual(await item.service.evaluate(), { outcome: "EXECUTED", result });
+  assert.equal(item.executions(), 1);
 });
 
 test("one scheduled evaluation invokes the shared bounded core at most once even when budget stops it", async () => {

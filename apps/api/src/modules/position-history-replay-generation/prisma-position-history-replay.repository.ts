@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PositionBackfillStatus, PositionHistoryReplayKind, PositionHistoryReplayRunStatus, Prisma, type PositionHistoryReplayCheckpoint, type PositionHistoryReplayRun } from "../../generated/prisma/client";
 import { DatabaseService } from "../database/database.service";
 import { PositionHistoryReplayCheckpointInitializationError, PositionHistoryReplayCheckpointStaleProgressError, PositionHistoryReplayGenerationConflictError, PositionHistoryReplayInputError, PositionHistoryReplayRunNotFoundError } from "./position-history-replay-generation.errors";
-import type { EnsurePositionHistoryReplayCheckpointInput, EnsurePositionHistoryReplayRunInput, PersistPositionHistoryReplayWindowInput, PersistPositionHistoryReplayWindowResult, PositionHistoryReplayRepository, PositionHistoryReplayVehicle } from "./position-history-replay-generation.types";
+import type { EnsurePositionHistoryReplayCheckpointInput, EnsurePositionHistoryReplayRunInput, PersistPositionHistoryReplayWindowInput, PersistPositionHistoryReplayWindowResult, PositionHistoryReplayRepository, PositionHistoryReplayVehicle, RetirePositionHistoryReplayPrefixInput } from "./position-history-replay-generation.types";
 
 const transactionTimeoutMs = 30_000;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -174,5 +174,32 @@ export class PrismaPositionHistoryReplayRepository implements PositionHistoryRep
       if (advanced.length !== 1) throw new PositionHistoryReplayCheckpointStaleProgressError();
       return Object.freeze({ inserted, duplicates: rows.length - inserted, checkpointStatus: advanced[0]!.status });
     }, { timeout: transactionTimeoutMs });
+  }
+
+  public async retireReplayCheckpointPrefix(input: RetirePositionHistoryReplayPrefixInput): Promise<PositionBackfillStatus> {
+    if (!uuid.test(input.runId) || !uuid.test(input.leaseOwner) || !uuid.test(input.checkpointId) || !uuid.test(input.vehicleId)
+      || !finiteDate(input.expectedNextFrom) || !finiteDate(input.nextFrom) || input.nextFrom <= input.expectedNextFrom) throw new PositionHistoryReplayInputError();
+
+    const advanced = await this.database.getClient().$queryRaw<Array<{ status: PositionBackfillStatus }>>(Prisma.sql`
+      UPDATE "position_history_replay_checkpoints" AS checkpoint
+      SET "next_from" = ${input.nextFrom},
+          "status" = CASE WHEN ${input.nextFrom} = checkpoint."range_to" THEN 'COMPLETED'::"PositionBackfillStatus" ELSE 'RUNNING'::"PositionBackfillStatus" END,
+          "updated_at" = CURRENT_TIMESTAMP
+      FROM "position_history_replay_runs" AS run
+      WHERE checkpoint."id" = ${input.checkpointId}::uuid
+        AND checkpoint."run_id" = ${input.runId}::uuid
+        AND checkpoint."vehicle_id" = ${input.vehicleId}::uuid
+        AND checkpoint."next_from" = ${input.expectedNextFrom}
+        AND checkpoint."status" <> 'COMPLETED'
+        AND checkpoint."range_from" <= ${input.expectedNextFrom}
+        AND ${input.nextFrom} <= checkpoint."range_to"
+        AND run."id" = checkpoint."run_id"
+        AND run."status" = 'RUNNING'
+        AND run."lease_owner" = ${input.leaseOwner}::uuid
+        AND run."lease_expires_at" > CURRENT_TIMESTAMP
+      RETURNING checkpoint."status"
+    `);
+    if (advanced.length !== 1) throw new PositionHistoryReplayCheckpointStaleProgressError();
+    return advanced[0]!.status;
   }
 }

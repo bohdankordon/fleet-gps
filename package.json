@@ -81,6 +81,7 @@
     "position-history:retention-plan-real-db-test": "npm --workspace @taxi-gps/api run position-history:retention-plan-real-db-test",
     "position-history:retention-execution-real-db-test": "npm --workspace @taxi-gps/api run position-history:retention-execution-real-db-test",
     "position-history:retention-maintenance-real-db-test": "npm --workspace @taxi-gps/api run position-history:retention-maintenance-real-db-test",
+    "position-history:retention-completeness-real-db-test": "powershell -NoProfile -ExecutionPolicy Bypass -File ./test-db.ps1 api-test apps/api/scripts/position-history-retention-completeness-real-db.test.cjs",
     "position-history:maintenance-real-db-test": "npm --workspace @taxi-gps/api run position-history:maintenance-real-db-test",
     "position-history:trip-analysis": "npm --workspace @taxi-gps/api run position-history:trip-analysis --",
     "position-history:trip-analysis-test": "npm --workspace @taxi-gps/api run position-history:trip-analysis-test",

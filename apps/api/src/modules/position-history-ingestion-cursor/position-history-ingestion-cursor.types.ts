@@ -10,6 +10,7 @@ export type VehicleHistoryIngestionCursor = Readonly<{
 
 export type PersistContiguousHistoryResultInput = Readonly<{
   vehicleId: string;
+  expectedCoverageFrom: Date;
   expectedConfirmedThrough: Date;
   nextConfirmedThrough: Date;
   candidates: readonly PositionHistoryCandidate[];

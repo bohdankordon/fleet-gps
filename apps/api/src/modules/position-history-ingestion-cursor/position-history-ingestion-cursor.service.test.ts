@@ -30,7 +30,7 @@ test("service preserves the repository contract without coupling fetch range to 
     findCursor: async () => cursor(),
     persistContiguousResult: async (input) => { captured = input; return { inserted: 1, duplicates: 0 }; },
   };
-  const input = { vehicleId, expectedConfirmedThrough: floor, nextConfirmedThrough: new Date("2026-06-09T02:05:00Z"), candidates: [overlap] } as const;
+  const input = { vehicleId, expectedCoverageFrom: floor, expectedConfirmedThrough: floor, nextConfirmedThrough: new Date("2026-06-09T02:05:00Z"), candidates: [overlap] } as const;
   assert.deepEqual(await new PositionHistoryIngestionCursorService(repository).persistContiguousResult(input), { inserted: 1, duplicates: 0 });
   assert.equal(captured, input);
   assert.ok(overlap.observedAt < input.expectedConfirmedThrough);

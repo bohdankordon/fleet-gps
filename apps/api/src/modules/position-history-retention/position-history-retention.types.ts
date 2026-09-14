@@ -7,6 +7,10 @@ export type PositionHistoryRetentionStatusCounts = Readonly<{
 }>;
 
 export type PositionHistoryRetentionFacts = Readonly<{
+  policyReconciliation: Readonly<{
+    cursorFloorCandidates: number;
+    replayCheckpointCandidates: number;
+  }>;
   observations: Readonly<{
     total: number;
     olderThanPolicyCutoff: number;
@@ -33,6 +37,7 @@ export type PositionHistoryRetentionFacts = Readonly<{
 export interface PositionHistoryRetentionRepository {
   inspect(policyCutoff: Date): Promise<PositionHistoryRetentionFacts>;
   countActiveDurableRuns(): Promise<number>;
+  reconcilePolicyFloor(policyCutoff: Date): Promise<PositionHistoryPolicyReconciliationResult>;
   deleteFullyObsoleteCheckpointBatch(policyCutoff: Date, limit: number): Promise<number>;
   countFullyObsoleteCheckpoints(policyCutoff: Date): Promise<number>;
   deleteExecutableObservationBatch(policyCutoff: Date, limit: number): Promise<number>;
@@ -45,6 +50,7 @@ export type PositionHistoryRetentionPlan = Readonly<{
   policyDays: number;
   canonicalAnchor: string;
   policyCutoff: string;
+  policyReconciliation: PositionHistoryRetentionFacts["policyReconciliation"];
   observations: Readonly<{
     total: number;
     olderThanPolicyCutoff: number;
@@ -87,12 +93,21 @@ export type PositionHistoryRetentionExecutionRequest = Readonly<{
 export type PositionHistoryRetentionExecutionResult = Readonly<{
   canonicalAnchor: string;
   policyCutoff: string;
+  advancedCursorFloors: number;
+  advancedReplayCheckpoints: number;
+  completedReplayCheckpoints: number;
   deletedCheckpoints: number;
   deletedObservations: number;
   remainingFullyObsoleteCheckpoints: number;
   remainingExecutableObservationCandidates: number;
   stoppedByBudget: boolean;
   noWork: boolean;
+}>;
+
+export type PositionHistoryPolicyReconciliationResult = Readonly<{
+  advancedCursorFloors: number;
+  advancedReplayCheckpoints: number;
+  completedReplayCheckpoints: number;
 }>;
 
 export type PositionHistoryAutomaticRetentionOutcome = Readonly<{

@@ -6,6 +6,7 @@ import { PositionHistoryHistoricalWindowService } from "../position-history-hist
 import { recordedPositionHistoryHistoricalWindowFailureAccounting } from "../position-history-historical-window/position-history-historical-window-failure-diagnostics";
 import { PositionHistoryAutomaticRequestPacer, POSITION_HISTORY_AUTOMATIC_REQUEST_START_GAP_MS } from "../position-history-horizon-execution";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
+import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
 import { POSITION_HISTORY_REPLAY_REPOSITORY, PositionHistoryReplayRunStateService, type PositionHistoryReplayRepository } from "../position-history-replay-generation";
 import { POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS } from "./position-history-continuous-ingestion.constants";
 import { POSITION_HISTORY_CONTINUOUS_CLOCK, POSITION_HISTORY_CONTINUOUS_SLEEPER } from "./position-history-continuous-ingestion.tokens";
@@ -18,7 +19,7 @@ import { positionHistoryReplayCheckpoints, positionHistoryReplayTarget } from ".
 type MutableResult = { -readonly [K in keyof PositionHistoryReplayQuantumResult]: PositionHistoryReplayQuantumResult[K] };
 
 function emptyResult(kind: PositionHistoryReplayKind): MutableResult {
-  return { kind, outcome: "NO_WORK", generationAnchor: null, requests: 0, providerRows: 0, inserted: 0, duplicates: 0, invalid: 0, retries: 0, rateLimitResponses: 0, checkpointWindowsCompleted: 0, checkpointsRemaining: null };
+  return { kind, outcome: "NO_WORK", generationAnchor: null, requests: 0, providerRows: 0, inserted: 0, duplicates: 0, invalid: 0, retries: 0, rateLimitResponses: 0, checkpointWindowsCompleted: 0, policyRetiredPrefixes: 0, checkpointsRemaining: null };
 }
 
 @Injectable()
@@ -55,16 +56,17 @@ export class PositionHistoryReplayWorkerService {
     const now = this.now();
     const safeNow = new Date(now.getTime() - POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS);
     const vehicles = await this.repository.listEligibleVehicles();
-    if (vehicles.length === 0) return Object.freeze(result);
-
-    const target = positionHistoryReplayTarget(kind, safeNow);
-    await this.repository.ensureRun(target);
+    if (vehicles.length > 0) {
+      const target = positionHistoryReplayTarget(kind, safeNow);
+      await this.repository.ensureRun(target);
+    }
     const candidate = await this.state.findClaimable(now, kind);
     if (candidate === null) return Object.freeze(result);
     result.generationAnchor = new Date(candidate.generationAnchor.getTime());
     if ((this.nextEligible.get(candidate.id) ?? 0) > now.getTime()) return Object.freeze(result);
 
     if (await this.repository.countCheckpoints(candidate.id) === 0) {
+      if (vehicles.length === 0) return Object.freeze(result);
       await this.repository.ensureCheckpoints(candidate.id, positionHistoryReplayCheckpoints(candidate, vehicles));
     }
 
@@ -84,6 +86,22 @@ export class PositionHistoryReplayWorkerService {
       const checkpoint = (await this.repository.listIncompleteCheckpoints(claimed.id, 1))[0];
       if (checkpoint === undefined) {
         result.outcome = await this.state.completeRun({ runId: claimed.id, leaseOwner, now: this.now() }) ? "COMPLETED_RUN" : "STALE";
+        return Object.freeze(result);
+      }
+      const effectiveNextFrom = new Date(Math.min(Math.max(checkpoint.nextFrom.getTime(), positionHistoryPolicyFloor(now).getTime()), checkpoint.rangeTo.getTime()));
+      if (effectiveNextFrom.getTime() > checkpoint.nextFrom.getTime()) {
+        await this.repository.retireReplayCheckpointPrefix({
+          runId: claimed.id,
+          leaseOwner,
+          checkpointId: checkpoint.id,
+          vehicleId: checkpoint.vehicleId,
+          expectedNextFrom: checkpoint.nextFrom,
+          nextFrom: effectiveNextFrom,
+        });
+        result.policyRetiredPrefixes += 1;
+        result.checkpointsRemaining = await this.repository.countIncompleteCheckpoints(claimed.id);
+        if (result.checkpointsRemaining === 0) result.outcome = await this.state.completeRun({ runId: claimed.id, leaseOwner, now: this.now() }) ? "COMPLETED_RUN" : "STALE";
+        else result.outcome = await this.state.yieldRun({ runId: claimed.id, leaseOwner, now: this.now() }) ? "YIELDED" : "STALE";
         return Object.freeze(result);
       }
       const vehicle = await this.repository.findMappedVehicle(checkpoint.vehicleId);

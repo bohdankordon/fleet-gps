@@ -5,6 +5,7 @@ import { recordedPositionHistoryHistoricalWindowFailureAccounting } from "../pos
 import { PositionHistoryIngestionCursorService, type VehicleHistoryIngestionCursor } from "../position-history-ingestion-cursor";
 import { PositionHistoryAutomaticRequestPacer } from "../position-history-horizon-execution";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
+import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
 import { POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS, POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS, POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE, POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS } from "./position-history-continuous-ingestion.constants";
 import { contiguousBacklogRange, recentTailRange } from "./position-history-continuous-ingestion-planning";
 import { POSITION_HISTORY_CONTINUOUS_CLOCK, POSITION_HISTORY_CONTINUOUS_REPOSITORY, POSITION_HISTORY_CONTINUOUS_SLEEPER } from "./position-history-continuous-ingestion.tokens";
@@ -136,8 +137,10 @@ export class PositionHistoryContinuousIngestionWorkerService {
 
   private async processRecent(externalDeviceId: number, cursor: VehicleHistoryIngestionCursor, safeNow: Date, beforeRequestStart: () => Promise<void>, result: MutableResult): Promise<void> {
     const range = recentTailRange(safeNow);
-    if (cursor.confirmedThrough.getTime() >= range.fetchFrom.getTime()) return;
-    const response = await this.historicalWindow.read({ externalDeviceId, from: range.fetchFrom, to: range.fetchTo }, { beforeRequestStart });
+    const activeFloor = Math.max(cursor.coverageFrom.getTime(), positionHistoryPolicyFloor(this.now()).getTime());
+    const fetchFrom = new Date(Math.max(range.fetchFrom.getTime(), activeFloor));
+    if (fetchFrom.getTime() >= range.fetchTo.getTime() || cursor.confirmedThrough.getTime() >= fetchFrom.getTime()) return;
+    const response = await this.historicalWindow.read({ externalDeviceId, from: fetchFrom, to: range.fetchTo }, { beforeRequestStart });
     const persisted = await this.repository.persistReplay(cursor.vehicleId, response.candidates);
     this.account(response, persisted, result);
     result.recentTailCompleted += 1;
@@ -147,10 +150,15 @@ export class PositionHistoryContinuousIngestionWorkerService {
   }
 
   private async processBacklog(externalDeviceId: number, disabled: boolean, cursor: VehicleHistoryIngestionCursor, safeNow: Date, beforeRequestStart: () => Promise<void>, result: MutableResult): Promise<void> {
+    const currentPolicyFloor = positionHistoryPolicyFloor(this.now());
+    if (cursor.coverageFrom.getTime() < currentPolicyFloor.getTime()) {
+      this.nextEligible.set(key("CONTIGUOUS_BACKLOG", cursor.vehicleId), this.now().getTime() + POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS);
+      return;
+    }
     const range = contiguousBacklogRange(cursor, safeNow);
     if (range === null) return;
     const response = await this.historicalWindow.read({ externalDeviceId, from: range.fetchFrom, to: range.fetchTo }, { beforeRequestStart });
-    const persisted = await this.cursors.persistContiguousResult({ vehicleId: cursor.vehicleId, expectedConfirmedThrough: range.expectedConfirmedThrough, nextConfirmedThrough: range.nextConfirmedThrough, candidates: response.candidates });
+    const persisted = await this.cursors.persistContiguousResult({ vehicleId: cursor.vehicleId, expectedCoverageFrom: range.expectedCoverageFrom, expectedConfirmedThrough: range.expectedConfirmedThrough, nextConfirmedThrough: range.nextConfirmedThrough, candidates: response.candidates });
     this.account(response, persisted, result);
     result.cursorAdvancements += 1;
     result.backlogCompleted += 1;

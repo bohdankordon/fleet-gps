@@ -33,16 +33,18 @@ export class PrismaPositionHistoryIngestionCursorRepository implements PositionH
   }
 
   public async persistContiguousResult(input: PersistContiguousHistoryResultInput): Promise<PersistContiguousHistoryResult> {
+    assertFiniteDate(input.expectedCoverageFrom);
     assertFiniteDate(input.expectedConfirmedThrough);
     assertFiniteDate(input.nextConfirmedThrough);
-    if (input.nextConfirmedThrough.getTime() <= input.expectedConfirmedThrough.getTime()) throw new PositionHistoryIngestionCursorInvalidAdvanceError();
+    if (input.expectedConfirmedThrough.getTime() < input.expectedCoverageFrom.getTime()
+      || input.nextConfirmedThrough.getTime() <= input.expectedConfirmedThrough.getTime()) throw new PositionHistoryIngestionCursorInvalidAdvanceError();
 
     const client = this.database.getClient();
     return client.$transaction(async (transaction) => {
       const rows: Prisma.VehiclePositionObservationCreateManyInput[] = input.candidates.map((candidate) => ({ vehicleId: input.vehicleId, ...candidate }));
       const inserted = rows.length === 0 ? 0 : (await transaction.vehiclePositionObservation.createMany({ data: rows, skipDuplicates: true })).count;
       const advanced = await transaction.vehicleHistoryIngestionCursor.updateMany({
-        where: { vehicleId: input.vehicleId, confirmedThrough: input.expectedConfirmedThrough },
+        where: { vehicleId: input.vehicleId, coverageFrom: input.expectedCoverageFrom, confirmedThrough: input.expectedConfirmedThrough },
         data: { confirmedThrough: input.nextConfirmedThrough },
       });
       if (advanced.count !== 1) throw new PositionHistoryIngestionCursorStaleProgressError();

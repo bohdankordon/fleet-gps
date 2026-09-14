@@ -5,6 +5,7 @@ import type { VehicleHistoryIngestionCursor } from "../position-history-ingestio
 export type PositionHistoryContinuousFetchProgressRange = Readonly<{
   fetchFrom: Date;
   fetchTo: Date;
+  expectedCoverageFrom: Date;
   expectedConfirmedThrough: Date;
   nextConfirmedThrough: Date;
 }>;
@@ -21,6 +22,7 @@ export function contiguousBacklogRange(cursor: VehicleHistoryIngestionCursor, sa
   return Object.freeze({
     fetchFrom: new Date(fetchFrom),
     fetchTo: new Date(next),
+    expectedCoverageFrom: new Date(cursor.coverageFrom.getTime()),
     expectedConfirmedThrough: new Date(confirmed),
     nextConfirmedThrough: new Date(next),
   });
