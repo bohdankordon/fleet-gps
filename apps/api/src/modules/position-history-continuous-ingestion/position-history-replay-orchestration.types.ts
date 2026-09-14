@@ -7,6 +7,11 @@ export type PositionHistoryReplayTarget = Readonly<{
   rangeTo: Date;
 }>;
 
+export type PositionHistoryReplayPressure = Readonly<{
+  due: boolean;
+  overdue: boolean;
+}>;
+
 export type PositionHistoryReplayQuantumResult = Readonly<{
   kind: PositionHistoryReplayKind;
   outcome: "NO_WORK" | "LOCK_UNAVAILABLE" | "COMPLETED_WINDOW" | "COMPLETED_RUN" | "YIELDED" | "FAILED" | "STALE";

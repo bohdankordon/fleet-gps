@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import { EquGpsHttpError, EquGpsRateLimitError } from "@taxi-gps/equgps";
 import { PositionHistoryReplayKind, type PositionHistoryReplayRun } from "../../generated/prisma/client";
-import { PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
+import { PositionHistoryHistoricalWindowOversizedError, PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
 import { recordedPositionHistoryHistoricalWindowFailureAccounting } from "../position-history-historical-window/position-history-historical-window-failure-diagnostics";
 import { PositionHistoryAutomaticRequestPacer, POSITION_HISTORY_AUTOMATIC_REQUEST_START_GAP_MS } from "../position-history-horizon-execution";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
@@ -11,10 +11,10 @@ import { POSITION_HISTORY_REPLAY_REPOSITORY, PositionHistoryReplayRunStateServic
 import { POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS } from "./position-history-continuous-ingestion.constants";
 import { POSITION_HISTORY_CONTINUOUS_CLOCK, POSITION_HISTORY_CONTINUOUS_SLEEPER } from "./position-history-continuous-ingestion.tokens";
 import type { PositionHistoryContinuousClock, PositionHistoryContinuousSleeper } from "./position-history-continuous-ingestion.types";
-import { POSITION_HISTORY_REPLAY_FAILURE_BACKOFF_MS, POSITION_HISTORY_REPLAY_HEARTBEAT_MS, POSITION_HISTORY_REPLAY_LEASE_DURATION_MS, POSITION_HISTORY_REPLAY_STABLE_FAILURE_BACKOFF_MS, POSITION_HISTORY_REPLAY_WINDOW_MS } from "./position-history-replay-orchestration.constants";
+import { POSITION_HISTORY_REPLAY_FAILURE_BACKOFF_MS, POSITION_HISTORY_REPLAY_HEARTBEAT_MS, POSITION_HISTORY_REPLAY_LEASE_DURATION_MS, POSITION_HISTORY_REPLAY_STABLE_FAILURE_BACKOFF_MS } from "./position-history-replay-orchestration.constants";
 import { POSITION_HISTORY_REPLAY_HEARTBEAT_SCHEDULER } from "./position-history-replay-orchestration.tokens";
-import type { PositionHistoryReplayHeartbeatScheduler, PositionHistoryReplayQuantumResult } from "./position-history-replay-orchestration.types";
-import { positionHistoryReplayCheckpoints, positionHistoryReplayTarget } from "./position-history-replay-planning";
+import type { PositionHistoryReplayHeartbeatScheduler, PositionHistoryReplayPressure, PositionHistoryReplayQuantumResult } from "./position-history-replay-orchestration.types";
+import { positionHistoryReplayAdaptiveWindowEnds, positionHistoryReplayCheckpoints, positionHistoryReplayTarget } from "./position-history-replay-planning";
 
 type MutableResult = { -readonly [K in keyof PositionHistoryReplayQuantumResult]: PositionHistoryReplayQuantumResult[K] };
 
@@ -36,6 +36,19 @@ export class PositionHistoryReplayWorkerService {
     @Inject(POSITION_HISTORY_CONTINUOUS_SLEEPER) private readonly sleeper: PositionHistoryContinuousSleeper,
     @Inject(POSITION_HISTORY_REPLAY_HEARTBEAT_SCHEDULER) private readonly heartbeatScheduler: PositionHistoryReplayHeartbeatScheduler,
   ) {}
+
+  public async inspectPressure(kind: PositionHistoryReplayKind): Promise<PositionHistoryReplayPressure> {
+    const now = this.now();
+    const target = positionHistoryReplayTarget(kind, new Date(now.getTime() - POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS));
+    const [current, candidate] = await Promise.all([
+      this.repository.findRun(kind, target.generationAnchor),
+      this.state.findClaimable(now, kind),
+    ]);
+    return Object.freeze({
+      due: current === null || candidate !== null,
+      overdue: candidate !== null && candidate.generationAnchor.getTime() < target.generationAnchor.getTime(),
+    });
+  }
 
   public async processKind(kind: PositionHistoryReplayKind): Promise<PositionHistoryReplayQuantumResult> {
     const result = emptyResult(kind);
@@ -112,11 +125,22 @@ export class PositionHistoryReplayWorkerService {
       }
 
       try {
-        const windowTo = new Date(Math.min(checkpoint.nextFrom.getTime() + POSITION_HISTORY_REPLAY_WINDOW_MS, checkpoint.rangeTo.getTime()));
-        const response = await this.historicalWindow.read(
-          { externalDeviceId: vehicle.externalDeviceId, from: checkpoint.nextFrom, to: windowTo },
-          { beforeRequestStart: async () => { await pacer.beforeRequestStart(); result.requests += 1; } },
-        );
+        const windowEnds = positionHistoryReplayAdaptiveWindowEnds(checkpoint.nextFrom, checkpoint.rangeTo);
+        let response: Awaited<ReturnType<PositionHistoryHistoricalWindowService["read"]>> | null = null;
+        let windowTo: Date | null = null;
+        for (let index = 0; index < windowEnds.length; index += 1) {
+          windowTo = windowEnds[index]!;
+          try {
+            response = await this.historicalWindow.read(
+              { externalDeviceId: vehicle.externalDeviceId, from: checkpoint.nextFrom, to: windowTo },
+              { beforeRequestStart: async () => { await pacer.beforeRequestStart(); result.requests += 1; } },
+            );
+            break;
+          } catch (error) {
+            if (!(error instanceof PositionHistoryHistoricalWindowOversizedError) || index === windowEnds.length - 1) throw error;
+          }
+        }
+        if (response === null || windowTo === null) throw new Error("Replay adaptive window produced no result.");
         const persisted = await this.repository.persistReplayWindow({
           runId: claimed.id,
           leaseOwner,

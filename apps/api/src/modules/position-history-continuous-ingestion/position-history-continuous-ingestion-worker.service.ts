@@ -1,13 +1,13 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { EquGpsHttpError, EquGpsRateLimitError } from "@taxi-gps/equgps";
-import { PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
+import { PositionHistoryHistoricalWindowOversizedError, PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
 import { recordedPositionHistoryHistoricalWindowFailureAccounting } from "../position-history-historical-window/position-history-historical-window-failure-diagnostics";
 import { PositionHistoryIngestionCursorService, type VehicleHistoryIngestionCursor } from "../position-history-ingestion-cursor";
 import { PositionHistoryAutomaticRequestPacer } from "../position-history-horizon-execution";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
 import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
-import { POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS, POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS, POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE, POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS } from "./position-history-continuous-ingestion.constants";
-import { contiguousBacklogRange, recentTailRange } from "./position-history-continuous-ingestion-planning";
+import { POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS, POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS, POSITION_HISTORY_CONTINUOUS_MAX_OPPORTUNITIES_PER_CYCLE, POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE, POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS } from "./position-history-continuous-ingestion.constants";
+import { contiguousBacklogRanges, recentTailRange } from "./position-history-continuous-ingestion-planning";
 import { POSITION_HISTORY_CONTINUOUS_CLOCK, POSITION_HISTORY_CONTINUOUS_REPOSITORY, POSITION_HISTORY_CONTINUOUS_SLEEPER } from "./position-history-continuous-ingestion.tokens";
 import type { PositionHistoryContinuousClock, PositionHistoryContinuousCycleResult, PositionHistoryContinuousIngestionRepository, PositionHistoryContinuousLane, PositionHistoryContinuousSleeper, PositionHistoryContinuousVehicleState } from "./position-history-continuous-ingestion.types";
 
@@ -37,8 +37,9 @@ export class PositionHistoryContinuousIngestionWorkerService {
     @Inject(POSITION_HISTORY_CONTINUOUS_SLEEPER) private readonly sleeper: PositionHistoryContinuousSleeper,
   ) {}
 
-  public async processCycle(maxOpportunities = POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE): Promise<PositionHistoryContinuousCycleResult> {
-    if (!Number.isSafeInteger(maxOpportunities) || maxOpportunities < 1 || maxOpportunities > POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE) throw new Error("Invalid continuous history opportunity budget.");
+  public async processCycle(maxOpportunities = POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE, preferredLanes?: readonly PositionHistoryContinuousLane[]): Promise<PositionHistoryContinuousCycleResult> {
+    if (!Number.isSafeInteger(maxOpportunities) || maxOpportunities < 1 || maxOpportunities > POSITION_HISTORY_CONTINUOUS_MAX_OPPORTUNITIES_PER_CYCLE
+      || (preferredLanes !== undefined && (preferredLanes.length !== maxOpportunities || preferredLanes.some((lane) => lane !== "RECENT_TAIL" && lane !== "CONTIGUOUS_BACKLOG")))) throw new Error("Invalid continuous history opportunity budget.");
     const now = this.now();
     const safeNow = new Date(now.getTime() - POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS);
     const vehicles = await this.repository.listMappedVehicles();
@@ -47,7 +48,7 @@ export class PositionHistoryContinuousIngestionWorkerService {
 
     const result = emptyResult();
     result.vehicles = states.length;
-    const plan = this.plan(states, now, safeNow, maxOpportunities);
+    const plan = this.plan(states, now, safeNow, maxOpportunities, preferredLanes);
     for (const work of plan) {
       if (this.now().getTime() < this.globalCooldownUntil) break;
       await this.processWork(work, safeNow, result);
@@ -55,7 +56,7 @@ export class PositionHistoryContinuousIngestionWorkerService {
     return Object.freeze(result);
   }
 
-  private plan(states: readonly PositionHistoryContinuousVehicleState[], now: Date, safeNow: Date, maxOpportunities: number): readonly Work[] {
+  private plan(states: readonly PositionHistoryContinuousVehicleState[], now: Date, safeNow: Date, maxOpportunities: number, preferredLanes?: readonly PositionHistoryContinuousLane[]): readonly Work[] {
     const tailFrom = recentTailRange(safeNow).fetchFrom.getTime();
     const due = (lane: PositionHistoryContinuousLane, state: PositionHistoryContinuousVehicleState): boolean => {
       const vehicleId = state.vehicle.vehicleId;
@@ -82,7 +83,7 @@ export class PositionHistoryContinuousIngestionWorkerService {
     let recentIndex = 0;
     let backlogIndex = 0;
     for (let slot = 0; slot < maxOpportunities; slot += 1) {
-      const preferRecent = slot % 2 === 0;
+      const preferRecent = preferredLanes === undefined ? slot % 2 === 0 : preferredLanes[slot] === "RECENT_TAIL";
       const recentState = recent[recentIndex];
       const backlogState = backlog[backlogIndex];
       if (preferRecent && recentState !== undefined) { plan.push({ lane: "RECENT_TAIL", state: recentState }); recentIndex += 1; }
@@ -155,16 +156,23 @@ export class PositionHistoryContinuousIngestionWorkerService {
       this.nextEligible.set(key("CONTIGUOUS_BACKLOG", cursor.vehicleId), this.now().getTime() + POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS);
       return;
     }
-    const range = contiguousBacklogRange(cursor, safeNow);
-    if (range === null) return;
-    const response = await this.historicalWindow.read({ externalDeviceId, from: range.fetchFrom, to: range.fetchTo }, { beforeRequestStart });
-    const persisted = await this.cursors.persistContiguousResult({ vehicleId: cursor.vehicleId, expectedCoverageFrom: range.expectedCoverageFrom, expectedConfirmedThrough: range.expectedConfirmedThrough, nextConfirmedThrough: range.nextConfirmedThrough, candidates: response.candidates });
-    this.account(response, persisted, result);
-    result.cursorAdvancements += 1;
-    result.backlogCompleted += 1;
-    const now = this.now().getTime();
-    if (disabled) this.nextEligible.set(key("CONTIGUOUS_BACKLOG", cursor.vehicleId), now + POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS);
-    else if (range.nextConfirmedThrough.getTime() >= safeNow.getTime()) this.nextEligible.set(key("CONTIGUOUS_BACKLOG", cursor.vehicleId), now + POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS);
+    const ranges = contiguousBacklogRanges(cursor, safeNow);
+    for (let index = 0; index < ranges.length; index += 1) {
+      const range = ranges[index]!;
+      try {
+        const response = await this.historicalWindow.read({ externalDeviceId, from: range.fetchFrom, to: range.fetchTo }, { beforeRequestStart });
+        const persisted = await this.cursors.persistContiguousResult({ vehicleId: cursor.vehicleId, expectedCoverageFrom: range.expectedCoverageFrom, expectedConfirmedThrough: range.expectedConfirmedThrough, nextConfirmedThrough: range.nextConfirmedThrough, candidates: response.candidates });
+        this.account(response, persisted, result);
+        result.cursorAdvancements += 1;
+        result.backlogCompleted += 1;
+        const now = this.now().getTime();
+        if (disabled) this.nextEligible.set(key("CONTIGUOUS_BACKLOG", cursor.vehicleId), now + POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS);
+        else if (range.nextConfirmedThrough.getTime() >= safeNow.getTime()) this.nextEligible.set(key("CONTIGUOUS_BACKLOG", cursor.vehicleId), now + POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS);
+        return;
+      } catch (error) {
+        if (!(error instanceof PositionHistoryHistoricalWindowOversizedError) || index === ranges.length - 1) throw error;
+      }
+    }
   }
 
   private account(response: Readonly<{ providerRows: number; candidates: readonly unknown[]; skippedInvalid: number; retries: number; rateLimitResponses: number }>, persisted: Readonly<{ inserted: number; duplicates: number }>, result: MutableResult): void {

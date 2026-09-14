@@ -8,6 +8,8 @@ const { assertTestDatabaseUrl } = require("./assert-test-database-url.cjs");
 const { PositionIngestionSource, PrismaClient } = require("../dist/generated/prisma/client");
 const { normalizePositionHistoryCandidate } = require("../dist/modules/position-history");
 const { PrismaPositionHistoryContinuousIngestionRepository } = require("../dist/modules/position-history-continuous-ingestion/prisma-position-history-continuous-ingestion.repository");
+const { PositionHistoryContinuousIngestionWorkerService } = require("../dist/modules/position-history-continuous-ingestion/position-history-continuous-ingestion-worker.service");
+const { PositionHistoryHistoricalWindowOversizedError } = require("../dist/modules/position-history-historical-window");
 const { PositionHistoryIngestionCursorStaleProgressError } = require("../dist/modules/position-history-ingestion-cursor");
 const { PositionHistoryIngestionCursorService } = require("../dist/modules/position-history-ingestion-cursor/position-history-ingestion-cursor.service");
 const { PrismaPositionHistoryIngestionCursorRepository } = require("../dist/modules/position-history-ingestion-cursor/prisma-position-history-ingestion-cursor.repository");
@@ -66,8 +68,8 @@ test("real continuous persistence is atomic, restart-safe, CAS-fenced, and dupli
   const initialized = await cursorService.ensureCursor(vehicleId, now);
   assert.equal(initialized.coverageFrom.toISOString(), initialized.confirmedThrough.toISOString());
   const t0 = initialized.confirmedThrough;
-  const t1 = new Date(t0.getTime() + 45 * 60 * 1_000);
-  const t2 = new Date(t1.getTime() + 45 * 60 * 1_000);
+  const t1 = new Date(t0.getTime() + (5 * 60 + 45) * 60 * 1_000);
+  const t2 = new Date(t1.getTime() + (5 * 60 + 45) * 60 * 1_000);
   const values = [
     candidate(new Date(t0.getTime() + 1 * 60 * 1_000).toISOString(), 49.1, PositionIngestionSource.FLEET_SYNC),
     candidate(new Date(t0.getTime() + 2 * 60 * 1_000).toISOString(), 49.2),
@@ -94,6 +96,35 @@ test("real continuous persistence is atomic, restart-safe, CAS-fenced, and dupli
 
   assert.deepEqual(await continuousRepository.persistReplay(vehicleId, historical), { inserted: 0, duplicates: 4 });
   assert.equal(await prisma.vehiclePositionObservation.count({ where: { vehicleId } }), 4);
+});
+
+test("typed oversized fallback advances only the successful smaller interval in real PostgreSQL", async () => {
+  const vehicleId = crypto.randomUUID();
+  vehicleIds.add(vehicleId);
+  await prisma.vehicle.create({ data: { id: vehicleId, externalDeviceId: 1900000000 + Math.floor(Math.random() * 10000000), name: "capacity-fallback-real-db-fixture", disabled: false } });
+  const now = new Date("2026-09-13T12:00:00Z");
+  const initialized = await cursorService.ensureCursor(vehicleId, now);
+  const confirmedThrough = new Date(initialized.confirmedThrough.getTime() + 60 * 60 * 1_000);
+  await prisma.vehicleHistoryIngestionCursor.update({ where: { vehicleId }, data: { confirmedThrough } });
+  const starts = [];
+  let clockMs = now.getTime();
+  const worker = new PositionHistoryContinuousIngestionWorkerService(
+    { listMappedVehicles: async () => [{ vehicleId, externalDeviceId: 1, disabled: false }], persistReplay: async () => ({ inserted: 0, duplicates: 0 }) },
+    cursorService,
+    { read: async (request, options = {}) => {
+      await options.beforeRequestStart?.();
+      starts.push([request.from.getTime(), request.to.getTime()]);
+      if (request.to.getTime() - request.from.getTime() > 60 * 60 * 1_000) throw new PositionHistoryHistoricalWindowOversizedError();
+      return { fetchFrom: request.from, fetchTo: request.to, fetchedAt: new Date(clockMs), providerRows: 0, candidates: [], skippedInvalid: 0, requests: 1, retries: 0, rateLimitResponses: 0 };
+    } },
+    lockService(),
+    { now: () => new Date(clockMs) },
+    { sleep: async (durationMs) => { clockMs += durationMs; } },
+  );
+  const result = await worker.processCycle(1, ["CONTIGUOUS_BACKLOG"]);
+  assert.equal(result.backlogCompleted, 1);
+  assert.deepEqual(starts.map(([from, to]) => (to - from) / 3_600_000), [6, 3, 1]);
+  assert.equal((await cursorService.findCursor(vehicleId)).confirmedThrough.getTime(), confirmedThrough.getTime() + 45 * 60 * 1_000);
 });
 
 test.after(async () => { await cleanup(); await prisma.$disconnect(); });

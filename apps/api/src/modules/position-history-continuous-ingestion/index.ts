@@ -1,4 +1,5 @@
 export * from "./position-history-continuous-ingestion.constants";
+export * from "./position-history-capacity-planning";
 export * from "./position-history-continuous-ingestion.module";
 export * from "./position-history-continuous-ingestion-planning";
 export * from "./position-history-continuous-ingestion-poller.service";

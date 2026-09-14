@@ -146,8 +146,8 @@ test("W1 and W2 retain independent same-range replay truth despite an old comple
 test("replay persistence is atomic, CAS-fenced, empty-window capable, and cursor-independent", async () => {
   const vehicleId = await createVehicle("atomic");
   const rangeFrom = new Date("2026-09-10T00:00:00Z");
-  const middle = new Date("2026-09-10T01:00:00Z");
-  const rangeTo = new Date("2026-09-10T02:00:00Z");
+  const middle = new Date("2026-09-10T06:00:00Z");
+  const rangeTo = new Date("2026-09-10T12:00:00Z");
   const run = await ensureRun({ kind: PositionHistoryReplayKind.DAILY_7_DAY, generationAnchor: new Date("2026-09-11T00:00:00Z"), rangeFrom, rangeTo });
   const [checkpoint] = await repository.ensureCheckpoints(run.id, [{ vehicleId, rangeFrom, rangeTo }]);
   const cursorBefore = await prisma.vehicleHistoryIngestionCursor.create({ data: { vehicleId, coverageFrom: rangeFrom, confirmedThrough: rangeFrom } });
