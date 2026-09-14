@@ -4,6 +4,43 @@ All notable changes to Fleet GPS are documented here. Release versions are
 immutable Git tags; package versions in `package.json` files are internal
 workspace versions, not the product release version.
 
+## [1.2.0] - 2026-09-14
+
+Lossless GPS history ingestion and reconciliation. Continuous and replay ingestion remain default-off, have not been enabled in production, and the controlled rollout readiness assessment returned GO with the rollout itself intentionally deferred.
+
+### Added
+
+- Durable per-vehicle history completeness cursors with conservative bootstrap at the canonical retention-policy floor.
+- Continuous historical reconciliation with restart catch-up across recent-tail and contiguous-backlog lanes.
+- Daily 7-day and rolling 90-day replay generations with fair, work-conserving coordination.
+- Protected operational ingestion-status surface through the Next.js BFF and the internal Nest API, exposing request-rate, failure, retry, lock-contention, provider-blocked, recent-tail, cursor-lag, replay-progress, replay-debt, and retention execution and alignment telemetry as safe aggregates.
+- Replay debt and automatic retention execution and floor-alignment telemetry.
+- Production preflight rule requiring automatic retention when continuous ingestion is enabled.
+
+### Changed
+
+- Historical provider work now uses fair, work-conserving coordination across continuous and replay lanes.
+- Automatic history reads can use adaptive 6h to 3h to 1h windows around the 10,000-row density guard.
+- Retention now advances the active completeness guarantee floor safely instead of leaving cursors behind a moved cutoff.
+- Population work yields bounded quanta instead of monopolizing history coordination.
+
+### Reliability and correctness
+
+- Stable fingerprint dedupe keeps fleet sync and historical reads idempotent.
+- Atomic cursor and replay compare-and-swap transitions roll back inserts on stale progress.
+- Stale-plan protection rejects mismatched retention and replay targets.
+- A cross-replica request-start pacing fence keeps automatic provider traffic within budget.
+- Retention and replay reinsertion protection keeps expired prefixes from being refetched.
+- Extensive isolated PostgreSQL regression validation with no development or production database contact.
+
+### Operational status and upgrade notes
+
+- Continuous and replay ingestion remain default-off and have NOT been enabled in production.
+- Controlled rollout readiness assessment returned GO; the rollout itself is intentionally deferred while further product features are developed.
+- Database migrations since v1.1.0 (history completeness cursors, replay generations) must be applied through the normal deployment procedure.
+- Package versions remain 0.1.0.
+- GitHub Release publication does not deploy production.
+
 ## [1.1.0] - 2026-09-13
 
 ### Added

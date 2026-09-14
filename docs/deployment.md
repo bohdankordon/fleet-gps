@@ -1,8 +1,6 @@
 # Production deployment and operations runbook
 
-Stage 22 makes the accepted v1.0 application deployable, recoverable and
-operationally safe on a single Linux host. It is NOT a product-feature stage;
-the v1.0 feature freeze and the Stage 21 security contract remain authoritative.
+Stage 22 makes the accepted application deployable, recoverable and operationally safe on a single Linux host, currently along the `v1.2.0` release line. It is NOT a product-feature stage; release feature freezes and the Stage 21 security contract remain authoritative.
 
 ## Approved topology
 
@@ -98,7 +96,7 @@ malformed values fail before a backup can reach `pg_dump`.
 Production must identify an exact Git tag/revision. Do not deploy "whatever is
 in main". Build and tag application images with the release identity:
 
-    APP_IMAGE_TAG=v1.0.0    # or 0.1.0-<git-short-sha>, never "latest"
+    APP_IMAGE_TAG=v1.2.0    # or 0.1.0-<git-short-sha>, never "latest"
 
     docker build -f apps/api/Dockerfile -t taxi-gps-api:$APP_IMAGE_TAG .
     docker build -f apps/web/Dockerfile \
@@ -198,12 +196,16 @@ until DB, migrations, API, web, auth, readiness, backup and restore are proven:
     POSITION_HISTORY_MAINTENANCE_ENABLED=false
     POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET=2000
     POSITION_HISTORY_RETENTION_ENABLED=false
+    POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED=false
+
+Continuous and replay ingestion must stay off for now: production preflight rejects `POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED=true` with automatic retention disabled, so continuous ingestion also requires `POSITION_HISTORY_RETENTION_ENABLED=true`. The controlled rollout readiness assessment returned GO, but the rollout itself is intentionally deferred.
 
 IMPORTANT: SYNC_SCHEDULER_ENABLED=false disables only the fleet/daily-runs
 scheduler. The Stage 18B durable position-history population-run poller is
 independent and can perform provider work if a pending/eligible run exists.
 First deployment uses a fresh database with no active run, so no provider work
 can execute. The shared history mutation advisory lock remains 1706170003.
+Rollout telemetry is available without enabling anything: an authorized history operator reads the protected same-origin BFF route `GET /api/system/position-history/ingestion-status` (Next.js forwards to the internal Nest API; both responses carry `Cache-Control: no-store`). Publishing a GitHub Release never deploys production and never enables continuous ingestion; rollout remains a separate, explicitly reviewed step. See [lossless position-history ingestion](lossless-position-history-ingestion.md).
 
 ## Health, readiness and graceful shutdown
 

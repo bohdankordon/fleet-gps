@@ -44,10 +44,11 @@ does not silently call the provider or start a synchronization job.
 - Daily fleet activity report with fleet-wide summary and permission-aware
   investigation actions.
 
-### GPS history administration
+### GPS history administration and lossless reconciliation
 
 - Controlled history population, status, automatic maintenance, retention
   planning, and bounded retention execution.
+  planning, and bounded retention execution. Lossless reconciliation adds durable per-vehicle completeness cursors, default-off continuous lanes with restart catch-up, daily 7-day and rolling 90-day replay generations, and a protected aggregate ingestion-status surface. See [lossless position-history ingestion](docs/lossless-position-history-ingestion.md).
 - Revision-protected global business settings for timezone, minimum daily
   distance, position freshness, speeding, inactivity, and trip/stop policy.
 
@@ -267,6 +268,7 @@ configuration. Use the authoritative runbooks:
 - [Fleet map API](docs/fleet-map-api.md),
   [vehicle track API](docs/vehicle-track-api.md), and
   [historical track UI](docs/vehicle-track-map-ui.md).
+ - [Lossless position-history ingestion](docs/lossless-position-history-ingestion.md) — completeness cursors, continuous reconciliation, replay generations, retention integration, and rollout telemetry.
 - [Trip/stop analytics](docs/trip-stop-analytics.md) and
   [fleet daily activity report](docs/fleet-daily-activity-report.md).
 - [Alert ingestion](docs/fleet-alert-ingestion.md) and
@@ -275,12 +277,7 @@ configuration. Use the authoritative runbooks:
 
 ## Project status
 
-The project has an immutable `v1.0.0` release. Active development on `main`
-contains accepted post-v1.0.0 product work: completed per-user Telegram
-delivery, the behavior-preserving Ant Design redesign across Fleet, Map,
-vehicle details, trips, movement history, events, reports, account, and
-administration, and administration correctness work. Current production is
-therefore not described as running the `v1.0.0` source tree.
+The project has immutable `v1.0.0` and `v1.1.0` releases, and the `main` source tree is prepared for the `v1.2.0` release line (see Release / version below). Completed product work since `v1.1.0` includes the lossless GPS history ingestion and reconciliation subsystem: durable completeness cursors, continuous recent-tail and contiguous-backlog reconciliation, daily and rolling replay generations, retention-aware completeness, and protected rollout telemetry. Continuous and replay ingestion remain default-off and have not been enabled in production; the controlled rollout readiness assessment returned GO, and the rollout itself is intentionally deferred while further product features are developed. Current production is therefore not described as running the `v1.1.0` source tree.
 
 The old design experiment branches were retired and are not merge or reuse
 inputs. See the [development roadmap](docs/development-roadmap.md) for current
@@ -288,7 +285,7 @@ status instead of treating proposed work as implemented functionality.
 
 ## Release / version
 
-`v1.1.0` is the current stable Fleet GPS release. Stable releases are immutable
+The source tree corresponds to the `v1.2.0` release line, which will be tagged immutably from the prepared `main` SHA after review; until the tag exists, `v1.1.0` remains the latest published GitHub Release. Stable releases are immutable
 Git tags; release candidates use the corresponding `-rc.*` suffix. See
 [CHANGELOG.md](CHANGELOG.md) for release history. Package versions in
 `package.json` files (`0.1.0`) are internal workspace versions, not the product

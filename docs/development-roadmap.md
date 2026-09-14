@@ -16,7 +16,7 @@ This document is the primary living record of the project's development directio
 
 - Canonical feature-development branch: `main`.
 - Accepted Telegram 2D production source: `e59268fe471d22426359bec419a9a03a244d2909` (`sha-e59268fe471d`).
-- Current stable release: `v1.1.0`.
+- Latest published release: `v1.1.0`; the `main` source tree is prepared for the `v1.2.0` release line (see `CHANGELOG.md`), to be tagged immutably after review.
 - Immutable baseline release: `v1.0.0`.
 - `v1.0.0` annotated tag object: `82fdee34c7eaff7a07fabd47e38fd6a32bbcc6c8`.
 - `v1.0.0` peeled commit: `9bbd9b98c148b2ffed0078078d175d778c67f7ba`.
@@ -27,6 +27,12 @@ This document is the primary living record of the project's development directio
 **SCHEDULED HISTORY SOAK ACCEPTED.** Four natural daily position-history maintenance SYSTEM runs were observed; all succeeded, each respected the configured 2,000-window budget, and together they advanced 8,000 windows. There was no overlap, stale lease, restart loop, or provider retry storm.
 
 Natural retention also executed as SYSTEM work with the correct cutoff contract. It deleted one eligible historical observation, left no eligible rows, and showed no duplicate or stale execution. Production remained healthy, so this post-release gate is closed.
+
+## DONE — Lossless GPS history architecture and rollout readiness
+
+The lossless GPS history program is implemented and rollout-ready: durable per-vehicle completeness cursors with conservative floor bootstrap, a shared historical-window core, default-off continuous reconciliation (recent-tail plus contiguous-backlog lanes) with restart catch-up, durable daily 7-day and rolling 90-day replay generations with fair recurring coordination, retention and completeness integration, capacity remediation accepted at the observed 58-vehicle scale, and protected operational telemetry (request-rate, failure, retry, lock, blocked-stream, recent-tail, cursor-lag, replay-progress, replay-debt, and retention execution and floor-alignment signals) served read-only through the Next.js BFF and the internal Nest API.
+
+Implementation and readiness are DONE: the final read-only rollout assessment returned GO FOR CONTROLLED ROLLOUT. Production activation is DEFERRED and has NOT been executed: continuous and replay ingestion remain default-off in every environment template, and the rollout stays intentionally postponed while further product features are developed. See [lossless position-history ingestion](./lossless-position-history-ingestion.md).
 
 ## DONE — Configurability & Magic Numbers Audit
 
@@ -171,7 +177,7 @@ Phase 0 repaired six source-backed correctness and truthful-state areas: audit f
 
 ## LATER — Future release readiness
 
-No release after `v1.1.0` is currently scheduled. Before creating another immutable release tag:
+The `v1.2.0` release line is prepared on `main` and will be tagged immutably after review. Before creating another immutable release tag:
 
 - Finish the intended feature scope.
 - Complete regression checks, typechecking, linting, tests, and builds.
@@ -203,8 +209,7 @@ See [the current report contract](./fleet-daily-activity-report.md).
 
 These are established operational processes, not open roadmap blockers:
 
-- Natural position-history maintenance continues under its configured budget.
-- History retention continues naturally.
+- Natural position-history maintenance continues under its configured budget, and history retention continues naturally. Continuous and replay ingestion stay default-off and unexecuted in production.
 - Monitoring and alerts remain enabled.
 - Backup and disaster-recovery procedures already exist.
 - Observe these processes normally; make them roadmap work only when a real failure or regression requires action.
