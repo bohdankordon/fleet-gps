@@ -195,6 +195,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
   ) issues.push("POSITION_HISTORY_MAINTENANCE_WINDOW_BUDGET");
   if (positionHistoryRetentionEnabled === undefined) issues.push("POSITION_HISTORY_RETENTION_ENABLED");
   if (positionHistoryContinuousIngestionEnabled === undefined) issues.push("POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED");
+  if (production && positionHistoryContinuousIngestionEnabled === true && positionHistoryRetentionEnabled !== true) issues.push("POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED", "POSITION_HISTORY_RETENTION_ENABLED");
   if (telegramNotificationsEnabled === undefined) issues.push("TELEGRAM_NOTIFICATIONS_ENABLED");
   if (telegramNotificationsEnabled === true && telegramBotToken === null) issues.push("TELEGRAM_BOT_TOKEN");
   if (telegramNotificationsEnabled === true && telegramChatId === null) issues.push("TELEGRAM_CHAT_ID");

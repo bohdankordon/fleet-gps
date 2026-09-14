@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { PositionHistoryAutomaticRequestPacer, POSITION_HISTORY_AUTOMATIC_REQUEST_START_GAP_MS } from "../position-history-horizon-execution";
+import type { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
 import { PositionHistoryHorizonPopulationError } from "../position-history-horizon-population/position-history-horizon-population.error";
 import { PositionHistoryHorizonPopulationService } from "../position-history-horizon-population/position-history-horizon-population.service";
@@ -18,6 +19,7 @@ export class PositionHistoryPopulationRunWorkerService {
     @Inject(POSITION_HISTORY_POPULATION_RUN_HEARTBEAT_SCHEDULER) private readonly heartbeatScheduler: PositionHistoryPopulationRunHeartbeatScheduler,
     @Inject(POSITION_HISTORY_POPULATION_RUN_CLOCK) private readonly clock: PositionHistoryPopulationRunClock,
     @Inject(POSITION_HISTORY_POPULATION_RUN_SLEEPER) private readonly sleeper: PositionHistoryPopulationRunSleeper,
+    @Optional() private readonly telemetry?: PositionHistoryIngestionTelemetryService,
   ) {}
 
   public async processNextAvailableRun(): Promise<PositionHistoryPopulationRunWorkerResult> {
@@ -47,7 +49,7 @@ export class PositionHistoryPopulationRunWorkerService {
         }
       });
     } catch (error) {
-      if (error instanceof PositionHistoryHorizonAlreadyRunningError) return { outcome: "LOCK_UNAVAILABLE", runId, committedWindows: null };
+      if (error instanceof PositionHistoryHorizonAlreadyRunningError) { this.telemetry?.recordLockContention(); return { outcome: "LOCK_UNAVAILABLE", runId, committedWindows: null }; }
       throw error;
     }
   }
@@ -63,7 +65,7 @@ export class PositionHistoryPopulationRunWorkerService {
       const result = await this.population.run(before.to, {
         maxWindows: chunkBudget,
         ...(before.excludeProviderDisabled ? { excludeProviderDisabled: true } : {}),
-        beforeRequestStart: pacer.beforeRequestStart,
+        beforeRequestStart: async () => { await pacer.beforeRequestStart(); this.telemetry?.recordRequestStart(); },
         durableAccounting: { runId, leaseOwner },
       });
       horizonComplete = result.horizonComplete;

@@ -4,6 +4,7 @@ import type { ApiConfig } from "../../config/api-config";
 import { ApiConfigModule } from "../../config/api-config.module";
 import { API_CONFIG } from "../../config/api-config.tokens";
 import { POSITION_HISTORY_LOCK_CONNECTION_FACTORY, PositionHistoryHorizonExecutionLockService, type PositionHistoryLockConnectionFactory } from "./position-history-horizon-execution-lock.service";
+import { PositionHistoryIngestionTelemetryService } from "./position-history-ingestion-telemetry.service";
 
 @Module({
   imports: [ApiConfigModule],
@@ -19,7 +20,8 @@ import { POSITION_HISTORY_LOCK_CONNECTION_FACTORY, PositionHistoryHorizonExecuti
       inject: [API_CONFIG],
     },
     PositionHistoryHorizonExecutionLockService,
+    PositionHistoryIngestionTelemetryService,
   ],
-  exports: [PositionHistoryHorizonExecutionLockService],
+  exports: [PositionHistoryHorizonExecutionLockService, PositionHistoryIngestionTelemetryService],
 })
 export class PositionHistoryHorizonExecutionLockModule {}
