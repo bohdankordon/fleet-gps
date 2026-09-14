@@ -3,7 +3,7 @@ import test from "node:test";
 import { EquGpsHttpError, EquGpsNetworkError, EquGpsRateLimitError, EquGpsResponseValidationError, EquGpsTimeoutError } from "@taxi-gps/equgps";
 import { PositionIngestionSource } from "../../generated/prisma/client";
 import { normalizePositionHistoryCandidate, type PositionHistoryCandidate } from "../position-history";
-import { PositionHistoryBackfillProviderContractError, type PositionHistoryHistoricalWindowReadOptions, type PositionHistoryHistoricalWindowRequest } from "../position-history-historical-window";
+import { PositionHistoryBackfillProviderContractError, PositionHistoryHistoricalWindowOversizedError, type PositionHistoryHistoricalWindowReadOptions, type PositionHistoryHistoricalWindowRequest } from "../position-history-historical-window";
 import type { PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
 import { PositionHistoryIngestionCursorStaleProgressError, type VehicleHistoryIngestionCursor } from "../position-history-ingestion-cursor";
 import type { PositionHistoryIngestionCursorService } from "../position-history-ingestion-cursor";
@@ -98,10 +98,10 @@ test("safeNow is clock minus two minutes and long backlog schedules recent then 
   assert.equal(item.calls[0]?.from.toISOString(), "2026-09-13T11:43:00.000Z");
   assert.equal(item.calls[0]?.to.toISOString(), safeNow.toISOString());
   assert.equal(item.calls[1]?.from.toISOString(), "2026-09-01T00:45:00.000Z");
-  assert.equal(item.calls[1]?.to.toISOString(), "2026-09-01T01:45:00.000Z");
+  assert.equal(item.calls[1]?.to.toISOString(), "2026-09-01T06:45:00.000Z");
   assert.equal(result.recentTailCompleted, 1);
   assert.equal(result.backlogCompleted, 1);
-  assert.equal(item.cursors.get(ids[0])?.confirmedThrough.toISOString(), "2026-09-01T01:45:00.000Z");
+  assert.equal(item.cursors.get(ids[0])?.confirmedThrough.toISOString(), "2026-09-01T06:45:00.000Z");
 });
 
 test("recent tail inserts and deduplicates without jumping an old contiguous cursor", async () => {
@@ -109,7 +109,7 @@ test("recent tail inserts and deduplicates without jumping an old contiguous cur
   const item = harness({ cursors: new Map([[ids[0], new Date("2026-09-01T01:00:00Z")]]), handler: async (request) => request.from.getTime() > new Date("2026-09-10T00:00:00Z").getTime() ? [value] : [] });
   await item.worker.processCycle();
   assert.equal(item.observations.get(ids[0])?.has(value.fixFingerprint), true);
-  assert.equal(item.cursors.get(ids[0])?.confirmedThrough.toISOString(), "2026-09-01T01:45:00.000Z");
+  assert.equal(item.cursors.get(ids[0])?.confirmedThrough.toISOString(), "2026-09-01T06:45:00.000Z");
   item.advance(POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS);
   const replay = await item.worker.processCycle();
   assert.ok(replay.duplicates >= 1);
@@ -145,7 +145,7 @@ test("one failing vehicle is delayed without blocking another vehicle's opportun
 });
 
 test("restart with a persisted lagging cursor naturally resumes without user action", async () => {
-  const persisted = new Map([[ids[0], new Date("2026-09-13T10:00:00Z")]]);
+  const persisted = new Map([[ids[0], new Date("2026-09-12T10:00:00Z")]]);
   const first = harness({ cursors: persisted });
   await first.worker.processCycle();
   const resumedAt = first.cursors.get(ids[0])!.confirmedThrough;
@@ -155,7 +155,7 @@ test("restart with a persisted lagging cursor naturally resumes without user act
   assert.ok(restarted.cursors.get(ids[0])!.confirmedThrough > resumedAt);
 });
 
-for (const [label, failure] of [["timeout", new EquGpsTimeoutError("getHistoricalPositions")], ["network", new EquGpsNetworkError("getHistoricalPositions")], ["5xx", new EquGpsHttpError(503, "getHistoricalPositions")], ["malformed", new EquGpsResponseValidationError("getHistoricalPositions", "unexpected_response_shape")], ["oversized", new PositionHistoryBackfillProviderContractError()]] as const) {
+for (const [label, failure] of [["timeout", new EquGpsTimeoutError("getHistoricalPositions")], ["network", new EquGpsNetworkError("getHistoricalPositions")], ["5xx", new EquGpsHttpError(503, "getHistoricalPositions")], ["malformed", new EquGpsResponseValidationError("getHistoricalPositions", "unexpected_response_shape")], ["generic contract", new PositionHistoryBackfillProviderContractError()]] as const) {
   test(`${label} failure leaves progress unchanged and outer-backoff prevents an immediate repeat`, async () => {
     const initial = new Date("2026-09-13T11:35:00Z");
     const item = harness({ cursors: new Map([[ids[0], initial]]), handler: async () => { throw failure; } });
@@ -167,6 +167,20 @@ for (const [label, failure] of [["timeout", new EquGpsTimeoutError("getHistorica
     assert.equal(item.calls.length, calls);
   });
 }
+
+test("typed oversized backlog falls back 6h to 3h to 1h and commits only the successful 45-minute progress", async () => {
+  const initial = new Date("2026-09-01T01:00:00Z");
+  const item = harness({ cursors: new Map([[ids[0], initial]]), handler: async (request) => {
+    if (request.from.getTime() > new Date("2026-09-10T00:00:00Z").getTime()) return [];
+    if (request.to.getTime() - request.from.getTime() > 3_600_000) throw new PositionHistoryHistoricalWindowOversizedError();
+    return [];
+  } });
+  const result = await item.worker.processCycle();
+  const backlogCalls = item.calls.filter(({ from }) => from.getTime() < new Date("2026-09-10T00:00:00Z").getTime());
+  assert.deepEqual(backlogCalls.map(({ from, to }) => (to.getTime() - from.getTime()) / 3_600_000), [6, 3, 1]);
+  assert.equal(result.backlogCompleted, 1);
+  assert.equal(item.cursors.get(ids[0])?.confirmedThrough.getTime(), initial.getTime() + 45 * 60_000);
+});
 
 test("exhausted 429 cools the fleet and leaves the cursor unchanged", async () => {
   const initial = new Date("2026-09-13T11:35:00Z");
@@ -250,7 +264,7 @@ test("valid empty contiguous range advances while empty recent tail only inserts
   const old = harness({ cursors: new Map([[ids[0], new Date("2026-09-01T01:00:00Z")]]) });
   const result = await old.worker.processCycle();
   assert.deepEqual({ recent: result.recentTailCompleted, backlog: result.backlogCompleted, inserted: result.inserted }, { recent: 1, backlog: 1, inserted: 0 });
-  assert.equal(old.cursors.get(ids[0])?.confirmedThrough.toISOString(), "2026-09-01T01:45:00.000Z");
+  assert.equal(old.cursors.get(ids[0])?.confirmedThrough.toISOString(), "2026-09-01T06:45:00.000Z");
 });
 
 test("lock unavailability performs no provider request and remains eligible", async () => {

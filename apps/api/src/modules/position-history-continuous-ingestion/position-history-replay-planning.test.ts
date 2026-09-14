@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PositionHistoryReplayKind } from "../../generated/prisma/client";
 import { POSITION_HISTORY_ABSOLUTE_DAY_MS } from "../position-history-horizon/position-history-horizon.policy";
-import { canonicalDailyPositionHistoryReplayAnchor, positionHistoryReplayCheckpoints, positionHistoryReplayTarget } from "./position-history-replay-planning";
+import { canonicalDailyPositionHistoryReplayAnchor, positionHistoryReplayAdaptiveWindowEnds, positionHistoryReplayCheckpoints, positionHistoryReplayTarget } from "./position-history-replay-planning";
 
 const vehicle = (vehicleId: string) => ({ vehicleId, externalDeviceId: 1, disabled: false });
 
@@ -30,4 +30,17 @@ test("rolling generation reuses Tuesday 02:00 UTC and partitions 90 days as 6 + 
   assert.ok(checkpoints.slice(1).every((checkpoint) => checkpoint.rangeTo.getTime() - checkpoint.rangeFrom.getTime() === 7 * POSITION_HISTORY_ABSOLUTE_DAY_MS));
   assert.equal(checkpoints[0]!.rangeFrom.getTime(), target.rangeFrom.getTime());
   assert.equal(checkpoints.at(-1)!.rangeTo.getTime(), target.rangeTo.getTime());
+});
+
+test("replay offers deterministic 6h, 3h, and 1h adaptive endpoints from the same durable start", () => {
+  const from = new Date("2026-09-01T00:00:00Z");
+  assert.deepEqual(positionHistoryReplayAdaptiveWindowEnds(from, new Date("2026-09-02T00:00:00Z")).map((value) => value.toISOString()), [
+    "2026-09-01T06:00:00.000Z",
+    "2026-09-01T03:00:00.000Z",
+    "2026-09-01T01:00:00.000Z",
+  ]);
+  assert.deepEqual(positionHistoryReplayAdaptiveWindowEnds(from, new Date("2026-09-01T02:00:00Z")).map((value) => value.toISOString()), [
+    "2026-09-01T02:00:00.000Z",
+    "2026-09-01T01:00:00.000Z",
+  ]);
 });

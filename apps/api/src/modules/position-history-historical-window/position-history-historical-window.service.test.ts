@@ -6,7 +6,7 @@ import type { EquGpsGatewayService } from "../equgps/equgps-gateway.service";
 import { recordedPositionHistoryBackfillProviderFailure } from "../position-history-backfill/position-history-backfill-failure-diagnostics";
 import { recordedPositionHistoryHistoricalWindowFailureAccounting } from "./position-history-historical-window-failure-diagnostics";
 import { POSITION_HISTORY_HISTORICAL_WINDOW_MAX_ROWS } from "./position-history-historical-window.constants";
-import { PositionHistoryBackfillProviderContractError, PositionHistoryBackfillTargetError } from "./position-history-historical-window.errors";
+import { PositionHistoryBackfillProviderContractError, PositionHistoryBackfillTargetError, PositionHistoryHistoricalWindowOversizedError } from "./position-history-historical-window.errors";
 import { PositionHistoryHistoricalWindowService } from "./position-history-historical-window.service";
 
 const from = new Date("2026-08-10T00:00:00.000Z");
@@ -82,14 +82,21 @@ test("permits overlap candidates older than a hypothetical progress boundary", a
   for (const forbidden of ["checkpointId", "cursor", "coverageFrom", "confirmedThrough", "expectedConfirmedThrough", "nextConfirmedThrough", "completed", "durableRunId"]) assert.equal(forbidden in result, false);
 });
 
-test("rejects invalid device IDs, dates, empty ranges, and requests over one hour before provider access", async () => {
+test("accepts six-hour windows but rejects wider requests before provider access", async () => {
+  const item = harness();
+  await item.service.read({ ...request, to: new Date(from.getTime() + 6 * 60 * 60 * 1_000) });
+  assert.equal(item.calls.length, 1);
+  await assert.rejects(item.service.read({ ...request, to: new Date(from.getTime() + 6 * 60 * 60 * 1_000 + 1) }), PositionHistoryBackfillTargetError);
+  assert.equal(item.calls.length, 1);
+});
+
+test("rejects invalid device IDs, dates, and empty ranges before provider access", async () => {
   const item = harness();
   for (const invalid of [
     { ...request, externalDeviceId: 0 },
     { ...request, externalDeviceId: 1.5 },
     { ...request, from: new Date(Number.NaN) },
     { ...request, to: from },
-    { ...request, to: new Date(to.getTime() + 1) },
   ]) await assert.rejects(item.service.read(invalid), PositionHistoryBackfillTargetError);
   assert.equal(item.calls.length, 0);
 });
@@ -106,7 +113,7 @@ test("usable timestamps before or after the inclusive fetch range fail the whole
 
 test("more than 10,000 provider rows fails safely without normalization output", async () => {
   const rows = Array.from({ length: POSITION_HISTORY_HISTORICAL_WINDOW_MAX_ROWS + 1 }, () => point("2026-08-10T00:10:00Z"));
-  await assert.rejects(harness({ responses: [rows] }).service.read(request), PositionHistoryBackfillProviderContractError);
+  await assert.rejects(harness({ responses: [rows] }).service.read(request), PositionHistoryHistoricalWindowOversizedError);
 });
 
 test("network and timeout failures retry with bounded exponential delay", async () => {

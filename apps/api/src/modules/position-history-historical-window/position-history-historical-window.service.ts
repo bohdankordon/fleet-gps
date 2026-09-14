@@ -4,7 +4,7 @@ import { PositionIngestionSource } from "../../generated/prisma/client";
 import { EquGpsGatewayService } from "../equgps/equgps-gateway.service";
 import { mapEquGpsPositionToHistoryInput, normalizePositionHistoryCandidate, type PositionHistoryCandidate } from "../position-history";
 import { POSITION_HISTORY_HISTORICAL_WINDOW_MAX_ATTEMPTS, POSITION_HISTORY_HISTORICAL_WINDOW_MAX_DURATION_MS, POSITION_HISTORY_HISTORICAL_WINDOW_MAX_RETRY_AFTER_MS, POSITION_HISTORY_HISTORICAL_WINDOW_MAX_ROWS } from "./position-history-historical-window.constants";
-import { PositionHistoryBackfillProviderContractError, PositionHistoryBackfillTargetError } from "./position-history-historical-window.errors";
+import { PositionHistoryBackfillProviderContractError, PositionHistoryBackfillTargetError, PositionHistoryHistoricalWindowOversizedError } from "./position-history-historical-window.errors";
 import { classifyPositionHistoryHistoricalWindowProviderFailure, recordPositionHistoryHistoricalWindowFailureAccounting, recordPositionHistoryHistoricalWindowProviderFailure } from "./position-history-historical-window-failure-diagnostics";
 import { POSITION_HISTORY_HISTORICAL_WINDOW_CLOCK, POSITION_HISTORY_HISTORICAL_WINDOW_SLEEPER } from "./position-history-historical-window.tokens";
 import type { PositionHistoryHistoricalWindowClock, PositionHistoryHistoricalWindowReadOptions, PositionHistoryHistoricalWindowRequest, PositionHistoryHistoricalWindowResult, PositionHistoryHistoricalWindowSleeper } from "./position-history-historical-window.types";
@@ -33,7 +33,7 @@ export class PositionHistoryHistoricalWindowService {
   public async read(request: PositionHistoryHistoricalWindowRequest, options: PositionHistoryHistoricalWindowReadOptions = {}): Promise<PositionHistoryHistoricalWindowResult> {
     if (!validRequest(request)) throw new PositionHistoryBackfillTargetError();
     const response = await this.fetch(request, options);
-    if (response.positions.length > POSITION_HISTORY_HISTORICAL_WINDOW_MAX_ROWS) throw new PositionHistoryBackfillProviderContractError();
+    if (response.positions.length > POSITION_HISTORY_HISTORICAL_WINDOW_MAX_ROWS) throw new PositionHistoryHistoricalWindowOversizedError();
     const candidates: PositionHistoryCandidate[] = [];
     let skippedInvalid = 0;
     for (const position of response.positions) {

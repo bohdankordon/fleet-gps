@@ -3,7 +3,7 @@ import { partitionPositionHistoryHorizon } from "../position-history-horizon/pos
 import { POSITION_HISTORY_ABSOLUTE_DAY_MS } from "../position-history-horizon/position-history-horizon.policy";
 import { canonicalPositionHistoryMaintenanceAnchor } from "../position-history-population-runs/position-history-maintenance-anchor";
 import type { EnsurePositionHistoryReplayCheckpointInput, PositionHistoryReplayVehicle } from "../position-history-replay-generation";
-import { POSITION_HISTORY_REPLAY_DAILY_DAYS, POSITION_HISTORY_REPLAY_ROLLING_DAYS } from "./position-history-replay-orchestration.constants";
+import { POSITION_HISTORY_ADAPTIVE_FETCH_DURATIONS_MS, POSITION_HISTORY_REPLAY_DAILY_DAYS, POSITION_HISTORY_REPLAY_ROLLING_DAYS } from "./position-history-replay-orchestration.constants";
 import type { PositionHistoryReplayTarget } from "./position-history-replay-orchestration.types";
 
 const DAILY_ANCHOR_UTC_HOUR = 2;
@@ -28,4 +28,19 @@ export function positionHistoryReplayCheckpoints(target: Pick<PositionHistoryRep
     ? [{ from: target.rangeFrom, to: target.rangeTo }]
     : partitionPositionHistoryHorizon(target.rangeTo, POSITION_HISTORY_REPLAY_ROLLING_DAYS);
   return Object.freeze(vehicles.flatMap((vehicle) => slices.map((slice) => Object.freeze({ vehicleId: vehicle.vehicleId, rangeFrom: new Date(slice.from.getTime()), rangeTo: new Date(slice.to.getTime()) }))));
+}
+
+export function positionHistoryReplayAdaptiveWindowEnds(nextFrom: Date, rangeTo: Date): readonly Date[] {
+  const start = nextFrom.getTime();
+  const end = rangeTo.getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) throw new Error("Invalid replay adaptive range.");
+  const ends: Date[] = [];
+  let previous = -1;
+  for (const duration of POSITION_HISTORY_ADAPTIVE_FETCH_DURATIONS_MS) {
+    const candidate = Math.min(start + duration, end);
+    if (candidate === previous) continue;
+    ends.push(new Date(candidate));
+    previous = candidate;
+  }
+  return Object.freeze(ends);
 }
