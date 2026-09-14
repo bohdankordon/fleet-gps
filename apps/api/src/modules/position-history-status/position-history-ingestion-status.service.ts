@@ -1,11 +1,13 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { PositionBackfillStatus, PositionHistoryPopulationRunStatus, PositionHistoryReplayKind } from "../../generated/prisma/client";
+import { PositionBackfillStatus, PositionHistoryPopulationRunStatus, PositionHistoryReplayKind, PositionHistoryReplayRunStatus } from "../../generated/prisma/client";
 import type { ApiConfig } from "../../config/api-config";
 import { API_CONFIG } from "../../config/api-config.tokens";
 import { DatabaseService } from "../database/database.service";
 import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import { POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS } from "../position-history-continuous-ingestion/position-history-continuous-ingestion.constants";
 import { positionHistoryReplayTarget } from "../position-history-continuous-ingestion/position-history-replay-planning";
+import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
+import { nextAutomaticPositionHistoryRetentionExecutionAt } from "../position-history-retention/position-history-retention-maintenance.service";
 
 export type PositionHistoryIngestionReplayState = "NOT_CREATED" | "PENDING" | "RUNNING" | "COMPLETED";
 
@@ -20,6 +22,11 @@ export type PositionHistoryIngestionReplaySummary = Readonly<{
   progressPercent: number | null;
   isCurrent: boolean;
   debtSuspected: boolean;
+  incompleteGenerations: number;
+  overdueIncompleteGenerations: number;
+  oldestIncompleteGenerationAnchor: string | null;
+  oldestOverdueGenerationAnchor: string | null;
+  hasReplayDebt: boolean;
 }>;
 
 export type PositionHistoryIngestionStatusResponse = Readonly<{
@@ -57,6 +64,19 @@ export type PositionHistoryIngestionStatusResponse = Readonly<{
   }>;
   recentTail: Readonly<{ lastSuccessAt: string | null; successesSinceProcessStart: number; failuresSinceProcessStart: number }>;
   replay: Readonly<{ daily: PositionHistoryIngestionReplaySummary; rolling: PositionHistoryIngestionReplaySummary }>;
+  retention: Readonly<{
+    enabled: boolean;
+    running: boolean;
+    lastAttemptAt: string | null;
+    lastCompletedAt: string | null;
+    lastOutcome: "NOT_OBSERVED_THIS_PROCESS" | "SUCCESS" | "SKIPPED" | "FAILED";
+    lastSkipCategory: "LOCK_UNAVAILABLE" | "ACTIVE_POPULATION" | null;
+    nextScheduledExecutionAt: string | null;
+    currentRetentionPolicyFloor: string;
+    cursorsBehindRetentionFloor: number;
+    cursorsAtOrBeyondRetentionFloor: number;
+    retentionFloorAligned: boolean;
+  }>;
   meta: Readonly<{ telemetryScope: string; durableScope: string; countersResetOnRestart: boolean }>;
 }>;
 export function summarizeCursorLag(input: Readonly<{ confirmedThrough: Date }[]>, mappedVehicleCount: number, safeBoundary: Date): Readonly<{
@@ -100,6 +120,21 @@ export function replayProgress(checkpointsTotal: number, checkpointsRemaining: n
   if (total === 0) return Object.freeze({ completed: 0, remaining: 0, progressPercent: null });
   return Object.freeze({ completed, remaining, progressPercent: Math.floor((completed / total) * 100) });
 }
+export function summarizeRetentionFloorAlignment(input: Readonly<{ coverageFrom: Date }>[], mappedVehicleCount: number, policyFloor: Date): Readonly<{ behind: number; atOrBeyond: number; aligned: boolean }> {
+  const safeCount = Number.isSafeInteger(mappedVehicleCount) && mappedVehicleCount >= 0 ? mappedVehicleCount : 0;
+  const floorMs = policyFloor.getTime();
+  if (!Number.isFinite(floorMs) || input.length === 0) return Object.freeze({ behind: 0, atOrBeyond: 0, aligned: false });
+  let behind = 0;
+  let atOrBeyond = 0;
+  for (const cursor of input) {
+    const coverage = cursor.coverageFrom.getTime();
+    if (!Number.isFinite(coverage)) continue;
+    if (coverage < floorMs) behind += 1;
+    else atOrBeyond += 1;
+  }
+  const total = behind + atOrBeyond;
+  return Object.freeze({ behind, atOrBeyond, aligned: input.length === safeCount && safeCount > 0 && behind === 0 && behind + atOrBeyond === input.length });
+}
 @Injectable()
 export class PositionHistoryIngestionStatusService {
   public constructor(
@@ -119,8 +154,10 @@ export class PositionHistoryIngestionStatusService {
     const client = this.database.getClient();
 
     const mappedVehicles = await client.vehicle.count();
-    const cursors = await client.vehicleHistoryIngestionCursor.findMany({ select: { confirmedThrough: true } });
+    const cursors = await client.vehicleHistoryIngestionCursor.findMany({ select: { confirmedThrough: true, coverageFrom: true } });
     const cursorSummary = summarizeCursorLag(cursors, mappedVehicles, safeBoundary);
+    const policyFloor = positionHistoryPolicyFloor(generatedAt);
+    const floorAlignment = summarizeRetentionFloorAlignment(cursors, mappedVehicles, policyFloor);
 
     const daily = await this.inspectReplay(client, PositionHistoryReplayKind.DAILY_7_DAY, safeBoundary);
     const rolling = await this.inspectReplay(client, PositionHistoryReplayKind.ROLLING_90_DAY, safeBoundary);
@@ -174,6 +211,19 @@ export class PositionHistoryIngestionStatusService {
         failuresSinceProcessStart: telemetrySnapshot.recentTailFailuresSinceProcessStart,
       }),
       replay: Object.freeze({ daily: daily, rolling: rolling }),
+      retention: Object.freeze({
+        enabled: retentionEnabled,
+        running: telemetrySnapshot.retentionRunning,
+        lastAttemptAt: telemetrySnapshot.lastRetentionAttemptAt?.toISOString() ?? null,
+        lastCompletedAt: telemetrySnapshot.lastRetentionCompletedAt?.toISOString() ?? null,
+        lastOutcome: telemetrySnapshot.lastRetentionOutcome,
+        lastSkipCategory: telemetrySnapshot.lastRetentionSkipCategory,
+        nextScheduledExecutionAt: retentionEnabled ? nextAutomaticPositionHistoryRetentionExecutionAt(generatedAt).toISOString() : null,
+        currentRetentionPolicyFloor: policyFloor.toISOString(),
+        cursorsBehindRetentionFloor: floorAlignment.behind,
+        cursorsAtOrBeyondRetentionFloor: floorAlignment.atOrBeyond,
+        retentionFloorAligned: floorAlignment.aligned,
+      }),
       meta: Object.freeze({
         telemetryScope: "process-local counters reset on API restart; cursor/replay/population are durable database truth",
         durableScope: "cursors, replay runs/checkpoints, and population runs are durable; request rate, failures, lock contention, blocked streams, recent-tail activity, and cycle timestamps are process-local",
@@ -205,6 +255,11 @@ export class PositionHistoryIngestionStatusService {
         progressPercent: null,
         isCurrent: false,
         debtSuspected: false,
+        incompleteGenerations: 0,
+        overdueIncompleteGenerations: 0,
+        oldestIncompleteGenerationAnchor: null,
+        oldestOverdueGenerationAnchor: null,
+        hasReplayDebt: false,
       });
     }
     const total = await client.positionHistoryReplayCheckpoint.count({ where: { runId: latest.id } });
@@ -216,6 +271,12 @@ export class PositionHistoryIngestionStatusService {
     const isCurrent = latest.generationAnchor.getTime() === expected.generationAnchor.getTime();
     const completed = state === "COMPLETED" && progress.remaining === 0;
     const debtSuspected = !completed && latest.generationAnchor.getTime() < expected.generationAnchor.getTime();
+    const incompleteRuns: readonly { generationAnchor: Date }[] = await client.positionHistoryReplayRun.findMany({
+      where: { kind, status: { not: PositionHistoryReplayRunStatus.COMPLETED } },
+      orderBy: [{ generationAnchor: "asc" }, { id: "asc" }],
+      select: { generationAnchor: true },
+    });
+    const overdueAnchors = incompleteRuns.map((run) => run.generationAnchor).filter((anchor) => anchor.getTime() < expected.generationAnchor.getTime());
     return Object.freeze({
       state,
       generationAnchor: latest.generationAnchor.toISOString(),
@@ -227,6 +288,11 @@ export class PositionHistoryIngestionStatusService {
       progressPercent: progress.progressPercent,
       isCurrent,
       debtSuspected,
+      incompleteGenerations: incompleteRuns.length,
+      overdueIncompleteGenerations: overdueAnchors.length,
+      oldestIncompleteGenerationAnchor: incompleteRuns.length === 0 ? null : incompleteRuns[0]!.generationAnchor.toISOString(),
+      oldestOverdueGenerationAnchor: overdueAnchors.length === 0 ? null : overdueAnchors[0]!.toISOString(),
+      hasReplayDebt: overdueAnchors.length > 0,
     });
   }
 }

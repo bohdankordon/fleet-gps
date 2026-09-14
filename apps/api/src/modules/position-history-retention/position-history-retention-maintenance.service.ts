@@ -1,12 +1,20 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import type { ApiConfig } from "../../config/api-config";
 import { API_CONFIG } from "../../config/api-config.tokens";
 import { PositionHistoryRetentionService } from "./position-history-retention.service";
 import { PositionHistoryRetentionExecutionError, type PositionHistoryAutomaticRetentionOutcome } from "./position-history-retention.types";
+import type { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 
 export const POSITION_HISTORY_RETENTION_CRON = "0 0 6 * * *";
 export const POSITION_HISTORY_RETENTION_TIME_ZONE = "UTC";
+export const POSITION_HISTORY_RETENTION_SCHEDULE_UTC_HOUR = 6;
+export function nextAutomaticPositionHistoryRetentionExecutionAt(now: Date): Date {
+  if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new Error("Invalid retention schedule instant.");
+  const candidate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), POSITION_HISTORY_RETENTION_SCHEDULE_UTC_HOUR));
+  if (candidate.getTime() <= now.getTime()) candidate.setUTCDate(candidate.getUTCDate() + 1);
+  return candidate;
+}
 
 @Injectable()
 export class PositionHistoryRetentionMaintenanceService {
@@ -15,15 +23,24 @@ export class PositionHistoryRetentionMaintenanceService {
   public constructor(
     @Inject(API_CONFIG) private readonly config: ApiConfig,
     private readonly retention: PositionHistoryRetentionService,
+    @Optional() private readonly telemetry?: PositionHistoryIngestionTelemetryService,
   ) {}
 
   @Cron(POSITION_HISTORY_RETENTION_CRON, { name: "taxi-gps:position-history-retention", timeZone: POSITION_HISTORY_RETENTION_TIME_ZONE })
   public async scheduledEvaluate(): Promise<PositionHistoryAutomaticRetentionOutcome> {
+    const enabled = this.config.positionHistoryRetention?.enabled === true;
+    if (enabled) this.telemetry?.startRetentionAttempt();
     try {
       const result = await this.evaluate();
       this.logResult(result);
+      if (enabled) {
+        if (result.outcome === "EXECUTED" || result.outcome === "NO_WORK") this.telemetry?.completeRetentionAttempt("SUCCESS");
+        else if (result.outcome === "LOCK_UNAVAILABLE") this.telemetry?.completeRetentionAttempt("SKIPPED", "LOCK_UNAVAILABLE");
+        else if (result.outcome === "ACTIVE_POPULATION") this.telemetry?.completeRetentionAttempt("SKIPPED", "ACTIVE_POPULATION");
+      }
       return result;
     } catch {
+      if (enabled) this.telemetry?.completeRetentionAttempt("FAILED");
       this.logger.error("Automatic position-history retention failed safely; no same-day retry will be scheduled.");
       return Object.freeze({ outcome: "FAILED_SAFE", result: null });
     }

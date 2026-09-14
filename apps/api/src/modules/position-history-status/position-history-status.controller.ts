@@ -1,4 +1,4 @@
-import { Controller, Get, HttpException, Optional, Query } from "@nestjs/common";
+import { Controller, Get, HttpException, Optional, Query, Res } from "@nestjs/common";
 import { parseAbsoluteTimestamp } from "../vehicle-track/vehicle-track-query-params";
 import { toPositionHistoryHorizonStatusResponse } from "./position-history-status.read-model";
 import { PositionHistoryStatusService } from "./position-history-status.service";
@@ -20,7 +20,8 @@ export class PositionHistoryStatusController {
   }
   @Get("ingestion-status")
   @RequireAnyPermission("historyAdmin.view")
-  public async getIngestionStatus(): Promise<PositionHistoryIngestionStatusResponse> {
+  public async getIngestionStatus(@Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }): Promise<PositionHistoryIngestionStatusResponse> {
+    response.setHeader("Cache-Control", "no-store");
     if (this.ingestion === undefined || this.ingestion === null) throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500);
     try { return await this.ingestion.inspect(); }
     catch { throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500); }

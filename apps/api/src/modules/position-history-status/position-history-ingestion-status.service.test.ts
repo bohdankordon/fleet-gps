@@ -18,7 +18,7 @@ function database(overrides: Record<string, unknown> = {}) {
   const client: any = {
     vehicle: { count: async (): Promise<number> => { calls.push("vehicle.count"); return 2; } },
     vehicleHistoryIngestionCursor: { findMany: async (): Promise<readonly { confirmedThrough: Date }[]> => { calls.push("cursor.findMany"); return []; } },
-    positionHistoryReplayRun: { findFirst: async (): Promise<null> => { calls.push("replay.findFirst"); return null; } },
+    positionHistoryReplayRun: { findFirst: async (): Promise<null> => { calls.push("replay.findFirst"); return null; }, findMany: async (): Promise<readonly unknown[]> => { calls.push("replay.findMany"); return []; } },
     positionHistoryReplayCheckpoint: { count: async (): Promise<number> => { calls.push("replay.count"); return 0; } },
     positionHistoryPopulationRun: { findFirst: async (): Promise<null> => { calls.push("population.findFirst"); return null; } },
     ...overrides,
@@ -76,7 +76,7 @@ test("replay empty, active, and completed states are truthful without creating w
   assert.deepEqual(emptyDb.calls.filter((call) => call.startsWith("replay.")), ["replay.findFirst", "replay.findFirst"]);
   const anchor = new Date("2026-09-14T02:00:00Z");
   const activeDb = database({
-    positionHistoryReplayRun: { findFirst: async (args: any): Promise<any> => (args.where.kind === PositionHistoryReplayKind.DAILY_7_DAY ? { id: "run-daily", generationAnchor: anchor, rangeFrom: new Date("2026-09-07T02:00:00Z"), rangeTo: anchor, status: "RUNNING" } : null) },
+    positionHistoryReplayRun: { findFirst: async (args: any): Promise<any> => (args.where.kind === PositionHistoryReplayKind.DAILY_7_DAY ? { id: "run-daily", generationAnchor: anchor, rangeFrom: new Date("2026-09-07T02:00:00Z"), rangeTo: anchor, status: "RUNNING" } : null), findMany: async (): Promise<readonly unknown[]> => [] },
     positionHistoryReplayCheckpoint: { count: async (args: any): Promise<number> => (args.where?.status === undefined ? 4 : 1) },
   });
   const active = await new PositionHistoryIngestionStatusService(config(true, true), activeDb.service, telemetry()).inspect(new Date("2026-09-14T12:00:00Z"));
@@ -87,7 +87,7 @@ test("replay empty, active, and completed states are truthful without creating w
   assert.equal(active.replay.daily.checkpointsRemaining, 1);
   assert.equal(active.replay.daily.progressPercent, 75);
   const completedDb = database({
-    positionHistoryReplayRun: { findFirst: async (): Promise<any> => ({ id: "run-daily", generationAnchor: anchor, rangeFrom: new Date("2026-09-07T02:00:00Z"), rangeTo: anchor, status: "COMPLETED" }) },
+    positionHistoryReplayRun: { findFirst: async (): Promise<any> => ({ id: "run-daily", generationAnchor: anchor, rangeFrom: new Date("2026-09-07T02:00:00Z"), rangeTo: anchor, status: "COMPLETED" }), findMany: async (): Promise<readonly unknown[]> => [] },
     positionHistoryReplayCheckpoint: { count: async (args: any): Promise<number> => (args.where?.status === undefined ? 2 : 0) },
   });
   const completed = await new PositionHistoryIngestionStatusService(config(true, true), completedDb.service, telemetry()).inspect(new Date("2026-09-14T12:00:00Z"));
@@ -153,17 +153,180 @@ test("replay debt is suspected only for stale incomplete generations", async () 
   const currentAnchor = new Date("2026-09-14T02:00:00Z");
   const staleAnchor = new Date("2026-09-13T02:00:00Z");
   const staleDb = database({
-    positionHistoryReplayRun: { findFirst: async (): Promise<any> => ({ id: "run-stale", generationAnchor: staleAnchor, rangeFrom: new Date("2026-09-06T02:00:00Z"), rangeTo: staleAnchor, status: "RUNNING" }) },
+    positionHistoryReplayRun: { findFirst: async (): Promise<any> => ({ id: "run-stale", generationAnchor: staleAnchor, rangeFrom: new Date("2026-09-06T02:00:00Z"), rangeTo: staleAnchor, status: "RUNNING" }), findMany: async (): Promise<readonly unknown[]> => [] },
     positionHistoryReplayCheckpoint: { count: async (args: any): Promise<number> => (args.where?.status === undefined ? 3 : 2) },
   });
   const stale = await new PositionHistoryIngestionStatusService(config(true, true), staleDb.service, telemetry()).inspect(new Date("2026-09-14T12:00:00Z"));
   assert.equal(stale.replay.daily.debtSuspected, true);
   assert.equal(stale.replay.daily.isCurrent, false);
   const currentDb = database({
-    positionHistoryReplayRun: { findFirst: async (): Promise<any> => ({ id: "run-current", generationAnchor: currentAnchor, rangeFrom: new Date("2026-09-07T02:00:00Z"), rangeTo: currentAnchor, status: "RUNNING" }) },
+    positionHistoryReplayRun: { findFirst: async (): Promise<any> => ({ id: "run-current", generationAnchor: currentAnchor, rangeFrom: new Date("2026-09-07T02:00:00Z"), rangeTo: currentAnchor, status: "RUNNING" }), findMany: async (): Promise<readonly unknown[]> => [] },
     positionHistoryReplayCheckpoint: { count: async (args: any): Promise<number> => (args.where?.status === undefined ? 3 : 2) },
   });
   const current = await new PositionHistoryIngestionStatusService(config(true, true), currentDb.service, telemetry()).inspect(new Date("2026-09-14T12:00:00Z"));
   assert.equal(current.replay.daily.isCurrent, true);
   assert.equal(current.replay.daily.debtSuspected, false);
+});
+test("replay debt aggregates distinguish current processing from hidden older debt", async () => {
+  const now = new Date("2026-09-14T12:00:00Z");
+  const safeBoundary = new Date(now.getTime() - 2 * 60 * 1000);
+  const { positionHistoryReplayTarget } = await import("../position-history-continuous-ingestion/position-history-replay-planning");
+  const dailyCurrent = positionHistoryReplayTarget(PositionHistoryReplayKind.DAILY_7_DAY, safeBoundary).generationAnchor;
+  const rollingCurrent = positionHistoryReplayTarget(PositionHistoryReplayKind.ROLLING_90_DAY, safeBoundary).generationAnchor;
+  const dayMs = 24 * 60 * 60 * 1000;
+  type Run = { id: string; kind: PositionHistoryReplayKind; generationAnchor: Date; status: string };
+  const replayDb = (runs: readonly Run[]) => {
+    const byKind = (kind: PositionHistoryReplayKind): Run[] => runs.filter((run) => run.kind === kind);
+    const latestOf = (kind: PositionHistoryReplayKind): Run | null => {
+      const sorted = [...byKind(kind)].sort((a, b) => b.generationAnchor.getTime() - a.generationAnchor.getTime());
+      return sorted[0] ?? null;
+    };
+    return database({
+      positionHistoryReplayRun: {
+        findFirst: async (args: any): Promise<any> => {
+          const latest = latestOf(args.where.kind);
+          return latest === null ? null : { id: latest.id, generationAnchor: latest.generationAnchor, rangeFrom: new Date(latest.generationAnchor.getTime() - dayMs), rangeTo: latest.generationAnchor, status: latest.status };
+        },
+        findMany: async (args: any): Promise<any> => byKind(args.where.kind).filter((run) => run.status !== "COMPLETED").sort((a, b) => a.generationAnchor.getTime() - b.generationAnchor.getTime()).map((run) => ({ generationAnchor: run.generationAnchor })),
+      },
+      positionHistoryReplayCheckpoint: { count: async (args: any): Promise<number> => (args.where?.status === undefined ? 2 : 0) },
+    });
+  };
+  const kinds = [PositionHistoryReplayKind.DAILY_7_DAY, PositionHistoryReplayKind.ROLLING_90_DAY] as const;
+  const summarize = async (runs: readonly Run[]) => new PositionHistoryIngestionStatusService(config(true, true), replayDb(runs).service, telemetry()).inspect(now);
+  const empty = await summarize([]);
+  for (const kind of kinds) {
+    const summary = kind === PositionHistoryReplayKind.DAILY_7_DAY ? empty.replay.daily : empty.replay.rolling;
+    assert.equal(summary.state, "NOT_CREATED");
+    assert.equal(summary.incompleteGenerations, 0);
+    assert.equal(summary.hasReplayDebt, false);
+    assert.equal(summary.oldestIncompleteGenerationAnchor, null);
+    assert.equal(summary.oldestOverdueGenerationAnchor, null);
+  }
+  const dailyProcessing = await summarize([{ id: "d-current", kind: PositionHistoryReplayKind.DAILY_7_DAY, generationAnchor: dailyCurrent, status: "RUNNING" }]);
+  assert.equal(dailyProcessing.replay.daily.incompleteGenerations, 1);
+  assert.equal(dailyProcessing.replay.daily.overdueIncompleteGenerations, 0);
+  assert.equal(dailyProcessing.replay.daily.hasReplayDebt, false);
+  assert.equal(dailyProcessing.replay.daily.oldestIncompleteGenerationAnchor, dailyCurrent.toISOString());
+  const rollingProcessing = await summarize([{ id: "r-current", kind: PositionHistoryReplayKind.ROLLING_90_DAY, generationAnchor: rollingCurrent, status: "RUNNING" }]);
+  assert.equal(rollingProcessing.replay.rolling.incompleteGenerations, 1);
+  assert.equal(rollingProcessing.replay.rolling.hasReplayDebt, false);
+  const oldDaily = new Date(dailyCurrent.getTime() - dayMs);
+  const dailyDebt = await summarize([
+    { id: "d-old", kind: PositionHistoryReplayKind.DAILY_7_DAY, generationAnchor: oldDaily, status: "RUNNING" },
+    { id: "d-current", kind: PositionHistoryReplayKind.DAILY_7_DAY, generationAnchor: dailyCurrent, status: "RUNNING" },
+  ]);
+  assert.equal(dailyDebt.replay.daily.incompleteGenerations, 2);
+  assert.equal(dailyDebt.replay.daily.overdueIncompleteGenerations, 1);
+  assert.equal(dailyDebt.replay.daily.hasReplayDebt, true);
+  assert.equal(dailyDebt.replay.daily.oldestIncompleteGenerationAnchor, oldDaily.toISOString());
+  assert.equal(dailyDebt.replay.daily.oldestOverdueGenerationAnchor, oldDaily.toISOString());
+  assert.equal(dailyDebt.replay.daily.generationAnchor, dailyCurrent.toISOString());
+  const oldRolling = new Date(rollingCurrent.getTime() - 7 * dayMs);
+  const rollingDebt = await summarize([
+    { id: "r-old", kind: PositionHistoryReplayKind.ROLLING_90_DAY, generationAnchor: oldRolling, status: "PENDING" },
+    { id: "r-current", kind: PositionHistoryReplayKind.ROLLING_90_DAY, generationAnchor: rollingCurrent, status: "RUNNING" },
+  ]);
+  assert.equal(rollingDebt.replay.rolling.hasReplayDebt, true);
+  assert.equal(rollingDebt.replay.rolling.oldestOverdueGenerationAnchor, oldRolling.toISOString());
+});
+test("replay debt counts several old incomplete generations and ignores completed ones", async () => {
+  const now = new Date("2026-09-14T12:00:00Z");
+  const safeBoundary = new Date(now.getTime() - 2 * 60 * 1000);
+  const { positionHistoryReplayTarget } = await import("../position-history-continuous-ingestion/position-history-replay-planning");
+  const dailyCurrent = positionHistoryReplayTarget(PositionHistoryReplayKind.DAILY_7_DAY, safeBoundary).generationAnchor;
+  const dayMs = 24 * 60 * 60 * 1000;
+  const old1 = new Date(dailyCurrent.getTime() - 3 * dayMs);
+  const old2 = new Date(dailyCurrent.getTime() - 2 * dayMs);
+  const old3 = new Date(dailyCurrent.getTime() - dayMs);
+  const written: string[] = [];
+  const runs = [
+    { id: "d-1", generationAnchor: old1, status: "RUNNING" },
+    { id: "d-2", generationAnchor: old2, status: "PENDING" },
+    { id: "d-3", generationAnchor: old3, status: "RUNNING" },
+    { id: "d-done", generationAnchor: new Date(dailyCurrent.getTime() - 4 * dayMs), status: "COMPLETED" },
+    { id: "d-current", generationAnchor: dailyCurrent, status: "RUNNING" },
+  ];
+  const client: any = {
+    vehicle: { count: async (): Promise<number> => 0 },
+    vehicleHistoryIngestionCursor: { findMany: async (): Promise<readonly unknown[]> => [] },
+    positionHistoryReplayRun: {
+      findFirst: async (): Promise<any> => ({ id: "d-current", generationAnchor: dailyCurrent, rangeFrom: new Date(dailyCurrent.getTime() - dayMs), rangeTo: dailyCurrent, status: "RUNNING" }),
+      findMany: async (): Promise<any> => runs.filter((run) => run.status !== "COMPLETED").sort((a, b) => a.generationAnchor.getTime() - b.generationAnchor.getTime()).map((run) => ({ generationAnchor: run.generationAnchor })),
+      upsert: async (): Promise<never> => { written.push("run.upsert"); throw new Error("must not write"); },
+      create: async (): Promise<never> => { written.push("run.create"); throw new Error("must not write"); },
+    },
+    positionHistoryReplayCheckpoint: { count: async (): Promise<number> => 0, createMany: async (): Promise<never> => { written.push("checkpoint.create"); throw new Error("must not write"); } },
+    positionHistoryPopulationRun: { findFirst: async (): Promise<null> => null },
+  };
+  const response = await new PositionHistoryIngestionStatusService(config(true, true), { getClient: (): unknown => client } as any, telemetry()).inspect(now);
+  assert.equal(response.replay.daily.incompleteGenerations, 4);
+  assert.equal(response.replay.daily.overdueIncompleteGenerations, 3);
+  assert.equal(response.replay.daily.oldestIncompleteGenerationAnchor, old1.toISOString());
+  assert.equal(response.replay.daily.oldestOverdueGenerationAnchor, old1.toISOString());
+  assert.equal(response.replay.daily.hasReplayDebt, true);
+  assert.equal(written.length, 0);
+});
+
+test("retention floor alignment derives durable evidence from cursor metadata only", async () => {
+  const { positionHistoryPolicyFloor } = await import("../position-history-horizon/position-history-policy-floor");
+  const { summarizeRetentionFloorAlignment } = await import("./position-history-ingestion-status.service");
+  const now = new Date("2026-09-14T12:00:00Z");
+  const floor = positionHistoryPolicyFloor(now);
+  const empty = summarizeRetentionFloorAlignment([], 0, floor);
+  assert.deepEqual([empty.behind, empty.atOrBeyond, empty.aligned], [0, 0, false]);
+  const missing = summarizeRetentionFloorAlignment([{ coverageFrom: floor }], 2, floor);
+  assert.deepEqual([missing.behind, missing.atOrBeyond, missing.aligned], [0, 1, false]);
+  const behind = summarizeRetentionFloorAlignment([{ coverageFrom: new Date(floor.getTime() - 1000) }, { coverageFrom: floor }], 2, floor);
+  assert.deepEqual([behind.behind, behind.atOrBeyond, behind.aligned], [1, 1, false]);
+  const aligned = summarizeRetentionFloorAlignment([{ coverageFrom: floor }, { coverageFrom: new Date(floor.getTime() + 1000) }], 2, floor);
+  assert.deepEqual([aligned.behind, aligned.atOrBeyond, aligned.aligned], [0, 2, true]);
+});
+test("retention operational status distinguishes disabled, unobserved, success, skip, and failure", async () => {
+  const now = new Date("2026-09-14T12:00:00Z");
+  const { positionHistoryPolicyFloor } = await import("../position-history-horizon/position-history-policy-floor");
+  const floor = positionHistoryPolicyFloor(now);
+  void 0;
+  const cursorsFor = (coverages: readonly Date[]) => ({
+    vehicle: { count: async (): Promise<number> => coverages.length },
+    vehicleHistoryIngestionCursor: { findMany: async (): Promise<any> => coverages.map((coverageFrom) => ({ confirmedThrough: new Date(now.getTime() - 1000), coverageFrom })) },
+    positionHistoryReplayRun: { findFirst: async (): Promise<null> => null, findMany: async (): Promise<readonly unknown[]> => [] },
+    positionHistoryReplayCheckpoint: { count: async (): Promise<number> => 0 },
+    positionHistoryPopulationRun: { findFirst: async (): Promise<null> => null },
+  });
+  const disabled = await new PositionHistoryIngestionStatusService(config(false, false), { getClient: (): unknown => cursorsFor([floor]) } as any, telemetry()).inspect(now);
+  assert.equal(disabled.retention.enabled, false);
+  assert.equal(disabled.retention.lastOutcome, "NOT_OBSERVED_THIS_PROCESS");
+  assert.equal(disabled.retention.nextScheduledExecutionAt, null);
+  assert.equal(disabled.retention.currentRetentionPolicyFloor, floor.toISOString());
+  assert.equal(disabled.retention.retentionFloorAligned, true);
+  const unobserved = await new PositionHistoryIngestionStatusService(config(false, true), { getClient: (): unknown => cursorsFor([floor]) } as any, telemetry()).inspect(now);
+  assert.equal(unobserved.retention.enabled, true);
+  assert.equal(unobserved.retention.lastOutcome, "NOT_OBSERVED_THIS_PROCESS");
+  assert.equal(unobserved.retention.lastAttemptAt, null);
+  assert.equal(unobserved.retention.nextScheduledExecutionAt, "2026-09-15T06:00:00.000Z");
+  const successTele = telemetry();
+  successTele.startRetentionAttempt(new Date(now.getTime() - 1000));
+  successTele.completeRetentionAttempt("SUCCESS", null, now);
+  const success = await new PositionHistoryIngestionStatusService(config(true, true), { getClient: (): unknown => cursorsFor([floor]) } as any, successTele).inspect(now);
+  assert.equal(success.retention.lastOutcome, "SUCCESS");
+  assert.equal(success.retention.lastAttemptAt, new Date(now.getTime() - 1000).toISOString());
+  assert.equal(success.retention.lastCompletedAt, now.toISOString());
+  assert.equal(success.retention.lastSkipCategory, null);
+  const skipTele = telemetry();
+  skipTele.startRetentionAttempt(now);
+  skipTele.completeRetentionAttempt("SKIPPED", "LOCK_UNAVAILABLE", now);
+  const skipped = await new PositionHistoryIngestionStatusService(config(true, true), { getClient: (): unknown => cursorsFor([floor]) } as any, skipTele).inspect(now);
+  assert.equal(skipped.retention.lastOutcome, "SKIPPED");
+  assert.equal(skipped.retention.lastSkipCategory, "LOCK_UNAVAILABLE");
+  const failTele = telemetry();
+  failTele.startRetentionAttempt(now);
+  failTele.completeRetentionAttempt("FAILED", null, now);
+  const failed = await new PositionHistoryIngestionStatusService(config(true, true), { getClient: (): unknown => cursorsFor([floor]) } as any, failTele).inspect(now);
+  assert.equal(failed.retention.lastOutcome, "FAILED");
+  assert.equal(JSON.stringify(failed).includes("stack"), false);
+  const behind = await new PositionHistoryIngestionStatusService(config(true, true), { getClient: (): unknown => cursorsFor([new Date(floor.getTime() - 1000), floor]) } as any, telemetry()).inspect(now);
+  assert.deepEqual([behind.retention.cursorsBehindRetentionFloor, behind.retention.cursorsAtOrBeyondRetentionFloor, behind.retention.retentionFloorAligned], [1, 1, false]);
+  const fresh = await new PositionHistoryIngestionStatusService(config(true, true), { getClient: (): unknown => cursorsFor([floor]) } as any, telemetry()).inspect(now);
+  assert.equal(fresh.retention.lastOutcome, "NOT_OBSERVED_THIS_PROCESS");
 });

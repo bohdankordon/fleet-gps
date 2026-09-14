@@ -20,6 +20,8 @@ export type PositionHistoryIngestionFailureCategory =
   | "unknown";
 
 export type PositionHistoryIngestionTelemetryClock = Readonly<{ now(): Date }>;
+export type PositionHistoryRetentionTelemetryOutcome = "NOT_OBSERVED_THIS_PROCESS" | "SUCCESS" | "SKIPPED" | "FAILED";
+export type PositionHistoryRetentionTelemetrySkipCategory = "LOCK_UNAVAILABLE" | "ACTIVE_POPULATION";
 
 export const POSITION_HISTORY_INGESTION_TELEMETRY_WINDOW_MS = 60_000;
 export const POSITION_HISTORY_INGESTION_TELEMETRY_MAX_STARTS = 300;
@@ -91,6 +93,11 @@ export type PositionHistoryIngestionTelemetrySnapshot = Readonly<{
   lastRecentTailSuccessAt: Date | null;
   lastSafeFailureCategory: PositionHistoryIngestionFailureCategory | null;
   lastSafeFailureAt: Date | null;
+  retentionRunning: boolean;
+  lastRetentionAttemptAt: Date | null;
+  lastRetentionCompletedAt: Date | null;
+  lastRetentionOutcome: PositionHistoryRetentionTelemetryOutcome;
+  lastRetentionSkipCategory: PositionHistoryRetentionTelemetrySkipCategory | null;
 }>;
 @Injectable()
 export class PositionHistoryIngestionTelemetryService {
@@ -118,6 +125,11 @@ export class PositionHistoryIngestionTelemetryService {
   private readonly blockedUntil = new Map<string, number>();
   private lastFailureCategory: PositionHistoryIngestionFailureCategory | null = null;
   private lastFailureAt: Date | null = null;
+  private retentionRunning = false;
+  private lastRetentionAttemptAt: Date | null = null;
+  private lastRetentionCompletedAt: Date | null = null;
+  private lastRetentionOutcome: PositionHistoryRetentionTelemetryOutcome = "NOT_OBSERVED_THIS_PROCESS";
+  private lastRetentionSkipCategory: PositionHistoryRetentionTelemetrySkipCategory | null = null;
 
   public constructor(@Optional() clock?: PositionHistoryIngestionTelemetryClock) {
     this.clock = clock ?? realClock;
@@ -196,6 +208,22 @@ export class PositionHistoryIngestionTelemetryService {
   public recordLockContention(): void {
     this.lockContentionTotal += 1;
   }
+  public startRetentionAttempt(at?: Date): void {
+    const instant = at instanceof Date ? new Date(at.getTime()) : new Date(nowMs(this.clock));
+    if (!Number.isFinite(instant.getTime())) throw new Error("Invalid ingestion telemetry retention instant.");
+    this.retentionRunning = true;
+    this.lastRetentionAttemptAt = instant;
+  }
+  public completeRetentionAttempt(outcome: PositionHistoryRetentionTelemetryOutcome, skipCategory?: PositionHistoryRetentionTelemetrySkipCategory | null, at?: Date): void {
+    if (outcome !== "SUCCESS" && outcome !== "SKIPPED" && outcome !== "FAILED") throw new Error("Invalid ingestion telemetry retention outcome.");
+    if (skipCategory !== undefined && skipCategory !== null && skipCategory !== "LOCK_UNAVAILABLE" && skipCategory !== "ACTIVE_POPULATION") throw new Error("Invalid ingestion telemetry retention skip category.");
+    const instant = at instanceof Date ? new Date(at.getTime()) : new Date(nowMs(this.clock));
+    if (!Number.isFinite(instant.getTime())) throw new Error("Invalid ingestion telemetry retention instant.");
+    this.retentionRunning = false;
+    this.lastRetentionCompletedAt = instant;
+    this.lastRetentionOutcome = outcome;
+    this.lastRetentionSkipCategory = outcome === "SKIPPED" && (skipCategory === "LOCK_UNAVAILABLE" || skipCategory === "ACTIVE_POPULATION") ? skipCategory : null;
+  }
 
   public recordRecentTailSuccess(at?: Date): void {
     const instant = at instanceof Date ? new Date(at.getTime()) : new Date(nowMs(this.clock));
@@ -272,6 +300,11 @@ export class PositionHistoryIngestionTelemetryService {
       lastRecentTailSuccessAt: this.lastRecentSuccessAt === null ? null : copyDate(this.lastRecentSuccessAt),
       lastSafeFailureCategory: this.lastFailureCategory,
       lastSafeFailureAt: this.lastFailureAt === null ? null : copyDate(this.lastFailureAt),
+      retentionRunning: this.retentionRunning,
+      lastRetentionAttemptAt: this.lastRetentionAttemptAt === null ? null : copyDate(this.lastRetentionAttemptAt),
+      lastRetentionCompletedAt: this.lastRetentionCompletedAt === null ? null : copyDate(this.lastRetentionCompletedAt),
+      lastRetentionOutcome: this.lastRetentionOutcome,
+      lastRetentionSkipCategory: this.lastRetentionSkipCategory,
     });
   }
 }
