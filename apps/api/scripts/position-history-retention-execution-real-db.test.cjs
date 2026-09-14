@@ -95,6 +95,7 @@ test("Stage 19B real PostgreSQL disposable fixture proves checkpoint-first delet
     const instrumented = {
       inspect: (value) => realRepository.inspect(value),
       countActiveDurableRuns: () => realRepository.countActiveDurableRuns(),
+      reconcilePolicyFloor: async (value) => { events.push("policy-reconciliation-start"); const reconciled = await realRepository.reconcilePolicyFloor(value); events.push("policy-reconciliation-committed"); return reconciled; },
       deleteFullyObsoleteCheckpointBatch: async (value, limit) => { events.push("checkpoint-delete-start"); const count = await realRepository.deleteFullyObsoleteCheckpointBatch(value, limit); events.push("checkpoint-delete-committed"); return count; },
       countFullyObsoleteCheckpoints: async (value) => { events.push("checkpoint-recount"); return realRepository.countFullyObsoleteCheckpoints(value); },
       deleteExecutableObservationBatch: async (value, limit) => { events.push("observation-delete-start"); assert.ok(events.includes("checkpoint-delete-committed")); assert.ok(events.includes("checkpoint-recount")); const count = await realRepository.deleteExecutableObservationBatch(value, limit); events.push("observation-delete-committed"); return count; },

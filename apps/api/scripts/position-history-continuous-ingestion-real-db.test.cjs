@@ -77,19 +77,19 @@ test("real continuous persistence is atomic, restart-safe, CAS-fenced, and dupli
   await prisma.vehiclePositionObservation.createMany({ data: [{ vehicleId, ...values[0] }, { vehicleId, ...values[3] }] });
   const historical = values.map((value) => ({ ...value, ingestionSource: PositionIngestionSource.HISTORICAL_BACKFILL }));
 
-  const committed = await lockService().runExclusive(() => cursorService.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: historical }));
+  const committed = await lockService().runExclusive(() => cursorService.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: historical }));
   assert.deepEqual(committed, { inserted: 2, duplicates: 2 });
   assert.equal(await prisma.vehiclePositionObservation.count({ where: { vehicleId } }), 4);
   assert.equal((await cursorService.findCursor(vehicleId)).confirmedThrough.toISOString(), t1.toISOString());
 
   const stale = candidate(new Date(t1.getTime() + 1_000).toISOString(), 49.5);
-  await assert.rejects(cursorService.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t0, nextConfirmedThrough: t2, candidates: [stale] }), PositionHistoryIngestionCursorStaleProgressError);
+  await assert.rejects(cursorService.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t0, nextConfirmedThrough: t2, candidates: [stale] }), PositionHistoryIngestionCursorStaleProgressError);
   assert.equal(await prisma.vehiclePositionObservation.count({ where: { vehicleId, fixFingerprint: stale.fixFingerprint } }), 0);
   assert.equal((await cursorService.findCursor(vehicleId)).confirmedThrough.toISOString(), t1.toISOString());
 
   const restartedCursorService = new PositionHistoryIngestionCursorService(new PrismaPositionHistoryIngestionCursorRepository({ getClient: () => prisma }));
   assert.equal((await restartedCursorService.findCursor(vehicleId)).confirmedThrough.toISOString(), t1.toISOString());
-  await restartedCursorService.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t1, nextConfirmedThrough: t2, candidates: [] });
+  await restartedCursorService.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t1, nextConfirmedThrough: t2, candidates: [] });
   assert.equal((await restartedCursorService.findCursor(vehicleId)).confirmedThrough.toISOString(), t2.toISOString());
 
   assert.deepEqual(await continuousRepository.persistReplay(vehicleId, historical), { inserted: 0, duplicates: 4 });

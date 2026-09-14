@@ -5,7 +5,7 @@ import { POSITION_HISTORY_POLICY_DAYS } from "../position-history-horizon/positi
 import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
 import { AuditEventRepository, buildAutomaticRetentionExecutedAuditEvent, buildRetentionExecutedAuditEvent, type AuditUserActor, type RetentionExecutedAuditDetails } from "../audit";
 import { POSITION_HISTORY_RETENTION_CLOCK, POSITION_HISTORY_RETENTION_REPOSITORY } from "./position-history-retention.tokens";
-import { POSITION_HISTORY_RETENTION_CHECKPOINT_BATCH_SIZE, POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET, POSITION_HISTORY_RETENTION_OBSERVATION_BATCH_SIZE, POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET, PositionHistoryRetentionExecutionError, type PositionHistoryRetentionClock, type PositionHistoryRetentionExecutionRequest, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPlan, type PositionHistoryRetentionRepository } from "./position-history-retention.types";
+import { POSITION_HISTORY_RETENTION_CHECKPOINT_BATCH_SIZE, POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET, POSITION_HISTORY_RETENTION_OBSERVATION_BATCH_SIZE, POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET, PositionHistoryRetentionExecutionError, type PositionHistoryPolicyReconciliationResult, type PositionHistoryRetentionClock, type PositionHistoryRetentionExecutionRequest, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPlan, type PositionHistoryRetentionRepository } from "./position-history-retention.types";
 
 type RetentionAuditContext = Readonly<{ actorType: "USER"; actor: AuditUserActor }> | Readonly<{ actorType: "SYSTEM" }>;
 
@@ -27,6 +27,7 @@ export class PositionHistoryRetentionService {
       policyDays: POSITION_HISTORY_POLICY_DAYS,
       canonicalAnchor: canonicalAnchor.toISOString(),
       policyCutoff: policyCutoff.toISOString(),
+      policyReconciliation: Object.freeze(facts.policyReconciliation),
       observations: Object.freeze({
         ...facts.observations,
         oldestObservedAt: facts.observations.oldestObservedAt?.toISOString() ?? null,
@@ -62,7 +63,8 @@ export class PositionHistoryRetentionService {
 
         const plan = await this.getRetentionPlan(this.clock.now());
         validatePlan?.(plan);
-        const result = await this.executeBoundedDestructivePass(plan);
+        const policyReconciliation = await this.repository.reconcilePolicyFloor(new Date(plan.policyCutoff));
+        const result = await this.executeBoundedDestructivePass(plan, policyReconciliation);
         if (auditContext !== undefined && result.deletedCheckpoints + result.deletedObservations > 0) {
           const details = retentionAuditDetails(result);
           await this.audit.appendWithDatabase(auditContext.actorType === "USER"
@@ -77,7 +79,7 @@ export class PositionHistoryRetentionService {
     }
   }
 
-  private async executeBoundedDestructivePass(plan: PositionHistoryRetentionPlan): Promise<PositionHistoryRetentionExecutionResult> {
+  private async executeBoundedDestructivePass(plan: PositionHistoryRetentionPlan, policyReconciliation: PositionHistoryPolicyReconciliationResult): Promise<PositionHistoryRetentionExecutionResult> {
     const policyCutoff = new Date(plan.policyCutoff);
     let deletedCheckpoints = 0;
     while (plan.checkpoints.fullyObsolete > 0 && deletedCheckpoints < POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET) {
@@ -89,7 +91,7 @@ export class PositionHistoryRetentionService {
 
     const remainingFullyObsoleteCheckpoints = await this.repository.countFullyObsoleteCheckpoints(policyCutoff);
     if (remainingFullyObsoleteCheckpoints > 0) {
-      return this.result(plan, deletedCheckpoints, 0, remainingFullyObsoleteCheckpoints, await this.repository.countExecutableObservationCandidates(policyCutoff), true);
+      return this.result(plan, policyReconciliation, deletedCheckpoints, 0, remainingFullyObsoleteCheckpoints, await this.repository.countExecutableObservationCandidates(policyCutoff), true);
     }
 
     let deletedObservations = 0;
@@ -100,19 +102,20 @@ export class PositionHistoryRetentionService {
       if (deleted < limit) break;
     }
     const remainingExecutableObservationCandidates = await this.repository.countExecutableObservationCandidates(policyCutoff);
-    return this.result(plan, deletedCheckpoints, deletedObservations, 0, remainingExecutableObservationCandidates, remainingExecutableObservationCandidates > 0);
+    return this.result(plan, policyReconciliation, deletedCheckpoints, deletedObservations, 0, remainingExecutableObservationCandidates, remainingExecutableObservationCandidates > 0);
   }
 
-  private result(plan: PositionHistoryRetentionPlan, deletedCheckpoints: number, deletedObservations: number, remainingFullyObsoleteCheckpoints: number, remainingExecutableObservationCandidates: number, stoppedByBudget: boolean): PositionHistoryRetentionExecutionResult {
+  private result(plan: PositionHistoryRetentionPlan, policyReconciliation: PositionHistoryPolicyReconciliationResult, deletedCheckpoints: number, deletedObservations: number, remainingFullyObsoleteCheckpoints: number, remainingExecutableObservationCandidates: number, stoppedByBudget: boolean): PositionHistoryRetentionExecutionResult {
     return Object.freeze({
       canonicalAnchor: plan.canonicalAnchor,
       policyCutoff: plan.policyCutoff,
+      ...policyReconciliation,
       deletedCheckpoints,
       deletedObservations,
       remainingFullyObsoleteCheckpoints,
       remainingExecutableObservationCandidates,
       stoppedByBudget,
-      noWork: deletedCheckpoints === 0 && deletedObservations === 0 && remainingFullyObsoleteCheckpoints === 0 && remainingExecutableObservationCandidates === 0,
+      noWork: policyReconciliation.advancedCursorFloors === 0 && policyReconciliation.advancedReplayCheckpoints === 0 && deletedCheckpoints === 0 && deletedObservations === 0 && remainingFullyObsoleteCheckpoints === 0 && remainingExecutableObservationCandidates === 0,
     });
   }
 }

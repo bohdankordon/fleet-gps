@@ -6,6 +6,7 @@ import { PositionHistoryRetentionService } from "./position-history-retention.se
 import type { PositionHistoryRetentionFacts, PositionHistoryRetentionRepository } from "./position-history-retention.types";
 
 const facts: PositionHistoryRetentionFacts = {
+  policyReconciliation: { cursorFloorCandidates: 2, replayCheckpointCandidates: 3 },
   observations: { total: 12, olderThanPolicyCutoff: 5, atOrAfterPolicyCutoff: 7, oldestObservedAt: new Date("2026-04-01T00:00:00Z"), newestObservedAt: new Date("2026-08-13T00:00:00Z"), vehiclesWithObservationsOlderThanCutoff: 3, executableObservationCandidates: 2 },
   checkpoints: {
     total: 9, fullyObsolete: 3, boundaryOverlap: 2, protected: 4,
@@ -26,6 +27,7 @@ test("reuses the shared history policy for the retention cutoff", async () => {
   assert.equal(plan.policyDays, POSITION_HISTORY_POLICY_DAYS);
   assert.equal(plan.canonicalAnchor, "2026-08-11T02:00:00.000Z");
   assert.equal(plan.policyCutoff, "2026-05-13T02:00:00.000Z");
+  assert.deepEqual(plan.policyReconciliation, { cursorFloorCandidates: 2, replayCheckpointCandidates: 3 });
   assert.deepEqual(cutoffs, [plan.policyCutoff]);
   assert.equal(Date.parse(plan.canonicalAnchor) - Date.parse(plan.policyCutoff), POSITION_HISTORY_POLICY_DAYS * POSITION_HISTORY_ABSOLUTE_DAY_MS);
   assert.equal(plan.safety.hasBoundaryOverlap, true);
@@ -55,6 +57,7 @@ test("policy is independent of local timezone, DST, and the history page anchor"
 
 test("empty facts retain nullable extrema and do not manufacture overlap safety", async () => {
   const empty: PositionHistoryRetentionFacts = {
+    policyReconciliation: { cursorFloorCandidates: 0, replayCheckpointCandidates: 0 },
     observations: { total: 0, olderThanPolicyCutoff: 0, atOrAfterPolicyCutoff: 0, oldestObservedAt: null, newestObservedAt: null, vehiclesWithObservationsOlderThanCutoff: 0, executableObservationCandidates: 0 },
     checkpoints: { total: 0, fullyObsolete: 0, boundaryOverlap: 0, protected: 0, fullyObsoleteByStatus: { pending: 0, running: 0, completed: 0 }, boundaryOverlapByStatus: { pending: 0, running: 0, completed: 0 }, protectedByStatus: { pending: 0, running: 0, completed: 0 }, endingExactlyAtCutoff: 0, startingExactlyAtCutoff: 0, strictlyCrossingCutoff: 0 },
   };

@@ -3,6 +3,7 @@ import test from "node:test";
 import { PositionBackfillStatus, PositionHistoryReplayKind, PositionHistoryReplayRunStatus, type PositionHistoryReplayCheckpoint, type PositionHistoryReplayRun } from "../../generated/prisma/client";
 import type { PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
 import { PositionHistoryHorizonAlreadyRunningError, type PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
+import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
 import type { PositionHistoryReplayRepository, PositionHistoryReplayRunStateService } from "../position-history-replay-generation";
 import { PositionHistoryReplayWorkerService } from "./position-history-replay-worker.service";
 
@@ -11,14 +12,14 @@ const vehicleId = "123e4567-e89b-42d3-a456-426614174002";
 const checkpointId = "123e4567-e89b-42d3-a456-426614174003";
 const anchor = new Date("2026-09-14T02:00:00Z");
 
-function harness(mode: "success" | "empty" | "provider-failure" = "success") {
+function harness(mode: "success" | "empty" | "provider-failure" = "success", eligibleVehicles = true) {
   let milliseconds = Date.parse("2026-09-14T03:00:00Z");
   let providerCalls = 0;
   let persistedCandidates = 0;
   let run: PositionHistoryReplayRun = { id: runId, kind: PositionHistoryReplayKind.DAILY_7_DAY, generationAnchor: anchor, rangeFrom: new Date("2026-09-07T02:00:00Z"), rangeTo: anchor, status: PositionHistoryReplayRunStatus.PENDING, leaseOwner: null, leaseExpiresAt: null, startedAt: null, completedAt: null, createdAt: anchor, updatedAt: anchor };
   let checkpoint: PositionHistoryReplayCheckpoint = { id: checkpointId, runId, vehicleId, rangeFrom: run.rangeFrom, rangeTo: run.rangeTo, nextFrom: run.rangeFrom, status: PositionBackfillStatus.PENDING, createdAt: anchor, updatedAt: anchor };
   const repository = {
-    listEligibleVehicles: async () => [{ vehicleId, externalDeviceId: 77, disabled: false }],
+    listEligibleVehicles: async () => eligibleVehicles ? [{ vehicleId, externalDeviceId: 77, disabled: false }] : [],
     ensureRun: async () => run,
     countCheckpoints: async () => 1,
     ensureCheckpoints: async () => [checkpoint],
@@ -30,6 +31,11 @@ function harness(mode: "success" | "empty" | "provider-failure" = "success") {
       persistedCandidates += input.candidates.length;
       checkpoint = { ...checkpoint, nextFrom: input.nextFrom, status: input.nextFrom.getTime() === checkpoint.rangeTo.getTime() ? PositionBackfillStatus.COMPLETED : PositionBackfillStatus.RUNNING };
       return { inserted: input.candidates.length, duplicates: 0, checkpointStatus: checkpoint.status };
+    },
+    retireReplayCheckpointPrefix: async (input: any) => {
+      assert.equal(input.expectedNextFrom.getTime(), checkpoint.nextFrom.getTime());
+      checkpoint = { ...checkpoint, nextFrom: input.nextFrom, status: input.nextFrom.getTime() === checkpoint.rangeTo.getTime() ? PositionBackfillStatus.COMPLETED : PositionBackfillStatus.RUNNING };
+      return checkpoint.status;
     },
   } as unknown as PositionHistoryReplayRepository;
   const state = {
@@ -70,6 +76,43 @@ test("valid empty replay advances generation progress without fabricating cursor
   assert.equal(result.outcome, "COMPLETED_WINDOW");
   assert.equal(result.inserted, 0);
   assert.equal(item.checkpoint().nextFrom.getTime(), before + 3_600_000);
+});
+
+test("expired replay prefix is policy-retired with zero provider request and remains resumable", async () => {
+  const item = harness("success");
+  Object.assign(item.checkpoint(), { rangeFrom: new Date("2026-06-01T02:00:00Z"), nextFrom: new Date("2026-06-05T02:00:00Z"), rangeTo: new Date("2026-06-20T02:00:00Z") });
+  const result = await item.worker.processKind(PositionHistoryReplayKind.DAILY_7_DAY);
+  assert.equal(result.outcome, "YIELDED");
+  assert.equal(result.policyRetiredPrefixes, 1);
+  assert.equal(result.requests, 0);
+  assert.equal(item.providerCalls(), 0);
+  assert.equal(item.checkpoint().nextFrom.toISOString(), positionHistoryPolicyFloor(new Date("2026-09-14T03:00:00Z")).toISOString());
+  assert.equal(item.checkpoint().status, PositionBackfillStatus.RUNNING);
+  const continued = await item.worker.processKind(PositionHistoryReplayKind.DAILY_7_DAY);
+  assert.equal(continued.outcome, "COMPLETED_WINDOW");
+  assert.equal(item.providerCalls(), 1);
+  assert.equal(item.checkpoint().nextFrom.toISOString(), "2026-06-10T03:00:00.000Z");
+});
+
+test("fully expired replay checkpoint settles and completes its run with zero provider request", async () => {
+  const item = harness("success");
+  Object.assign(item.checkpoint(), { rangeFrom: new Date("2026-06-01T02:00:00Z"), nextFrom: new Date("2026-06-05T02:00:00Z"), rangeTo: new Date("2026-06-10T02:00:00Z") });
+  const result = await item.worker.processKind(PositionHistoryReplayKind.DAILY_7_DAY);
+  assert.equal(result.outcome, "COMPLETED_RUN");
+  assert.equal(result.policyRetiredPrefixes, 1);
+  assert.equal(result.requests, 0);
+  assert.equal(item.providerCalls(), 0);
+  assert.equal(item.checkpoint().nextFrom.toISOString(), "2026-06-10T02:00:00.000Z");
+  assert.equal(item.run().status, PositionHistoryReplayRunStatus.COMPLETED);
+});
+
+test("expired generation settles even when no vehicle is currently provider-eligible", async () => {
+  const item = harness("success", false);
+  Object.assign(item.checkpoint(), { rangeFrom: new Date("2026-06-01T02:00:00Z"), nextFrom: new Date("2026-06-05T02:00:00Z"), rangeTo: new Date("2026-06-10T02:00:00Z") });
+  const result = await item.worker.processKind(PositionHistoryReplayKind.DAILY_7_DAY);
+  assert.equal(result.outcome, "COMPLETED_RUN");
+  assert.equal(result.requests, 0);
+  assert.equal(item.providerCalls(), 0);
 });
 
 test("final replay checkpoint window completes the run only after persisted checkpoint completion", async () => {

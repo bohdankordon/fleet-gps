@@ -11,7 +11,7 @@ const empty = (overrides: Partial<PositionHistoryContinuousCycleResult> = {}): P
 test("coordinator gives continuous lanes two first opportunities, then daily before rolling", async () => {
   const calls: string[] = [];
   const continuous = { processCycle: async (limit: number) => { calls.push(`continuous:${limit}`); return empty(); } } as unknown as PositionHistoryContinuousIngestionWorkerService;
-  const replay = { processKind: async (kind: PositionHistoryReplayKind) => { calls.push(kind); return { kind, outcome: "NO_WORK", generationAnchor: null, requests: 0, providerRows: 0, inserted: 0, duplicates: 0, invalid: 0, retries: 0, rateLimitResponses: 0, checkpointWindowsCompleted: 0, checkpointsRemaining: null }; } } as unknown as PositionHistoryReplayWorkerService;
+  const replay = { processKind: async (kind: PositionHistoryReplayKind) => { calls.push(kind); return { kind, outcome: "NO_WORK", generationAnchor: null, requests: 0, providerRows: 0, inserted: 0, duplicates: 0, invalid: 0, retries: 0, rateLimitResponses: 0, checkpointWindowsCompleted: 0, policyRetiredPrefixes: 0, checkpointsRemaining: null }; } } as unknown as PositionHistoryReplayWorkerService;
   await new PositionHistoryWorkloadCoordinatorService(continuous, replay).processCycle();
   assert.deepEqual(calls, ["continuous:2", PositionHistoryReplayKind.DAILY_7_DAY, PositionHistoryReplayKind.ROLLING_90_DAY]);
 });
@@ -31,7 +31,7 @@ test("daily rate limiting suppresses lower-priority rolling replay for that cycl
   const continuous = { processCycle: async () => empty() } as unknown as PositionHistoryContinuousIngestionWorkerService;
   const replay = { processKind: async (kind: PositionHistoryReplayKind) => {
     calls.push(kind);
-    return { kind, outcome: "FAILED", generationAnchor: null, requests: 3, providerRows: 0, inserted: 0, duplicates: 0, invalid: 0, retries: 2, rateLimitResponses: 3, checkpointWindowsCompleted: 0, checkpointsRemaining: 1 };
+    return { kind, outcome: "FAILED", generationAnchor: null, requests: 3, providerRows: 0, inserted: 0, duplicates: 0, invalid: 0, retries: 2, rateLimitResponses: 3, checkpointWindowsCompleted: 0, policyRetiredPrefixes: 0, checkpointsRemaining: 1 };
   } } as unknown as PositionHistoryReplayWorkerService;
   await new PositionHistoryWorkloadCoordinatorService(continuous, replay).processCycle();
   assert.deepEqual(calls, [PositionHistoryReplayKind.DAILY_7_DAY]);

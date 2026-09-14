@@ -4,7 +4,7 @@
 
 For every provider-mapped vehicle, Fleet GPS must eventually persist every unique, structurally valid normalized GPS fix that remains obtainable through the historical provider API, regardless of live polling interval, temporary failures, restart, or short downtime.
 
-The v1.1.0 system did not provide that invariant. PR 3 adds a default-off continuous lane that materially advances it, PR 4A adds replay-generation durability, and PR 4B activates fair recurring replay behind the same default-off feature. Retention integration and production enablement remain incomplete.
+The v1.1.0 system did not provide that invariant. PR 3 adds a default-off continuous lane, PR 4A adds replay-generation durability, PR 4B activates fair recurring replay behind the same default-off feature, and PR 5 integrates those correctness facts with retention. The implementation is correctness-complete for controlled rollout, but production enablement remains a separate explicit operation.
 
 ## Two independent lanes
 
@@ -22,6 +22,8 @@ The worker has two bounded logical lanes:
 
 - **Recent tail** fetches the closed 15-minute interval `[safeNow - 15m, safeNow]` when a vehicle's cursor is older than that interval. It inserts/deduplicates observations but never advances `confirmedThrough`.
 - **Contiguous backlog** advances oldest-first from the durable cursor. Each quantum advances at most 45 minutes and fetches up to 15 minutes behind the old cursor: `fetchFrom = max(coverageFrom, confirmedThrough - 15m)` and `fetchTo = nextConfirmedThrough = min(confirmedThrough + 45m, safeNow)`. The resulting provider request is therefore never longer than the historical core's one-hour maximum. Only this lane calls the atomic insert-plus-CAS operation.
+
+Under the shared lock, both continuous lanes re-evaluate the active floor before a request. Recent-tail start is clamped to the greater of the cursor floor and current canonical policy floor. Backlog yields without provider traffic if its durable `coverageFrom` still trails a newly advanced canonical cutoff, allowing retention to perform the explicit floor transition first; after that transition, overlap is clamped to the refreshed `coverageFrom`.
 
 `safeNow` is the injected trusted application clock minus two minutes. A cursor at or beyond it has no immediate backlog work and becomes eligible again after the initial five-minute caught-up cadence. If the cursor is already within the recent-tail interval, only contiguous work runs, avoiding two requests for equivalent coverage.
 
@@ -103,12 +105,12 @@ Candidates earlier than `expectedConfirmedThrough` are valid overlap and must no
 One PostgreSQL transaction performs:
 
 1. `VehiclePositionObservation.createMany(..., skipDuplicates: true)` for validated normalized candidates;
-2. a conditional cursor update matching both `vehicleId` and the expected `confirmedThrough`; and
+2. a conditional cursor update matching `vehicleId`, the expected `coverageFrom`, and the expected `confirmedThrough`; and
 3. the transition to `nextConfirmedThrough`.
 
 The conditional update must affect exactly one row. Otherwise a stale-progress error aborts the transaction, rolling back newly inserted observations. Empty candidate sets may still advance after a future caller has established that an empty historical response authoritatively covers the interval.
 
-The CAS is the per-vehicle correctness fence. Orchestration and the existing shared history coordination domain remain separate; this foundation adds no per-vehicle advisory lock.
+The dual-boundary CAS is the per-vehicle correctness fence. Retention can advance `coverageFrom` while leaving `confirmedThrough` unchanged, so a pre-retention plan cannot commit merely because its old confirmed boundary still matches. Any change to either expected correctness boundary makes the update stale and rolls back candidate inserts. Orchestration and the existing shared history coordination domain remain separate; this foundation adds no per-vehicle advisory lock.
 
 ## Durable replay generations
 
@@ -119,7 +121,7 @@ PR 4A introduced two generation-scoped structures, now consumed by PR 4B orchest
 - `PositionHistoryReplayRun` identifies one immutable `DAILY_7_DAY` or `ROLLING_90_DAY` generation by unique `(kind, generationAnchor)` plus its captured `rangeFrom` and `rangeTo`. A repeated ensure with different boundaries fails rather than changing an existing generation.
 - `PositionHistoryReplayCheckpoint` records one vehicle/range obligation within a run. Its identity is `(runId, vehicleId, rangeFrom, rangeTo)`, so two generations may intentionally contain the same absolute range without sharing completion state. `nextFrom` supports bounded restart-safe progress and is constrained to the checkpoint range.
 
-Replay runs are unowned and retryable while `PENDING`, exclusively leased while `RUNNING`, and become `COMPLETED` only when at least one checkpoint exists and all generation checkpoints are complete. Ownership-conditional claim, heartbeat renewal, yield, and completion transitions make execution restart-safe and multi-replica safe.
+Replay runs are unowned and retryable while `PENDING`, exclusively leased while `RUNNING`, and become `COMPLETED` only when at least one checkpoint exists and all generation checkpoints are satisfied. A checkpoint interval is satisfied either by successful provider processing while it remains in the active policy domain or by explicit policy retirement after it ages out of that domain. Ownership-conditional claim, heartbeat renewal, yield, and completion transitions make execution restart-safe and multi-replica safe.
 
 One replay persistence transaction inserts normalized observations with the established fingerprint uniqueness and conditionally advances the owned generation checkpoint by expected-`nextFrom` CAS. Empty candidate sets may advance replay progress. Stale progress, stale/expired ownership, or database failure rolls back inserted observations and progress together.
 
@@ -133,11 +135,22 @@ Every successful replay window atomically inserts/deduplicates normalized observ
 
 Generation anchors make repeated polls idempotent without suppressing future work. W1 and W2 may contain identical absolute vehicle/range slices, but their run-scoped checkpoint identities are different, so W2 intentionally fetches those slices again. Operational priority is recent tail, contiguous backlog, daily replay, then rolling replay. Explicit user/admin population remains available and fair because its lock ownership is bounded.
 
-PR 4B adds no schema or migration and introduces no second feature flag. Continuous and replay scheduling run only when `POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED=true`, whose default and production examples remain `false`. Retention/cursor-floor integration remains PR 5, so the system is not yet production-ready.
+PR 4B adds no schema or migration and introduces no second feature flag. Continuous and replay scheduling run only when `POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED=true`, whose default and production examples remain `false`.
 
-## Retention compatibility
+## Retention and the active guarantee domain
 
-The active local guarantee domain is approximately 90 days. A later retention integration can move `coverageFrom` forward to a newer cutoff and, when necessary, move `confirmedThrough` to that cutoff under the shared history lock. That narrows the explicit guarantee domain without claiming completeness for deleted history. PR 3 does not change retention execution; PR 5 must integrate retention and cursor boundaries before production enablement.
+The active local completeness guarantee is exactly the cursor interval `[coverageFrom, confirmedThrough]`; normal policy works toward `safeNow`, while the left edge follows the canonical approximately-90-day history policy. One retention execution captures one cutoff through the shared `positionHistoryPolicyFloor` helper and, under advisory lock `1706170003`, performs this safety ordering:
+
+1. advance every older cursor floor with `coverageFrom = max(coverageFrom, cutoff)` and `confirmedThrough = max(confirmedThrough, coverageFrom)`;
+2. policy-retire incomplete replay prefixes below the same cutoff;
+3. run the unchanged finite-checkpoint-first, bounded observation deletion algorithm; and
+4. release the shared lock.
+
+The cursor/replay transition commits before deletion starts. If it fails, deletion does not begin. If a later deletion batch fails, the narrower guarantee is conservative and old rows may remain until retry. Neither boundary moves backward, and `confirmedThrough` moves because of retention only when it must catch the newly advanced guarantee floor. This is a policy-domain change—not provider retrieval, recovery, or finality evidence. The same rule applies to provider-disabled vehicles; their local guarantee floor advances even though they may remain blocked and behind `safeNow`. Retention does not create missing cursors.
+
+For replay, retention advances an incomplete checkpoint to `min(max(nextFrom, cutoff), rangeTo)` without provider observations. A partially expired checkpoint continues later from its in-policy remainder. A fully expired checkpoint becomes satisfied, and the normal lease-fenced replay lifecycle completes its run once every checkpoint is satisfied. The replay worker independently applies the same canonical floor before each quantum, so it can settle obsolete work with zero provider request and can never intentionally re-fetch or reinsert an expired prefix. Replay policy retirement never reads or changes `coverageFrom` or `confirmedThrough`.
+
+Finite `VehiclePositionBackfillCheckpoint` truth remains separate. Fully obsolete finite checkpoints are deleted first, and surviving inclusive finite ranges continue to conservatively protect covered old observations. No observation at or after the active cutoff is eligible for normal retention deletion. The shared advisory lock excludes retention from continuous recent/backlog, replay, durable population, and another retention execution; lock contention yields with no partial work.
 
 ## Provider discovery policy inputs
 
@@ -154,4 +167,4 @@ Controlled read-only discovery on 2026-09-13 observed a maximum near-now histori
 
 These values are observations and conservative operating policy, not provider contractual guarantees. Discovery also observed HTTP 400 for one disabled sample's historical reads; later orchestration must treat that state as unresolved and must not initialize such a vehicle as complete.
 
-Daily trailing-seven-day and weekly rolling-90-day replay remain operational safeguards because no finite late-insertion or correction bound was established. PR 4B now performs them only behind the default-off history feature. PR 5 retention integration and a controlled rollout are still required before production enablement.
+Daily trailing-seven-day and weekly rolling-90-day replay remain operational safeguards because no finite late-insertion or correction bound was established. They run only behind the default-off history feature. After PR 5 the data-integrity implementation is ready for a controlled rollout assessment, but it is still not automatically or production-enabled.

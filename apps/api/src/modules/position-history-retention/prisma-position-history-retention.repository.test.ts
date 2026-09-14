@@ -16,6 +16,7 @@ test("uses one set-based read statement with strict observation and inclusive ch
       return [{
         observationTotal: 7n, observationOlder: 2n, observationProtected: 5n,
         oldestObservedAt: new Date("2026-04-01T00:00:00Z"), newestObservedAt: new Date("2026-08-01T00:00:00Z"), affectedVehicles: 2n, executableObservationCandidates: 1n,
+        cursorFloorCandidates: 3n, replayCheckpointCandidates: 4n,
         checkpointTotal: 6n, fullyObsolete: 1n, boundaryOverlap: 2n, protected: 3n,
         obsoletePending: 0n, obsoleteRunning: 0n, obsoleteCompleted: 1n,
         overlapPending: 1n, overlapRunning: 0n, overlapCompleted: 1n,
@@ -43,9 +44,29 @@ test("uses one set-based read statement with strict observation and inclusive ch
   assert.equal(result.observations.olderThanPolicyCutoff, 2);
   assert.equal(result.observations.atOrAfterPolicyCutoff, 5);
   assert.equal(result.observations.executableObservationCandidates, 1);
+  assert.deepEqual(result.policyReconciliation, { cursorFloorCandidates: 3, replayCheckpointCandidates: 4 });
   assert.deepEqual(result.checkpoints.boundaryOverlapByStatus, { pending: 1, running: 0, completed: 1 });
   assert.equal(result.checkpoints.endingExactlyAtCutoff, 1);
   assert.equal(result.checkpoints.startingExactlyAtCutoff, 1);
+});
+
+test("policy reconciliation atomically advances cursor floors and policy-retires replay prefixes", async () => {
+  let query = "";
+  let transactions = 0;
+  const transaction = { $queryRaw: async (sql: { strings?: readonly string[] }) => {
+    query = sql.strings?.join("?") ?? "";
+    return [{ advancedCursorFloors: 2n, advancedReplayCheckpoints: 3n, completedReplayCheckpoints: 1n }];
+  } };
+  const client = { $transaction: async (work: (value: typeof transaction) => Promise<unknown>) => { transactions += 1; return work(transaction); } } as unknown as PrismaClient;
+  const repository = new PrismaPositionHistoryRetentionRepository({ getClient: () => client } as DatabaseService);
+  assert.deepEqual(await repository.reconcilePolicyFloor(new Date("2026-05-13T02:00:00Z")), { advancedCursorFloors: 2, advancedReplayCheckpoints: 3, completedReplayCheckpoints: 1 });
+  assert.equal(transactions, 1);
+  assert.match(query, /UPDATE vehicle_history_ingestion_cursors/);
+  assert.match(query, /coverage_from =/);
+  assert.match(query, /confirmed_through = GREATEST/);
+  assert.match(query, /UPDATE position_history_replay_checkpoints/);
+  assert.match(query, /LEAST\(GREATEST\(next_from/);
+  assert.match(query, /status <> 'COMPLETED'/);
 });
 
 test("execution queries are deterministic set-based short transactions with same-vehicle inclusive surviving coverage", () => {

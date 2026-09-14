@@ -38,6 +38,7 @@ export class PositionHistoryWorkloadCoordinatorService {
       retries: result.retries,
       rateLimitResponses: result.rateLimitResponses,
       checkpointWindowsCompleted: result.checkpointWindowsCompleted,
+      policyRetiredPrefixes: result.policyRetiredPrefixes,
       checkpointsRemaining: result.checkpointsRemaining,
     });
   }

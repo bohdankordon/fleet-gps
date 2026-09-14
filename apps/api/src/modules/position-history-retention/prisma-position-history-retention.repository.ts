@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database/database.service";
-import type { PositionHistoryRetentionFacts, PositionHistoryRetentionRepository, PositionHistoryRetentionStatusCounts } from "./position-history-retention.types";
+import type { PositionHistoryPolicyReconciliationResult, PositionHistoryRetentionFacts, PositionHistoryRetentionRepository, PositionHistoryRetentionStatusCounts } from "./position-history-retention.types";
 
 type RawRetentionAggregate = Readonly<Record<string, bigint | Date | null>>;
 type RawCount = Readonly<{ count: bigint }>;
@@ -68,8 +68,13 @@ export class PrismaPositionHistoryRetentionRepository implements PositionHistory
           COUNT(*) FILTER (WHERE range_from = ${policyCutoff})::bigint AS "startingExactlyAtCutoff",
           COUNT(*) FILTER (WHERE range_from < ${policyCutoff} AND range_to > ${policyCutoff})::bigint AS "strictlyCrossingCutoff"
         FROM vehicle_position_backfill_checkpoints
+      ),
+      policy_reconciliation_facts AS (
+        SELECT
+          (SELECT COUNT(*) FROM vehicle_history_ingestion_cursors WHERE coverage_from < ${policyCutoff})::bigint AS "cursorFloorCandidates",
+          (SELECT COUNT(*) FROM position_history_replay_checkpoints WHERE status <> 'COMPLETED' AND next_from < ${policyCutoff})::bigint AS "replayCheckpointCandidates"
       )
-      SELECT * FROM observation_facts CROSS JOIN checkpoint_facts
+      SELECT * FROM observation_facts CROSS JOIN checkpoint_facts CROSS JOIN policy_reconciliation_facts
     `);
     const row = rows[0];
     if (!row) throw new Error("Missing position history retention aggregate");
@@ -78,6 +83,10 @@ export class PrismaPositionHistoryRetentionRepository implements PositionHistory
     if (oldest !== null && !(oldest instanceof Date)) throw new Error("Invalid oldest retention observation timestamp");
     if (newest !== null && !(newest instanceof Date)) throw new Error("Invalid newest retention observation timestamp");
     return Object.freeze({
+      policyReconciliation: Object.freeze({
+        cursorFloorCandidates: safeCount(row.cursorFloorCandidates, "cursorFloorCandidates"),
+        replayCheckpointCandidates: safeCount(row.replayCheckpointCandidates, "replayCheckpointCandidates"),
+      }),
       observations: Object.freeze({
         total: safeCount(row.observationTotal, "observationTotal"),
         olderThanPolicyCutoff: safeCount(row.observationOlder, "observationOlder"),
@@ -104,6 +113,39 @@ export class PrismaPositionHistoryRetentionRepository implements PositionHistory
 
   public countActiveDurableRuns(): Promise<number> {
     return this.database.getClient().positionHistoryPopulationRun.count({ where: { status: { in: ["PENDING", "RUNNING"] } } });
+  }
+
+  public async reconcilePolicyFloor(policyCutoff: Date): Promise<PositionHistoryPolicyReconciliationResult> {
+    return this.database.getClient().$transaction(async (transaction) => {
+      const rows = await transaction.$queryRaw<Array<Readonly<{ advancedCursorFloors: bigint; advancedReplayCheckpoints: bigint; completedReplayCheckpoints: bigint }>>>(Prisma.sql`
+        WITH advanced_cursors AS (
+          UPDATE vehicle_history_ingestion_cursors
+          SET coverage_from = ${policyCutoff},
+              confirmed_through = GREATEST(confirmed_through, ${policyCutoff}),
+              updated_at = CURRENT_TIMESTAMP
+          WHERE coverage_from < ${policyCutoff}
+          RETURNING vehicle_id
+        ), advanced_replay AS (
+          UPDATE position_history_replay_checkpoints
+          SET next_from = LEAST(GREATEST(next_from, ${policyCutoff}), range_to),
+              status = CASE WHEN range_to <= ${policyCutoff} THEN 'COMPLETED'::"PositionBackfillStatus" ELSE 'RUNNING'::"PositionBackfillStatus" END,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE status <> 'COMPLETED'
+            AND next_from < ${policyCutoff}
+          RETURNING status
+        )
+        SELECT
+          (SELECT COUNT(*) FROM advanced_cursors)::bigint AS "advancedCursorFloors",
+          (SELECT COUNT(*) FROM advanced_replay)::bigint AS "advancedReplayCheckpoints",
+          (SELECT COUNT(*) FROM advanced_replay WHERE status = 'COMPLETED')::bigint AS "completedReplayCheckpoints"
+      `);
+      const row = rows[0];
+      return Object.freeze({
+        advancedCursorFloors: safeCount(row?.advancedCursorFloors, "advancedCursorFloors"),
+        advancedReplayCheckpoints: safeCount(row?.advancedReplayCheckpoints, "advancedReplayCheckpoints"),
+        completedReplayCheckpoints: safeCount(row?.completedReplayCheckpoints, "completedReplayCheckpoints"),
+      });
+    });
   }
 
   public async countFullyObsoleteCheckpoints(policyCutoff: Date): Promise<number> {

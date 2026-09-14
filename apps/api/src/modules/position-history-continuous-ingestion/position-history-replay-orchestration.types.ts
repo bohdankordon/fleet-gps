@@ -19,6 +19,7 @@ export type PositionHistoryReplayQuantumResult = Readonly<{
   retries: number;
   rateLimitResponses: number;
   checkpointWindowsCompleted: number;
+  policyRetiredPrefixes: number;
   checkpointsRemaining: number | null;
 }>;
 

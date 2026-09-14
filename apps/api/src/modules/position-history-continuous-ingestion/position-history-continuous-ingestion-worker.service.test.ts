@@ -9,7 +9,7 @@ import { PositionHistoryIngestionCursorStaleProgressError, type VehicleHistoryIn
 import type { PositionHistoryIngestionCursorService } from "../position-history-ingestion-cursor";
 import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
 import { PositionHistoryHorizonAlreadyRunningError, type PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
-import { POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_MIN_REQUEST_START_GAP_MS, POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_MINUTE, POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS } from "./position-history-continuous-ingestion.constants";
+import { POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS, POSITION_HISTORY_CONTINUOUS_MIN_REQUEST_START_GAP_MS, POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_MINUTE, POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS } from "./position-history-continuous-ingestion.constants";
 import type { PositionHistoryContinuousIngestionRepository, PositionHistoryContinuousVehicle } from "./position-history-continuous-ingestion.types";
 import { PositionHistoryContinuousIngestionWorkerService } from "./position-history-continuous-ingestion-worker.service";
 
@@ -56,10 +56,10 @@ function harness(input: { vehicles?: readonly PositionHistoryContinuousVehicle[]
       return created;
     },
     findCursor: async (vehicleId: string) => cursors.get(vehicleId) ?? null,
-    persistContiguousResult: async ({ vehicleId, expectedConfirmedThrough, nextConfirmedThrough, candidates }: { vehicleId: string; expectedConfirmedThrough: Date; nextConfirmedThrough: Date; candidates: readonly PositionHistoryCandidate[] }) => {
+    persistContiguousResult: async ({ vehicleId, expectedCoverageFrom, expectedConfirmedThrough, nextConfirmedThrough, candidates }: { vehicleId: string; expectedCoverageFrom: Date; expectedConfirmedThrough: Date; nextConfirmedThrough: Date; candidates: readonly PositionHistoryCandidate[] }) => {
       if (input.persistFailure !== undefined) throw input.persistFailure;
       const current = cursors.get(vehicleId)!;
-      if (current.confirmedThrough.getTime() !== expectedConfirmedThrough.getTime()) throw new PositionHistoryIngestionCursorStaleProgressError();
+      if (current.coverageFrom.getTime() !== expectedCoverageFrom.getTime() || current.confirmedThrough.getTime() !== expectedConfirmedThrough.getTime()) throw new PositionHistoryIngestionCursorStaleProgressError();
       const set = observations.get(vehicleId)!; let inserted = 0;
       for (const value of candidates) if (!set.has(value.fixFingerprint)) { set.add(value.fixFingerprint); inserted += 1; }
       cursors.set(vehicleId, { ...current, confirmedThrough: new Date(nextConfirmedThrough), updatedAt: new Date(clockMs) });
@@ -201,6 +201,16 @@ test("disabled mapped vehicle gets only low-frequency contiguous diagnostic oppo
   assert.equal(item.calls.length, calls);
 });
 
+test("backlog yields without provider traffic while its durable coverage floor trails current retention policy", async () => {
+  const item = harness({ vehicles: [{ vehicleId: ids[0], externalDeviceId: 1, disabled: true }], cursors: new Map([[ids[0], new Date("2026-06-05T02:00:00Z")]]) });
+  const current = item.cursors.get(ids[0])!;
+  item.cursors.set(ids[0], { ...current, coverageFrom: new Date("2026-06-01T02:00:00Z") });
+  const result = await item.worker.processCycle();
+  assert.equal(result.requests, 0);
+  assert.equal(result.backlogCompleted, 0);
+  assert.equal(item.calls.length, 0);
+});
+
 for (const [label, failure] of [["database", new Error("database")], ["stale CAS", new PositionHistoryIngestionCursorStaleProgressError()]] as const) {
   test(`${label} persistence failure leaves cursor unchanged and work retryable`, async () => {
     const initial = new Date("2026-09-13T11:35:00Z");
@@ -210,6 +220,31 @@ for (const [label, failure] of [["database", new Error("database")], ["stale CAS
     assert.equal(item.cursors.get(ids[0])?.confirmedThrough.toISOString(), initial.toISOString());
   });
 }
+
+test("retention changing coverageFrom after planning fences stale inserts and replans from the new floor", async () => {
+  const confirmed = new Date("2026-09-13T11:45:00Z");
+  const newFloor = new Date("2026-09-13T11:44:00Z");
+  const value = candidate("2026-09-13T11:50:00Z", 49.31);
+  let item: ReturnType<typeof harness>;
+  let moved = false;
+  item = harness({ cursors: new Map([[ids[0], confirmed]]), handler: async () => {
+    if (!moved) {
+      moved = true;
+      const current = item.cursors.get(ids[0])!;
+      item.cursors.set(ids[0], { ...current, coverageFrom: newFloor });
+    }
+    return [value];
+  } });
+  const stale = await item.worker.processCycle();
+  assert.equal(stale.failedWork, 1);
+  assert.equal(item.observations.get(ids[0])?.has(value.fixFingerprint), false);
+  assert.equal(item.cursors.get(ids[0])?.confirmedThrough.toISOString(), confirmed.toISOString());
+
+  item.advance(POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS[0]);
+  const refreshed = await item.worker.processCycle();
+  assert.equal(refreshed.backlogCompleted, 1);
+  assert.ok(item.calls.at(-1)!.from.getTime() >= newFloor.getTime());
+});
 
 test("valid empty contiguous range advances while empty recent tail only inserts nothing", async () => {
   const old = harness({ cursors: new Map([[ids[0], new Date("2026-09-01T01:00:00Z")]]) });

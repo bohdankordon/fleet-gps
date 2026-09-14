@@ -49,15 +49,15 @@ test("empty windows advance and candidates use createMany skipDuplicates in the 
   let timeout = 0;
   const client = { $transaction: async (callback: (value: typeof transaction) => Promise<unknown>, options: { timeout: number }) => { timeout = options.timeout; return callback(transaction); } } as unknown as PrismaClient;
   const repository = new PrismaPositionHistoryIngestionCursorRepository({ getClient: () => client } as DatabaseService);
-  assert.deepEqual(await repository.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [] }), { inserted: 0, duplicates: 0 });
+  assert.deepEqual(await repository.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [] }), { inserted: 0, duplicates: 0 });
   assert.deepEqual(operations, ["cursor"]);
   operations.length = 0;
-  assert.deepEqual(await repository.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [candidate()] }), { inserted: 1, duplicates: 0 });
+  assert.deepEqual(await repository.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [candidate()] }), { inserted: 1, duplicates: 0 });
   assert.deepEqual(operations, ["observations", "cursor"]);
   assert.equal(timeout, 30_000);
   assert.equal((createInput as { skipDuplicates: boolean }).skipDuplicates, true);
   assert.equal((createInput as { data: Array<{ vehicleId: string }> }).data[0]?.vehicleId, vehicleId);
-  assert.deepEqual((updateInput as { where: unknown }).where, { vehicleId, confirmedThrough: t0 });
+  assert.deepEqual((updateInput as { where: unknown }).where, { vehicleId, coverageFrom: t0, confirmedThrough: t0 });
 });
 
 test("database dedupe is source-independent and overlap candidates before expected progress are allowed", async () => {
@@ -70,7 +70,7 @@ test("database dedupe is source-independent and overlap candidates before expect
   const repository = new PrismaPositionHistoryIngestionCursorRepository({ getClient: () => client } as DatabaseService);
   const live = candidate(PositionIngestionSource.FLEET_SYNC, new Date("2026-06-09T01:55:00Z"));
   const historical = { ...live, ingestionSource: PositionIngestionSource.HISTORICAL_BACKFILL };
-  const result = await repository.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [historical] });
+  const result = await repository.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [historical] });
   assert.deepEqual(result, { inserted: 0, duplicates: 1 });
   assert.ok(historical.observedAt < t0);
   assert.equal(historical.fixFingerprint, live.fixFingerprint);
@@ -87,13 +87,29 @@ test("stale CAS rejects safely and transaction failures propagate for rollback",
     try { return await callback(transaction); } catch (error) { rolledBack = true; throw error; }
   } } as unknown as PrismaClient;
   const repository = new PrismaPositionHistoryIngestionCursorRepository({ getClient: () => client } as DatabaseService);
-  await assert.rejects(repository.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [candidate()] }), PositionHistoryIngestionCursorStaleProgressError);
+  await assert.rejects(repository.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [candidate()] }), PositionHistoryIngestionCursorStaleProgressError);
   assert.equal(rolledBack, true);
 
   const insertionFailure = new Error("test insertion failure");
   transaction.vehiclePositionObservation.createMany = async () => { throw insertionFailure; };
   transaction.vehicleHistoryIngestionCursor.updateMany = async () => { throw new Error("cursor update must not run"); };
-  await assert.rejects(repository.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [candidate()] }), insertionFailure);
+  await assert.rejects(repository.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [candidate()] }), insertionFailure);
+});
+
+test("coverage-only staleness rejects the CAS and rolls back candidate insertion", async () => {
+  let rolledBack = false;
+  let where: unknown;
+  const transaction = {
+    vehiclePositionObservation: { createMany: async () => ({ count: 1 }) },
+    vehicleHistoryIngestionCursor: { updateMany: async (input: { where: unknown }) => { where = input.where; return { count: 0 }; } },
+  };
+  const client = { $transaction: async (callback: (value: typeof transaction) => Promise<unknown>) => {
+    try { return await callback(transaction); } catch (error) { rolledBack = true; throw error; }
+  } } as unknown as PrismaClient;
+  const repository = new PrismaPositionHistoryIngestionCursorRepository({ getClient: () => client } as DatabaseService);
+  await assert.rejects(repository.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [candidate()] }), PositionHistoryIngestionCursorStaleProgressError);
+  assert.deepEqual(where, { vehicleId, coverageFrom: t0, confirmedThrough: t0 });
+  assert.equal(rolledBack, true);
 });
 
 test("non-finite, equal, and backwards progress are rejected before a transaction", async () => {
@@ -101,7 +117,8 @@ test("non-finite, equal, and backwards progress are rejected before a transactio
   const client = { $transaction: async () => { transactions += 1; } } as unknown as PrismaClient;
   const repository = new PrismaPositionHistoryIngestionCursorRepository({ getClient: () => client } as DatabaseService);
   for (const next of [new Date(Number.NaN), t0, new Date(t0.getTime() - 1)]) {
-    await assert.rejects(repository.persistContiguousResult({ vehicleId, expectedConfirmedThrough: t0, nextConfirmedThrough: next, candidates: [] }), PositionHistoryIngestionCursorInvalidAdvanceError);
+    await assert.rejects(repository.persistContiguousResult({ vehicleId, expectedCoverageFrom: t0, expectedConfirmedThrough: t0, nextConfirmedThrough: next, candidates: [] }), PositionHistoryIngestionCursorInvalidAdvanceError);
   }
+  await assert.rejects(repository.persistContiguousResult({ vehicleId, expectedCoverageFrom: t1, expectedConfirmedThrough: t0, nextConfirmedThrough: t1, candidates: [] }), PositionHistoryIngestionCursorInvalidAdvanceError);
   assert.equal(transactions, 0);
 });
