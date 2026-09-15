@@ -6,7 +6,7 @@ Stage 20C completes the planned v1.0 audit subsystem with an ADMIN-only read-onl
 
 ## Complete current catalog
 
-Stage 20B completes integration of every approved event in the existing catalog:
+The current approved catalog is:
 
 - `USER_CREATED`: USER actor; USER target; details `targetLoginSnapshot`, `role`, and canonical effective `permissions`.
 - `USER_ACCESS_CHANGED`: USER actor; USER target; details `targetLoginSnapshot`, factual `previousRole`/`role`, and canonical effective `previousPermissions`/`permissions`.
@@ -19,16 +19,27 @@ Stage 20B completes integration of every approved event in the existing catalog:
 - `RETENTION_EXECUTED`: USER actor; `POSITION_HISTORY_RETENTION` target with no target ID; factual bounded-retention details.
 - `SYSTEM_POPULATION_CREATED`: SYSTEM actor; created `POSITION_HISTORY_POPULATION_RUN` target; details `to`, `windowBudget`, and `excludeProviderDisabled`.
 - `AUTOMATIC_RETENTION_EXECUTED`: SYSTEM actor; `POSITION_HISTORY_RETENTION` target with no target ID; the same factual bounded-retention details as manual retention.
+- `SETTINGS_UPDATED`: USER actor; `APPLICATION_SETTINGS` target; bounded changed-field facts.
+- `TELEGRAM_LINKED` and `TELEGRAM_DISCONNECTED`: USER actor and USER target; empty safe details.
+- `VEHICLE_GROUP_CREATED`: USER actor; `VEHICLE_GROUP` target; name and curated color.
+- `VEHICLE_GROUP_RENAMED`: retained compatibility event shape for name-only history.
+- `VEHICLE_GROUP_UPDATED`: USER actor; `VEHICLE_GROUP` target; previous/current name and color.
+- `VEHICLE_GROUP_MEMBERSHIP_CHANGED`: USER actor; `VEHICLE_GROUP` target; group-name snapshot and bounded added/removed counts.
+- `VEHICLE_GROUP_DELETED`: USER actor; `VEHICLE_GROUP` target; name and pre-delete vehicle/user-grant counts.
+- `USER_VEHICLE_ACCESS_CHANGED`: USER actor; USER target; login snapshot, previous/current mode, and bounded group/direct-grant counts and deltas.
 
   No event types beyond this source-controlled catalog are accepted.
-
- Phase 0 correctness baseline: the catalog now includes SETTINGS_UPDATED with bounded 1..16 changes and TELEGRAM_LINKED plus TELEGRAM_DISCONNECTED with empty safe details. No Telegram secrets are stored.
 
 ## Identity, targets, and safe details
 
 A USER actor is always derived from the authenticated server principal. New USER events require the authenticated user's ID and a login snapshot that follows the application login policy. The snapshot preserves historical identity if the optional AuthUser relation is later removed with `SET NULL`. A SYSTEM actor has a null user ID and null login snapshot; no fake AuthUser represents a scheduler.
 
-Targets use the fixed generic target categories `USER`, `POSITION_HISTORY`, `POSITION_HISTORY_POPULATION_RUN`, `POSITION_HISTORY_RETENTION`, and `APPLICATION_SETTINGS`. Only user, durable-run, and settings events have target IDs. There are no generic target foreign keys. Telegram events never carry link tokens, bot secrets, chat secrets, or credential material.
+Targets use the fixed generic target categories `USER`, `VEHICLE_GROUP`,
+`POSITION_HISTORY`, `POSITION_HISTORY_POPULATION_RUN`,
+`POSITION_HISTORY_RETENTION`, and `APPLICATION_SETTINGS`. User, vehicle-group,
+durable-run, and settings events have target IDs. There are no generic target
+foreign keys. Telegram events never carry link tokens, bot secrets, chat
+secrets, or credential material.
 
 Every event has a strict typed detail shape and exact-key runtime validation. Role values are only `ADMIN` or `USER`. Permission arrays contain only source-controlled permissions, include required dependencies, and use deterministic catalog order. ADMIN audit facts describe ADMIN's effective full access rather than empty permission-row storage. An access request that produces no normalized role or effective-permission change writes no event.
 
@@ -37,6 +48,11 @@ Audit details never contain passwords, temporary or generated passwords, hashes,
 ## Atomic auth and durable creation
 
 `USER_CREATED` shares one transaction with the user and permission inserts. `USER_ACCESS_CHANGED` shares one transaction with role and permission replacement. `USER_DISABLED` shares one transaction with disabling and session revocation. `USER_ENABLED` shares one transaction with enabling. `USER_PASSWORD_RESET` shares one transaction with credential replacement, the must-change state, and session revocation. `OWN_PASSWORD_CHANGED` shares one transaction with credential replacement and the existing session rotation. If the corresponding audit append fails, those database changes roll back.
+
+Vehicle Group create, update, membership replacement, and delete share their
+transaction with the corresponding audit append. USER Product Vehicle Access
+replacement and its audit append are likewise atomic. Failed validation,
+missing references, duplicate names, and semantic no-ops write no event.
 
 Temporary password material is returned only through the existing one-time response path after a successful commit and is never placed in an AuditEvent.
 
@@ -74,4 +90,12 @@ The only filters are one `eventType`, one `actorType`, one `targetType`, inclusi
 
 The public DTO exposes only the event ID and timestamp, event type, actor, target, and safe details. USER actors expose the durable login snapshot but never `actorUserId`; SYSTEM actors expose only their type. Targets are displayed without live target lookup. The repository's JSON details are never returned directly: every row is revalidated against its exact source-controlled event detail contract and reconstructed into typed fields. If one historical row has malformed or extra details, that row remains visible with `details.status = UNAVAILABLE`; raw JSON, validation errors, and embedded forbidden content are discarded without failing the rest of the page.
 
-The browser renders Russian labels and typed descriptions for all 14 approved event types, including Telegram link and disconnect events with safe empty details. It provides the approved filters, an explicit first-page refresh, and cursor-based “Показать ещё”. Changing or resetting filters and refreshing discard the previous cursor chain. There is no polling, SSE, WebSocket, JSON dump, actor UUID, export/download, audit update/delete/clear/prune, or audit retention control. A valid page containing a Telegram event never fails as a whole; per-row UNAVAILABLE remains the only fallback.
+The browser renders Russian, Ukrainian, and English labels and typed
+descriptions for all 20 approved event types, including group/access and
+Telegram events. It provides the approved filters, an explicit first-page
+refresh, and cursor-based “Показать ещё”. Changing or resetting filters and
+refreshing discard the previous cursor chain. There is no polling, SSE,
+WebSocket, JSON dump, actor UUID, export/download, audit
+update/delete/clear/prune, or audit retention control. A valid page containing
+any approved event never fails as a whole; per-row UNAVAILABLE remains the only
+fallback.

@@ -107,7 +107,7 @@ export type AdminAccessManagementProps = Readonly<{
   onToggleVehicleGroup(groupId: string, checked: boolean): void;
   onToggleVehicleGrant(vehicleId: string, checked: boolean): void;
   onSubmit(event: FormEvent): void;
-}>; 
+}>;
 
 export function AdminAccessManagement({ user, self, role, permissions, vehicle, groups, vehicles, vehicleError, busy, saveTrigger, onRoleChange, onPermissionsChange, onVehicleModeChange, onToggleVehicleGroup, onToggleVehicleGrant, onSubmit }: AdminAccessManagementProps) {
   const { locale, t } = useI18n();

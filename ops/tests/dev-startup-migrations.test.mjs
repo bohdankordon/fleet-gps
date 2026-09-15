@@ -45,7 +45,7 @@ test("managed-process tracking, port safety, background-off flags, and stop/stat
   assert.match(script, /Get-ManagedProcess -Settings \$settings -CleanStale/);
   assert.match(script, /Assert-PortAvailable/);
   assert.match(script, /already occupied by unmanaged process/);
-  for (const flag of ["SYNC_SCHEDULER_ENABLED", "ALERT_INGESTION_ENABLED", "POSITION_HISTORY_MAINTENANCE_ENABLED", "POSITION_HISTORY_RETENTION_ENABLED", "POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED", "TELEGRAM_NOTIFICATIONS_ENABLED", "OPS_ALERTS_ENABLED"]) {
+  for (const flag of ["SYNC_SCHEDULER_ENABLED", "ALERT_INGESTION_ENABLED", "POSITION_HISTORY_MAINTENANCE_ENABLED", "POSITION_HISTORY_RETENTION_ENABLED", "POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED", "TELEGRAM_NOTIFICATIONS_ENABLED", "TELEGRAM_PRODUCT_LINKING_ENABLED", "TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED", "TELEGRAM_PER_USER_DISPATCH_ENABLED", "OPS_ALERTS_ENABLED"]) {
     assert.ok(script.includes(flag) && script.includes("false"), flag);
   }
   assert.match(script, /\u0027stop\u0027\s*\{[\s\S]*?Stop-ManagedProcess[\s\S]*?PostgreSQL stopped/);

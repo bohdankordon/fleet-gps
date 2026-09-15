@@ -1,4 +1,4 @@
-import type { AuditActorType, AuditEventType, AuditTargetType, AuthRole, VehicleAccessMode } from "../../generated/prisma/enums";
+import type { AuditActorType, AuditEventType, AuditTargetType, AuthRole, VehicleAccessMode, VehicleGroupColor } from "../../generated/prisma/enums";
 import type { Permission } from "../auth/permissions";
 
 export const AUDIT_READ_PAGE_SIZE = 50;
@@ -19,8 +19,9 @@ export type AuditReadDetails =
   | Readonly<{ status: "AVAILABLE"; to: string; windowBudget: number; excludeProviderDisabled: boolean }>
   | Readonly<{ status: "AVAILABLE"; canonicalAnchor: string; policyCutoff: string; deletedCheckpoints: number; deletedObservations: number; remainingFullyObsoleteCheckpoints: number; remainingExecutableObservationCandidates: number; stoppedByBudget: boolean }>
   | Readonly<{ status: "AVAILABLE"; changes: readonly Readonly<{ field: string; previous: string | number | boolean | null; next: string | number | boolean | null }>[] }>
-  | Readonly<{ status: "AVAILABLE"; name: string }>
+  | Readonly<{ status: "AVAILABLE"; name: string; color: VehicleGroupColor }>
   | Readonly<{ status: "AVAILABLE"; previousName: string; name: string }>
+  | Readonly<{ status: "AVAILABLE"; previousName: string; name: string; previousColor: VehicleGroupColor; color: VehicleGroupColor }>
   | Readonly<{ status: "AVAILABLE"; name: string; addedCount: number; removedCount: number }>
   | Readonly<{ status: "AVAILABLE"; name: string; vehicleCount: number; userGrantCount: number }>
   | Readonly<{ status: "AVAILABLE"; targetLoginSnapshot: string; previousMode: VehicleAccessMode | null; mode: VehicleAccessMode; previousGroupGrantCount: number; groupGrantCount: number; previousVehicleGrantCount: number; vehicleGrantCount: number; addedGroupGrantCount: number; removedGroupGrantCount: number; addedVehicleGrantCount: number; removedVehicleGrantCount: number }>;

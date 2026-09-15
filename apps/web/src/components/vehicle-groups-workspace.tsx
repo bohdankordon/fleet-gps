@@ -24,7 +24,7 @@ export function VehicleGroupsLoadingWorkspace() {
   return <p aria-live="polite">{t("admin.groups.loading")}</p>;
 }
 
-type Props = Readonly<{ groups: readonly VehicleGroupSummary[] | null; vehicles: readonly ManagedVehicle[] | null }>; 
+type Props = Readonly<{ groups: readonly VehicleGroupSummary[] | null; vehicles: readonly ManagedVehicle[] | null }>;
 
 export function VehicleGroupsWorkspace({ groups, vehicles }: Props) {
   const { t } = useI18n();

@@ -29,13 +29,16 @@ test("Stage A vehicle groups and product vehicle access semantics", async () => 
   assert.equal((await scopes.resolve(existingUser.id)).kind, "UNRESTRICTED");
   await assert.rejects(prisma.authUser.update({ where: { id: admin.id }, data: { vehicleAccessMode: VehicleAccessMode.SELECTED } }));
 
-  const taxi = await groups.create(actor(admin), { name: "  Taxi  " });
+  const taxi = await groups.create(actor(admin), { name: "  Taxi  ", color: "BLUE" });
   assert.equal(taxi.name, "Taxi");
-  await assert.rejects(groups.create(actor(admin), { name: "tAXI" }), (error) => error instanceof VehicleGroupsError && error.code === "DUPLICATE_NAME");
+  assert.equal(taxi.color, "BLUE");
+  await assert.rejects(groups.create(actor(admin), { name: "tAXI", color: "CYAN" }), (error) => error instanceof VehicleGroupsError && error.code === "DUPLICATE_NAME");
   await assert.rejects(prisma.vehicleGroup.create({ data: { name: "TAXI" } }), (error) => error && error.code === "P2002");
   await assert.rejects(prisma.$executeRawUnsafe(`INSERT INTO "vehicle_groups" ("id", "name", "updated_at") VALUES (gen_random_uuid(), ' bad ', CURRENT_TIMESTAMP)`));
-  const support = await groups.create(actor(admin), { name: "Support" });
-  assert.equal((await groups.rename(actor(admin), support.id, { name: "Field Support" })).name, "Field Support");
+  const support = await groups.create(actor(admin), { name: "Support", color: "ORANGE" });
+  const updatedSupport = await groups.updateDetails(actor(admin), support.id, { name: "Field Support", color: "PURPLE" });
+  assert.equal(updatedSupport.name, "Field Support");
+  assert.equal(updatedSupport.color, "PURPLE");
 
   const vehicleA = await prisma.vehicle.create({ data: { externalDeviceId: 910001, name: "Car A" } });
   const vehicleB = await prisma.vehicle.create({ data: { externalDeviceId: 910002, name: "Car B" } });
@@ -83,7 +86,7 @@ test("Stage A vehicle groups and product vehicle access semantics", async () => 
   const failingAudit = { append: async () => { throw new Error("controlled audit failure"); } };
   const atomicGroups = new VehicleGroupsService(database, failingAudit);
   const beforeGroupCount = await prisma.vehicleGroup.count();
-  await assert.rejects(atomicGroups.create(actor(admin), { name: "Must Roll Back" }), /controlled audit failure/);
+  await assert.rejects(atomicGroups.create(actor(admin), { name: "Must Roll Back", color: "GRAY" }), /controlled audit failure/);
   assert.equal(await prisma.vehicleGroup.count(), beforeGroupCount, "group mutation rolls back when audit append fails");
   const atomicUsers = new AdminUsersService(database, security, failingAudit);
   const beforeAccess = await users.detail(existingUser.id);
@@ -91,7 +94,7 @@ test("Stage A vehicle groups and product vehicle access semantics", async () => 
   assert.deepEqual((await users.detail(existingUser.id)).vehicleAccess, beforeAccess.vehicleAccess, "authorization mutation rolls back when audit append fails");
 
   const eventTypes = new Set((await prisma.auditEvent.findMany({ select: { eventType: true } })).map(({ eventType }) => eventType));
-  for (const required of ["VEHICLE_GROUP_CREATED", "VEHICLE_GROUP_RENAMED", "VEHICLE_GROUP_MEMBERSHIP_CHANGED", "VEHICLE_GROUP_DELETED", "USER_VEHICLE_ACCESS_CHANGED"]) assert.equal(eventTypes.has(required), true, required);
+  for (const required of ["VEHICLE_GROUP_CREATED", "VEHICLE_GROUP_UPDATED", "VEHICLE_GROUP_MEMBERSHIP_CHANGED", "VEHICLE_GROUP_DELETED", "USER_VEHICLE_ACCESS_CHANGED"]) assert.equal(eventTypes.has(required), true, required);
   const accessAudit = await prisma.auditEvent.findFirstOrThrow({ where: { eventType: "USER_VEHICLE_ACCESS_CHANGED", targetId: selectedUser.id }, orderBy: { createdAt: "asc" } });
   assert.equal(JSON.stringify(accessAudit.details).includes(created.temporaryPassword), false);
     });

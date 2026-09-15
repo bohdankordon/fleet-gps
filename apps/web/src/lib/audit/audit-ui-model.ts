@@ -14,12 +14,15 @@ export const AUDIT_EVENT_LABELS: Readonly<Record<AuditEventType, string>> = Obje
   SYSTEM_POPULATION_CREATED: translate(DEFAULT_LOCALE, "audit.event.SYSTEM_POPULATION_CREATED"), RETENTION_EXECUTED: translate(DEFAULT_LOCALE, "audit.event.RETENTION_EXECUTED"),
   AUTOMATIC_RETENTION_EXECUTED: translate(DEFAULT_LOCALE, "audit.event.AUTOMATIC_RETENTION_EXECUTED"), SETTINGS_UPDATED: translate(DEFAULT_LOCALE, "audit.event.SETTINGS_UPDATED"),
   TELEGRAM_LINKED: translate(DEFAULT_LOCALE, "audit.event.TELEGRAM_LINKED"), TELEGRAM_DISCONNECTED: translate(DEFAULT_LOCALE, "audit.event.TELEGRAM_DISCONNECTED"),
+  VEHICLE_GROUP_CREATED: translate(DEFAULT_LOCALE, "audit.event.VEHICLE_GROUP_CREATED"), VEHICLE_GROUP_RENAMED: translate(DEFAULT_LOCALE, "audit.event.VEHICLE_GROUP_RENAMED"),
+  VEHICLE_GROUP_UPDATED: translate(DEFAULT_LOCALE, "audit.event.VEHICLE_GROUP_UPDATED"), VEHICLE_GROUP_MEMBERSHIP_CHANGED: translate(DEFAULT_LOCALE, "audit.event.VEHICLE_GROUP_MEMBERSHIP_CHANGED"),
+  VEHICLE_GROUP_DELETED: translate(DEFAULT_LOCALE, "audit.event.VEHICLE_GROUP_DELETED"), USER_VEHICLE_ACCESS_CHANGED: translate(DEFAULT_LOCALE, "audit.event.USER_VEHICLE_ACCESS_CHANGED"),
 });
 
 export const AUDIT_TARGET_LABELS: Readonly<Record<AuditTargetType, string>> = Object.freeze({
   USER: translate(DEFAULT_LOCALE, "audit.target.USER"), POSITION_HISTORY: translate(DEFAULT_LOCALE, "audit.target.POSITION_HISTORY"),
   POSITION_HISTORY_POPULATION_RUN: translate(DEFAULT_LOCALE, "audit.target.POSITION_HISTORY_POPULATION_RUN"), POSITION_HISTORY_RETENTION: translate(DEFAULT_LOCALE, "audit.target.POSITION_HISTORY_RETENTION"),
-  APPLICATION_SETTINGS: translate(DEFAULT_LOCALE, "audit.target.APPLICATION_SETTINGS"),
+  APPLICATION_SETTINGS: translate(DEFAULT_LOCALE, "audit.target.APPLICATION_SETTINGS"), VEHICLE_GROUP: translate(DEFAULT_LOCALE, "audit.target.VEHICLE_GROUP"),
 });
 
 export type AuditDetailGroup = Readonly<{ key: string; title: string; lines: readonly string[] }>;
@@ -53,7 +56,7 @@ function yes(value: boolean, locale: AppLocale): string { return translate(local
 function permissions(value: readonly AuthPermission[], locale: AppLocale): string { return value.length === 0 ? translate(locale, "audit.detail.none") : value.map((permission) => permissionLabel(permission, locale)).join(", "); }
 export function formatAuditTimestamp(value: string, locale: AppLocale = DEFAULT_LOCALE): string { return formatDateTime(locale, value) ?? "—"; }
 export function auditActorLabel(item: AuditReadItem, locale: AppLocale = DEFAULT_LOCALE): string { return item.actor.type === "SYSTEM" ? translate(locale, "audit.actor.system") : item.actor.login; }
-export function auditTargetLabel(item: AuditReadItem, locale: AppLocale = DEFAULT_LOCALE): string { if (item.details.status === "AVAILABLE" && "targetLoginSnapshot" in item.details) return item.details.targetLoginSnapshot; return auditTargetTypeLabel(item.target.type, locale); }
+export function auditTargetLabel(item: AuditReadItem, locale: AppLocale = DEFAULT_LOCALE): string { if (item.details.status === "AVAILABLE" && "targetLoginSnapshot" in item.details) return item.details.targetLoginSnapshot; if (item.details.status === "AVAILABLE" && item.target.type === "VEHICLE_GROUP" && "name" in item.details) return item.details.name; return auditTargetTypeLabel(item.target.type, locale); }
 
 export function auditPermissionChanges(previous: readonly AuthPermission[], next: readonly AuthPermission[]): Readonly<{ added: readonly AuthPermission[]; removed: readonly AuthPermission[] }> {
   const before = new Set(previous); const after = new Set(next);
@@ -110,6 +113,12 @@ export function auditDetailPresentation(item: AuditReadItem, locale: AppLocale =
     case "SETTINGS_UPDATED": return settingsPresentation(item, locale);
     case "TELEGRAM_LINKED": return group("operation", t("audit.detail.operation"), [t("audit.detail.telegramLinked")]);
     case "TELEGRAM_DISCONNECTED": return group("operation", t("audit.detail.operation"), [t("audit.detail.telegramDisconnected")]);
+    case "VEHICLE_GROUP_CREATED": return group("group", t("audit.detail.vehicleGroup"), [t("audit.detail.group", { name: item.details.name }), t("audit.detail.groupColor", { color: t(`group.color.${item.details.color}`) })]);
+    case "VEHICLE_GROUP_RENAMED": return group("group", t("audit.detail.vehicleGroup"), [t("audit.detail.groupNameChange", { previous: item.details.previousName, next: item.details.name })]);
+    case "VEHICLE_GROUP_UPDATED": return group("group", t("audit.detail.vehicleGroup"), [t("audit.detail.groupNameChange", { previous: item.details.previousName, next: item.details.name }), t("audit.detail.groupColorChange", { previous: t(`group.color.${item.details.previousColor}`), next: t(`group.color.${item.details.color}`) })]);
+    case "VEHICLE_GROUP_MEMBERSHIP_CHANGED": return group("group", t("audit.detail.vehicleGroup"), [t("audit.detail.group", { name: item.details.name }), t("audit.detail.membersAdded", { count: item.details.addedCount }), t("audit.detail.membersRemoved", { count: item.details.removedCount })]);
+    case "VEHICLE_GROUP_DELETED": return group("group", t("audit.detail.vehicleGroup"), [t("audit.detail.group", { name: item.details.name }), t("audit.detail.groupVehicles", { count: item.details.vehicleCount }), t("audit.detail.groupUserGrants", { count: item.details.userGrantCount })]);
+    case "USER_VEHICLE_ACCESS_CHANGED": return group("access", t("audit.detail.vehicleAccess"), [t("audit.detail.user", { login: item.details.targetLoginSnapshot }), t("audit.detail.vehicleAccessModeChange", { previous: item.details.previousMode === null ? t("audit.detail.none") : t(item.details.previousMode === "ALL" ? "admin.vehicleAccess.all" : "admin.vehicleAccess.selected"), next: t(item.details.mode === "ALL" ? "admin.vehicleAccess.all" : "admin.vehicleAccess.selected") }), t("audit.detail.groupGrantChange", { previous: item.details.previousGroupGrantCount, next: item.details.groupGrantCount, added: item.details.addedGroupGrantCount, removed: item.details.removedGroupGrantCount }), t("audit.detail.vehicleGrantChange", { previous: item.details.previousVehicleGrantCount, next: item.details.vehicleGrantCount, added: item.details.addedVehicleGrantCount, removed: item.details.removedVehicleGrantCount })]);
   }
 }
 
@@ -129,6 +138,11 @@ export function auditOutcome(item: AuditReadItem, locale: AppLocale = DEFAULT_LO
     case "SETTINGS_UPDATED": return t("audit.outcome.settings", { count: item.details.changes.length });
     case "TELEGRAM_LINKED": return t("audit.detail.telegramLinked");
     case "TELEGRAM_DISCONNECTED": return t("audit.detail.telegramDisconnected");
+    case "VEHICLE_GROUP_CREATED": return t("audit.outcome.groupCreated", { name: item.details.name });
+    case "VEHICLE_GROUP_RENAMED": case "VEHICLE_GROUP_UPDATED": return t("audit.outcome.groupUpdated", { name: item.details.name });
+    case "VEHICLE_GROUP_MEMBERSHIP_CHANGED": return t("audit.outcome.groupMembership", { name: item.details.name, added: item.details.addedCount, removed: item.details.removedCount });
+    case "VEHICLE_GROUP_DELETED": return t("audit.outcome.groupDeleted", { name: item.details.name });
+    case "USER_VEHICLE_ACCESS_CHANGED": return t("audit.outcome.vehicleAccessChanged", { login: item.details.targetLoginSnapshot });
   }
 }
 

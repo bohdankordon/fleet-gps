@@ -23,6 +23,31 @@ Passwords use Node 24's asynchronous built-in Argon2 implementation. Profile ver
 
 `trips.view` implies `vehicles.view`; `historyAdmin.populate` implies `historyAdmin.view`. The CLI persists these dependencies.
 
+## Product Vehicle Access
+
+Functional permissions answer which product actions a user may perform.
+Product Vehicle Access independently answers which vehicles those actions may
+use. `ADMIN` always has the full current and future fleet. A `USER` is configured
+explicitly as either `ALL`, which also includes future vehicles, or `SELECTED`,
+which is the union of vehicles in granted groups and directly granted vehicles.
+A direct grant may overlap a group grant; effective results are deduplicated and
+there are no deny rules.
+
+Each vehicle belongs to zero or one real Vehicle Group. An ungrouped vehicle has
+`groupId = null`; “Ungrouped” is not persisted as a group and cannot be granted.
+Groups have a name and one curated display color. Color is presentation metadata
+only and never changes authorization, notification eligibility, events, reports,
+or history behavior. Group-derived access is evaluated from current membership,
+so a rename, color change, or membership move is visible on the next read.
+
+Product collection and aggregate queries apply the vehicle scope in PostgreSQL
+and omit inaccessible vehicles and group metadata. A direct request for an
+existing but inaccessible vehicle returns the same 404 as a missing vehicle;
+missing functional permission retains the normal 403. `SELECTED` with no
+effective vehicles is a valid empty product scope. The system-wide
+`historyAdmin.view` and `historyAdmin.populate` operations intentionally remain
+outside Product Vehicle Access.
+
 ## Sessions and HTTP boundary
 
 The browser receives one opaque, cryptographically random 32-byte `taxi_session` token. Only its SHA-256 hash is stored server-side. Sessions expire exactly seven days after creation and do not slide: authenticated GETs read the current user, role, disabled state, `mustChangePassword`, and permissions from PostgreSQL but never update session rows or issue rotating cookies. Concurrent sessions are supported. Consequently, administrative role and permission changes affect existing sessions on their next protected request without logout/login. Logout deletes only the current session. A password change atomically replaces the password hash, clears `mustChangePassword`, deletes every prior user session, creates one fresh session, and rotates the current cookie.
@@ -54,14 +79,14 @@ lacking authority receive 403, as above.
 
 | Page / API | Authority |
 |---|---|
-| `/`, `GET /api/dashboard/vehicles`, `GET /api/system/sync-status` | `fleet.view` |
-| `/map`, `GET /api/fleet/map` | `map.view` |
+| `/`, `GET /api/dashboard/vehicles`, `GET /api/system/sync-status` | `fleet.view`; vehicle-backed dashboard data is Product Vehicle Access scoped |
+| `/map`, `GET /api/fleet/map` | `map.view`; fleet and alert-map vehicle data is Product Vehicle Access scoped |
 | `GET /api/system/city-geofence/map` | any of `map.view`, `trips.view` |
 | `GET /api/alert-events/map` | any of `map.view`, `events.view` |
-| `/events`, event list and summary APIs | `events.view` |
-| `/vehicles/:id`, vehicle details API | `vehicles.view` |
-| vehicle track/Trips pages, exact/overview track APIs, trip-analysis API | `trips.view` |
-| `/reports`, fleet activity report API | `reports.view` |
+| `/events`, event list and summary APIs | `events.view`; Product Vehicle Access scoped |
+| `/vehicles/:id`, vehicle details API | `vehicles.view`; Product Vehicle Access scoped |
+| vehicle track/Trips pages, exact/overview track APIs, trip-analysis API | `trips.view`; Product Vehicle Access scoped |
+| `/reports`, fleet activity report API | `reports.view`; Product Vehicle Access scoped |
 | `/admin/history`, position history horizon-status API | `historyAdmin.view` |
 | `GET /api/system/position-history/population-runs/active`, `/recent` | `historyAdmin.view` |
 | `POST /api/system/position-history/horizon-populate` | `historyAdmin.populate` |
@@ -80,8 +105,8 @@ The global **Администрирование** destination is `/admin/users` 
 The Nest surface is:
 
 - `GET /api/admin/users` and `GET /api/admin/users/:userId` for deterministic safe list/detail reads;
-- `POST /api/admin/users` for atomic account/permission creation;
-- `PATCH /api/admin/users/:userId/access` for complete role/permission replacement;
+- `POST /api/admin/users` for atomic account, permission, and Product Vehicle Access creation;
+- `PATCH /api/admin/users/:userId/access` for complete role, permission, and Product Vehicle Access replacement;
 - `POST /api/admin/users/:userId/disable` and `/enable` for lifecycle changes;
 - `POST /api/admin/users/:userId/reset-password` for administrative recovery.
 
@@ -91,7 +116,21 @@ For create and administrative reset, the backend calls Node `crypto.randomBytes(
 
 New and administratively reset accounts have `mustChangePassword=true`. Reset also revokes every target session and creates no replacement session; the temporary password can authenticate only into the existing restricted change-password flow. Disable atomically sets `disabled=true` and deletes every target session. Enable changes only `disabled=false`: old sessions do not return and a fresh login is required. Role, permissions, password, and password-change state otherwise remain intact.
 
-USER permission updates are complete replace-set operations. Unknown keys reject the entire request; `trips.view` expands to `vehicles.view`, and `historyAdmin.populate` expands to `historyAdmin.view` in both UX and backend. Promotion to ADMIN deletes all permission rows. Demotion to USER requires an explicit complete desired permission list, deletes any stale rows, and writes only the normalized replacement set in one transaction. ADMIN authority never depends on permission rows.
+USER permission and vehicle-access updates are complete replace-set operations.
+Unknown keys or vehicle/group references reject the entire request;
+`trips.view` expands to `vehicles.view`, and `historyAdmin.populate` expands to
+`historyAdmin.view` in both UX and backend. Promotion to ADMIN deletes all
+permission and vehicle-grant rows and stores the canonical full-fleet state.
+Demotion to USER requires explicit complete functional and vehicle-access
+configuration, deletes stale rows, and writes only the normalized replacement
+sets in one transaction. Dormant USER ACL state is never resurrected. ADMIN
+authority never depends on permission or grant rows.
+
+Vehicle Group administration is ADMIN-only under `/api/admin/vehicle-groups`.
+It supports list, create, detail, name/color update, complete membership
+replacement, and delete. Replacing membership may move a vehicle from its prior
+group. Deleting a group leaves its vehicles ungrouped, removes group grants by
+foreign-key cascade, and preserves direct vehicle grants.
 
 An ADMIN cannot disable, demote, or administratively reset themselves; self-service password change remains under **Аккаунт → Сменить пароль**. Disabling or demoting an enabled ADMIN acquires fixed PostgreSQL transaction advisory lock `1706170002`, re-reads the target and enabled ADMIN count inside the transaction, rejects removal of the last enabled ADMIN, then mutates. Access, enable, and ADMIN creation use the same lock where ADMIN cardinality can change, so concurrent reductions cannot commit zero enabled ADMINs. This uses no schema object or migration.
 

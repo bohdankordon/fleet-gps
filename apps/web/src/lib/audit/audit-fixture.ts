@@ -24,6 +24,12 @@ export function auditItemsFixture(): readonly AuditReadItem[] {
     { ...common, id: id(12), eventType: "SETTINGS_UPDATED", target: { type: "APPLICATION_SETTINGS", id: "1" }, details: { status: "AVAILABLE", changes: [{ field: "timezone", previous: "Europe/Kyiv", next: "UTC" }] } },
     { ...common, id: id(13), eventType: "TELEGRAM_LINKED", target: { type: "USER", id: TARGET }, details: { status: "AVAILABLE" } },
     { ...common, id: id(14), eventType: "TELEGRAM_DISCONNECTED", target: { type: "USER", id: TARGET }, details: { status: "AVAILABLE" } },
+    { ...common, id: id(15), eventType: "VEHICLE_GROUP_CREATED", target: { type: "VEHICLE_GROUP", id: TARGET }, details: { status: "AVAILABLE", name: "Taxi", color: "BLUE" } },
+    { ...common, id: id(16), eventType: "VEHICLE_GROUP_RENAMED", target: { type: "VEHICLE_GROUP", id: TARGET }, details: { status: "AVAILABLE", previousName: "Taxi", name: "City Taxi" } },
+    { ...common, id: id(17), eventType: "VEHICLE_GROUP_UPDATED", target: { type: "VEHICLE_GROUP", id: TARGET }, details: { status: "AVAILABLE", previousName: "City Taxi", name: "City Taxi", previousColor: "BLUE", color: "GREEN" } },
+    { ...common, id: id(18), eventType: "VEHICLE_GROUP_MEMBERSHIP_CHANGED", target: { type: "VEHICLE_GROUP", id: TARGET }, details: { status: "AVAILABLE", name: "City Taxi", addedCount: 2, removedCount: 1 } },
+    { ...common, id: id(19), eventType: "VEHICLE_GROUP_DELETED", target: { type: "VEHICLE_GROUP", id: TARGET }, details: { status: "AVAILABLE", name: "City Taxi", vehicleCount: 3, userGrantCount: 1 } },
+    { ...common, id: id(20), eventType: "USER_VEHICLE_ACCESS_CHANGED", target: { type: "USER", id: TARGET }, details: { status: "AVAILABLE", targetLoginSnapshot: "target", previousMode: "ALL", mode: "SELECTED", previousGroupGrantCount: 0, groupGrantCount: 1, previousVehicleGrantCount: 0, vehicleGrantCount: 2, addedGroupGrantCount: 1, removedGroupGrantCount: 0, addedVehicleGrantCount: 2, removedVehicleGrantCount: 0 } },
   ], nextCursor: null, hasMore: false }).items;
 }
 

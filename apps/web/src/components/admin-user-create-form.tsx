@@ -61,7 +61,7 @@ export type AdminUserCreateFieldsProps = Readonly<{
   onToggleAccessGroup(groupId: string, checked: boolean): void;
   onToggleAccessVehicle(vehicleId: string, checked: boolean): void;
   onSubmit(): void;
-}>; 
+}>;
 
 export function AdminUserCreateFields({ login, role, permissions, access, groups, vehicles, accessError, busy, loginError, error, onLoginChange, onRoleChange, onTogglePermission, onAccessModeChange, onToggleAccessGroup, onToggleAccessVehicle, onSubmit }: AdminUserCreateFieldsProps) {
   const { locale, t } = useI18n();
