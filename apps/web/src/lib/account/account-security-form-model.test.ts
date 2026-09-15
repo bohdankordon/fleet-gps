@@ -18,14 +18,15 @@ test("empty form reports every required field in field order", () => {
 });
 
 test("length uses Unicode code points without trimming or composition rules", () => {
-  assert.equal(passwordCodePointLength("0123456789abcd"), 14);
+  assert.equal(passwordCodePointLength("0123456789a"), 11);
+  assert.equal(passwordCodePointLength("0123456789ab"), 12);
   assert.equal(passwordCodePointLength("0123456789abcdef"), 16);
   // Astral symbols count once, matching the backend counter.
-  assert.equal(passwordCodePointLength("🔑".repeat(15)), 15);
-  assert.equal(passwordCodePointLength("🔑".repeat(14) + "ab"), 16);
+  assert.equal(passwordCodePointLength("🔑".repeat(12)), 12);
+  assert.equal(passwordCodePointLength("🔑".repeat(11) + "ab"), 13);
   // Spaces count and are never trimmed away.
-  assert.equal(passwordCodePointLength(" ".repeat(15)), 15);
-  assert.deepEqual(validateSecurityForm({ ...valid, newPassword: "0123456789abcd", confirmation: "0123456789abcd" })[0], {
+  assert.equal(passwordCodePointLength(" ".repeat(12)), 12);
+  assert.deepEqual(validateSecurityForm({ ...valid, newPassword: "0123456789a", confirmation: "0123456789a" })[0], {
     field: "newPassword",
     messageKey: "auth.password.invalidNew",
   });
@@ -33,9 +34,16 @@ test("length uses Unicode code points without trimming or composition rules", ()
     field: "newPassword",
     messageKey: "auth.password.invalidNew",
   });
-  assert.deepEqual(validateSecurityForm({ ...valid, newPassword: "x".repeat(15), confirmation: "x".repeat(15) }), []);
+  assert.deepEqual(validateSecurityForm({ ...valid, newPassword: "x".repeat(12), confirmation: "x".repeat(12) }), []);
   assert.deepEqual(validateSecurityForm({ ...valid, newPassword: "x".repeat(128), confirmation: "x".repeat(128) }), []);
-  assert.deepEqual(validateSecurityForm({ ...valid, newPassword: " ".repeat(15), confirmation: " ".repeat(15) }), []);
+  assert.deepEqual(validateSecurityForm({ ...valid, newPassword: " ".repeat(12), confirmation: " ".repeat(12) }), []);
+});
+
+test("new password must differ exactly from current password", () => {
+  assert.deepEqual(validateSecurityForm({ currentPassword: valid.newPassword, newPassword: valid.newPassword, confirmation: valid.newPassword }), [
+    { field: "newPassword", messageKey: "auth.password.sameAsCurrent" },
+  ]);
+  assert.deepEqual(validateSecurityForm({ currentPassword: valid.newPassword, newPassword: `${valid.newPassword} `, confirmation: `${valid.newPassword} ` }), []);
 });
 
 test("confirmation must equal the new password exactly", () => {
@@ -59,5 +67,7 @@ test("payload carries exactly the two backend keys with raw values", () => {
 test("error mapping stays truthful to the contract", () => {
   assert.equal(changePasswordErrorKey(401), "auth.password.invalidCurrent");
   assert.equal(changePasswordErrorKey(400), "auth.password.invalidNew");
+  assert.equal(changePasswordErrorKey(400, "COMMON_OR_PREDICTABLE"), "auth.password.commonOrPredictable");
+  assert.equal(changePasswordErrorKey(400, "SAME_AS_CURRENT"), "auth.password.sameAsCurrent");
   for (const status of [403, 404, 422, 500, null]) assert.equal(changePasswordErrorKey(status), "auth.password.unavailable");
 });

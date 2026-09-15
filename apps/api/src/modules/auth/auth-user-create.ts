@@ -1,5 +1,6 @@
 import type { AuthRole, PrismaClient } from "../../generated/prisma/client";
 import { hashPassword } from "./password";
+import { PasswordPolicyError, PasswordPolicyReason, validateUserSelectedPassword } from "./password-policy";
 import { normalizeLogin } from "./login";
 import { isPermission, resolvePermissions } from "./permissions";
 
@@ -13,7 +14,17 @@ export async function createAuthUser(client: PrismaClient, input: AuthUserCreate
   if (input.permissions.some((key) => !isPermission(key))) throw new AuthUserCreateError("One or more permission keys are unknown.");
   const recognized = resolvePermissions(input.permissions);
   const permissions = input.role === "ADMIN" ? [] : recognized;
-  const material = await hashPassword(input.password).catch(() => { throw new AuthUserCreateError("Password must contain 15-128 Unicode code points."); });
+  try { validateUserSelectedPassword(input.password, input.login); }
+  catch (error) {
+    if (error instanceof PasswordPolicyError) {
+      const message = error.reason === PasswordPolicyReason.LENGTH
+        ? "Password must contain 12-128 Unicode code points."
+        : "Password is common or easily guessed.";
+      throw new AuthUserCreateError(message);
+    }
+    throw error;
+  }
+  const material = await hashPassword(input.password);
   try {
     await client.$transaction(async (transaction) => {
       const user = await transaction.authUser.create({ data: { login: input.login, normalizedLogin, passwordHashVersion: material.version, passwordSalt: new Uint8Array(material.salt), passwordHash: new Uint8Array(material.hash), role: input.role, disabled: false, mustChangePassword: false } });

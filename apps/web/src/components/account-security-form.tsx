@@ -7,6 +7,7 @@ import type { MessageKey } from "../i18n/messages";
 import { useI18n } from "../i18n/client";
 import {
   buildChangePasswordPayload,
+  changePasswordErrorKey,
   validateSecurityForm,
   type SecurityFormField,
   type SecurityFormValues,
@@ -85,7 +86,10 @@ export function AccountSecurityForm({ mandatory }: Readonly<{ mandatory: boolean
           form.setFields([{ name: "currentPassword", errors: [t("auth.password.invalidCurrent")] }]);
           form.scrollToField("currentPassword", { focus: true });
         } else if (response.status === 400) {
-          form.setFields([{ name: "newPassword", errors: [t("auth.password.invalidNew")] }]);
+          let reason: unknown;
+          try { const body: unknown = await response.json(); reason = typeof body === "object" && body !== null && "reason" in body ? body.reason : undefined; }
+          catch { reason = undefined; }
+          form.setFields([{ name: "newPassword", errors: [t(changePasswordErrorKey(400, reason))] }]);
           form.scrollToField("newPassword", { focus: true });
         } else {
           setSubmitErrorKey("auth.password.unavailable");
@@ -136,7 +140,12 @@ export function AccountSecurityForm({ mandatory }: Readonly<{ mandatory: boolean
         <Form.Item name="currentPassword" label={t("auth.password.current")} rules={[ruleFor("currentPassword")]}>
           <Input.Password autoComplete="current-password" />
         </Form.Item>
-        <Form.Item name="newPassword" label={t("auth.password.new")} rules={[ruleFor("newPassword")]}>
+        <Form.Item
+          name="newPassword"
+          label={t("auth.password.new")}
+          extra={t("auth.password.help")}
+          rules={[ruleFor("newPassword")]}
+        >
           <Input.Password autoComplete="new-password" />
         </Form.Item>
         <Form.Item name="confirmation" label={t("auth.password.confirm")} dependencies={["newPassword"]} rules={[ruleFor("confirmation")]}>

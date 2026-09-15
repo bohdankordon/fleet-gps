@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { isValidPassword } from "./password";
 import { generateTemporaryPassword } from "./temporary-password";
 
-test("temporary password is an exact 24-character base64url value accepted by policy", () => {
+test("temporary password is an exact 24-character base64url value with 144 bits of input entropy", () => {
   const password = generateTemporaryPassword(() => Uint8Array.from({ length: 18 }, (_, index) => index));
   assert.match(password, /^[A-Za-z0-9_-]{24}$/);
-  assert.equal(isValidPassword(password), true);
+  assert.equal(password.length, 24);
 });
 
 test("temporary passwords use independent cryptographic values and never Math.random", () => {
@@ -18,4 +17,5 @@ test("temporary passwords use independent cryptographic values and never Math.ra
   assert.match(source, /random\(18\)/);
   const adminSource = readFileSync("src/modules/auth/admin-users.service.ts", "utf8");
   assert.doesNotMatch(adminSource, /console\.|logger|temporaryPassword[^\n]*(log|print)/i);
+  assert.doesNotMatch(adminSource, /password-policy|validateUserSelectedPassword|blocklist/i);
 });

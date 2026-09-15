@@ -4,6 +4,7 @@ import { boundedBodyStatus, readBoundedForm, readBoundedJson } from "../http/bou
 import { parseAuthUser } from "./auth-contract";
 
 export type AuthPath = "/api/auth/login" | "/api/auth/me" | "/api/auth/logout" | "/api/auth/change-password";
+const PASSWORD_POLICY_REASONS = new Set(["LENGTH", "COMMON_OR_PREDICTABLE", "SAME_AS_CURRENT"]);
 
 function expiredAuthCookie(production: boolean): string {
   return `${AUTH_COOKIE_NAME}=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/${production ? "; Secure" : ""}`;
@@ -48,6 +49,13 @@ export async function forwardAuthToUpstream(request: Request, path: AuthPath, ap
     const responseHeaders = new Headers({ "Content-Type": upstream.headers.get("content-type") ?? "application/json", "Cache-Control": "no-store" });
     if (path === "/api/auth/logout") responseHeaders.set("Set-Cookie", expiredAuthCookie(production));
     if (upstream.status === 429 && path === "/api/auth/login") return Response.json({ statusCode: 429, error: "LOGIN_RATE_LIMITED" }, { status: 429, headers: responseHeaders });
+    if (upstream.status === 400 && path === "/api/auth/change-password") {
+      let reason: unknown;
+      try { const payload: unknown = await upstream.json(); reason = typeof payload === "object" && payload !== null && "reason" in payload ? payload.reason : undefined; }
+      catch { reason = undefined; }
+      if (typeof reason === "string" && PASSWORD_POLICY_REASONS.has(reason)) return Response.json({ statusCode: 400, error: "PASSWORD_POLICY", reason }, { status: 400, headers: responseHeaders });
+      return Response.json({ statusCode: 400, error: "Bad Request" }, { status: 400, headers: responseHeaders });
+    }
     if (upstream.status === 400 || upstream.status === 401 || upstream.status === 403) return Response.json({ statusCode: upstream.status, error: upstream.status === 400 ? "Bad Request" : upstream.status === 401 ? "Unauthorized" : "Forbidden" }, { status: upstream.status, headers: responseHeaders });
     if (!upstream.ok) return Response.json({ statusCode: 503, error: "Service Unavailable" }, { status: 503, headers: responseHeaders });
     let payload: unknown;

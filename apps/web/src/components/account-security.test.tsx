@@ -6,6 +6,7 @@ import { ConfigProvider } from "antd";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AccountSecurity } from "./account-security";
 import type { AuthUser } from "../lib/auth/auth-contract";
+import { MESSAGE_CATALOG } from "../i18n/messages";
 
 const voluntary: AuthUser = { id: "user-id", login: "operator", role: "USER", permissions: ["fleet.view"], mustChangePassword: false };
 const mandatory: AuthUser = { ...voluntary, mustChangePassword: true };
@@ -60,7 +61,7 @@ test("security copy is localized in UK, RU, and EN", () => {
       sessions: "Сеанси",
       sessionsNote: "Зміна пароля завершить усі інші сеанси.",
       requirements: "Вимоги до пароля",
-      requirementsValue: "15–128 символів. Пробіли дозволені.",
+      requirementsValue: "12–128 символів. Дозволені будь-які символи; поширені паролі не приймаються.",
       forced: "Потрібно змінити пароль, перш ніж продовжити роботу.",
     },
     ru: {
@@ -71,7 +72,7 @@ test("security copy is localized in UK, RU, and EN", () => {
       sessions: "Сеансы",
       sessionsNote: "Смена пароля завершит все остальные сеансы.",
       requirements: "Требования к паролю",
-      requirementsValue: "15–128 символов. Пробелы допускаются.",
+      requirementsValue: "12–128 символов. Допустимы любые символы; распространённые пароли не принимаются.",
       forced: "Необходимо изменить пароль, прежде чем продолжить работу.",
     },
     en: {
@@ -82,7 +83,7 @@ test("security copy is localized in UK, RU, and EN", () => {
       sessions: "Sessions",
       sessionsNote: "Changing the password ends all other sessions.",
       requirements: "Password requirements",
-      requirementsValue: "15–128 characters. Spaces are allowed.",
+      requirementsValue: "12–128 characters. Any characters are allowed; common passwords are not accepted.",
       forced: "You must change your password before continuing.",
     },
   } as const;
@@ -93,6 +94,9 @@ test("security copy is localized in UK, RU, and EN", () => {
       assert.ok(calm.includes(text), `${locale}: ${text}`);
     }
     assert.ok(render(mandatory, locale).includes(copy.forced), `${locale}: forced`);
+    assert.ok(MESSAGE_CATALOG["auth.password.help"][locale].includes("12–128"), `${locale}: helper length`);
+    assert.ok(MESSAGE_CATALOG["auth.password.commonOrPredictable"][locale].length > 20, `${locale}: common-password rejection`);
+    assert.ok(MESSAGE_CATALOG["auth.password.sameAsCurrent"][locale].length > 20, `${locale}: same-password rejection`);
   }
 });
 
@@ -106,7 +110,7 @@ test("voluntary context is structured with status, sessions, and requirements", 
   assert.match(html, />Sessions</);
   assert.match(html, /Changing the password ends all other sessions\. This browser stays signed in\./);
   assert.match(html, />Password requirements</);
-  assert.match(html, /15–128 characters\. Spaces are allowed\./);
+  assert.match(html, /12–128 characters\. Any characters are allowed; common passwords are not accepted\./);
   assert.doesNotMatch(html, /igned in as /);
   assert.match(html, /password-form-fixture/);
   const security = readFileSync("src/components/account-security.tsx", "utf8");
@@ -126,14 +130,17 @@ test("password contract is preserved: same endpoint, payload, and error mapping"
   assert.match(form, /buildChangePasswordPayload\(values\)/);
   assert.match(form, /method: "POST"/);
   assert.match(form, /auth\.password\.invalidCurrent/);
-  assert.match(form, /auth\.password\.invalidNew/);
+  assert.match(form, /changePasswordErrorKey/);
+  assert.match(form, /auth\.password\.help/);
   assert.match(form, /auth\.password\.unavailable/);
   assert.doesNotMatch(form, /body\.message|\.message\s*\?\?/);
   // The password never travels in a URL, storage, log, or analytics event.
   assert.doesNotMatch(form, /localStorage|sessionStorage|console\.|URLSearchParams|\?password|analytics/);
+  assert.doesNotMatch(form, /SecLists|SHA-256|common-passwords\.bin|blocklist/i);
   // Native controls keep their password-manager contract.
   assert.match(form, /autoComplete="current-password"/);
   assert.equal((form.match(/autoComplete="new-password"/g) ?? []).length, 2);
+  assert.doesNotMatch(form, /maxLength/);
   // Duplicate submits, late responses, and unmounts cannot corrupt state.
   assert.match(form, /busyRef\.current/);
   assert.match(form, /generation\.current !== run/);

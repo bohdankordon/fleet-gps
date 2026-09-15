@@ -4,6 +4,7 @@ import { HttpException } from "@nestjs/common";
 import { AuthController } from "./auth.controller";
 import { INVALID_CREDENTIALS_MESSAGE } from "./auth.constants";
 import { InvalidCredentialsError, LoginRateLimitedError } from "./auth.service";
+import { PasswordPolicyError, PasswordPolicyReason } from "./password-policy";
 
 const response = { setHeader: () => undefined };
 
@@ -41,6 +42,21 @@ test("ordinary credential failures retain the generic non-disclosing 401 contrac
     assert.equal(JSON.stringify(body).includes("operator"), false);
     return true;
   });
+});
+
+test("password-policy failures expose only stable safe 400 reasons", async () => {
+  for (const reason of Object.values(PasswordPolicyReason)) {
+    const controller = new AuthController({ changePassword: async () => { throw new PasswordPolicyError(reason); } } as never);
+    await assert.rejects(controller.changePassword({ auth: { id: "user-id" } } as never, { currentPassword: "sentinel-current", newPassword: "sentinel-new" }, response), (error: unknown) => {
+      assert.ok(error instanceof HttpException);
+      assert.equal(error.getStatus(), 400);
+      assert.deepEqual(error.getResponse(), { statusCode: 400, error: "PASSWORD_POLICY", reason });
+      const body = JSON.stringify(error.getResponse());
+      assert.equal(body.includes("sentinel-current"), false);
+      assert.equal(body.includes("sentinel-new"), false);
+      return true;
+    });
+  }
 });
 
 test("unknown login, wrong password, and disabled account remain indistinguishable generic 401", async () => {

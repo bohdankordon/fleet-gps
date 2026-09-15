@@ -36,6 +36,17 @@ test("missing evidence and cross-origin writes are rejected before auth upstream
 test("the exact supported Chromium login request reaches the Nest authentication layer", async () => { let calls = 0; const request = new Request("http://localhost:3000/api/auth/login", { method: "POST", headers: { Host: "127.0.0.1:3000", Origin: "http://127.0.0.1:3000", "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" }, body: JSON.stringify({ login: "operator", password: "test-only-value" }) }); const response = await forwardAuthToUpstream(request, "/api/auth/login", "http://api.test", ["login", "password"], async () => { calls += 1; return Response.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 }); }); assert.equal(response.status, 401); assert.equal(calls, 1); });
 test("same-origin change-password reaches the existing protected upstream flow", async () => { let calls = 0; const request = new Request("http://app.test/api/auth/change-password", { method: "POST", headers: { Origin: "http://app.test", Cookie: "taxi_session=token", "Content-Type": "application/json" }, body: JSON.stringify({ currentPassword: "current", newPassword: "next-password-value" }) }); const response = await forwardAuthToUpstream(request, "/api/auth/change-password", "http://api.test", ["currentPassword", "newPassword"], async () => { calls += 1; return Response.json(safeUser, { headers: { "Set-Cookie": localSessionCookie } }); }); assert.equal(response.status, 200); assert.equal(calls, 1); });
 
+test("change-password forwards only allowlisted policy reasons", async () => {
+  const request = () => new Request("http://app.test/api/auth/change-password", { method: "POST", headers: { Origin: "http://app.test", Cookie: "taxi_session=token", "Content-Type": "application/json" }, body: JSON.stringify({ currentPassword: "current", newPassword: "next-password-value" }) });
+  for (const reason of ["LENGTH", "COMMON_OR_PREDICTABLE", "SAME_AS_CURRENT"]) {
+    const response = await forwardAuthToUpstream(request(), "/api/auth/change-password", "http://api.test", ["currentPassword", "newPassword"], async () => Response.json({ statusCode: 400, error: "PASSWORD_POLICY", reason, message: "must not pass" }, { status: 400 }));
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { statusCode: 400, error: "PASSWORD_POLICY", reason });
+  }
+  const unsafe = await forwardAuthToUpstream(request(), "/api/auth/change-password", "http://api.test", ["currentPassword", "newPassword"], async () => Response.json({ statusCode: 400, error: "PASSWORD_POLICY", reason: "PRIVATE_DETAIL", password: "secret" }, { status: 400 }));
+  assert.deepEqual(await unsafe.json(), { statusCode: 400, error: "Bad Request" });
+});
+
 test("login 429 and unexpected upstream failures are reduced to safe stable bodies", async () => {
   const request = () => new Request("http://app.test/api/auth/login", { method: "POST", headers: { Origin: "http://app.test", "Content-Type": "application/json" }, body: JSON.stringify({ login: "operator", password: "private" }) });
   const limited = await forwardAuthToUpstream(request(), "/api/auth/login", "http://api.test", ["login", "password"], async () => Response.json({ error: "LOGIN_RATE_LIMITED", stack: "SECRET_SENTINEL" }, { status: 429 }));

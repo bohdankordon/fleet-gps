@@ -7,12 +7,13 @@ import { AuthService, InvalidCredentialsError } from "./auth.service";
 import { LoginRateLimitedError } from "./auth.service";
 import { LoginRateLimiter } from "./login-rate-limiter";
 import { hashPassword } from "./password";
+import { PasswordPolicyError, PasswordPolicyReason } from "./password-policy";
 
 const now = new Date("2026-08-12T12:00:00.000Z");
 const userId = "00000000-0000-4000-8000-000000000001";
 
-async function fixture(auditFailure = false, loginRateLimiter = new LoginRateLimiter()) {
-  const material = await hashPassword("current secure password");
+async function fixture(auditFailure = false, loginRateLimiter = new LoginRateLimiter(), existingPassword = "current secure password", mustChangePassword = false) {
+  const material = await hashPassword(existingPassword);
   const sessionCreates: Record<string, unknown>[] = [];
   const sessionDeletes: Record<string, unknown>[] = [];
   const auditEvents: unknown[] = [];
@@ -20,7 +21,7 @@ async function fixture(auditFailure = false, loginRateLimiter = new LoginRateLim
   let finalAuthorityRows: readonly Readonly<{ id: string }>[] = [{ id: userId }];
   let loginTransactions = 0;
   let loginLookups = 0;
-  const user = { id: userId, login: "User.One", normalizedLogin: "user.one", role: AuthRole.USER, disabled: false, mustChangePassword: false, passwordHashVersion: material.version, passwordSalt: new Uint8Array(material.salt), passwordHash: new Uint8Array(material.hash), passwordChangedAt: null, createdAt: now, updatedAt: now, permissions: [{ key: "trips.view" }] };
+  const user = { id: userId, login: "User.One", normalizedLogin: "user.one", role: AuthRole.USER, disabled: false, mustChangePassword, passwordHashVersion: material.version, passwordSalt: new Uint8Array(material.salt), passwordHash: new Uint8Array(material.hash), passwordChangedAt: null, createdAt: now, updatedAt: now, permissions: [{ key: "trips.view" }] };
   const transaction = {
     $queryRaw: async () => { loginTransactions += 1; return finalAuthorityRows; },
     authUser: {
@@ -170,6 +171,35 @@ test("own password change writes exact self-target event in the credential/sessi
   assert.equal(state.sessionCreates.length, 1);
   assert.deepEqual(state.auditEvents, [{ eventType: "OWN_PASSWORD_CHANGED", actor: { actorType: "USER", actorUserId: userId, actorLoginSnapshot: "User.One" }, targetType: "USER", targetId: userId, details: {} }]);
   for (const forbidden of ["password", "passwordHash", "passwordSalt", "sessionToken", "sessionId"]) assert.equal(JSON.stringify(state.auditEvents[0]).includes(forbidden), false);
+});
+
+test("same-password rejection preserves forced-change state, sessions, and audit", async () => {
+  const state = await fixture(false, new LoginRateLimiter(), "current secure password", true);
+  const principal = { id: state.user.id, login: state.user.login, role: state.user.role, permissions: [], mustChangePassword: true, sessionTokenHash: new Uint8Array(32) };
+  await assert.rejects(
+    state.service.changePassword(principal, "current secure password", "current secure password", now),
+    (error: unknown) => error instanceof PasswordPolicyError && error.reason === PasswordPolicyReason.SAME_AS_CURRENT,
+  );
+  assert.equal(state.user.mustChangePassword, true);
+  assert.equal(state.updated(), null);
+  assert.equal(state.sessionDeletes.length, 0);
+  assert.equal(state.sessionCreates.length, 0);
+  assert.equal(state.auditEvents.length, 0);
+});
+
+test("legacy short and common passwords still log in, but replacement must satisfy current policy", async () => {
+  for (const legacyPassword of ["short", "password"]) {
+    const state = await fixture(false, new LoginRateLimiter(), legacyPassword, true);
+    const loggedIn = await state.service.login("user.one", legacyPassword, now);
+    assert.equal(loggedIn.user.mustChangePassword, true);
+    const principal = { id: state.user.id, login: state.user.login, role: state.user.role, permissions: [], mustChangePassword: true, sessionTokenHash: new Uint8Array(32) };
+    await assert.rejects(
+      state.service.changePassword(principal, legacyPassword, "password1234", now),
+      (error: unknown) => error instanceof PasswordPolicyError && error.reason === PasswordPolicyReason.COMMON_OR_PREDICTABLE,
+    );
+    const changed = await state.service.changePassword(principal, legacyPassword, "violet otters navigate lunar harbors", now);
+    assert.equal(changed.user.mustChangePassword, false);
+  }
 });
 
 test("own-password audit failure rolls password and session mutation back", async () => {

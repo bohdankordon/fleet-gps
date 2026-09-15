@@ -6,7 +6,8 @@ import { AuditEventRepository, buildOwnPasswordChangedAuditEvent, buildUserActor
 import { INVALID_CREDENTIALS_MESSAGE } from "./auth.constants";
 import type { AuthenticatedPrincipal, SafeAuthUser } from "./auth.types";
 import { normalizeLogin } from "./login";
-import { hashPassword, isValidPassword, verifyPassword } from "./password";
+import { hashPassword, verifyPassword } from "./password";
+import { validateUserSelectedPassword } from "./password-policy";
 import { PERMISSIONS, resolvePermissions } from "./permissions";
 import { createSessionToken, hashSessionToken, sessionExpiresAt } from "./session";
 import { LoginRateLimiter } from "./login-rate-limiter";
@@ -19,8 +20,6 @@ const DUMMY_MATERIAL = Object.freeze({
 
 export class InvalidCredentialsError extends Error { public constructor() { super(INVALID_CREDENTIALS_MESSAGE); this.name = "InvalidCredentialsError"; } }
 export class LoginRateLimitedError extends Error { public constructor() { super("LOGIN_RATE_LIMITED"); this.name = "LoginRateLimitedError"; } }
-export class InvalidPasswordError extends Error { public constructor() { super("Password must contain 15 to 128 Unicode code points."); this.name = "InvalidPasswordError"; } }
-
 type UserWithPermissions = AuthUser & Readonly<{ permissions: readonly Readonly<{ key: string }>[] }>;
 
 function safeUser(user: UserWithPermissions): SafeAuthUser {
@@ -87,9 +86,9 @@ export class AuthService {
 
   public async changePassword(principal: AuthenticatedPrincipal, currentPassword: unknown, newPassword: unknown, now = new Date()): Promise<Readonly<{ user: SafeAuthUser; token: string }>> {
     if (typeof currentPassword !== "string" || typeof newPassword !== "string") throw new InvalidCredentialsError();
-    if (!isValidPassword(newPassword)) throw new InvalidPasswordError();
     const current = await this.database.getClient().authUser.findUnique({ where: { id: principal.id }, include: { permissions: true } });
     if (!current || current.disabled || !await verifyPassword(currentPassword, { version: current.passwordHashVersion, salt: current.passwordSalt, hash: current.passwordHash })) throw new InvalidCredentialsError();
+    validateUserSelectedPassword(newPassword, current.login, currentPassword);
     const next = await hashPassword(newPassword);
     const token = createSessionToken();
     const tokenHash = hashSessionToken(token);

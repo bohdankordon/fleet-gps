@@ -4,7 +4,9 @@ Fleet GPS is an internal application with local username/password accounts. Ther
 
 ## Accounts and passwords
 
-Logins contain 3–64 ASCII letters, digits, `.`, `_`, or `-`. Matching uses a separately persisted, unique lower-case canonical login. Passwords contain 15–128 Unicode code points, are not trimmed or truncated, may contain spaces, and have no composition rule or periodic expiry.
+Logins contain 3–64 ASCII letters, digits, `.`, `_`, or `-`. Matching uses a separately persisted, unique lower-case canonical login. A human-selected new password must contain 12–128 Unicode code points. It is not trimmed, normalized, or truncated before hashing; spaces and all character classes are allowed, with no mandatory upper/lowercase letter, digit, or special character and no periodic expiry. New passwords are screened locally against common-password and narrow account/product-context guesses. No password or screening representation is sent to an external password service.
+
+The policy applies when changing a password (including the forced initial/reset flow) and when supplying a bootstrap password to `auth:user-create`. It does not retroactively invalidate stored credentials: an existing short or common password remains valid for login until the account next establishes a password. A replacement must differ exactly from the verified current password. Screening normalization is used only for lookup and never changes the raw value passed to Argon2id.
 
 Passwords use Node 24's asynchronous built-in Argon2 implementation. Profile version 1 is Argon2id with 65,536 KiB memory, 3 passes, parallelism 4, a new random 16-byte salt, and a 32-byte tag. The database stores the profile version, salt, and derived hash—never the password. Login failures use one generic response, and unknown logins execute a dummy Argon2id verification.
 
@@ -114,6 +116,8 @@ There is no DELETE route, login rename, hard/soft delete product action, email f
 
 For create and administrative reset, the backend calls Node `crypto.randomBytes(18)` and base64url-encodes the result into an exact 24-character temporary password. The existing versioned Argon2id service hashes it before persistence. Plaintext is never a database argument, file, environment value, URL/query/redirect value, or log field. Client create/reset payloads cannot supply a password. The plaintext is returned once in the authenticated successful POST response, with `Cache-Control: no-store` at Nest and BFF. It is masked by default in ephemeral component memory and can be explicitly shown or copied; dismissal/navigation drops it. No GET or browser storage can recover it.
 
+Random administrative temporary passwords remain outside the human common-password screening path. They retain 18 random input bytes, the exact 24-character base64url format, `mustChangePassword`, and reset session revocation; the user-selected replacement is screened normally.
+
 New and administratively reset accounts have `mustChangePassword=true`. Reset also revokes every target session and creates no replacement session; the temporary password can authenticate only into the existing restricted change-password flow. Disable atomically sets `disabled=true` and deletes every target session. Enable changes only `disabled=false`: old sessions do not return and a fresh login is required. Role, permissions, password, and password-change state otherwise remain intact.
 
 USER permission and vehicle-access updates are complete replace-set operations.
@@ -141,3 +145,9 @@ An ADMIN cannot disable, demote, or administratively reset themselves; self-serv
 Run `npm run auth:user-create` in a real interactive terminal. It prompts for login, role, recognized USER permissions, password, and confirmation. Password input is hidden and cannot be supplied through argv or an application password environment variable. If a secure TTY is unavailable, the command stops. Creation and permission rows are transactional; duplicate canonical logins produce a safe error. ADMIN accounts need no permission rows.
 
 No default ADMIN is seeded. The bootstrap CLI remains intentionally separate from ADMIN web flows and may accept the operator-entered hidden password. Stage 17C's separately protected population POST reuses these account, session, permission-dependency, disabled-account, and must-change-password rules.
+
+## Common-password blocklist maintenance
+
+The checked-in `apps/api/assets/password-policy/common-passwords.bin` is a sorted fixed-width index of full SHA-256 digests; the upstream plaintext corpus is not committed or shipped. The API loads and validates the compact binary once per process and uses exact binary search. A missing, malformed, unsorted, duplicated, source-mismatched, or checksum-mismatched required artifact prevents the auth runtime from loading rather than disabling screening.
+
+Maintainers regenerate explicitly with `npm run password-blocklist:generate`. The script downloads only `Passwords/Common-Credentials/Pwdb_top-1000000.txt` from `danielmiessler/SecLists` commit `e57f8ad37904658709bceb20b82f22a0e9f2046f`, verifies Git blob `99665aeb16c221dfb9a258e39dd58fa37116cfdd` and the pinned downloaded SHA-256, then writes deterministic binary and metadata files. Regeneration is not part of install, build, startup, CI, or tests. Review both generated checksums/counts and the upstream attribution notice before committing an update.

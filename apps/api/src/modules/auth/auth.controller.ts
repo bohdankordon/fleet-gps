@@ -1,7 +1,8 @@
 import { Body, Controller, Get, HttpException, Post, Req, Res } from "@nestjs/common";
 import { AllowMustChangePassword, AuthenticatedOnly, Public } from "./auth.decorators";
 import { INVALID_CREDENTIALS_MESSAGE } from "./auth.constants";
-import { AuthService, InvalidCredentialsError, InvalidPasswordError, LoginRateLimitedError } from "./auth.service";
+import { AuthService, InvalidCredentialsError, LoginRateLimitedError } from "./auth.service";
+import { PasswordPolicyError } from "./password-policy";
 import type { AuthenticatedRequest, SafeAuthUser } from "./auth.types";
 import { clearedSessionCookie, sessionCookie } from "./session";
 
@@ -46,7 +47,7 @@ export class AuthController {
   public async changePassword(@Req() request: AuthenticatedRequest, @Body() body: ChangeBody, @Res({ passthrough: true }) response: HttpResponse): Promise<SafeAuthUser> {
     try { const result = await this.auth.changePassword(request.auth!, body?.currentPassword, body?.newPassword); response.setHeader("Set-Cookie", sessionCookie(result.token)); return result.user; }
     catch (error) {
-      if (error instanceof InvalidPasswordError) throw new HttpException({ statusCode: 400, error: "Bad Request", message: "Пароль должен содержать от 15 до 128 символов." }, 400);
+      if (error instanceof PasswordPolicyError) throw new HttpException({ statusCode: 400, error: "PASSWORD_POLICY", reason: error.reason }, 400);
       if (error instanceof InvalidCredentialsError) throw invalidCredentials();
       throw error;
     }
