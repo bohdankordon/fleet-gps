@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Checkbox, Descriptions, Divider, Select, Typography } from "antd";
 import type { AuthPermission } from "../lib/auth/auth-contract";
 import { normalizePermissionSelection, parseAdminManagedUser, parseOneTimePasswordResult, PERMISSION_DEPENDENCIES, type AdminManagedUser } from "../lib/admin-users/admin-users-contract";
+import { buildVehicleAccessPayload, draftFromVehicleAccess, effectiveVehicleIds, EMPTY_VEHICLE_ACCESS_DRAFT, isVehicleAccessDirty, toggleAccessGroup, toggleAccessVehicle, type VehicleAccessDraft } from "../lib/admin-users/vehicle-access-form-model";
+import type { ManagedVehicle, VehicleGroupSummary } from "../lib/vehicle-groups/vehicle-groups-contract";
+import { AdminVehicleAccessFields, AdminVehicleAccessNote, groupVehiclesById } from "./admin-vehicle-access-fields";
 import { adminUserAuthoritySummary } from "../lib/admin-users/admin-users-directory-model";
 import { useI18n } from "../i18n/client";
 import { permissionLabel, roleLabel } from "../i18n/domain-labels";
@@ -55,7 +58,7 @@ export function AdminUserAccountOverview({ user, onManageAccess }: Readonly<{ us
 
 export type AdminAccessDialog = "demote" | "disable" | "reset" | "telegram";
 
-export function isAccessDirty(user: AdminManagedUser, role: AdminUserCreateRole, permissions: readonly AuthPermission[]): boolean {
+export function isAccessDirty(user: AdminManagedUser, role: AdminUserCreateRole, permissions: readonly AuthPermission[], vehicle: VehicleAccessDraft = { mode: "ALL", groupIds: [], vehicleIds: [] }): boolean {
   if (role !== user.role) return true;
   const persisted = new Set(normalizePermissionSelection(user.permissions));
   const draft = new Set(normalizePermissionSelection(role === "USER" ? permissions : []));
@@ -63,12 +66,13 @@ export function isAccessDirty(user: AdminManagedUser, role: AdminUserCreateRole,
   for (const permission of draft) {
     if (!persisted.has(permission)) return true;
   }
-  return false;
+  return role === "USER" ? isVehicleAccessDirty(user.vehicleAccess, vehicle) : false;
 }
 
-export function AdminAccessPendingChanges({ user, role, permissions }: Readonly<{ user: AdminManagedUser; role: AdminUserCreateRole; permissions: readonly AuthPermission[] }>) {
+export function AdminAccessPendingChanges({ user, role, permissions, vehicle, groups, vehicles }: Readonly<{ user: AdminManagedUser; role: AdminUserCreateRole; permissions: readonly AuthPermission[]; vehicle: VehicleAccessDraft; groups: readonly VehicleGroupSummary[] | null; vehicles: readonly ManagedVehicle[] | null }>) {
   const { locale, t } = useI18n();
-  if (!isAccessDirty(user, role, permissions)) return null;
+  const memberIds = groupVehiclesById(vehicles ?? []);
+  if (!isAccessDirty(user, role, permissions, vehicle)) return null;
   const persisted = normalizePermissionSelection(user.permissions);
   const draft = normalizePermissionSelection(role === "USER" ? permissions : []);
   const added = draft.filter((permission) => !persisted.includes(permission));
@@ -81,6 +85,7 @@ export function AdminAccessPendingChanges({ user, role, permissions }: Readonly<
       {role === "ADMIN"
         ? <Descriptions.Item label={t("admin.user.access")}>{t("admin.users.fullAuthority")}</Descriptions.Item>
         : <Descriptions.Item label={t("admin.user.create.permissions")}><span className="admin-user-detail-access__pending-access"><span>{resulting}</span>{added.length > 0 ? <Typography.Text type="secondary">{`${t("admin.user.access.added")}: ${added.map((permission) => permissionLabel(permission, locale)).join(", ")}`}</Typography.Text> : null}{removed.length > 0 ? <Typography.Text type="secondary">{`${t("admin.user.access.removed")}: ${removed.map((permission) => permissionLabel(permission, locale)).join(", ")}`}</Typography.Text> : null}</span></Descriptions.Item>}
+      {role === "USER" ? <Descriptions.Item label={t("admin.vehicleAccess.title")}>{groups === null || vehicles === null ? t("admin.groups.loadError") : vehicle.mode === null ? t("admin.vehicleAccess.chooseRequired") : vehicle.mode === "ALL" ? t("admin.vehicleAccess.summaryAll") : t("admin.vehicleAccess.summarySelected", { groups: vehicle.groupIds.length, vehicles: vehicle.vehicleIds.length, effective: effectiveVehicleIds(vehicle.groupIds, memberIds, vehicle.vehicleIds).size })}</Descriptions.Item> : null}
     </Descriptions>
   </section>;
 }
@@ -90,14 +95,21 @@ export type AdminAccessManagementProps = Readonly<{
   self: boolean;
   role: AdminUserCreateRole;
   permissions: readonly AuthPermission[];
+  vehicle: VehicleAccessDraft;
+  groups: readonly VehicleGroupSummary[] | null;
+  vehicles: readonly ManagedVehicle[] | null;
+  vehicleError: string | null;
   busy: boolean;
   saveTrigger: ReactNode;
   onRoleChange(role: AdminUserCreateRole): void;
   onPermissionsChange(permissions: readonly AuthPermission[]): void;
+  onVehicleModeChange(mode: "ALL" | "SELECTED"): void;
+  onToggleVehicleGroup(groupId: string, checked: boolean): void;
+  onToggleVehicleGrant(vehicleId: string, checked: boolean): void;
   onSubmit(event: FormEvent): void;
-}>;
+}>; 
 
-export function AdminAccessManagement({ user, self, role, permissions, busy, saveTrigger, onRoleChange, onPermissionsChange, onSubmit }: AdminAccessManagementProps) {
+export function AdminAccessManagement({ user, self, role, permissions, vehicle, groups, vehicles, vehicleError, busy, saveTrigger, onRoleChange, onPermissionsChange, onVehicleModeChange, onToggleVehicleGroup, onToggleVehicleGrant, onSubmit }: AdminAccessManagementProps) {
   const { locale, t } = useI18n();
   return <section aria-labelledby="access-management-title" className="admin-user-detail-access__block">
     <Typography.Title level={3} id="access-management-title">{t("admin.user.access")}</Typography.Title>
@@ -123,7 +135,8 @@ export function AdminAccessManagement({ user, self, role, permissions, busy, sav
           </div>;
         })}
       </div> : <Typography.Paragraph type="secondary">{t("admin.user.adminFullAccessCompact")}</Typography.Paragraph>}
-      <AdminAccessPendingChanges user={user} role={role} permissions={permissions} />
+      {role === "USER" ? <AdminVehicleAccessFields draft={vehicle} groups={groups} vehicles={vehicles} busy={busy || self} modeError={vehicleError} onModeChange={onVehicleModeChange} onToggleGroup={onToggleVehicleGroup} onToggleVehicle={onToggleVehicleGrant} /> : <AdminVehicleAccessNote />}
+      <AdminAccessPendingChanges user={user} role={role} permissions={permissions} vehicle={vehicle} groups={groups} vehicles={vehicles} />
       {saveTrigger}
     </form>
   </section>;
@@ -174,13 +187,16 @@ export function AdminSecuritySection({ user, statusAction, passwordAction, teleg
   </section>;
 }
 
-export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser: AdminManagedUser; actorId: string }>) {
+export function AdminUserDetail({ initialUser, actorId, groups, vehicles }: Readonly<{ initialUser: AdminManagedUser; actorId: string; groups: readonly VehicleGroupSummary[] | null; vehicles: readonly ManagedVehicle[] | null }>) {
   const router = useRouter();
   const { locale, t } = useI18n();
   const self = initialUser.id === actorId;
   const [user, setUser] = useState(initialUser);
   const [role, setRole] = useState(user.role);
   const [permissions, setPermissions] = useState<readonly AuthPermission[]>(user.permissions);
+  const [vehicle, setVehicle] = useState<VehicleAccessDraft>(() => draftFromVehicleAccess(initialUser.vehicleAccess));
+  const [vehicleError, setVehicleError] = useState<string | null>(null);
+  const stashedVehicle = useRef<VehicleAccessDraft | null>(null);
   const [confirm, setConfirm] = useState<"demote" | "disable" | "reset" | "telegram" | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -199,9 +215,10 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
   async function saveAccess(): Promise<void> {
     setBusy(true); setError(null);
     try {
-      const updated = parseAdminManagedUser(await mutate(`/api/admin/users/${user.id}/access`, "PATCH", { role, permissions: role === "USER" ? permissions : [] }));
+      if (role === "USER" && vehicle.mode === null) { setVehicleError(t("admin.vehicleAccess.chooseRequired")); setBusy(false); return; }
+      const updated = parseAdminManagedUser(await mutate(`/api/admin/users/${user.id}/access`, "PATCH", { role, permissions: role === "USER" ? permissions : [], vehicleAccess: role === "USER" ? buildVehicleAccessPayload(vehicle) : { mode: "ALL", groupIds: [], vehicleIds: [] } }));
       if (!updated) throw new AdminUserRequestError(null);
-      setUser(updated); setRole(updated.role); setPermissions(updated.permissions); setConfirm(null); router.refresh();
+      setUser(updated); setRole(updated.role); setPermissions(updated.permissions); setVehicle(draftFromVehicleAccess(updated.vehicleAccess)); setVehicleError(null); stashedVehicle.current = null; setConfirm(null); router.refresh();
     } catch (cause) { setError(localizedError(cause)); }
     finally { setBusy(false); }
   }
@@ -217,7 +234,7 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
     try {
       const updated = parseAdminManagedUser(await mutate(`/api/admin/users/${user.id}/${action}`, "POST"));
       if (!updated) throw new AdminUserRequestError(null);
-      setUser(updated); setConfirm(null); router.refresh();
+      setUser(updated); setVehicle(draftFromVehicleAccess(updated.vehicleAccess)); stashedVehicle.current = null; setConfirm(null); router.refresh();
     } catch (cause) { setError(localizedError(cause)); }
     finally { setBusy(false); }
   }
@@ -227,7 +244,7 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
     try {
       const result = parseOneTimePasswordResult(await mutate(`/api/admin/users/${user.id}/reset-password`, "POST"));
       if (!result) throw new AdminUserRequestError(null);
-      setUser(result.user); setSecret(result.temporaryPassword); setConfirm(null); router.refresh();
+      setUser(result.user); setVehicle(draftFromVehicleAccess(result.user.vehicleAccess)); stashedVehicle.current = null; setSecret(result.temporaryPassword); setConfirm(null); router.refresh();
     } catch (cause) { setError(localizedError(cause)); }
     finally { setBusy(false); }
   }
@@ -245,8 +262,16 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
   if (secret) return <OneTimePassword password={secret} title={t("admin.user.newTemporaryPassword")} onDone={() => setSecret(null)} />;
   const closeConfirmation = (kind: "demote" | "disable" | "reset" | "telegram") => (open: boolean) => { if (open) setConfirm(kind); else setConfirm(null); };
   const dialogError = (kind: "demote" | "disable" | "reset" | "telegram") => confirm === kind && error ? <Alert variant="danger" live="assertive" title={error} /> : null;
+  function changeRole(next: AdminUserCreateRole): void {
+    if (next === role) return;
+    if (next === "ADMIN") stashedVehicle.current = vehicle;
+    if (next === "USER") setVehicle(user.role === "ADMIN" ? EMPTY_VEHICLE_ACCESS_DRAFT : (stashedVehicle.current ?? draftFromVehicleAccess(user.vehicleAccess)));
+    setVehicleError(null);
+    setRole(next);
+    setConfirm(null);
+  }
   const demoting = user.role === "ADMIN" && role === "USER";
-  const dirty = isAccessDirty(user, role, permissions);
+  const dirty = isAccessDirty(user, role, permissions, vehicle);
   function focusAccessSecurity(): void {
     window.requestAnimationFrame(() => {
       document.getElementById("access-security")?.focus({ preventScroll: true });
@@ -273,7 +298,7 @@ export function AdminUserDetail({ initialUser, actorId }: Readonly<{ initialUser
       <Typography.Title level={2} id="admin-user-access-title">{t("admin.user.detail.accessSecurity")}</Typography.Title>
       <Typography.Paragraph type="secondary">{t("admin.user.detail.accessDescription")}</Typography.Paragraph>
       <div className="admin-user-detail-access">
-        <AdminAccessManagement user={user} self={self} role={role} permissions={permissions} busy={busy} saveTrigger={saveTrigger} onRoleChange={(next) => { setRole(next); setConfirm(null); }} onPermissionsChange={setPermissions} onSubmit={save} />
+        <AdminAccessManagement user={user} self={self} role={role} permissions={permissions} vehicle={vehicle} groups={groups} vehicles={vehicles} vehicleError={vehicleError} busy={busy} saveTrigger={saveTrigger} onRoleChange={changeRole} onPermissionsChange={setPermissions} onVehicleModeChange={(mode) => { setVehicle((current) => Object.freeze({ ...current, mode })); setVehicleError(null); }} onToggleVehicleGroup={(groupId, checked) => setVehicle(toggleAccessGroup(vehicle, groupId, checked))} onToggleVehicleGrant={(vehicleId, checked) => setVehicle(toggleAccessVehicle(vehicle, vehicleId, checked))} onSubmit={save} />
         {!self && <><Divider /><AdminSecuritySection user={user} statusAction={statusAction} passwordAction={passwordAction} telegramAction={telegramAction} /></>}
       </div>
     {error && confirm === null && <p className="admin-error" role="alert">{error}</p>}

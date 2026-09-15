@@ -4,7 +4,7 @@ import { buildUserActor } from "../audit";
 import { AdminOnly } from "../auth/auth.decorators";
 import type { AuthenticatedRequest } from "../auth/auth.types";
 import { VehicleGroupsError, VehicleGroupsService } from "./vehicle-groups.service";
-import type { VehicleGroupDetail, VehicleGroupSummary } from "./vehicle-groups.types";
+import type { VehicleGroupDetail, VehicleGroupManagedVehicle, VehicleGroupSummary } from "./vehicle-groups.types";
 
 function groupId(value: string): string { const id = normalizeUuid(value); if (!id) throw new VehicleGroupsError("NOT_FOUND"); return id; }
 function actor(request: AuthenticatedRequest) { return buildUserActor(request.auth!.id, request.auth!.login); }
@@ -21,6 +21,9 @@ export class VehicleGroupsController {
 
   @Get()
   public list(): Promise<readonly VehicleGroupSummary[]> { return this.groups.list(); }
+
+  @Get("vehicles")
+  public listVehicles(): Promise<readonly VehicleGroupManagedVehicle[]> { return this.groups.listVehiclesForAdmin(); }
 
   @Get(":groupId")
   public async detail(@Param("groupId") id: string): Promise<VehicleGroupDetail> { try { return await this.groups.detail(groupId(id)); } catch (error) { return groupError(error); } }

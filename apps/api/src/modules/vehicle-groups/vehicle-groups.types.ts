@@ -10,3 +10,9 @@ export type VehicleGroupSummary = Readonly<{
 export type VehicleGroupDetail = VehicleGroupSummary & Readonly<{
   vehicles: readonly Readonly<{ id: string; name: string; externalDeviceId: number; disabled: boolean }>[];
 }>;
+export type VehicleGroupManagedVehicle = Readonly<{
+  id: string;
+  name: string;
+  disabled: boolean;
+  groupId: string | null;
+}>;

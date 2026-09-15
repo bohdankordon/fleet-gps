@@ -1,0 +1,27 @@
+.vehicle-groups-page { display: grid; gap: var(--space-4); min-width: 0; }
+.vehicle-groups-page__header { display: grid; gap: var(--space-1); }
+.vehicle-groups-page__header h1 { margin: 0; font-size: var(--font-size-page-title); line-height: var(--line-height-page-title); letter-spacing: var(--letter-spacing-default); }
+.vehicle-groups-page__description { margin: 0; }
+.vehicle-groups-page__actions { display: flex; justify-content: flex-end; }
+.vehicle-groups-page > .admin-navigation-tabs { margin-bottom: 0; }
+.vehicle-groups-directory { display: grid; gap: var(--space-2); }
+.vehicle-groups-directory h2 { margin: 0; font-size: var(--font-size-section-title); line-height: var(--line-height-section-title); }
+.vehicle-groups-ungrouped { margin-top: var(--space-4); }
+.vehicle-groups-modal__label { display: block; margin-bottom: var(--space-1); }
+.vehicle-groups-modal__error { color: var(--color-danger-foreground); margin: var(--space-1) 0 0; }
+.vehicle-groups-detail-page { display: grid; gap: var(--space-4); min-width: 0; }
+.vehicle-groups-detail__back { justify-self: start; }
+.vehicle-groups-detail__identity { display: grid; gap: var(--space-1); }
+.vehicle-groups-detail__identity h1 { margin: 0; font-size: var(--font-size-page-title); line-height: var(--line-height-page-title); }
+.vehicle-groups-detail__card { margin-top: var(--space-3); }
+.vehicle-groups-detail__danger { border-color: var(--color-danger-border); }
+.vehicle-access-fields__vehicles { max-height: 240px; overflow-y: auto; display: grid; gap: var(--space-1); margin-top: var(--space-2); padding-right: var(--space-2); }
+@media (max-width: 575px) {
+  .vehicle-groups-page { gap: var(--space-3); }
+  .vehicle-groups-page__actions { justify-content: stretch; }
+  .vehicle-groups-page__actions > .ant-btn { width: 100%; }
+}
+@media (max-width: 767px) {
+  .vehicle-groups-detail__card .ant-transfer { overflow-x: auto; padding-bottom: var(--space-2); }
+  .vehicle-groups-detail__card .ant-transfer-list { min-width: 220px; flex: 1 0 auto; }
+}

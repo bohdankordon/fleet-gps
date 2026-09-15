@@ -6,8 +6,8 @@ import { I18nProvider } from "../i18n/client";
 import type { AdminManagedUser } from "../lib/admin-users/admin-users-contract";
 import { AdminUserAccountOverview, AdminUserIdentity } from "./admin-user-detail";
 
-const admin: AdminManagedUser = { id: "admin-id", login: "admin", role: "ADMIN", disabled: false, mustChangePassword: false, permissions: [], telegramStatus: "NOT_CONNECTED", createdAt: "2026-08-21T15:09:00.000Z", updatedAt: "2026-08-21T15:09:00.000Z" };
-const operator: AdminManagedUser = { id: "user-id", login: "operator", role: "USER", disabled: true, mustChangePassword: true, permissions: ["fleet.view", "vehicles.view", "trips.view"], telegramStatus: "CONNECTED", createdAt: "2026-08-22T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" };
+const admin: AdminManagedUser = { id: "admin-id", login: "admin", role: "ADMIN", disabled: false, mustChangePassword: false, permissions: [], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] }, telegramStatus: "NOT_CONNECTED", createdAt: "2026-08-21T15:09:00.000Z", updatedAt: "2026-08-21T15:09:00.000Z" };
+const operator: AdminManagedUser = { id: "user-id", login: "operator", role: "USER", disabled: true, mustChangePassword: true, permissions: ["fleet.view", "vehicles.view", "trips.view"], vehicleAccess: { mode: "SELECTED", groupIds: [], vehicleIds: [] }, telegramStatus: "CONNECTED", createdAt: "2026-08-22T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" };
 
 const renderIdentity = (user: AdminManagedUser, self: boolean, locale: "uk" | "ru" | "en" = "en") => renderToStaticMarkup(<I18nProvider locale={locale}><AdminUserIdentity user={user} self={self} /></I18nProvider>);
 const renderOverview = (user: AdminManagedUser, locale: "uk" | "ru" | "en" = "en") => renderToStaticMarkup(<I18nProvider locale={locale}><AdminUserAccountOverview user={user} onManageAccess={() => {}} /></I18nProvider>);

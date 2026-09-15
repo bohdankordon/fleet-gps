@@ -29,13 +29,17 @@ test("every supported Administration screen mounts the shared navigation after i
     assert.ok(headerEnd >= 0 && source.indexOf("<AdminNavigationTabs", headerEnd) > headerEnd, file);
   }
   const userDetailPage = readFileSync("src/app/admin/users/[userId]/page.tsx", "utf8");
-  assert.match(userDetailPage, /<AdminUserDetail initialUser=\{user\} actorId=\{actor\.id\} \/>/);
+  assert.match(userDetailPage, /<AdminUserDetail initialUser=\{user\} actorId=\{actor\.id\} groups=\{groups\} vehicles=\{vehicles\} \/>/);
   const userDetail = readFileSync("src/components/admin-user-detail.tsx", "utf8");
   const recordHeaderEnd = userDetail.indexOf("</header>");
   assert.ok(recordHeaderEnd >= 0 && userDetail.indexOf("<AdminNavigationTabs", recordHeaderEnd) > recordHeaderEnd, "user detail identity header precedes navigation");
   assert.ok(userDetail.indexOf("AdminUserAccountOverview user=") > userDetail.indexOf("<AdminNavigationTabs"), "user detail navigation precedes overview");
   const usersPage = readFileSync("src/app/admin/users/page.tsx", "utf8");
   assert.ok(usersPage.indexOf("<AdminNavigationTabs") > usersPage.indexOf("<AdminUsersPageHeader"));
+  const groupsPage = readFileSync("src/app/admin/vehicle-groups/page.tsx", "utf8");
+  assert.ok(groupsPage.indexOf("<AdminNavigationTabs") > groupsPage.indexOf("<VehicleGroupsPageHeader"), "groups directory header precedes navigation");
+  const groupDetailPage = readFileSync("src/app/admin/vehicle-groups/[groupId]/page.tsx", "utf8");
+  assert.match(groupDetailPage, /<AdminNavigationTabs \/>/);
   const auditPage = readFileSync("src/app/admin/audit/page.tsx", "utf8");
   const historyPage = readFileSync("src/app/admin/history/page.tsx", "utf8");
   const auditView = readFileSync("src/components/audit-viewer.tsx", "utf8");

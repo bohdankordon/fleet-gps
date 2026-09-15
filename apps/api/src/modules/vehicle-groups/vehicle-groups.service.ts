@@ -3,7 +3,7 @@ import type { Prisma } from "../../generated/prisma/client";
 import { normalizeUuid } from "../../common/uuid.validation";
 import { AuditEventRepository, buildVehicleGroupCreatedAuditEvent, buildVehicleGroupDeletedAuditEvent, buildVehicleGroupMembershipChangedAuditEvent, buildVehicleGroupRenamedAuditEvent, type AuditUserActor } from "../audit";
 import { DatabaseService } from "../database/database.service";
-import type { VehicleGroupDetail, VehicleGroupSummary } from "./vehicle-groups.types";
+import type { VehicleGroupDetail, VehicleGroupManagedVehicle, VehicleGroupSummary } from "./vehicle-groups.types";
 
 export type VehicleGroupsErrorCode = "INVALID_INPUT" | "DUPLICATE_NAME" | "NOT_FOUND" | "INVALID_VEHICLE_REFERENCE";
 export class VehicleGroupsError extends Error {
@@ -131,5 +131,9 @@ export class VehicleGroupsService {
       await transaction.vehicleGroup.delete({ where: { id: groupId } });
       await this.audit.append(transaction, buildVehicleGroupDeletedAuditEvent(actor, groupId, { name: current.name, vehicleCount: current._count.vehicles, userGrantCount: current._count.userGrants }));
     });
+  }
+  public async listVehiclesForAdmin(): Promise<readonly VehicleGroupManagedVehicle[]> {
+    const vehicles = await this.database.getClient().vehicle.findMany({ orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, disabled: true, groupId: true } });
+    return Object.freeze(vehicles.map((vehicle) => Object.freeze({ ...vehicle })));
   }
 }

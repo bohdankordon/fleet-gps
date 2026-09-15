@@ -20,3 +20,8 @@ test("vehicle group administration is ADMIN-only", () => {
   assert.throws(() => guard.canActivate(context(AuthRole.USER)), ForbiddenException);
   assert.equal(guard.canActivate(context(AuthRole.ADMIN)), true);
 });
+test("static management routes are declared before the groupId parameter route", () => {
+  const names = Object.getOwnPropertyNames(VehicleGroupsController.prototype).filter((name) => name !== "constructor");
+  assert.ok(names.includes("listVehicles"));
+  assert.ok(names.indexOf("listVehicles") < names.indexOf("detail"));
+});
