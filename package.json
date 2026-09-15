@@ -28,6 +28,7 @@
     "dev:fixtures:vehicle-detail:test": "node --test apps/api/scripts/dev-vehicle-detail-fixtures-safety.test.cjs apps/api/scripts/dev-vehicle-detail-fixtures.test.cjs",
     "dev:fixtures:vehicle-detail:verify": "node apps/api/scripts/dev-vehicle-detail-fixtures-verify.cjs",
     "auth:user-create": "npm --workspace @taxi-gps/api run auth:user-create",
+    "password-blocklist:generate": "npm --workspace @taxi-gps/api run password-blocklist:generate",
     "auth:test": "npm --workspace @taxi-gps/api run auth:test",
     "stage-21:security-real-db-test": "npm --workspace @taxi-gps/api run stage-21:security-real-db-test",
     "stage-21:security-web-acceptance": "npm --workspace @taxi-gps/web run stage-21:security-acceptance",
