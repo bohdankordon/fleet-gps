@@ -31,12 +31,23 @@ test("all three vehicle routes reuse the shell and select one exact active route
   assert.match(overview, /<VehicleDetailShell[^>]*activeTab="overview"/);
   assert.match(trips, /<VehicleDetailShell[^>]*activeTab="trips"/);
   assert.match(history, /<VehicleDetailShell[^>]*activeTab="history"/);
+  for (const client of [overview, trips, history]) assert.ok(client.includes("vehicleGroup="), "shared header group wiring");
   assert.match(tripsPage, /fetchDetails: \(id\) => fetchVehicleDetails\(id\)/);
   assert.match(historyPage, /fetchVehicleDetails\(vehicleId\)/);
   assert.equal((trips.match(/<header className="vehicle-trips__workspace-header"/g) ?? []).length, 2);
   assert.doesNotMatch(trips, /<PageHeader|<header className="vehicle-detail/);
   assert.equal((history.match(/<header className="vehicle-track__workspace-header"/g) ?? []).length, 0);
   assert.doesNotMatch(history, /<PageHeader|<header className="vehicle-detail/);
+});
+
+test("vehicle header shows a prominent primary-tinted group tag while dense contexts stay compact", () => {
+  assert.ok(shell.includes('variant="header"'));
+  assert.ok(shell.includes("vehicle-group-tag--header"));
+  assert.ok(shell.includes("token.colorPrimaryBg"));
+  assert.ok(shell.includes("token.colorPrimaryBorder"));
+  assert.ok(shell.includes("token.colorPrimaryText"));
+  assert.ok(shell.includes("token.colorFillQuaternary"));
+  assert.ok(shell.includes('<Tag color="default">'));
 });
 
 test("Overview uses three equal-height native Cards and bounded Listy surfaces", () => {

@@ -39,7 +39,6 @@
 .reports-results__header { padding: 12px; border-bottom: 1px solid var(--reports-divider); }
 .reports-toolbar { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .reports-toolbar .reports-search { flex: 1 1 240px; min-width: 0; }
-.reports-gps-filter { flex: 0 0 190px; min-width: 0; }
 .reports-results__context { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; margin-top: 8px; font-size: var(--font-size-metadata); color: var(--reports-muted); }
 .reports-filter-meta { display: flex; align-items: center; gap: 8px; margin-inline-start: auto; text-align: end; }
 .reports-subset { flex-basis: 100%; }
@@ -90,7 +89,6 @@
   .reports-summary .vehicle-trips__summary-metric:nth-child(n + 4) { border-top: 1px solid var(--reports-divider); }
   .reports-toolbar { flex-wrap: wrap; gap: 8px; }
   .reports-toolbar .reports-search { flex-basis: 100%; }
-  .reports-gps-filter { flex: 1 1 180px; }
 }
 @media (max-width: 575px) {
   .reports-workspace, .reports-content { gap: 12px; }
@@ -112,7 +110,6 @@
   .reports-summary .vehicle-trips__summary-value { grid-column: 2; grid-row: 2; }
   .reports-summary .vehicle-trips__summary-icon { width: 16px; }
   .reports-results__header { padding: 8px; }
-  .reports-gps-filter { flex: 1 1 calc(43% - 4px); width: 0; }
   .reports-results__context { margin-top: 4px; font-size: 12px; }
   .reports-comparison-row { padding: 12px; }
   .reports-investigation > a { flex: 1 1 100%; }

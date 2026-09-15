@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Alert, Button, Checkbox, Input, Pagination, Segmented, Select, Switch, Tag } from "antd";
+import { Alert, Button, Checkbox, Input, Pagination, Segmented, Switch, Tag } from "antd";
+import { LabeledFilterSelect } from "./labeled-filter-select";
 import { AlertDialog } from "./ui/dialog";
 import { useI18n } from "../i18n/client";
 import type { MessageKey } from "../i18n/messages";
@@ -364,7 +365,7 @@ export function AccountNotificationsWorkspace({ baseline: initialBaseline, conne
                 }}
                 allowClear
               />
-              {showNotificationGroupFinder ? <Select aria-label={t("group.filter.label")} value={groupFinder} disabled={saving} onChange={(value) => { setGroupFinder(value); setPage(1); }} options={notificationGroupOptions} /> : null}
+              {showNotificationGroupFinder ? <LabeledFilterSelect fieldLabel={t("group.filter.label")} ariaLabel={t("group.filter.label")} value={groupFinder} disabled={saving} onChange={(value) => { setGroupFinder(value); setPage(1); }} options={notificationGroupOptions} /> : null}
               <p className="account-notifications__supporting">{t("telegram.preferences.selectedCount", { count: draft.selectedVehicleIds.length })}</p>
               {paged.items.length === 0 ? (
                 <p className="account-notifications__supporting">{t("account.notifications.noVehiclesFound")}</p>

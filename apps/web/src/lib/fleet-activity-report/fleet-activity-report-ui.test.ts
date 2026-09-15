@@ -16,6 +16,17 @@ test("search and GPS filter compose without modifying fleet-wide summary or sour
   assert.equal(reportControlsChanged(DEFAULT_REPORT_FILTERS), false);
   assert.equal(reportControlsChanged({ ...DEFAULT_REPORT_FILTERS, sort: "name" }), true);
 });
+test("group filter narrows rows while the top summary stays the full authorized fleet", () => {
+  const taxiGroup = { id: "11111111-1111-4111-8111-111111111111", name: "Taxi" };
+  const rows = [{ ...report.vehicles[0]!, group: taxiGroup }, { ...report.vehicles[1]!, group: null }];
+  const summaryBefore = JSON.stringify(report.summary);
+  assert.deepEqual(visibleReportVehicles(rows, { ...DEFAULT_REPORT_FILTERS, group: taxiGroup.id }, "en").map((row) => row.vehicleId), [rows[0]!.vehicleId]);
+  assert.deepEqual(visibleReportVehicles(rows, { ...DEFAULT_REPORT_FILTERS, group: "ungrouped" }, "en").map((row) => row.vehicleId), [rows[1]!.vehicleId]);
+  assert.equal(visibleReportVehicles(rows, DEFAULT_REPORT_FILTERS, "en").length, 2);
+  assert.equal(visibleReportVehicles(rows, { ...DEFAULT_REPORT_FILTERS, group: taxiGroup.id, gps: "WITH_GPS" }, "en").length, 1);
+  assert.equal(JSON.stringify(report.summary), summaryBefore);
+  assert.equal(reportFilterCount({ ...DEFAULT_REPORT_FILTERS, group: taxiGroup.id }), 1);
+});
 test("all factual sorts are deterministic, no-GPS remains last in metric sorts and reset restores distance", () => {
   const observedZero = { ...report.vehicles[0]!, vehicleId: "00000000-0000-4000-8000-000000000003", vehicleName: "AAA", observedDistanceMeters: 0, tripCount: 0, tripDurationSeconds: 0, stopCount: 0, gapCount: 0 };
   const rows = [report.vehicles[1]!, observedZero, report.vehicles[0]!];

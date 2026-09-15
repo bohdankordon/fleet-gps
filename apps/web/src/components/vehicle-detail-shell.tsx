@@ -16,10 +16,25 @@ export type VehicleDetailTab = "overview" | "trips" | "history";
 
 export type VehicleGroupRef = Readonly<{ id: string; name: string }>;
 
-export function VehicleGroupTag({ group, showUngrouped = false }: Readonly<{ group: VehicleGroupRef | null | undefined; showUngrouped?: boolean }>) {
+export function VehicleGroupTag({ group, showUngrouped = false, variant = "compact" }: Readonly<{ group: VehicleGroupRef | null | undefined; showUngrouped?: boolean; variant?: "compact" | "header" }>) {
   const { t } = useI18n();
-  if (!group) return showUngrouped ? <Tag color="default">{t("group.ungrouped")}</Tag> : null;
-  return <Tag color="default">{group.name}</Tag>;
+  const { token } = theme.useToken();
+  if (variant !== "header") {
+    if (!group) return showUngrouped ? <Tag color="default">{t("group.ungrouped")}</Tag> : null;
+    return <Tag color="default">{group.name}</Tag>;
+  }
+  if (!group && !showUngrouped) return null;
+  const headerStyle = {
+    fontSize: token.fontSize,
+    paddingInline: token.paddingSM,
+    paddingBlock: 3,
+    marginInlineEnd: 0,
+    borderRadius: token.borderRadiusSM,
+    ...(group
+      ? { background: token.colorPrimaryBg, borderColor: token.colorPrimaryBorder, color: token.colorPrimaryText }
+      : { background: token.colorFillQuaternary, borderColor: token.colorBorder, color: token.colorTextSecondary }),
+  } as const;
+  return <Tag className="vehicle-group-tag vehicle-group-tag--header" style={headerStyle}>{group ? group.name : t("group.ungrouped")}</Tag>;
 }
 
 type Props = Readonly<{
@@ -61,7 +76,7 @@ export function VehicleDetailShell({ vehicleId, vehicleName, vehicleGroup, activ
         <Flex className="vehicle-detail-shell__identity" align="center" gap="middle">
           <CarOutlined className="vehicle-detail-shell__vehicle-icon" aria-hidden style={{ color: token.colorTextTertiary }} />
           <Title level={1}>{vehicleName}</Title>
-          {vehicleGroup !== undefined ? <VehicleGroupTag group={vehicleGroup} showUngrouped /> : null}
+          {vehicleGroup !== undefined ? <VehicleGroupTag group={vehicleGroup} showUngrouped variant="header" /> : null}
         </Flex>
         {showMapAction || actions ? <Flex className="vehicle-detail-shell__actions" align="center" gap="small" wrap="wrap">
           {showMapAction && canOpenMap ? <Button type="default" size="large" href={fleetMapVehicleHref(vehicleId)} icon={<EnvironmentOutlined aria-hidden />}>{t("vehicle.openMap")}</Button> : null}

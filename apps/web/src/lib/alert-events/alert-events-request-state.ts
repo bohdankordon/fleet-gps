@@ -13,7 +13,7 @@ export type AlertEventsListState = Readonly<{
   paginationValid: boolean;
 }>;
 
-export function sameAlertEventsFilters(left: AlertEventsFilters, right: AlertEventsFilters): boolean { return (["mode", "status", "type", "vehicleId", "period", "from", "to"] as const).every((key) => left[key] === right[key]); }
+export function sameAlertEventsFilters(left: AlertEventsFilters, right: AlertEventsFilters): boolean { return (["mode", "status", "type", "vehicleId", "group", "period", "from", "to"] as const).every((key) => left[key] === right[key]); }
 export function initialAlertEventsListState(data: AlertEventsListResponse, filters: AlertEventsFilters): AlertEventsListState { return { data, filters, dataFilters: filters, loading: false, moreLoading: false, error: null, paginationValid: true }; }
 export function beginAlertEventsFirstPage(state: AlertEventsListState, filters: AlertEventsFilters): AlertEventsListState { const changed = !sameAlertEventsFilters(state.dataFilters, filters); return { ...state, data: changed ? { items: [], nextCursor: null } : state.data, filters, loading: true, moreLoading: false, error: null, paginationValid: changed ? false : state.paginationValid }; }
 export function succeedAlertEventsFirstPage(state: AlertEventsListState, filters: AlertEventsFilters, data: AlertEventsListResponse): AlertEventsListState { return { ...state, filters, dataFilters: filters, data, loading: false, moreLoading: false, error: null, paginationValid: true }; }

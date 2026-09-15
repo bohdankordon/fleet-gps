@@ -190,6 +190,16 @@ test("vehicle selector is segmented, searchable, and paged without touching the 
   assert.doesNotMatch(source, /setQuery\(event\.target\.value\);[\s\S]{0,60}touchDraft/);
   assert.match(source, /VEHICLE_PAGE_SIZE = 10|VEHICLE_PAGE_SIZE,/);
 });
+test("group finder uses the shared labeled pattern and never changes the saved selection", () => {
+  const workspace = readFileSync("src/components/account-notifications-workspace.tsx", "utf8");
+  assert.ok(workspace.includes('from "./labeled-filter-select"'));
+  assert.ok(workspace.includes('<LabeledFilterSelect fieldLabel={t("group.filter.label")}'));
+  assert.ok(workspace.includes("setGroupFinder(value); setPage(1);"));
+  const html = render({});
+  assert.ok(html.includes("Group: All groups"));
+  assert.ok(html.includes("Group: Ungrouped"));
+  assert.ok(html.includes("Selected: 1"));
+});
 
 test("LINK_PENDING prerequisite and unavailable shell stay truthful", () => {
   const pending = render({ connection: { status: "LINK_PENDING", pendingExpiresAt: "2030-01-01T00:00:00.000Z" } });

@@ -140,3 +140,12 @@ test("Map page retains the three read-only sources and adds only the validated v
   assert.match(page, /parseFleetMapVehicleId\(query\.vehicleId\)/);
   assert.doesNotMatch(page, /redirect|router|fetchVehicleDetails/);
 });
+test("Map desktop keeps search, Group, Legend and Refresh on one row with compact fallbacks", () => {
+  assert.ok(map.includes('from "./labeled-filter-select"'));
+  assert.ok(map.includes('<LabeledFilterSelect fieldLabel={t("group.filter.label")}'));
+  assert.ok(map.includes('className="map-controls__legend"'));
+  assert.ok(styles.includes("grid-template-columns: minmax(220px, 1fr) auto auto auto"));
+  assert.ok(styles.includes(".map-controls > .fleet-toolbar__labeled-select"));
+  assert.ok(styles.includes(".map-controls > .map-controls__legend"));
+  assert.ok(styles.includes(".map-controls > .stable-loading-button"));
+});

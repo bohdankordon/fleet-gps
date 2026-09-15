@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertFilled, AimOutlined, CarFilled, CarOutlined, CloseOutlined, InfoCircleOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { Alert, AutoComplete, Badge, Button, Card, Col, Descriptions, Divider, Drawer, Empty, Flex, Grid, Input, Popover, Row, Select, Space, Spin, Tag, Typography, theme } from "antd";
+import { Alert, AutoComplete, Badge, Button, Card, Col, Descriptions, Divider, Drawer, Empty, Flex, Grid, Input, Popover, Row, Space, Spin, Tag, Typography, theme } from "antd";
 import type { CSSProperties, ReactNode } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
@@ -28,6 +28,7 @@ import { FLEET_MAP_HIT_LAYER_ID, FLEET_MAP_SELECTED_LAYER_ID, FLEET_MAP_SOURCE_I
 import { alertsForFleetVehicle, fleetAlertMapToGeoJson, joinFleetOpenAlerts } from "@/lib/open-alert-map/open-alert-map-model";
 import { abortCoordinatedMapRefresh, beginCoordinatedMapRefresh, initialCoordinatedMapRefreshState, settleCoordinatedMapRefresh, type MapRefreshResult } from "@/lib/open-alert-map/open-alert-map-refresh-state";
 import { CompactPageHeading } from "./compact-page-heading";
+import { LabeledFilterSelect } from "./labeled-filter-select";
 import { VehicleGroupTag } from "./vehicle-detail-shell";
 import { PRODUCT_GROUP_FILTER_ALL, PRODUCT_GROUP_FILTER_UNGROUPED, matchesProductGroupFilter, productGroupOptionsFromVehicles } from "@/lib/vehicle-groups/vehicle-groups-contract";
 import { useI18n } from "../i18n/client";
@@ -338,9 +339,9 @@ export function FleetMapClient({ initialSnapshot, initialVehicleId, initialGeofe
           onClear={clearSelection}
         />
       </AutoComplete>
-      {(groupMeta.options.length > 0 || groupMeta.hasUngrouped) ? <Select className="map-controls__group" size="large" aria-label={t("group.filter.label")} value={groupFilter} onChange={setGroupFilter} options={[{ value: PRODUCT_GROUP_FILTER_ALL, label: t("group.filter.allGroups") }, ...groupMeta.options.map((option) => ({ value: option.id, label: option.name })), ...(groupMeta.hasUngrouped ? [{ value: PRODUCT_GROUP_FILTER_UNGROUPED, label: t("group.ungrouped") }] : [])]} /> : null}
+      {(groupMeta.options.length > 0 || groupMeta.hasUngrouped) ? <LabeledFilterSelect fieldLabel={t("group.filter.label")} ariaLabel={t("group.filter.label")} value={groupFilter} onChange={setGroupFilter} options={[{ value: PRODUCT_GROUP_FILTER_ALL, label: t("group.filter.allGroups") }, ...groupMeta.options.map((option) => ({ value: option.id, label: option.name })), ...(groupMeta.hasUngrouped ? [{ value: PRODUCT_GROUP_FILTER_UNGROUPED, label: t("group.ungrouped") }] : [])]} /> : null}
       <Popover trigger="click" placement="bottomRight" content={<MapLegend />}>
-        <Button size="large" type="default" icon={<InfoCircleOutlined aria-hidden />}>{t("map.legend.label")}</Button>
+        <Button className="map-controls__legend" size="large" type="default" icon={<InfoCircleOutlined aria-hidden />}>{t("map.legend.label")}</Button>
       </Popover>
       <StableLoadingButton idleLabel={t("common.refresh")} loadingLabel={t("common.refreshing")} loading={refreshing} icon={<ReloadOutlined />} onClick={() => void refresh()} size="large" type="primary" />
     </section>

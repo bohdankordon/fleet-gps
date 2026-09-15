@@ -1,7 +1,8 @@
 "use client";
 
 import { InfoCircleOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
-import { Alert, Button, Drawer, Empty, Grid, Input, Select, Skeleton, Spin, theme } from "antd";
+import { Alert, Button, Drawer, Empty, Grid, Input, Skeleton, Spin, theme } from "antd";
+import { LabeledFilterSelect } from "./labeled-filter-select";
 import { useRef, useState, type CSSProperties } from "react";
 import { useI18n } from "../i18n/client";
 import type { ReportPageState } from "../lib/fleet-activity-report/fleet-activity-report-page-loader";
@@ -45,8 +46,8 @@ export function FleetActivityReportWorkspace({ initialData: data, initialDate, i
       <section className="reports-results" aria-label={t("reports.comparison")}>
         <div className="reports-results__header"><div className="reports-toolbar" role="search" aria-label={t("reports.filters")}>
           <Input size="large" prefix={<SearchOutlined />} styles={{ root: { height: token.controlHeightLG }, input: { minHeight: 0 } }} className="reports-search fleet-toolbar__search" aria-label={t("reports.search")} placeholder={t("reports.search")} allowClear value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} />
-          <Select size="large" className="reports-gps-filter" aria-label={t("reports.gpsFilter")} labelRender={({ value, label }) => value === "ALL" ? t("reports.allGps") : label} value={filters.gps} onChange={(gps) => setFilters({ ...filters, gps })} options={[{ value: "ALL", label: t("reports.all") }, { value: "WITH_GPS", label: t("reports.withGps") }, { value: "NO_GPS", label: t("reports.noGps") }]} />
-          {showReportGroupFilter ? <Select size="large" className="reports-group-filter" aria-label={t("group.filter.label")} value={filters.group} onChange={(group) => setFilters({ ...filters, group })} options={reportGroupOptions} /> : null}
+          <LabeledFilterSelect fieldLabel={t("reports.gps")} ariaLabel={t("reports.gpsFilter")} value={filters.gps} onChange={(gps) => setFilters({ ...filters, gps: gps as ReportFilters["gps"] })} options={[{ value: "ALL", label: t("reports.all") }, { value: "WITH_GPS", label: t("reports.gps.withData") }, { value: "NO_GPS", label: t("reports.gps.withoutData") }]} />
+          {showReportGroupFilter ? <LabeledFilterSelect fieldLabel={t("group.filter.label")} ariaLabel={t("group.filter.label")} value={filters.group} onChange={(group) => setFilters({ ...filters, group })} options={reportGroupOptions} /> : null}
         </div>
         <div className="reports-results__context" role="status"><span>{t("reports.visible", { visible: rows.length, total: data.vehicles.length })}</span><span className="reports-filter-meta"><span>{t("reports.filterCount", { count: filterCount })}</span><FleetFilterResetButton disabled={!reportControlsChanged(filters)} onClick={reset}>{t("reports.reset")}</FleetFilterResetButton></span>{filterCount > 0 && <span className="reports-subset">{t("reports.subset")}</span>}</div>
         {data.summary.vehicleCount > 0 && data.summary.vehiclesWithGps === 0 && <p role="status" className="reports-result-note"><InfoCircleOutlined aria-hidden />{t("reports.noGpsDay")}</p>}</div>

@@ -28,6 +28,9 @@ export function alertEventsPreset(period: Exclude<AlertEventsPeriod, "custom">, 
   return { period, from: new Date(now.getTime() - hours * 3600000).toISOString(), to: now.toISOString() };
 }
 export function alertEventsMode(filters: AlertEventsFilters): AlertEventsMode { return filters.mode ?? (filters.status === "RESOLVED" ? "history" : "active"); }
+export function alertEventsFilterCount(filters: AlertEventsFilters): number {
+  return Number(Boolean(filters.type)) + Number(Boolean(filters.vehicleId)) + Number(Boolean(filters.group)) + Number(alertEventsMode(filters) === "history" && filters.period !== "7d");
+}
 export function switchAlertEventsMode(filters: AlertEventsFilters, mode: AlertEventsMode, now = new Date()): AlertEventsFilters {
   return { mode, status: mode === "active" ? "OPEN" : "RESOLVED", type: filters.type, vehicleId: filters.vehicleId, group: filters.group, ...(mode === "history" ? alertEventsPreset("7d", now) : {}) };
 }
