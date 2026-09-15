@@ -6,7 +6,7 @@ import type { TripStopAnalyticsService } from "./trip-stop-analytics.service";
 import type { TripStopAnalysisResult } from "./trip-stop-analytics.types";
 import { TripStopAnalysisController } from "./trip-stop-analysis.controller";
 
-const id = "00000000-0000-4000-8000-000000000001";
+const testAuth = { auth: { id: "00000000-0000-4000-8000-000000000099" } } as unknown as import("../auth/auth.types").AuthenticatedRequest; const testUserId = "00000000-0000-4000-8000-000000000099"; const id = "00000000-0000-4000-8000-000000000001";
 const from = new Date("2026-08-01T00:00:00Z"); const to = new Date("2026-08-08T00:00:00Z");
 const at = (seconds: number) => new Date(from.getTime() + seconds * 1_000);
 function result(): TripStopAnalysisResult { return {
@@ -21,8 +21,8 @@ function status(expected: number) { return (error: unknown) => error instanceof 
 test("public GET maps Stage 15A results to stable truthful product DTO", async () => {
   let received: unknown;
   const controller = new TripStopAnalysisController({ analyze: async (...args: unknown[]) => { received = args; return result(); } } as unknown as TripStopAnalyticsService);
-  const response = await controller.getAnalysis(id.toUpperCase(), "2026-08-01T02:00:00+02:00", "2026-08-08T00:00:00Z");
-  assert.deepEqual(received, [id, { from, to }]);
+  const response = await controller.getAnalysis(id.toUpperCase(), "2026-08-01T02:00:00+02:00", "2026-08-08T00:00:00Z", testAuth);
+  assert.deepEqual(received, [id, { from, to }, testUserId]);
   assert.equal(response.summary.totalObservedDistanceMeters, 123.5);
   assert.equal(response.trips[0]?.endClipped, true);
   assert.equal(response.trips[0]?.endAt, "2026-08-01T00:01:00.000Z");
@@ -38,21 +38,21 @@ test("public GET maps Stage 15A results to stable truthful product DTO", async (
 test("known vehicle with zero observations returns HTTP-success empty DTO", async () => {
   const empty = result();
   const controller = new TripStopAnalysisController({ analyze: async () => ({ ...empty, summary: { ...empty.summary, rawObservationCount: 0, continuitySegmentCount: 0, tripCount: 0, stopCount: 0, gapCount: 0, totalObservedTripDistanceMeters: 0, firstObservationAt: null, lastObservationAt: null }, trips: [], stops: [], gaps: [] }) } as unknown as TripStopAnalyticsService);
-  const response = await controller.getAnalysis(id, from.toISOString(), to.toISOString());
+  const response = await controller.getAnalysis(id, from.toISOString(), to.toISOString(), testAuth);
   assert.deepEqual(response.summary, { tripCount: 0, stopCount: 0, gapCount: 0, totalObservedDistanceMeters: 0, rawObservationCount: 0, firstObservationAt: null, lastObservationAt: null });
 });
 
 test("strictly validates UUID, absolute timestamps, order, and seven-day bound", async () => {
   let calls = 0; const controller = new TripStopAnalysisController({ analyze: async () => { calls += 1; return result(); } } as unknown as TripStopAnalyticsService);
-  for (const args of [["bad", from.toISOString(), to.toISOString()], [id, "2026-08-01", to.toISOString()], [id, from.toISOString(), from.toISOString()], [id, from.toISOString(), "2026-08-08T00:00:00.001Z"]] as const) await assert.rejects(controller.getAnalysis(args[0], args[1], args[2]), status(400));
+  for (const args of [["bad", from.toISOString(), to.toISOString()], [id, "2026-08-01", to.toISOString()], [id, from.toISOString(), from.toISOString()], [id, from.toISOString(), "2026-08-08T00:00:00.001Z"]] as const) await assert.rejects(controller.getAnalysis(args[0], args[1], args[2], testAuth), status(400));
   assert.equal(calls, 0);
-  await controller.getAnalysis(id, from.toISOString(), to.toISOString()); assert.equal(calls, 1);
+  await controller.getAnalysis(id, from.toISOString(), to.toISOString(), testAuth); assert.equal(calls, 1);
 });
 
 test("unknown vehicle maps to established 404 and internal errors remain safe", async () => {
   for (const [error, expected] of [[new TripStopAnalyticsVehicleNotFoundError(), 404], [new Error("database secret"), 500]] as const) {
     const controller = new TripStopAnalysisController({ analyze: async () => { throw error; } } as unknown as TripStopAnalyticsService);
-    await assert.rejects(controller.getAnalysis(id, from.toISOString(), to.toISOString()), status(expected));
+    await assert.rejects(controller.getAnalysis(id, from.toISOString(), to.toISOString(), testAuth), status(expected));
   }
 });
 

@@ -1,4 +1,5 @@
-import { Controller, Get, HttpException, Param, Query } from "@nestjs/common";
+import { Controller, Get, HttpException, Param, Query, Req } from "@nestjs/common";
+import type { AuthenticatedRequest } from "../auth/auth.types";
 import { normalizeUuid } from "../../common/uuid.validation";
 import { parseVehicleTrackOverviewRange } from "./vehicle-track-overview-query-params";
 import { VehicleTrackOverviewQueryService } from "./vehicle-track-overview-query.service";
@@ -16,12 +17,13 @@ export class VehicleTrackOverviewController {
     @Param("vehicleId") rawVehicleId: string,
     @Query("from") rawFrom: unknown,
     @Query("to") rawTo: unknown,
+    @Req() request: AuthenticatedRequest,
   ): Promise<VehicleTrackOverviewResponse> {
     const vehicleId = normalizeUuid(rawVehicleId);
     const range = parseVehicleTrackOverviewRange(rawFrom, rawTo);
     if (!vehicleId || !range) throw new HttpException({ statusCode: 400, error: "Bad Request" }, 400);
     try {
-      return await this.queryService.getOverview(vehicleId, range.from, range.to);
+      return await this.queryService.getOverview(vehicleId, range.from, range.to, request.auth!.id);
     } catch (error) {
       if (error instanceof VehicleTrackOverviewNotFoundError) throw new HttpException({ statusCode: 404, error: "Not Found" }, 404);
       if (error instanceof VehicleTrackOverviewTooFragmentedError) throw new HttpException({ statusCode: 422, error: "Unprocessable Entity" }, 422);

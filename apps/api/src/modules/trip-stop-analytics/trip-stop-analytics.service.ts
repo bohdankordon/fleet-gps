@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { analyzeTripStopObservations } from "./trip-stop-analytics.core";
+import { VehicleScopeService } from "../vehicle-access/vehicle-access.service";
 import { TRIP_STOP_ANALYTICS_MAX_RANGE_MS } from "./trip-stop-analytics.constants";
 import { TripStopAnalyticsTargetError, TripStopAnalyticsVehicleNotFoundError } from "./trip-stop-analytics.errors";
 import { TRIP_STOP_ANALYTICS_REPOSITORY } from "./trip-stop-analytics.tokens";
@@ -14,11 +15,12 @@ function validTarget(vehicleId: string, range: TripStopAnalyticsRange): boolean 
 
 @Injectable()
 export class TripStopAnalyticsService {
-  public constructor(@Inject(TRIP_STOP_ANALYTICS_REPOSITORY) private readonly repository: TripStopAnalyticsRepository, private readonly policy: TripStopAnalyticsPolicyService) {}
+  public constructor(@Inject(TRIP_STOP_ANALYTICS_REPOSITORY) private readonly repository: TripStopAnalyticsRepository, private readonly policy: TripStopAnalyticsPolicyService, private readonly scopes: VehicleScopeService) {}
 
-  public async analyze(vehicleId: string, range: TripStopAnalyticsRange): Promise<TripStopAnalysisResult> {
+  public async analyze(vehicleId: string, range: TripStopAnalyticsRange, userId: string): Promise<TripStopAnalysisResult> {
     if (!validTarget(vehicleId, range)) throw new TripStopAnalyticsTargetError();
-    const [snapshot, policy] = await Promise.all([this.repository.getSnapshot(vehicleId, range), this.policy.getSnapshot()]);
+    const scope = await this.scopes.resolve(userId);
+    const [snapshot, policy] = await Promise.all([this.repository.getSnapshot(vehicleId, range, scope), this.policy.getSnapshot()]);
     if (snapshot.vehicle === null) throw new TripStopAnalyticsVehicleNotFoundError();
     const core = analyzeTripStopObservations(snapshot.observations, range, policy);
     return Object.freeze({

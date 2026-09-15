@@ -1,4 +1,5 @@
 import type { AlertEventSpeedZone, AlertEventStatus, AlertEventType, AlertNotificationStatus } from "../../generated/prisma/client";
+import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
 import type { AlertEventsQueryParams } from "./alert-events-query-params";
 
 export type StoredAlertEventProjectionRow = Readonly<{
@@ -49,8 +50,8 @@ export type StoredOpenAlertMapSnapshot = Readonly<{
 }>;
 
 export interface AlertEventsQueryRepository {
-  getVehicleOptions(): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]>;
-  list(params: AlertEventsQueryParams): Promise<StoredAlertEventsPage>;
-  getOpenSummary(): Promise<StoredOpenAlertEventsSummary>;
-  getOpenMapSnapshot(): Promise<StoredOpenAlertMapSnapshot>;
+  getVehicleOptions(scope: VehicleScope): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]>;
+  list(params: AlertEventsQueryParams, scope: VehicleScope): Promise<StoredAlertEventsPage>;
+  getOpenSummary(scope: VehicleScope): Promise<StoredOpenAlertEventsSummary>;
+  getOpenMapSnapshot(scope: VehicleScope): Promise<StoredOpenAlertMapSnapshot>;
 }

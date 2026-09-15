@@ -8,6 +8,7 @@ import {
   type VehicleTrackOverviewQueryRepository,
 } from "./vehicle-track-overview-query.repository";
 import { VEHICLE_TRACK_CLOCK, VEHICLE_TRACK_OVERVIEW_QUERY_REPOSITORY } from "./vehicle-track.tokens";
+import { VehicleScopeService } from "../vehicle-access/vehicle-access.service";
 import {
   VehicleTrackOverviewNotFoundError,
   VehicleTrackOverviewStateError,
@@ -52,10 +53,11 @@ export class VehicleTrackOverviewQueryService {
   public constructor(
     @Inject(VEHICLE_TRACK_OVERVIEW_QUERY_REPOSITORY) private readonly repository: VehicleTrackOverviewQueryRepository,
     @Inject(VEHICLE_TRACK_CLOCK) private readonly clock: VehicleTrackClock,
+    private readonly scopes: VehicleScopeService,
   ) {}
 
-  public async getOverview(vehicleId: string, from: Date, to: Date): Promise<VehicleTrackOverviewResponse> {
-    const snapshot = await this.repository.getOverviewSnapshot(vehicleId, from, to);
+  public async getOverview(vehicleId: string, from: Date, to: Date, userId: string): Promise<VehicleTrackOverviewResponse> {
+    const snapshot = await this.repository.getOverviewSnapshot(vehicleId, from, to, await this.scopes.resolve(userId));
     if (!snapshot.vehicle) throw new VehicleTrackOverviewNotFoundError();
     if (snapshot.tooFragmented) throw new VehicleTrackOverviewTooFragmentedError();
     if (!isNonNegativeInteger(snapshot.rawPointCount)

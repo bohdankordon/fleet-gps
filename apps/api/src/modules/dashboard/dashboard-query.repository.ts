@@ -1,4 +1,5 @@
 import type { DailyStatSource, DataQuality, VehicleStatus } from "../../generated/prisma/client";
+import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
 
 export type DashboardSettings = Readonly<{ timezone: string; minimumDailyDistanceMeters: number; positionFreshnessSeconds: number }>;
 export type DashboardStoredVehicle = Readonly<{
@@ -7,5 +8,5 @@ export type DashboardStoredVehicle = Readonly<{
 
 export interface DashboardQueryRepository {
   getSettings(): Promise<DashboardSettings>;
-  getVehiclesForServiceDate(serviceDate: string): Promise<readonly DashboardStoredVehicle[]>;
+  getVehiclesForServiceDate(serviceDate: string, scope: VehicleScope): Promise<readonly DashboardStoredVehicle[]>;
 }

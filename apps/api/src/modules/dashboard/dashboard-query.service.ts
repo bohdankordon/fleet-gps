@@ -3,6 +3,7 @@ import { isBeyondAllowedPositionFutureSkew } from "../../common/position-time.po
 import { DailyStatSource, DataQuality, VehicleStatus } from "../../generated/prisma/client";
 import type { DashboardQueryRepository, DashboardStoredVehicle } from "./dashboard-query.repository";
 import { DASHBOARD_CLOCK, DASHBOARD_QUERY_REPOSITORY } from "./dashboard.tokens";
+import { VehicleScopeService } from "../vehicle-access/vehicle-access.service";
 import type { DashboardActivityFilter, DashboardQueryParams } from "./dashboard-query-params";
 import type { DashboardDataQuality, DashboardDailyStatSource, DashboardPositionFreshness, DashboardSummary, DashboardVehicleReadModel, DashboardVehicleStatus, DashboardVehiclesResponse } from "./dashboard-read-models";
 import { DailyRunsConfigurationError, type DashboardClock } from "./dashboard.types";
@@ -45,9 +46,10 @@ function summary(vehicles: readonly DashboardVehicleReadModel[]): DashboardSumma
 
 @Injectable()
 export class DashboardQueryService {
-  public constructor(@Inject(DASHBOARD_QUERY_REPOSITORY) private readonly repository: DashboardQueryRepository, @Inject(DASHBOARD_CLOCK) private readonly clock: DashboardClock) {}
-  public async getVehicles(params: DashboardQueryParams): Promise<DashboardVehiclesResponse> {
-    const settings = await this.repository.getSettings(); const now = this.clock.now(); const date = serviceDate(now, settings.timezone); const rows = await this.repository.getVehiclesForServiceDate(date);
+  public constructor(@Inject(DASHBOARD_QUERY_REPOSITORY) private readonly repository: DashboardQueryRepository, @Inject(DASHBOARD_CLOCK) private readonly clock: DashboardClock, private readonly scopes: VehicleScopeService) {}
+  public async getVehicles(params: DashboardQueryParams, userId: string): Promise<DashboardVehiclesResponse> {
+    const scope = await this.scopes.resolve(userId);
+    const settings = await this.repository.getSettings(); const now = this.clock.now(); const date = serviceDate(now, settings.timezone); const rows = await this.repository.getVehiclesForServiceDate(date, scope);
     const needle = params.search?.toLowerCase(); const vehicles = rows.map((row) => toModel(row, now, settings.minimumDailyDistanceMeters, settings.positionFreshnessSeconds)).filter((vehicle) => params.includeDisabled || !vehicle.disabled).filter((vehicle) => params.status === undefined || vehicle.status === params.status).filter((vehicle) => needle === undefined || vehicle.name.toLowerCase().includes(needle)).filter((vehicle) => matchesActivity(vehicle, params.activity)).sort(compareVehicles);
     return { serviceDate: date, timezone: settings.timezone, minimumDailyDistanceMeters: settings.minimumDailyDistanceMeters, positionFreshnessSeconds: settings.positionFreshnessSeconds, summary: summary(vehicles), vehicles, generatedAt: now.toISOString() };
   }

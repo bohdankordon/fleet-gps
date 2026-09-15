@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { DatabaseModule } from "../database/database.module";
 import { EquGpsModule } from "../equgps/equgps.module";
+import { VehicleAccessModule } from "../vehicle-access/vehicle-access.module";
 import { DailyRunsSyncService } from "./daily-runs-sync.service";
 import { PrismaDailyStatsRepository } from "./prisma-daily-stats.repository";
 import { PrismaDashboardQueryRepository } from "./prisma-dashboard-query.repository";
@@ -10,7 +11,7 @@ import { DASHBOARD_CLOCK, DASHBOARD_QUERY_REPOSITORY, DAILY_STATS_REPOSITORY } f
 import type { DashboardClock } from "./dashboard.types";
 
 @Module({
-  imports: [EquGpsModule, DatabaseModule],
+  imports: [EquGpsModule, DatabaseModule, VehicleAccessModule],
   controllers: [DashboardController],
   providers: [
     { provide: DASHBOARD_CLOCK, useValue: { now: (): Date => new Date() } satisfies DashboardClock },

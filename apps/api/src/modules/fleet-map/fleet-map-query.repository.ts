@@ -1,4 +1,5 @@
 import type { FleetMapStoredCurrentState } from "./fleet-map-current-state.projection";
+import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
 
 export const MAX_FLEET_MAP_VEHICLES = 1_000;
 
@@ -14,5 +15,5 @@ export type FleetMapStoredSnapshot = Readonly<{
 }>;
 
 export interface FleetMapQueryRepository {
-  getSnapshot(): Promise<FleetMapStoredSnapshot>;
+  getSnapshot(scope: VehicleScope): Promise<FleetMapStoredSnapshot>;
 }

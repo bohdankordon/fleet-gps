@@ -1,4 +1,5 @@
-import { Controller, Get, HttpException, Query } from "@nestjs/common";
+import { Controller, Get, HttpException, Query, Req } from "@nestjs/common";
+import type { AuthenticatedRequest } from "../auth/auth.types";
 import { parseAbsoluteTimestamp } from "../vehicle-track/vehicle-track-query-params";
 import { FleetActivityReportService } from "./fleet-activity-report.service";
 import { FLEET_ACTIVITY_REPORT_MAX_RANGE_MS, type FleetActivityReport, type FleetActivityVehicleRow } from "./fleet-activity-report.types";
@@ -23,11 +24,11 @@ export function parseFleetActivityReportRange(rawFrom: unknown, rawTo: unknown):
 export class FleetActivityReportController {
   public constructor(private readonly service: FleetActivityReportService) {}
   @Get("fleet-activity")
-  public async getReport(@Query("from") rawFrom: unknown, @Query("to") rawTo: unknown): Promise<FleetActivityReportResponse> {
+  public async getReport(@Query("from") rawFrom: unknown, @Query("to") rawTo: unknown, @Req() request: AuthenticatedRequest): Promise<FleetActivityReportResponse> {
     const range = parseFleetActivityReportRange(rawFrom, rawTo);
     if (!range) throw new HttpException({ statusCode: 400, error: "Bad Request" }, 400);
     try {
-      const report = await this.service.getReport(range);
+      const report = await this.service.getReport(range, request.auth!.id);
       return Object.freeze({ ...report, from: report.from.toISOString(), to: report.to.toISOString(), generatedAt: report.generatedAt.toISOString(), vehicles: Object.freeze(report.vehicles.map((row) => Object.freeze({ ...row, firstObservationAt: row.firstObservationAt?.toISOString() ?? null, lastObservationAt: row.lastObservationAt?.toISOString() ?? null }))) });
     } catch { throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500); }
   }

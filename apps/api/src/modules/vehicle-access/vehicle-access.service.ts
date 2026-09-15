@@ -23,6 +23,14 @@ export function applyVehicleScope(scope: VehicleScope, where: Prisma.VehicleWher
   return scope.kind === "UNRESTRICTED" ? where : { AND: [where, scope.where] };
 }
 
+export function applyAlertEventScope(scope: VehicleScope, where: Prisma.AlertEventWhereInput = {}): Prisma.AlertEventWhereInput {
+  return scope.kind === "UNRESTRICTED" ? where : { AND: [where, { vehicle: scope.where }] };
+}
+
+export function applyObservationScope(scope: VehicleScope, where: Prisma.VehiclePositionObservationWhereInput = {}): Prisma.VehiclePositionObservationWhereInput {
+  return scope.kind === "UNRESTRICTED" ? where : { AND: [where, { vehicle: scope.where }] };
+}
+
 @Injectable()
 export class VehicleScopeService {
   public constructor(private readonly database: DatabaseService) {}

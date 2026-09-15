@@ -3,6 +3,7 @@ import { hasAnyFleetMapPositionData, projectFleetMapCurrentState } from "./fleet
 import type { FleetMapQueryRepository, FleetMapStoredVehicle } from "./fleet-map-query.repository";
 import type { FleetMapResponse, FleetMapVehicleReadModel } from "./fleet-map-read-models";
 import { FLEET_MAP_CLOCK, FLEET_MAP_QUERY_REPOSITORY } from "./fleet-map.tokens";
+import { VehicleScopeService } from "../vehicle-access/vehicle-access.service";
 import { FleetMapQueryInternalError, type FleetMapClock } from "./fleet-map.types";
 
 function isValidDate(value: Date): boolean {
@@ -23,10 +24,11 @@ export class FleetMapQueryService {
   public constructor(
     @Inject(FLEET_MAP_QUERY_REPOSITORY) private readonly repository: FleetMapQueryRepository,
     @Inject(FLEET_MAP_CLOCK) private readonly clock: FleetMapClock,
+    private readonly scopes: VehicleScopeService,
   ) {}
 
-  public async getSnapshot(): Promise<FleetMapResponse> {
-    const snapshot = await this.repository.getSnapshot();
+  public async getSnapshot(userId: string): Promise<FleetMapResponse> {
+    const snapshot = await this.repository.getSnapshot(await this.scopes.resolve(userId));
     const generatedAt = this.clock.now();
     if (!isValidDate(generatedAt)) throw new FleetMapQueryInternalError();
     if (!Number.isSafeInteger(snapshot.positionFreshnessSeconds) || snapshot.positionFreshnessSeconds <= 0) throw new FleetMapQueryInternalError();

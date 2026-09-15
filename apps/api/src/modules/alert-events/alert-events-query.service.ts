@@ -5,6 +5,7 @@ import type { AlertEventReadModel, AlertEventsListResponse, AlertEventsSummaryRe
 import { encodeAlertEventsCursor, type AlertEventsQueryParams } from "./alert-events-query-params";
 import type { AlertEventsQueryRepository, StoredAlertEventReadRow, StoredOpenAlertMapRow } from "./alert-events-query.repository";
 import { ALERT_EVENTS_QUERY_CLOCK, ALERT_EVENTS_QUERY_REPOSITORY } from "./alert-events.tokens";
+import { VehicleScopeService } from "../vehicle-access/vehicle-access.service";
 
 export type AlertEventsQueryClock = Readonly<{ now(): Date }>;
 const systemClock: AlertEventsQueryClock = Object.freeze({ now: () => new Date() });
@@ -36,29 +37,30 @@ export class AlertEventsQueryService {
   public constructor(
     @Inject(ALERT_EVENTS_QUERY_REPOSITORY) private readonly repository: AlertEventsQueryRepository,
     @Inject(ALERT_EVENTS_QUERY_CLOCK) private readonly clock: AlertEventsQueryClock = systemClock,
+    private readonly scopes: VehicleScopeService,
   ) {}
 
-  public async list(params: AlertEventsQueryParams): Promise<AlertEventsListResponse> {
-    const page = await this.repository.list(params);
+  public async list(params: AlertEventsQueryParams, userId: string): Promise<AlertEventsListResponse> {
+    const page = await this.repository.list(params, await this.scopes.resolve(userId));
     const items = Object.freeze(page.rows.map(toReadModel));
     const last = page.rows.at(-1);
     const nextCursor = page.hasMore && last !== undefined ? encodeAlertEventsCursor({ openedAt: last.confirmedAt, id: last.id }) : null;
     return Object.freeze({ items, nextCursor });
   }
 
-  public async getSummary(): Promise<AlertEventsSummaryResponse> {
-    const summary = await this.repository.getOpenSummary();
+  public async getSummary(userId: string): Promise<AlertEventsSummaryResponse> {
+    const summary = await this.repository.getOpenSummary(await this.scopes.resolve(userId));
     return Object.freeze({ open: Object.freeze({ total: summary.speeding + summary.inactivity, speeding: summary.speeding, inactivity: summary.inactivity }) });
   }
 
-  public async getVehicleOptions(): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]> {
-    const options = await this.repository.getVehicleOptions();
+  public async getVehicleOptions(userId: string): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]> {
+    const options = await this.repository.getVehicleOptions(await this.scopes.resolve(userId));
     return options.map(({ vehicleId, vehicleName }) => ({ vehicleId, vehicleName }))
       .sort((a, b) => a.vehicleName.localeCompare(b.vehicleName, "uk", { numeric: true }) || a.vehicleId.localeCompare(b.vehicleId));
   }
 
-  public async getOpenMap(): Promise<OpenAlertMapResponse> {
-    const snapshot = await this.repository.getOpenMapSnapshot();
+  public async getOpenMap(userId: string): Promise<OpenAlertMapResponse> {
+    const snapshot = await this.repository.getOpenMapSnapshot(await this.scopes.resolve(userId));
     const generatedAt = this.clock.now();
     if (!(generatedAt instanceof Date) || !Number.isFinite(generatedAt.getTime()) || snapshot.exceededLimit) throw new AlertEventsQueryStateError();
 

@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { AlertEventStatus, AlertEventType, AlertNotificationKind, Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database";
+import { applyAlertEventScope, applyVehicleScope } from "../vehicle-access/vehicle-access.service";
+import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
 import type { AlertEventsQueryParams } from "./alert-events-query-params";
 import { MAX_OPEN_ALERT_MAP_EVENTS, type AlertEventsQueryRepository, type StoredAlertEventReadRow, type StoredAlertEventsPage, type StoredOpenAlertEventsSummary, type StoredOpenAlertMapSnapshot } from "./alert-events-query.repository";
 
@@ -33,9 +35,9 @@ const alertEventReadSelect = {
 export class PrismaAlertEventsQueryRepository implements AlertEventsQueryRepository {
   public constructor(private readonly database: DatabaseService) {}
 
-  public async list(params: AlertEventsQueryParams): Promise<StoredAlertEventsPage> {
+  public async list(params: AlertEventsQueryParams, scope: VehicleScope): Promise<StoredAlertEventsPage> {
     const rows = await this.database.getClient().alertEvent.findMany({
-      where: {
+      where: applyAlertEventScope(scope, {
         ...(params.status === undefined ? {} : { status: params.status }),
         ...(params.type === undefined ? {} : { type: params.type }),
         ...(params.vehicleId === undefined ? {} : { vehicleId: params.vehicleId }),
@@ -48,7 +50,7 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
             { confirmedAt: params.cursor.openedAt, id: { lt: params.cursor.id } },
           ],
         }),
-      },
+      }),
       orderBy: [{ confirmedAt: "desc" }, { id: "desc" }],
       take: params.limit + 1,
       select: alertEventReadSelect,
@@ -56,10 +58,10 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
     return Object.freeze({ rows: Object.freeze(rows.slice(0, params.limit)) as readonly StoredAlertEventReadRow[], hasMore: rows.length > params.limit });
   }
 
-  public async getOpenSummary(): Promise<StoredOpenAlertEventsSummary> {
+  public async getOpenSummary(scope: VehicleScope): Promise<StoredOpenAlertEventsSummary> {
     const groups = await this.database.getClient().alertEvent.groupBy({
       by: ["type"],
-      where: { status: AlertEventStatus.OPEN },
+      where: applyAlertEventScope(scope, { status: AlertEventStatus.OPEN }),
       _count: { _all: true },
     });
     let speeding = 0;
@@ -71,18 +73,18 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
     return Object.freeze({ speeding, inactivity });
   }
 
-  public async getVehicleOptions(): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]> {
+  public async getVehicleOptions(scope: VehicleScope): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]> {
     const vehicles = await this.database.getClient().vehicle.findMany({
-      where: { alertEvents: { some: {} } },
+      where: applyVehicleScope(scope, { alertEvents: { some: applyAlertEventScope(scope) } }),
       select: { id: true, name: true },
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
     return vehicles.map((vehicle) => ({ vehicleId: vehicle.id, vehicleName: vehicle.name }));
   }
 
-  public async getOpenMapSnapshot(): Promise<StoredOpenAlertMapSnapshot> {
+  public async getOpenMapSnapshot(scope: VehicleScope): Promise<StoredOpenAlertMapSnapshot> {
     const rows = await this.database.getClient().alertEvent.findMany({
-      where: { status: AlertEventStatus.OPEN },
+      where: applyAlertEventScope(scope, { status: AlertEventStatus.OPEN }),
       orderBy: [{ vehicle: { name: "asc" } }, { vehicleId: "asc" }, { type: "asc" }, { confirmedAt: "asc" }, { id: "asc" }],
       take: MAX_OPEN_ALERT_MAP_EVENTS + 1,
       select: {

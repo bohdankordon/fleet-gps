@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { AlertEventType, DailyStatSource, DataQuality } from "../../generated/prisma/client";
 import { projectOpenAlert, projectScopedAlertEvent } from "../alert-events/alert-event-read.projection";
 import { projectFleetMapCurrentState } from "../fleet-map/fleet-map-current-state.projection";
+import { VehicleScopeService } from "../vehicle-access/vehicle-access.service";
 import { VEHICLE_DETAILS_CLOCK, VEHICLE_DETAILS_QUERY_REPOSITORY } from "./vehicle-details.tokens";
 import type { VehicleDetailsQueryRepository, StoredVehicleDailyStat } from "./vehicle-details-query.repository";
 import type { VehicleDetailsResponse, VehicleDetailsTodayReadModel } from "./vehicle-details-read-models";
@@ -51,10 +52,11 @@ export class VehicleDetailsQueryService {
   public constructor(
     @Inject(VEHICLE_DETAILS_QUERY_REPOSITORY) private readonly repository: VehicleDetailsQueryRepository,
     @Inject(VEHICLE_DETAILS_CLOCK) private readonly clock: VehicleDetailsClock,
+    private readonly scopes: VehicleScopeService,
   ) {}
 
-  public async getDetails(vehicleId: string): Promise<VehicleDetailsResponse> {
-    const snapshot = await this.repository.getSnapshot(vehicleId);
+  public async getDetails(vehicleId: string, userId: string): Promise<VehicleDetailsResponse> {
+    const snapshot = await this.repository.getSnapshot(vehicleId, await this.scopes.resolve(userId));
     const generatedAt = this.clock.now();
     if (!(generatedAt instanceof Date) || !Number.isFinite(generatedAt.getTime())
       || !Number.isSafeInteger(snapshot.positionFreshnessSeconds) || snapshot.positionFreshnessSeconds <= 0
