@@ -487,7 +487,7 @@ export function AccountNotificationsWorkspace({ baseline: initialBaseline, conne
       open={leaveOpen}
       title={t("account.notifications.leaveTitle")}
       onCancel={() => void handleStay()}
-      maskClosable
+      mask={{ closable: true }}
       footer={[
         <Button key="leave" danger onClick={() => void handleLeave()}>
           {t("account.notifications.leaveConfirm")}

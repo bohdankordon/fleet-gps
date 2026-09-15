@@ -54,7 +54,16 @@ test("shared identity structure centers tags against one- and two-line names", (
 
 test("compact and header tags share one typography identity at different scales", () => {
   const css = readFileSync("src/styles/vehicle-groups.css", "utf8");
-  assert.doesNotMatch(css, /\.vehicle-group-tag[^{]*\{[^}]*font-weight/);
+  assert.match(css, /\.vehicle-group-tag\s*\{[^}]*font-weight:\s*var\(--font-weight-regular\)/);
+  assert.match(css, /\.vehicle-group-tag\s*\{[^}]*font-style:\s*normal/);
+  assert.match(css, /\.vehicle-group-tag\s*\{[^}]*letter-spacing:\s*normal/);
+  assert.match(css, /\.vehicle-group-tag\s*\{[^}]*text-transform:\s*none/);
+  for (const file of ["src/styles/map.css", "src/styles/events.css", "src/styles/reports.css", "src/styles/dashboard.css", "src/styles/vehicle-details.css"]) {
+    assert.doesNotMatch(readFileSync(file, "utf8"), /\.vehicle-group-tag/, file);
+  }
+  for (const file of ["src/components/fleet-map-client.tsx", "src/components/event-detail.tsx", "src/components/report-results.tsx", "src/components/events-client.tsx"]) {
+    assert.doesNotMatch(readFileSync(file, "utf8"), /fontWeight/, file);
+  }
   const shell = readFileSync("src/components/vehicle-detail-shell.tsx", "utf8");
   assert.doesNotMatch(shell, /fontWeight/);
   assert.match(shell, /fontSize: token\.fontSize/);
@@ -65,6 +74,8 @@ test("compact and header tags share one typography identity at different scales"
   assert.doesNotMatch(header, /font-weight/);
   assert.match(header, /vehicle-group-tag--header/);
   assert.match(header, /ant-tag-blue/);
+  const inBoldTitle = renderToStaticMarkup(<ConfigProvider><I18nProvider locale="en"><div style={{ fontWeight: 700 }}><VehicleGroupTag group={{ id: "g", name: "Taxi", color: "BLUE" }} /></div></I18nProvider></ConfigProvider>);
+  assert.match(inBoldTitle, /vehicle-group-tag/);
 });
 
 test("admin create defaults to BLUE with swatches and atomic payload", () => {
@@ -129,6 +140,8 @@ test("dirty navigation keeps the safe action primary with no duplicate native pr
   assert.match(source, /<Button key="continue" type="primary" autoFocus onClick/);
   assert.match(source, /onCancel=\{\(\) => void handleStay\(\)\}/);
   assert.doesNotMatch(source, /okText=\{t\("account\.notifications\.leaveConfirm"\)\}/);
+  assert.match(source, /mask=\{\{\s*closable:\s*true\s*\}\}/);
+  assert.doesNotMatch(source, /maskClosable/);
   assert.match(source, /account\.notifications\.leaveBody/);
   assert.match(source, /account\.notifications\.keepEditing/);
   assert.match(source, /account\.notifications\.leaveConfirm/);
