@@ -486,10 +486,16 @@ export function AccountNotificationsWorkspace({ baseline: initialBaseline, conne
     <Modal
       open={leaveOpen}
       title={t("account.notifications.leaveTitle")}
-      okText={t("account.notifications.leaveConfirm")}
-      cancelText={t("account.notifications.keepEditing")}
-      onOk={() => void handleLeave()}
       onCancel={() => void handleStay()}
+      maskClosable
+      footer={[
+        <Button key="leave" danger onClick={() => void handleLeave()}>
+          {t("account.notifications.leaveConfirm")}
+        </Button>,
+        <Button key="continue" type="primary" autoFocus onClick={() => void handleStay()}>
+          {t("account.notifications.keepEditing")}
+        </Button>,
+      ]}
       destroyOnHidden
       centered
     >

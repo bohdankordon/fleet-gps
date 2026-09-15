@@ -34,11 +34,13 @@ test("shared identity structure centers tags against one- and two-line names", (
   const css = readFileSync("src/styles/vehicle-groups.css", "utf8");
   assert.match(css, /\.vehicle-group-identity\s*\{[^}]*display:\s*inline-flex[^}]*align-items:\s*center/);
   assert.match(css, /\.vehicle-group-identity__name\s*\{[^}]*overflow-wrap:\s*anywhere/);
+  assert.match(css, /\.vehicle-group-identity > \.vehicle-group-identity__name\s*\{[^}]*margin-block-start:\s*0[^}]*margin-block-end:\s*0/);
   assert.match(css, /\.vehicle-group-tag\s*\{[^}]*flex:\s*none/);
   assert.match(css, /\.vehicle-group-tag\s*\{[^}]*align-self:\s*center/);
   const shell = readFileSync("src/components/vehicle-detail-shell.tsx", "utf8");
   assert.match(shell, /VehicleNameWithGroup/);
   assert.match(shell, /vehicle-group-identity/);
+  assert.match(shell, /<Title level=\{1\} className="vehicle-group-identity__name"/);
   for (const file of ["src/components/events-client.tsx", "src/components/event-detail.tsx", "src/components/report-results.tsx", "src/components/fleet-map-client.tsx"]) {
     const source = readFileSync(file, "utf8");
     assert.ok(source.includes("vehicle-group-identity"), file);
@@ -48,6 +50,21 @@ test("shared identity structure centers tags against one- and two-line names", (
   assert.match(identity, /vehicle-group-identity/);
   assert.match(identity, /vehicle-group-identity__name/);
   assert.match(identity, /ant-tag-green/);
+});
+
+test("compact and header tags share one typography identity at different scales", () => {
+  const css = readFileSync("src/styles/vehicle-groups.css", "utf8");
+  assert.doesNotMatch(css, /\.vehicle-group-tag[^{]*\{[^}]*font-weight/);
+  const shell = readFileSync("src/components/vehicle-detail-shell.tsx", "utf8");
+  assert.doesNotMatch(shell, /fontWeight/);
+  assert.match(shell, /fontSize: token\.fontSize/);
+  assert.match(shell, /paddingInline: token\.paddingSM/);
+  const compact = renderTag({ id: "g", name: "Taxi", color: "BLUE" });
+  const header = renderTag({ id: "g", name: "Taxi", color: "BLUE" }, "header");
+  assert.doesNotMatch(compact, /font-weight/);
+  assert.doesNotMatch(header, /font-weight/);
+  assert.match(header, /vehicle-group-tag--header/);
+  assert.match(header, /ant-tag-blue/);
 });
 
 test("admin create defaults to BLUE with swatches and atomic payload", () => {
@@ -100,10 +117,18 @@ test("notifications finder stays on the search row with equal heights and clean 
   assert.match(css, /@media \(max-width: 575px\)[\s\S]*?\.account-notifications__finder-row\s*\{[^}]*flex-direction:\s*column/);
 });
 
-test("dirty navigation uses the modern modal without a duplicate native prompt", () => {
+test("dirty navigation keeps the safe action primary with no duplicate native prompt", () => {
   const source = readFileSync("src/components/account-notifications-workspace.tsx", "utf8");
   assert.match(source, /from "antd"[\s\S]*Modal/);
   assert.match(source, /<Modal[\s\S]*?open=\{leaveOpen\}[\s\S]*?account\.notifications\.leaveTitle/);
+  assert.match(source, /footer=\{\[/);
+  const footer = source.slice(source.indexOf("footer={["));
+  assert.ok(footer.indexOf('key="leave"') < footer.indexOf('key="continue"'), "leave renders left of continue");
+  assert.match(source, /<Button key="leave" danger onClick/);
+  assert.doesNotMatch(source, /<Button key="leave"[^>]*type="primary"/);
+  assert.match(source, /<Button key="continue" type="primary" autoFocus onClick/);
+  assert.match(source, /onCancel=\{\(\) => void handleStay\(\)\}/);
+  assert.doesNotMatch(source, /okText=\{t\("account\.notifications\.leaveConfirm"\)\}/);
   assert.match(source, /account\.notifications\.leaveBody/);
   assert.match(source, /account\.notifications\.keepEditing/);
   assert.match(source, /account\.notifications\.leaveConfirm/);

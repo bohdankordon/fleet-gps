@@ -19,8 +19,12 @@
 .vehicle-groups-detail__identity h1 { margin: 0; font-size: var(--font-size-page-title); line-height: var(--line-height-page-title); }
 .vehicle-group-identity { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
 .vehicle-group-identity__name { min-width: 0; overflow-wrap: anywhere; }
+/* Ant Design 6 headings restore vertical margins through runtime-injected styles
+   that can outrank plain element selectors. A leaked heading margin becomes part
+   of the flex item box and pushes the tag off the name's visual center, so the
+   identity name margin is normalized here once for every placement. */
+.vehicle-group-identity > .vehicle-group-identity__name { margin-block-start: 0; margin-block-end: 0; }
 .vehicle-group-tag { flex: none; align-self: center; margin-inline-end: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vehicle-group-tag--header { font-weight: 500; }
 .vehicle-detail-shell__identity .vehicle-group-tag { align-self: center; }
 .vehicle-group-color-field { display: grid; gap: 8px; }
 .vehicle-group-color-field__options { display: flex; flex-wrap: wrap; gap: 8px; }
