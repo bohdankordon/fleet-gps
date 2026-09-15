@@ -321,7 +321,8 @@ function Invoke-DevMigrations {
     $target = Get-DevDatabaseTarget
     $portText = if ($target.Port -gt 0) { ":$($target.Port)" } else { '' }
     Write-Host "Applying checked-in database migrations (deploy) to the local development database ($($target.Host)$portText)..."
-    $result = Invoke-NativeExecutable -FilePath 'npm.cmd' -Arguments @('run', 'db:migrate:deploy')
+    $npmPath = (Get-Command 'npm.cmd' -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+    $result = Invoke-NativeExecutable -FilePath $npmPath -Arguments @('run', 'db:migrate:deploy')
     $result.Output | ForEach-Object { Write-Host $_ }
     if ($result.ExitCode -ne 0) {
         throw 'Database migration deployment failed. The database was preserved and no migration was generated. Fix the error above, then run .\dev.ps1 start again. API/Web were not started.'

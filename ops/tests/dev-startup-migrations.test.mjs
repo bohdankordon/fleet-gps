@@ -23,6 +23,7 @@ test("startup uses deploy semantics and never generates or reconciles migrations
   assert.doesNotMatch(script, /prisma:migrate:dev/);
   assert.doesNotMatch(script, /migrate reset|migrate resolve|--create-only/);
   assert.equal(pkg.scripts["db:migrate:deploy"], "npm --workspace @taxi-gps/api run prisma:migrate:deploy");
+  assert.match(script, /Select-Object -First 1/);
 });
 
 test("migration failure blocks startup without reset and preserves the database", () => {
