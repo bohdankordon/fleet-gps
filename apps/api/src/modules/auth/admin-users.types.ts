@@ -1,4 +1,4 @@
-import type { AuthRole } from "../../generated/prisma/enums";
+import type { AuthRole, VehicleAccessMode } from "../../generated/prisma/enums";
 import type { Permission } from "./permissions";
 
 export type SafeAdminUser = Readonly<{
@@ -8,6 +8,7 @@ export type SafeAdminUser = Readonly<{
   disabled: boolean;
   mustChangePassword: boolean;
   permissions: readonly Permission[];
+  vehicleAccess: Readonly<{ mode: VehicleAccessMode; groupIds: readonly string[]; vehicleIds: readonly string[] }>;
   telegramStatus: "NOT_CONNECTED" | "CONNECTED" | "BROKEN" | "DISCONNECTED";
   createdAt: Date;
   updatedAt: Date;

@@ -17,6 +17,11 @@ import {
   buildUserDisabledAuditEvent,
   buildUserEnabledAuditEvent,
   buildUserPasswordResetAuditEvent,
+  buildUserVehicleAccessChangedAuditEvent,
+  buildVehicleGroupCreatedAuditEvent,
+  buildVehicleGroupDeletedAuditEvent,
+  buildVehicleGroupMembershipChangedAuditEvent,
+  buildVehicleGroupRenamedAuditEvent,
   parseAuditEventSpec,
 } from "./audit-events";
 
@@ -40,6 +45,11 @@ function specs() {
     buildSystemPopulationCreatedAuditEvent(runId, durable),
     buildRetentionExecutedAuditEvent(actor, retention),
     buildAutomaticRetentionExecutedAuditEvent(retention),
+    buildVehicleGroupCreatedAuditEvent(actor, targetId, { name: "Taxi" }),
+    buildVehicleGroupRenamedAuditEvent(actor, targetId, { previousName: "Taxi", name: "City Taxi" }),
+    buildVehicleGroupMembershipChangedAuditEvent(actor, targetId, { name: "City Taxi", addedCount: 1, removedCount: 0 }),
+    buildVehicleGroupDeletedAuditEvent(actor, targetId, { name: "City Taxi", vehicleCount: 1, userGrantCount: 2 }),
+    buildUserVehicleAccessChangedAuditEvent(actor, targetId, { targetLoginSnapshot: "target-user", previousMode: null, mode: "ALL", previousGroupGrantCount: 0, groupGrantCount: 0, previousVehicleGrantCount: 0, vehicleGrantCount: 0, addedGroupGrantCount: 0, removedGroupGrantCount: 0, addedVehicleGrantCount: 0, removedVehicleGrantCount: 0 }),
   ];
 }
 
@@ -56,6 +66,11 @@ test("builders and parser implement the exact complete approved event catalog", 
     AuditEventType.SYSTEM_POPULATION_CREATED,
     AuditEventType.RETENTION_EXECUTED,
     AuditEventType.AUTOMATIC_RETENTION_EXECUTED,
+    AuditEventType.VEHICLE_GROUP_CREATED,
+    AuditEventType.VEHICLE_GROUP_RENAMED,
+    AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED,
+    AuditEventType.VEHICLE_GROUP_DELETED,
+    AuditEventType.USER_VEHICLE_ACCESS_CHANGED,
   ]);
   for (const event of specs()) assert.deepEqual(parseAuditEventSpec(event), event);
 });
@@ -70,6 +85,8 @@ test("new event details have only their approved exact keys", () => {
   assert.deepEqual(byType.get(AuditEventType.SHORT_POPULATION_EXECUTED), ["to", "windowBudget", "excludeProviderDisabled", "committedWindows"]);
   assert.deepEqual(byType.get(AuditEventType.SYSTEM_POPULATION_CREATED), ["to", "windowBudget", "excludeProviderDisabled"]);
   assert.deepEqual(byType.get(AuditEventType.AUTOMATIC_RETENTION_EXECUTED), ["canonicalAnchor", "policyCutoff", "deletedCheckpoints", "deletedObservations", "remainingFullyObsoleteCheckpoints", "remainingExecutableObservationCandidates", "stoppedByBudget"]);
+  assert.deepEqual(byType.get(AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED), ["name", "addedCount", "removedCount"]);
+  assert.deepEqual(byType.get(AuditEventType.USER_VEHICLE_ACCESS_CHANGED), ["targetLoginSnapshot", "previousMode", "mode", "previousGroupGrantCount", "groupGrantCount", "previousVehicleGrantCount", "vehicleGrantCount", "addedGroupGrantCount", "removedGroupGrantCount", "addedVehicleGrantCount", "removedVehicleGrantCount"]);
 });
 
 test("unknown and representative forbidden content cannot enter any event shape", () => {

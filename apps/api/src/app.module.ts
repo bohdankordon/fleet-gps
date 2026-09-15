@@ -28,8 +28,10 @@ import { AdminSettingsModule } from "./modules/admin-settings/admin-settings.mod
 import { TelegramLinkingModule } from "./modules/telegram-linking";
 import { RecipientDeliverySchedulerModule } from "./modules/recipient-delivery-scheduler/recipient-delivery-scheduler.module";
 import { PositionHistoryContinuousIngestionModule } from "./modules/position-history-continuous-ingestion";
+import { VehicleAccessModule } from "./modules/vehicle-access";
+import { VehicleGroupsModule } from "./modules/vehicle-groups";
 
 @Module({
-  imports: [ApiConfigModule, AuthModule, AdminSettingsModule, TelegramLinkingModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, FleetMapModule, VehicleDetailsModule, VehicleTrackModule, TripStopAnalyticsModule, FleetActivityReportModule, PositionHistoryStatusModule, PositionHistoryHorizonExecutionModule, PositionHistoryPopulationRunModule, PositionHistoryMaintenanceModule, PositionHistoryRetentionModule, PositionHistoryContinuousIngestionModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule, AlertEventsModule, AlertEvaluationModule, AlertNotificationsModule, AlertNotificationSchedulerModule, RecipientDeliverySchedulerModule],
+  imports: [ApiConfigModule, AuthModule, VehicleAccessModule, VehicleGroupsModule, AdminSettingsModule, TelegramLinkingModule, EquGpsModule, DatabaseModule, HealthModule, FleetModule, FleetMapModule, VehicleDetailsModule, VehicleTrackModule, TripStopAnalyticsModule, FleetActivityReportModule, PositionHistoryStatusModule, PositionHistoryHorizonExecutionModule, PositionHistoryPopulationRunModule, PositionHistoryMaintenanceModule, PositionHistoryRetentionModule, PositionHistoryContinuousIngestionModule, DashboardModule, SyncSchedulerModule, AlertSettingsModule, CityGeofenceModule, SpeedingDetectorModule, InactivityDetectorModule, AlertEventsModule, AlertEvaluationModule, AlertNotificationsModule, AlertNotificationSchedulerModule, RecipientDeliverySchedulerModule],
 })
 export class AppModule {}

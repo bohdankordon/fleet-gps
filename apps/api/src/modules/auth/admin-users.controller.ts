@@ -20,6 +20,8 @@ function adminError(error: unknown): never {
     NOT_FOUND: "Пользователь больше не существует.",
     SELF_PROTECTED: "Это действие недоступно для вашей собственной учётной записи.",
     LAST_ENABLED_ADMIN: "Нельзя отключить или понизить последнего активного администратора.",
+    INVALID_GROUP_REFERENCE: "Одна или несколько выбранных групп больше не существуют.",
+    INVALID_VEHICLE_REFERENCE: "Один или несколько выбранных автомобилей больше не существуют.",
   };
   throw new HttpException({ statusCode: status, error: error.code, message: messages[error.code] }, status);
 }
@@ -40,6 +42,9 @@ export class AdminUsersController {
 
   @Get(":userId")
   public async detail(@Param("userId") userId: string): Promise<SafeAdminUser> { try { return await this.users.detail(targetId(userId)); } catch (error) { return adminError(error); } }
+
+  @Get(":userId/vehicle-access")
+  public async vehicleAccess(@Param("userId") userId: string): Promise<SafeAdminUser["vehicleAccess"]> { try { return (await this.users.detail(targetId(userId))).vehicleAccess; } catch (error) { return adminError(error); } }
 
   @Patch(":userId/access")
   public async access(@Req() request: AuthenticatedRequest, @Param("userId") userId: string, @Body() body: unknown): Promise<SafeAdminUser> { try { return await this.users.updateAccess(buildUserActor(request.auth!.id, request.auth!.login), targetId(userId), body); } catch (error) { return adminError(error); } }

@@ -69,6 +69,11 @@ enum AuthRole {
   USER
 }
 
+enum VehicleAccessMode {
+  ALL
+  SELECTED
+}
+
 enum PositionHistoryPopulationRunStatus {
   PENDING
   RUNNING
@@ -107,6 +112,11 @@ enum AuditEventType {
   SETTINGS_UPDATED
   TELEGRAM_LINKED
   TELEGRAM_DISCONNECTED
+  VEHICLE_GROUP_CREATED
+  VEHICLE_GROUP_RENAMED
+  VEHICLE_GROUP_MEMBERSHIP_CHANGED
+  VEHICLE_GROUP_DELETED
+  USER_VEHICLE_ACCESS_CHANGED
 }
 
 enum AlertNotificationDeliveryStatus {
@@ -135,6 +145,7 @@ enum AuditActorType {
 
 enum AuditTargetType {
   USER
+  VEHICLE_GROUP
   POSITION_HISTORY
   POSITION_HISTORY_POPULATION_RUN
   POSITION_HISTORY_RETENTION
@@ -149,6 +160,7 @@ model AuthUser {
   passwordSalt                  Bytes                          @map("password_salt") @db.ByteA
   passwordHashVersion           Int                            @map("password_hash_version")
   role                          AuthRole                       @map("role")
+  vehicleAccessMode             VehicleAccessMode              @default(ALL) @map("vehicle_access_mode")
   disabled                      Boolean                        @default(false) @map("disabled")
   mustChangePassword            Boolean                        @default(false) @map("must_change_password")
   passwordChangedAt             DateTime?                      @map("password_changed_at") @db.Timestamptz(6)
@@ -162,6 +174,8 @@ model AuthUser {
   telegramLinkTokens            TelegramLinkToken[]
   notificationPreferences       UserNotificationPreferences?
   notificationDeliveries        AlertNotificationDelivery[]
+  vehicleGroupGrants            AuthUserVehicleGroupGrant[]
+  vehicleGrants                 AuthUserVehicleGrant[]
 
   @@map("auth_users")
 }
@@ -301,6 +315,8 @@ model Vehicle {
   disabled                         Boolean                             @default(false) @map("disabled")
   createdAt                        DateTime                            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                        DateTime                            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  groupId                          String?                             @map("group_id") @db.Uuid
+  group                            VehicleGroup?                       @relation(fields: [groupId], references: [id], onDelete: SetNull)
   currentState                     VehicleCurrentState?
   dailyStats                       DailyVehicleStat[]
   positionObservations             VehiclePositionObservation[]
@@ -310,8 +326,46 @@ model Vehicle {
   alertEvents                      AlertEvent[]
   alertEvaluationObservations      AlertEvaluationObservation[]
   notificationSelections           UserNotificationVehicle[]
+  accessGrants                     AuthUserVehicleGrant[]
 
+  @@index([groupId], map: "vehicles_group_id_idx")
   @@map("vehicles")
+}
+
+model VehicleGroup {
+  id             String                      @id @default(uuid()) @map("id") @db.Uuid
+  name           String                      @map("name") @db.VarChar(128)
+  normalizedName String                      @unique(map: "vehicle_groups_normalized_name_key") @default(dbgenerated()) @map("normalized_name") @db.VarChar(128)
+  createdAt      DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  vehicles       Vehicle[]
+  userGrants     AuthUserVehicleGroupGrant[]
+
+  @@map("vehicle_groups")
+}
+
+model AuthUserVehicleGroupGrant {
+  userId    String       @map("user_id") @db.Uuid
+  groupId   String       @map("group_id") @db.Uuid
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      AuthUser     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     VehicleGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([userId, groupId])
+  @@index([groupId], map: "auth_user_vehicle_group_grants_group_id_idx")
+  @@map("auth_user_vehicle_group_grants")
+}
+
+model AuthUserVehicleGrant {
+  userId    String   @map("user_id") @db.Uuid
+  vehicleId String   @map("vehicle_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, vehicleId])
+  @@index([vehicleId], map: "auth_user_vehicle_grants_vehicle_id_idx")
+  @@map("auth_user_vehicle_grants")
 }
 
 model PositionHistoryReplayRun {

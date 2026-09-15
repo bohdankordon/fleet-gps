@@ -1,5 +1,5 @@
 import { normalizeUuid } from "../../common/uuid.validation";
-import { AuditActorType, AuditEventType, AuditTargetType, AuthRole } from "../../generated/prisma/enums";
+import { AuditActorType, AuditEventType, AuditTargetType, AuthRole, VehicleAccessMode } from "../../generated/prisma/enums";
 import { LOGIN_PATTERN } from "../auth/login";
 import { isPermission, PERMISSIONS, resolvePermissions, type Permission } from "../auth/permissions";
 import { POSITION_HISTORY_BROWSER_WINDOW_BUDGETS, type PositionHistoryBrowserWindowBudget } from "../position-history-horizon-execution/position-history-horizon-execution.types";
@@ -16,6 +16,11 @@ import type {
   SettingsUpdatedAuditDetails,
   UserAccessChangedAuditDetails,
   UserCreatedAuditDetails,
+  UserVehicleAccessChangedAuditDetails,
+  VehicleGroupCreatedAuditDetails,
+  VehicleGroupDeletedAuditDetails,
+  VehicleGroupMembershipChangedAuditDetails,
+  VehicleGroupRenamedAuditDetails,
 } from "./audit.types";
 
 export class AuditEventValidationError extends Error {
@@ -77,6 +82,21 @@ function requiredLoginSnapshot(value: unknown, label: string): string {
 function requiredRole(value: unknown, label: string): AuthRole {
   if (value !== AuthRole.ADMIN && value !== AuthRole.USER) throw new AuditEventValidationError(`${label} must be ADMIN or USER`);
   return value;
+}
+
+function requiredVehicleAccessMode(value: unknown, label: string): VehicleAccessMode {
+  if (value !== VehicleAccessMode.ALL && value !== VehicleAccessMode.SELECTED) throw new AuditEventValidationError(`${label} must be ALL or SELECTED`);
+  return value;
+}
+
+function optionalVehicleAccessMode(value: unknown, label: string): VehicleAccessMode | null {
+  return value === null ? null : requiredVehicleAccessMode(value, label);
+}
+
+function requiredGroupName(value: unknown, label: string): string {
+  const name = requiredString(value, label, 128);
+  if (name !== name.trim()) throw new AuditEventValidationError(`${label} must be trimmed`);
+  return name;
 }
 
 function requiredCanonicalPermissions(value: unknown, label: string): readonly Permission[] {
@@ -245,6 +265,72 @@ export function buildTelegramDisconnectedAuditEvent(actor: AuditUserActor, targe
   return Object.freeze({ eventType: AuditEventType.TELEGRAM_DISCONNECTED, actor: buildUserActor(actor.actorUserId, actor.actorLoginSnapshot), targetType: AuditTargetType.USER, targetId: requiredUuid(targetId, "targetId"), details: Object.freeze({}) });
 }
 
+function vehicleGroupCreatedDetails(details: VehicleGroupCreatedAuditDetails): VehicleGroupCreatedAuditDetails {
+  return Object.freeze({ name: requiredGroupName(details.name, "name") });
+}
+
+function vehicleGroupRenamedDetails(details: VehicleGroupRenamedAuditDetails): VehicleGroupRenamedAuditDetails {
+  return Object.freeze({ previousName: requiredGroupName(details.previousName, "previousName"), name: requiredGroupName(details.name, "name") });
+}
+
+function vehicleGroupMembershipChangedDetails(details: VehicleGroupMembershipChangedAuditDetails): VehicleGroupMembershipChangedAuditDetails {
+  const addedCount = requiredSafeInteger(details.addedCount, "addedCount");
+  const removedCount = requiredSafeInteger(details.removedCount, "removedCount");
+  if (addedCount === 0 && removedCount === 0) throw new AuditEventValidationError("membership change must change at least one vehicle");
+  return Object.freeze({ name: requiredGroupName(details.name, "name"), addedCount, removedCount });
+}
+
+function vehicleGroupDeletedDetails(details: VehicleGroupDeletedAuditDetails): VehicleGroupDeletedAuditDetails {
+  return Object.freeze({ name: requiredGroupName(details.name, "name"), vehicleCount: requiredSafeInteger(details.vehicleCount, "vehicleCount"), userGrantCount: requiredSafeInteger(details.userGrantCount, "userGrantCount") });
+}
+
+function userVehicleAccessChangedDetails(details: UserVehicleAccessChangedAuditDetails): UserVehicleAccessChangedAuditDetails {
+  const validated = {
+    targetLoginSnapshot: requiredLoginSnapshot(details.targetLoginSnapshot, "targetLoginSnapshot"),
+    previousMode: optionalVehicleAccessMode(details.previousMode, "previousMode"),
+    mode: requiredVehicleAccessMode(details.mode, "mode"),
+    previousGroupGrantCount: requiredSafeInteger(details.previousGroupGrantCount, "previousGroupGrantCount"),
+    groupGrantCount: requiredSafeInteger(details.groupGrantCount, "groupGrantCount"),
+    previousVehicleGrantCount: requiredSafeInteger(details.previousVehicleGrantCount, "previousVehicleGrantCount"),
+    vehicleGrantCount: requiredSafeInteger(details.vehicleGrantCount, "vehicleGrantCount"),
+    addedGroupGrantCount: requiredSafeInteger(details.addedGroupGrantCount, "addedGroupGrantCount"),
+    removedGroupGrantCount: requiredSafeInteger(details.removedGroupGrantCount, "removedGroupGrantCount"),
+    addedVehicleGrantCount: requiredSafeInteger(details.addedVehicleGrantCount, "addedVehicleGrantCount"),
+    removedVehicleGrantCount: requiredSafeInteger(details.removedVehicleGrantCount, "removedVehicleGrantCount"),
+  } as const;
+  if ((validated.previousMode === null || validated.previousMode === VehicleAccessMode.ALL) && (validated.previousGroupGrantCount !== 0 || validated.previousVehicleGrantCount !== 0)) throw new AuditEventValidationError("previous ALL access cannot have grants");
+  if (validated.mode === VehicleAccessMode.ALL && (validated.groupGrantCount !== 0 || validated.vehicleGrantCount !== 0)) throw new AuditEventValidationError("ALL access cannot have grants");
+  if (validated.previousGroupGrantCount + validated.addedGroupGrantCount - validated.removedGroupGrantCount !== validated.groupGrantCount) throw new AuditEventValidationError("group grant deltas must reconcile");
+  if (validated.previousVehicleGrantCount + validated.addedVehicleGrantCount - validated.removedVehicleGrantCount !== validated.vehicleGrantCount) throw new AuditEventValidationError("vehicle grant deltas must reconcile");
+  return Object.freeze(validated);
+}
+
+export function buildVehicleGroupCreatedAuditEvent(actor: AuditUserActor, targetId: string, details: VehicleGroupCreatedAuditDetails): AuditEventSpec {
+  return Object.freeze({ eventType: AuditEventType.VEHICLE_GROUP_CREATED, actor: buildUserActor(actor.actorUserId, actor.actorLoginSnapshot), targetType: AuditTargetType.VEHICLE_GROUP, targetId: requiredUuid(targetId, "targetId"), details: vehicleGroupCreatedDetails(details) });
+}
+
+export function buildVehicleGroupRenamedAuditEvent(actor: AuditUserActor, targetId: string, details: VehicleGroupRenamedAuditDetails): AuditEventSpec {
+  return Object.freeze({ eventType: AuditEventType.VEHICLE_GROUP_RENAMED, actor: buildUserActor(actor.actorUserId, actor.actorLoginSnapshot), targetType: AuditTargetType.VEHICLE_GROUP, targetId: requiredUuid(targetId, "targetId"), details: vehicleGroupRenamedDetails(details) });
+}
+
+export function buildVehicleGroupMembershipChangedAuditEvent(actor: AuditUserActor, targetId: string, details: VehicleGroupMembershipChangedAuditDetails): AuditEventSpec {
+  return Object.freeze({ eventType: AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED, actor: buildUserActor(actor.actorUserId, actor.actorLoginSnapshot), targetType: AuditTargetType.VEHICLE_GROUP, targetId: requiredUuid(targetId, "targetId"), details: vehicleGroupMembershipChangedDetails(details) });
+}
+
+export function buildVehicleGroupDeletedAuditEvent(actor: AuditUserActor, targetId: string, details: VehicleGroupDeletedAuditDetails): AuditEventSpec {
+  return Object.freeze({ eventType: AuditEventType.VEHICLE_GROUP_DELETED, actor: buildUserActor(actor.actorUserId, actor.actorLoginSnapshot), targetType: AuditTargetType.VEHICLE_GROUP, targetId: requiredUuid(targetId, "targetId"), details: vehicleGroupDeletedDetails(details) });
+}
+
+export function buildUserVehicleAccessChangedAuditEvent(actor: AuditUserActor, targetId: string, details: UserVehicleAccessChangedAuditDetails): AuditEventSpec {
+  return Object.freeze({
+    eventType: AuditEventType.USER_VEHICLE_ACCESS_CHANGED,
+    actor: buildUserActor(actor.actorUserId, actor.actorLoginSnapshot),
+    targetType: AuditTargetType.USER,
+    targetId: requiredUuid(targetId, "targetId"),
+    details: userVehicleAccessChangedDetails(details),
+  });
+}
+
 export function buildShortPopulationExecutedAuditEvent(actor: AuditUserActor, details: ShortPopulationExecutedAuditDetails): AuditEventSpec {
   return Object.freeze({
     eventType: AuditEventType.SHORT_POPULATION_EXECUTED,
@@ -288,6 +374,11 @@ function parseSystemActor(value: unknown): AuditSystemActor {
 
 function userTarget(event: Record<string, unknown>, eventType: string): Readonly<{ actor: AuditUserActor; targetId: string }> {
   if (event.targetType !== AuditTargetType.USER) throw new AuditEventValidationError(`${eventType} must target USER`);
+  return Object.freeze({ actor: parseUserActor(event.actor), targetId: requiredUuid(event.targetId, "targetId") });
+}
+
+function vehicleGroupTarget(event: Record<string, unknown>, eventType: string): Readonly<{ actor: AuditUserActor; targetId: string }> {
+  if (event.targetType !== AuditTargetType.VEHICLE_GROUP) throw new AuditEventValidationError(`${eventType} must target VEHICLE_GROUP`);
   return Object.freeze({ actor: parseUserActor(event.actor), targetId: requiredUuid(event.targetId, "targetId") });
 }
 
@@ -359,6 +450,21 @@ export function parseAuditEventDetails(eventType: unknown, value: unknown): Audi
     case AuditEventType.SETTINGS_UPDATED:
       exactKeys(details, ["changes"], "SETTINGS_UPDATED details");
       return settingsDetails(details as SettingsUpdatedAuditDetails);
+    case AuditEventType.VEHICLE_GROUP_CREATED:
+      exactKeys(details, ["name"], "VEHICLE_GROUP_CREATED details");
+      return vehicleGroupCreatedDetails(details as VehicleGroupCreatedAuditDetails);
+    case AuditEventType.VEHICLE_GROUP_RENAMED:
+      exactKeys(details, ["previousName", "name"], "VEHICLE_GROUP_RENAMED details");
+      return vehicleGroupRenamedDetails(details as VehicleGroupRenamedAuditDetails);
+    case AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED:
+      exactKeys(details, ["name", "addedCount", "removedCount"], "VEHICLE_GROUP_MEMBERSHIP_CHANGED details");
+      return vehicleGroupMembershipChangedDetails(details as VehicleGroupMembershipChangedAuditDetails);
+    case AuditEventType.VEHICLE_GROUP_DELETED:
+      exactKeys(details, ["name", "vehicleCount", "userGrantCount"], "VEHICLE_GROUP_DELETED details");
+      return vehicleGroupDeletedDetails(details as VehicleGroupDeletedAuditDetails);
+    case AuditEventType.USER_VEHICLE_ACCESS_CHANGED:
+      exactKeys(details, ["targetLoginSnapshot", "previousMode", "mode", "previousGroupGrantCount", "groupGrantCount", "previousVehicleGrantCount", "vehicleGrantCount", "addedGroupGrantCount", "removedGroupGrantCount", "addedVehicleGrantCount", "removedVehicleGrantCount"], "USER_VEHICLE_ACCESS_CHANGED details");
+      return userVehicleAccessChangedDetails(details as UserVehicleAccessChangedAuditDetails);
     default:
       throw new AuditEventValidationError("eventType is not implemented");
   }
@@ -431,6 +537,31 @@ export function parseAuditEventSpec(value: unknown): AuditEventSpec {
     case AuditEventType.SETTINGS_UPDATED:
       if (event.targetType !== AuditTargetType.APPLICATION_SETTINGS || event.targetId !== "1") throw new AuditEventValidationError("SETTINGS_UPDATED must target the ApplicationSettings singleton");
       return buildSettingsUpdatedAuditEvent(parseUserActor(event.actor), settingsDetails(event.details as SettingsUpdatedAuditDetails));
+    case AuditEventType.VEHICLE_GROUP_CREATED: {
+      const target = vehicleGroupTarget(event, AuditEventType.VEHICLE_GROUP_CREATED);
+      const details = object(event.details, "details"); exactKeys(details, ["name"], "VEHICLE_GROUP_CREATED details");
+      return buildVehicleGroupCreatedAuditEvent(target.actor, target.targetId, details as VehicleGroupCreatedAuditDetails);
+    }
+    case AuditEventType.VEHICLE_GROUP_RENAMED: {
+      const target = vehicleGroupTarget(event, AuditEventType.VEHICLE_GROUP_RENAMED);
+      const details = object(event.details, "details"); exactKeys(details, ["previousName", "name"], "VEHICLE_GROUP_RENAMED details");
+      return buildVehicleGroupRenamedAuditEvent(target.actor, target.targetId, details as VehicleGroupRenamedAuditDetails);
+    }
+    case AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED: {
+      const target = vehicleGroupTarget(event, AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED);
+      const details = object(event.details, "details"); exactKeys(details, ["name", "addedCount", "removedCount"], "VEHICLE_GROUP_MEMBERSHIP_CHANGED details");
+      return buildVehicleGroupMembershipChangedAuditEvent(target.actor, target.targetId, details as VehicleGroupMembershipChangedAuditDetails);
+    }
+    case AuditEventType.VEHICLE_GROUP_DELETED: {
+      const target = vehicleGroupTarget(event, AuditEventType.VEHICLE_GROUP_DELETED);
+      const details = object(event.details, "details"); exactKeys(details, ["name", "vehicleCount", "userGrantCount"], "VEHICLE_GROUP_DELETED details");
+      return buildVehicleGroupDeletedAuditEvent(target.actor, target.targetId, details as VehicleGroupDeletedAuditDetails);
+    }
+    case AuditEventType.USER_VEHICLE_ACCESS_CHANGED: {
+      const target = userTarget(event, AuditEventType.USER_VEHICLE_ACCESS_CHANGED);
+      const details = object(event.details, "details"); exactKeys(details, ["targetLoginSnapshot", "previousMode", "mode", "previousGroupGrantCount", "groupGrantCount", "previousVehicleGrantCount", "vehicleGrantCount", "addedGroupGrantCount", "removedGroupGrantCount", "addedVehicleGrantCount", "removedVehicleGrantCount"], "USER_VEHICLE_ACCESS_CHANGED details");
+      return buildUserVehicleAccessChangedAuditEvent(target.actor, target.targetId, details as UserVehicleAccessChangedAuditDetails);
+    }
     default:
       throw new AuditEventValidationError("eventType is not implemented");
   }
