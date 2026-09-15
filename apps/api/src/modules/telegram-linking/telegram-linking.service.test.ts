@@ -91,6 +91,7 @@ test("successful first preference save keeps revision-zero input and creates rev
     selectedVehicleIds: [],
     revision: 1,
     canSelectVehicles: false,
+    hasDormantSelections: false,
     vehicles: [],
   });
 });

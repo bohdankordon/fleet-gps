@@ -19,6 +19,7 @@ export type PreferenceBaseline = Readonly<{
   draft: PreferenceDraft;
   revision: number;
   canSelectVehicles: boolean;
+  hasDormantSelections: boolean;
   vehicles: readonly PreferenceVehicle[];
 }>;
 
@@ -67,6 +68,7 @@ export function parsePreferenceBaseline(value: unknown): PreferenceBaseline | nu
     || !Number.isInteger(candidate.revision)
     || (candidate.revision as number) < 0
     || typeof candidate.canSelectVehicles !== "boolean"
+    || typeof candidate.hasDormantSelections !== "boolean"
     || !Array.isArray(candidate.vehicles)
     || candidate.vehicles.some((vehicle) => !isVehicle(vehicle))
   ) return null;
@@ -80,6 +82,7 @@ export function parsePreferenceBaseline(value: unknown): PreferenceBaseline | nu
     }),
     revision: candidate.revision as number,
     canSelectVehicles: candidate.canSelectVehicles as boolean,
+    hasDormantSelections: candidate.hasDormantSelections as boolean,
     vehicles: Object.freeze((candidate.vehicles as PreferenceVehicle[]).map((vehicle) => Object.freeze({ ...vehicle }))),
   });
 }
@@ -121,9 +124,11 @@ export function buildPreferencesPatchBody(baseline: PreferenceBaseline, draft: P
 export type DraftValidationError = Readonly<{ field: "vehicleScope"; messageKey: MessageKey }>;
 
 // The only client-checkable backend rule: SELECTED needs at least one
-// vehicle. Everything else is valid input; the backend stays authoritative.
-export function validatePreferencesDraft(draft: PreferenceDraft, canSelectVehicles: boolean): readonly DraftValidationError[] {
-  if (canSelectVehicles && draft.vehicleScope === "SELECTED" && draft.selectedVehicleIds.length === 0) {
+// visible vehicle, unless dormant stored selections exist that the backend
+// hides but preserves. Everything else is valid input; the backend stays
+// authoritative.
+export function validatePreferencesDraft(draft: PreferenceDraft, canSelectVehicles: boolean, hasDormantSelections = false): readonly DraftValidationError[] {
+  if (canSelectVehicles && draft.vehicleScope === "SELECTED" && draft.selectedVehicleIds.length === 0 && !hasDormantSelections) {
     return Object.freeze([{ field: "vehicleScope", messageKey: "telegram.preferences.error.selection" }]);
   }
   return Object.freeze([]);

@@ -74,3 +74,42 @@ test("B2 updating visible preferences preserves dormant selections", async () =>
   const ids = ((created as { data: readonly { vehicleId: string }[] }).data.map((row) => row.vehicleId).sort());
   assert.deepEqual(ids, [vehicleA, vehicleD].sort());
 });
+test("B2 dormant-only SELECTED can still save unrelated settings", async () => {
+  const existing = [{ vehicleId: vehicleD }];
+  let created: unknown;
+  let updatedScalars: unknown;
+  const tx = {
+    userNotificationPreferences: {
+      findUnique: async () => ({ revision: 4 }),
+      updateMany: async (args: unknown) => { updatedScalars = args; return { count: 1 }; },
+    },
+    vehicle: { count: async () => 0 },
+    userNotificationVehicle: {
+      findMany: async (args: unknown) => ((args as { where?: { vehicle?: unknown } }).where && (args as { where: { vehicle: unknown } }).where.vehicle ? [] : existing),
+      deleteMany: async () => ({}),
+      createMany: async (args: unknown) => { created = args; return {}; },
+    },
+  };
+  const client = {
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(tx),
+    userNotificationPreferences: { findUnique: async () => ({ enabled: false, speedingEnabled: false, inactivityEnabled: true, vehicleScope: "SELECTED", revision: 5, vehicles: existing }) },
+    vehicle: { findMany: async () => [] },
+  };
+  const view = await linking(client, filteredScope).updatePreferences(userId, ["vehicles.view"], { expectedRevision: 4, enabled: false, speedingEnabled: false, inactivityEnabled: true, vehicleScope: "SELECTED", selectedVehicleIds: [] });
+  assert.equal(view.enabled, false);
+  assert.equal(view.vehicleScope, "SELECTED");
+  assert.deepEqual([...view.selectedVehicleIds], []);
+  assert.equal(view.hasDormantSelections, true);
+  const ids = ((created as { data: readonly { vehicleId: string }[] }).data.map((row) => row.vehicleId));
+  assert.deepEqual(ids, [vehicleD]);
+});
+
+test("B2 genuinely new SELECTED with no selections remains invalid", async () => {
+  const tx = {
+    userNotificationPreferences: { findUnique: async () => ({ revision: 1 }), updateMany: async () => ({ count: 1 }) },
+    vehicle: { count: async () => 0 },
+    userNotificationVehicle: { findMany: async () => [], deleteMany: async () => ({}), createMany: async () => ({}) },
+  };
+  const client = { $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(tx), userNotificationPreferences: { findUnique: async () => null }, vehicle: { findMany: async () => [] } };
+  await assert.rejects(linking(client, filteredScope).updatePreferences(userId, ["vehicles.view"], { expectedRevision: 1, enabled: true, speedingEnabled: true, inactivityEnabled: true, vehicleScope: "SELECTED", selectedVehicleIds: [] }), NotificationPreferencesError);
+});

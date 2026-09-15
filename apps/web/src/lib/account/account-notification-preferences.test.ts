@@ -25,6 +25,7 @@ const view = (overrides: Record<string, unknown> = {}) => ({
   selectedVehicleIds: ["11111111-1111-1111-8111-111111111111"],
   revision: 3,
   canSelectVehicles: true,
+  hasDormantSelections: false,
   vehicles: [...vehicles],
   ...overrides,
 });
@@ -37,7 +38,7 @@ test("valid reads parse including virtual revision 0, malformed reads fail", () 
   assert.deepEqual(parsePreferenceBaseline(view({ revision: 0 }))?.revision, 0);
   for (const bad of [null, undefined, 7, "x", [], { ...view(), enabled: "yes" }, { ...view(), vehicleScope: "SOME" },
     { ...view(), selectedVehicleIds: "nope" }, { ...view(), selectedVehicleIds: [42] }, { ...view(), revision: 1.5 },
-    { ...view(), revision: -1 }, { ...view(), canSelectVehicles: 1 },
+    { ...view(), revision: -1 }, { ...view(), canSelectVehicles: 1 }, { ...view(), hasDormantSelections: 1 },
     { ...view(), vehicles: [{ id: "x" }] }, { enabled: true }]) {
     assert.equal(parsePreferenceBaseline(bad), null, JSON.stringify(bad)?.slice(0, 80));
   }
@@ -93,6 +94,7 @@ test("only SELECTED-without-vehicles is client-invalid", () => {
   assert.deepEqual(validatePreferencesDraft({ ...draftFromBaseline(base), selectedVehicleIds: [] }, true), [
     { field: "vehicleScope", messageKey: "telegram.preferences.error.selection" },
   ]);
+  assert.deepEqual(validatePreferencesDraft({ ...draftFromBaseline(base), selectedVehicleIds: [] }, true, true), []);
   assert.deepEqual(validatePreferencesDraft({ ...draftFromBaseline(base), vehicleScope: "ALL", selectedVehicleIds: [] }, true), []);
   assert.deepEqual(validatePreferencesDraft({ enabled: false, speedingEnabled: false, inactivityEnabled: false, vehicleScope: "ALL", selectedVehicleIds: [] }, true), []);
   assert.deepEqual(validatePreferencesDraft(draftFromBaseline(base), false), []);

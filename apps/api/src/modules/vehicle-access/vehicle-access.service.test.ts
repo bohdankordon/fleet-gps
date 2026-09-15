@@ -9,11 +9,18 @@ const vehicleId = "00000000-0000-4000-8000-000000000002";
 
 function service(role: AuthRole | null, mode: VehicleAccessMode = VehicleAccessMode.ALL, count = 0) {
   const queries: unknown[] = [];
-  const client = {
-    authUser: { findUnique: async () => role === null ? null : ({ role, vehicleAccessMode: mode }) },
+  let transactionOptions: unknown;
+  let transactions = 0;
+  const transaction = {
+    authUser: { findUnique: async () => (role === null ? null : { role, vehicleAccessMode: mode }) },
     vehicle: { count: async (query: unknown) => { queries.push(query); return count; } },
   };
-  return { authority: new VehicleScopeService({ getClient: () => client } as unknown as DatabaseService), queries };
+  const client = {
+    authUser: { findUnique: async () => (role === null ? null : { role, vehicleAccessMode: mode }) },
+    vehicle: { count: async (query: unknown) => { queries.push(query); return count; } },
+    $transaction: async (fn: (tx: unknown) => Promise<unknown>, options?: unknown) => { transactions += 1; transactionOptions = options; return fn(transaction); },
+  };
+  return { authority: new VehicleScopeService({ getClient: () => client } as unknown as DatabaseService), queries, transactionOptions: () => transactionOptions, transactions: () => transactions };
 }
 
 test("ADMIN and USER + ALL resolve to unrestricted scope", async () => {
@@ -41,4 +48,11 @@ test("scope composition and point checks use the same authority", async () => {
 
 test("missing scope subjects fail closed", async () => {
   await assert.rejects(service(null).authority.resolve(userId), VehicleScopeSubjectNotFoundError);
+});
+test("dispatch-time point checks evaluate role and vehicle from one repeatable snapshot", async () => {
+  const fixture = service(AuthRole.USER, VehicleAccessMode.SELECTED, 1);
+  assert.equal(await fixture.authority.canAccess(userId, vehicleId), true);
+  assert.equal(fixture.transactions(), 1);
+  assert.deepEqual(fixture.transactionOptions(), { isolationLevel: "RepeatableRead" });
+  await assert.rejects(service(null, VehicleAccessMode.ALL, 0).authority.canAccess(userId, vehicleId), VehicleScopeSubjectNotFoundError);
 });

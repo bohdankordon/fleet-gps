@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { Prisma } from "../../generated/prisma/client";
+import { Prisma } from "../../generated/prisma/client";
 import { AuthRole, VehicleAccessMode } from "../../generated/prisma/enums";
 import { DatabaseService } from "../database/database.service";
 import type { VehicleScope } from "./vehicle-access.types";
@@ -67,7 +67,11 @@ export class VehicleScopeService {
   }
 
   public async canAccess(userId: string, vehicleId: string): Promise<boolean> {
-    const scope = await this.resolve(userId);
-    return (await this.database.getClient().vehicle.count({ where: applyVehicleScope(scope, { id: vehicleId }) })) > 0;
+    return this.database.getClient().$transaction(async (transaction) => {
+      const user = await transaction.authUser.findUnique({ where: { id: userId }, select: { role: true, vehicleAccessMode: true } });
+      if (!user) throw new VehicleScopeSubjectNotFoundError();
+      if (user.role === AuthRole.ADMIN || user.vehicleAccessMode === VehicleAccessMode.ALL) return (await transaction.vehicle.count({ where: { id: vehicleId } })) > 0;
+      return (await transaction.vehicle.count({ where: { AND: [{ id: vehicleId }, selectedVehicleWhere(userId)] } })) > 0;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 }

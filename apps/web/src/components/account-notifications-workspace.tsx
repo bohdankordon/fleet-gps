@@ -119,7 +119,7 @@ export function AccountNotificationsWorkspace({ baseline: initialBaseline, conne
 
   async function handleSave(): Promise<void> {
     if (savingRef.current) return;
-    const violations = validatePreferencesDraft(draft, canSelect);
+    const violations = validatePreferencesDraft(draft, canSelect, baseline.hasDormantSelections);
     if (violations.length > 0) {
       setVehiclesInvalid(true);
       focusVehiclesGroup();

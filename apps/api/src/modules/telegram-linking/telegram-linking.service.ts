@@ -12,7 +12,7 @@ import { TelegramLinkRateLimiter } from "./telegram-link-rate-limiter";
 import { TELEGRAM_PRODUCT_BOT_TRANSPORT, type TelegramProductBotTransport } from "./telegram-product-bot.transport";
 
 export type TelegramConnectionView = Readonly<{ status: "NOT_CONNECTED" | "LINK_PENDING" | "CONNECTED" | "BROKEN"; pendingExpiresAt: string | null }>;
-export type NotificationPreferencesView = Readonly<{ enabled: boolean; speedingEnabled: boolean; inactivityEnabled: boolean; vehicleScope: "ALL" | "SELECTED"; selectedVehicleIds: readonly string[]; revision: number; canSelectVehicles: boolean; vehicles: readonly Readonly<{ id: string; name: string; disabled: boolean }>[] }>;
+export type NotificationPreferencesView = Readonly<{ enabled: boolean; speedingEnabled: boolean; inactivityEnabled: boolean; vehicleScope: "ALL" | "SELECTED"; selectedVehicleIds: readonly string[]; revision: number; canSelectVehicles: boolean; hasDormantSelections: boolean; vehicles: readonly Readonly<{ id: string; name: string; disabled: boolean }>[] }>;
 export type TelegramLinkResult = Readonly<{ status: "LINK_PENDING"; expiresAt: string; telegramUrl: string }>;
 export type TelegramInbound = Readonly<{ updateId: bigint; chatId: bigint; userId: bigint; chatType: string; text: string | null }>;
 export type LinkOutcome = "LINKED" | "INVALID" | "DUPLICATE" | "IGNORED" | "DISABLED";
@@ -34,7 +34,7 @@ function preferenceInput(value: unknown, allowVehicles: boolean): Readonly<{ exp
   if (!Number.isSafeInteger(input.expectedRevision) || (input.expectedRevision as number) < 0 || typeof input.enabled !== "boolean" || typeof input.speedingEnabled !== "boolean" || typeof input.inactivityEnabled !== "boolean") throw new NotificationPreferencesError("INVALID_INPUT");
   if (!allowVehicles) return Object.freeze({ expectedRevision: input.expectedRevision as number, enabled: input.enabled, speedingEnabled: input.speedingEnabled, inactivityEnabled: input.inactivityEnabled, vehicleScope: "ALL", selectedVehicleIds: Object.freeze([]) });
   if ((input.vehicleScope !== "ALL" && input.vehicleScope !== "SELECTED") || !Array.isArray(input.selectedVehicleIds) || input.selectedVehicleIds.some((id) => typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))) throw new NotificationPreferencesError("INVALID_INPUT");
-  const ids = input.selectedVehicleIds as string[]; if (new Set(ids).size !== ids.length || input.vehicleScope === "SELECTED" && ids.length === 0) throw new NotificationPreferencesError("INVALID_INPUT");
+  const ids = input.selectedVehicleIds as string[]; if (new Set(ids).size !== ids.length) throw new NotificationPreferencesError("INVALID_INPUT");
   return Object.freeze({ expectedRevision: input.expectedRevision as number, enabled: input.enabled, speedingEnabled: input.speedingEnabled, inactivityEnabled: input.inactivityEnabled, vehicleScope: input.vehicleScope, selectedVehicleIds: Object.freeze(ids) });
 }
 
@@ -50,7 +50,8 @@ export class TelegramLinkingService {
     const base = stored ? { enabled: stored.enabled, speedingEnabled: stored.speedingEnabled, inactivityEnabled: stored.inactivityEnabled, vehicleScope: stored.vehicleScope, selectedVehicleIds: stored.vehicles.map(({ vehicleId }) => vehicleId), revision: stored.revision } : DEFAULT_PREFERENCES;
     const authorizedIds = new Set(vehicles.map((vehicle) => vehicle.id));
     const visibleSelected = allowed ? base.selectedVehicleIds.filter((vehicleId) => authorizedIds.has(vehicleId)) : [];
-    return Object.freeze({ enabled: base.enabled, speedingEnabled: base.speedingEnabled, inactivityEnabled: base.inactivityEnabled, vehicleScope: base.vehicleScope, selectedVehicleIds: Object.freeze(visibleSelected), revision: base.revision, canSelectVehicles: allowed, vehicles: Object.freeze(vehicles) });
+    const hasDormantSelections = allowed && stored ? base.selectedVehicleIds.length > visibleSelected.length : false;
+    return Object.freeze({ enabled: base.enabled, speedingEnabled: base.speedingEnabled, inactivityEnabled: base.inactivityEnabled, vehicleScope: base.vehicleScope, selectedVehicleIds: Object.freeze(visibleSelected), revision: base.revision, canSelectVehicles: allowed, hasDormantSelections, vehicles: Object.freeze(vehicles) });
   }
   public async updatePreferences(userId: string, permissions: readonly string[], value: unknown): Promise<NotificationPreferencesView> {
     const allowed = canSelectVehicles(permissions); const input = preferenceInput(value, allowed); const client = this.database.getClient();
@@ -60,6 +61,7 @@ export class TelegramLinkingService {
       if (!current) {
         if (input.expectedRevision !== 0) throw new NotificationPreferencesError("CONFLICT");
         if (allowed && scope) { const count = input.selectedVehicleIds.length === 0 ? 0 : await tx.vehicle.count({ where: applyVehicleScope(scope, { id: { in: [...input.selectedVehicleIds] } }) }); if (count !== input.selectedVehicleIds.length) throw new NotificationPreferencesError("INVALID_INPUT"); }
+        if (allowed && input.vehicleScope === "SELECTED" && input.selectedVehicleIds.length === 0) throw new NotificationPreferencesError("INVALID_INPUT");
         try { await tx.userNotificationPreferences.create({ data: { userId, enabled: input.enabled, speedingEnabled: input.speedingEnabled, inactivityEnabled: input.inactivityEnabled, vehicleScope: allowed ? input.vehicleScope as NotificationVehicleScope : NotificationVehicleScope.ALL, ...(allowed ? { vehicles: { createMany: { data: input.selectedVehicleIds.map((vehicleId) => ({ vehicleId })) } } } : {}) } }); }
         catch (error) { if (duplicate(error)) throw new NotificationPreferencesError("CONFLICT"); throw error; }
         return;
@@ -74,6 +76,7 @@ export class TelegramLinkingService {
         const authorizedSet = new Set(authorizedExisting.map((row) => row.vehicleId));
         const dormant = existing.map((row) => row.vehicleId).filter((vehicleId) => !authorizedSet.has(vehicleId));
         const merged = [...new Set([...submitted, ...dormant])];
+        if (input.vehicleScope === "SELECTED" && merged.length === 0) throw new NotificationPreferencesError("INVALID_INPUT");
         await tx.userNotificationVehicle.deleteMany({ where: { userId } });
         if (merged.length) await tx.userNotificationVehicle.createMany({ data: merged.map((vehicleId) => ({ userId, vehicleId })) });
       }

@@ -66,3 +66,24 @@ test("B2 existing safety checks are preserved", async () => {
   assert.deepEqual(recipientDeliveryRepositoryInternals.evaluate(row({ mustChangePassword: true }) as never, "UTC"), { kind: "SUPPRESS", code: "ACCOUNT_SECURITY_RESTRICTED" });
   assert.deepEqual(recipientDeliveryRepositoryInternals.evaluate(row({ permissions: [] }) as never, "UTC"), { kind: "SUPPRESS", code: "PERMISSION_REVOKED" });
 });
+test("B2 dispatcher suppresses revoked access without calling Telegram transport", async () => {
+  const { RecipientDeliveryDispatcherService } = await import("./recipient-delivery-dispatcher.service");
+  const { AlertNotificationMessageFormatter } = await import("./alert-notification-message.formatter");
+  const deliveryId = "00000000-0000-4000-8000-000000000005";
+  const leaseToken = "00000000-0000-4000-8000-000000000006";
+  const claimed = Object.freeze({ id: deliveryId, notificationId: "00000000-0000-4000-8000-000000000007", userId, connectionRevision: 1, leaseToken, attemptCount: 0, createdAt: new Date("2026-08-10T10:00:00.000Z") });
+  let suppressed: unknown;
+  let sends = 0;
+  const repository = {
+    expireOverAge: async () => undefined,
+    claimNext: (() => { let calls = 0; return async () => (calls++ === 0 ? [claimed] : []); })(),
+    recheck: async () => ({ kind: "SUPPRESS", code: "VEHICLE_ACCESS_REVOKED" }),
+    markSuppressed: async (id: string, token: string, code: string) => { suppressed = { id, token, code }; },
+  };
+  const transport = { sendAlertConfirmed: async () => { sends += 1; } };
+  const dispatcher = new RecipientDeliveryDispatcherService(repository as never, new AlertNotificationMessageFormatter(), transport as never, { telegramPerUserDispatch: { enabled: true } } as never);
+  const result = await dispatcher.dispatchBatch(10);
+  assert.deepEqual(result, { claimed: 1, sent: 0, retryScheduled: 0, suppressed: 1, failed: 0, lostLease: 0 });
+  assert.deepEqual(suppressed, { id: deliveryId, token: leaseToken, code: "VEHICLE_ACCESS_REVOKED" });
+  assert.equal(sends, 0);
+});

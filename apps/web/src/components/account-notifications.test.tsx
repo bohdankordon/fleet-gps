@@ -15,7 +15,7 @@ const vehicles = [
 ] as const;
 const baseline = (
   overrides: Partial<PreferenceBaseline["draft"]> = {},
-  extra: Partial<Pick<PreferenceBaseline, "revision" | "canSelectVehicles" | "vehicles">> = {},
+  extra: Partial<Pick<PreferenceBaseline, "revision" | "canSelectVehicles" | "hasDormantSelections" | "vehicles">> = {},
 ): PreferenceBaseline => ({
   draft: {
     enabled: true,
@@ -27,6 +27,7 @@ const baseline = (
   },
   revision: 3,
   canSelectVehicles: true,
+  hasDormantSelections: false,
   vehicles: [...vehicles],
   ...extra,
 });
