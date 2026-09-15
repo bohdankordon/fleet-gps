@@ -44,9 +44,22 @@ export type AlertEvent = z.infer<typeof alertEventSchema>;
 export type AlertEventsListResponse = z.infer<typeof alertEventsListResponseSchema>;
 export type AlertEventsSummaryResponse = z.infer<typeof alertEventsSummaryResponseSchema>;
 
+export const speedingEventInvestigationSchema = z.object({
+  eventId: z.string().uuid(),
+  type: z.literal("SPEEDING"),
+  vehicleId: z.string().uuid(),
+  confirmedAt: isoTimestamp,
+  confirmationPosition: z.object({ latitude: z.number().finite().min(-90).max(90), longitude: z.number().finite().min(-180).max(180) }).strict().nullable(),
+  confirmationSpeedKph: metric,
+  thresholdKph: metric,
+  zone: z.enum(["CITY", "OUTSIDE_CITY"]),
+}).strict();
+export type SpeedingEventInvestigation = z.infer<typeof speedingEventInvestigationSchema>;
+
 export class AlertEventsContractError extends Error { public constructor() { super("Invalid alert-events response."); this.name = "AlertEventsContractError"; } }
 export function parseAlertEventsListResponse(value: unknown): AlertEventsListResponse { const parsed = alertEventsListResponseSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }
 export function parseAlertEventsSummaryResponse(value: unknown): AlertEventsSummaryResponse { const parsed = alertEventsSummaryResponseSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }
+export function parseSpeedingEventInvestigation(value: unknown): SpeedingEventInvestigation { const parsed = speedingEventInvestigationSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }
 
 export const alertEventsVehicleOptionsSchema = z.array(z.object({ vehicleId: z.string().uuid(), vehicleName: z.string(), group: z.object({ id: z.string().uuid(), name: z.string(), color: vehicleGroupColor }).strict().nullable() }).strict());
 export type AlertEventsVehicleOptions = z.infer<typeof alertEventsVehicleOptionsSchema>;

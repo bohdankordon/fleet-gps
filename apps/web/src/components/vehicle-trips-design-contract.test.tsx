@@ -46,7 +46,7 @@ test("quick periods keep the calendar/recent grouping and use supported Ant Desi
   assert.match(styles, /\.vehicle-trips__preset-button \{[^}]*width: 100%;[^}]*box-shadow: none;/);
   assert.match(styles, /\.vehicle-trips__preset-group-title \{[^}]*font-size: var\(--font-size-caption\);[^}]*font-weight: var\(--font-weight-regular\);[^}]*line-height: var\(--line-height-caption\);/);
   assert.doesNotMatch(styles, /preset-tile|preset-button--selected/);
-  assert.match(trips, /const choosePreset =[^]*setFormError\(null\);[^]*loadAnalysis\(next, preset, false, true\)/);
+  assert.match(trips, /const choosePreset =[^]*setFormError\(null\);[^]*loadAnalysis\(next, preset, false, true, false\)/);
 });
 
 test("one RangePicker presents 24-hour values and preserves the authoritative Kyiv parser", () => {
@@ -68,7 +68,7 @@ test("one RangePicker presents 24-hour values and preserves the authoritative Ky
   assert.match(tripRange, /TRIP_ANALYSIS_PICKER_FORMAT = "DD\.MM\.YYYY, HH:mm"/);
   assert.match(trips, /tripAnalysisPickerValueToCivil\(values\[0\]\)/);
   assert.match(trips, /parseVehicleTrackCustomRangeToNow\(draft, new Date\(\)\)/);
-  assert.match(trips, /void loadAnalysis\(parsed\.range, null, openEnded, true\)/);
+  assert.match(trips, /void loadAnalysis\(parsed\.range, null, openEnded, true, false\)/);
   assert.match(trips, /refreshOpenEndedTripAnalysisRange\(range, new Date\(\)\)/);
   assert.match(trips, /appliedOpenEnded[\s\S]*t\("trips\.range\.now"\)/);
   assert.match(customRange, /VEHICLE_TRACK_INPUT_TIMEZONE = "Europe\/Kyiv"/);

@@ -6,7 +6,7 @@
 .events-metric { appearance: none; flex: 0 1 220px; border: 0; border-radius: 0; background: transparent; cursor: pointer; color: inherit; font: inherit; text-align: start; }
 .events-page .events-metric:hover:not(:disabled) { background: var(--trip-record-hover); }
 .events-page .events-metric[aria-pressed="true"] { background: var(--events-fill); box-shadow: inset 0 -2px var(--events-primary); }
-.events-page .events-metric:focus-visible, .events-item:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: -3px; }
+.events-page .events-metric:focus-visible, .events-item:focus-visible, .events-item__trip-action:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: -3px; }
 .events-metrics__scope { align-self: center; margin-inline-start: auto; padding: var(--space-3) var(--space-4); color: var(--events-muted); font-size: var(--font-size-metadata); line-height: 1.45; }
 .events-controls { display: grid; gap: var(--space-3); min-width: 0; }
 .events-page .events-modes { margin: 0; }
@@ -23,7 +23,9 @@
 .events-chronology__heading { gap: var(--space-2); }
 .events-chronology__heading > span:first-child { display: inline-flex; align-items: center; gap: var(--space-2); }
 .events-list { display: grid; gap: var(--space-2); list-style: none; margin: 0; padding: var(--space-3); }
+.events-list .vehicle-trips__record { grid-template-columns: 34px minmax(0, 1fr) auto; }
 .events-item.vehicle-trips__record-button { display: grid; gap: var(--space-1); font: inherit; cursor: pointer; }
+.events-item__trip-action { align-self: center; margin-inline-end: var(--space-2); color: var(--events-primary); }
 .events-item__top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .events-item__vehicle { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .events-item__top strong { overflow-wrap: anywhere; font-size: var(--font-size-label); font-weight: var(--font-weight-semibold); line-height: var(--line-height-label); }
@@ -76,6 +78,8 @@
   .events-filter--group { grid-column: 1 / -1; grid-row: 3; }
   .events-filter-utility { grid-column: 1 / -1; grid-row: 4; display: flex; justify-content: space-between; margin-inline-start: 0; margin-block-start: var(--space-1); }
   .events-list { padding: var(--space-2); }
+  .events-list .vehicle-trips__record { grid-template-columns: 30px minmax(0, 1fr) auto; }
+  .events-item__trip-action { margin-inline-end: var(--space-1); }
   .events-item__evidence { gap: var(--space-1); }
   .events-page .events-period { gap: var(--space-1); }
   .event-detail { padding: var(--space-4); }

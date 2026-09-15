@@ -13,7 +13,8 @@ test("vehicle options BFF validates public identity only and maps upstream failu
 });
 test("new BFF route uses existing cookie authentication and events.view proxy guard", () => {
   const proxy = readFileSync("src/proxy.ts", "utf8");
-  assert.match(proxy, /path === "\/api\/alert-events\/vehicles"\) return \["events.view"\]/);
+  assert.match(proxy, /path === "\/api\/alert-events\/vehicles" \|\| \/\^\\\/api\\\/alert-events/);
+  assert.match(proxy, /\/investigation\$\/\.test\(path\)\) return \["events\.view"\]/);
   assert.match(proxy, /statusCode: 401/); assert.match(proxy, /statusCode: 403/);
   const client = readFileSync("src/lib/alert-events/alert-events-client.ts", "utf8");
   assert.match(client, /fetchAlertEventsVehicleOptions\(fetcher: typeof fetch = authenticatedApiFetch\)/);

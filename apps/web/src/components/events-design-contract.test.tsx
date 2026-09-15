@@ -85,7 +85,7 @@ test("Events consumes accepted Fleet and Vehicle-family presentation without cha
   assert.match(presentation, /vehicle-track__map-empty-icon/);
   assert.match(presentation, /eventStatusColor\(status\)/);
   assert.match(detailSource, /vehicle-overview__metric-row/);
-  assert.match(detailSource, /<Button size="large" type="default" key=\{action.key\}/);
+  assert.match(detailSource, /<Button size="large" type=\{action\.key === "eventTrip" \? "primary" : "default"\} key=\{action\.key\}/);
   assert.match(styles, /--font-weight-semibold/);
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}\b|\.ant-/i);
   assert.doesNotMatch(source + detailSource + presentation, /severity|colorError|colorWarning/);

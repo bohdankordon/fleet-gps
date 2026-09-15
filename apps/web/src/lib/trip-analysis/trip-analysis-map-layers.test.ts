@@ -15,6 +15,12 @@ import {
   TRIP_MAP_WARNING_ACCENT_LAYER_ID,
   tripMapLayers,
   updateTripMapData,
+  ensureTripEventLayer,
+  updateTripEventData,
+  tripEventGeoJson,
+  tripEventLayers,
+  TRIP_EVENT_SOURCE_ID,
+  TRIP_EVENT_MARKER_LAYER_ID,
 } from "./trip-analysis-map-layers";
 
 test("Trip Map geometry follows the accepted fleet marker grammar and keeps warnings additive", () => {
@@ -65,4 +71,24 @@ test("Trip Map sources and layers are created once below labels and data updates
   assert.equal(sources.size, 2);
   assert.equal(setDataCalls, 2);
   assert.deepEqual(layers.map((layer) => layer.id), [...TRIP_MAP_LAYER_ORDER, "basemap-labels"]);
+});
+
+test("persisted event coordinates create an independent marker above route layers and survive an empty track", () => {
+  assert.deepEqual(tripEventGeoJson({ latitude: 49.23, longitude: 28.48 }).features[0]?.geometry.coordinates, [28.48, 49.23]);
+  assert.equal(tripEventGeoJson(null).features.length, 0);
+  assert.equal(tripEventLayers().at(-1)?.id, TRIP_EVENT_MARKER_LAYER_ID);
+  const sources = new Map<string, { data?: unknown; setData(value: unknown): void }>();
+  const layers: Array<{ id: string; type: string }> = [{ id: "trips-map-endpoints", type: "circle" }, { id: "labels", type: "symbol" }];
+  const map = {
+    getSource: (id: string) => sources.get(id),
+    addSource: (id: string, source: { data?: unknown }) => sources.set(id, { data: source.data, setData(value) { this.data = value; } }),
+    getLayer: (id: string) => layers.find((layer) => layer.id === id),
+    addLayer: (layer: { id: string; type: string }, before?: string) => layers.splice(before ? layers.findIndex((item) => item.id === before) : layers.length, 0, { id: layer.id, type: layer.type }),
+    getStyle: () => ({ layers }),
+  } as unknown as MapLibreMap;
+  ensureTripEventLayer(map, { latitude: 49.23, longitude: 28.48 });
+  updateTripEventData(map, { latitude: 49.24, longitude: 28.49 });
+  assert.equal(sources.has(TRIP_EVENT_SOURCE_ID), true);
+  assert.ok(layers.findIndex((layer) => layer.id === TRIP_EVENT_MARKER_LAYER_ID) > layers.findIndex((layer) => layer.id === "trips-map-endpoints"));
+  assert.deepEqual((sources.get(TRIP_EVENT_SOURCE_ID)?.data as ReturnType<typeof tripEventGeoJson>).features[0]?.geometry.coordinates, [28.49, 49.24]);
 });
