@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { AlertNotificationDeliveryStatus, AuthRole, NotificationVehicleScope, TelegramConnectionStatus, type Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database";
+import { VehicleScopeService, VehicleScopeSubjectNotFoundError } from "../vehicle-access/vehicle-access.service";
 import { RecipientDeliveryLostLeaseError, type ClaimedRecipientDelivery, type RecipientDeliveryFailureCode, type RecipientDispatchEligibility } from "./recipient-delivery.types";
 
 export const RECIPIENT_DELIVERY_LEASE_MS = 5 * 60_000;
@@ -11,7 +12,7 @@ type RawClaim = Readonly<{ id: string; notificationId: string; userId: string; c
 type DeliveryForRecheck = Prisma.AlertNotificationDeliveryGetPayload<{ include: { notification: { include: { alertEvent: { include: { vehicle: true } } } }; user: { include: { permissions: true; telegramConnection: true; notificationPreferences: { include: { vehicles: true } } } } } }>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const failureCodes = new Set<RecipientDeliveryFailureCode>(["ACCOUNT_DISABLED", "ACCOUNT_SECURITY_RESTRICTED", "PERMISSION_REVOKED", "CONNECTION_MISSING", "CONNECTION_NOT_CONNECTED", "CONNECTION_REVISION_CHANGED", "MASTER_DISABLED", "EVENT_TYPE_DISABLED", "VEHICLE_SCOPE_CHANGED", "VEHICLE_DISABLED", "CUTOVER_BOUNDARY", "NETWORK", "TIMEOUT", "HTTP_429", "HTTP_4XX", "HTTP_5XX", "INVALID_RESPONSE", "MAX_ATTEMPTS", "MAX_AGE"]);
+const failureCodes = new Set<RecipientDeliveryFailureCode>(["ACCOUNT_DISABLED", "ACCOUNT_SECURITY_RESTRICTED", "PERMISSION_REVOKED", "VEHICLE_ACCESS_REVOKED", "CONNECTION_MISSING", "CONNECTION_NOT_CONNECTED", "CONNECTION_REVISION_CHANGED", "MASTER_DISABLED", "EVENT_TYPE_DISABLED", "VEHICLE_SCOPE_CHANGED", "VEHICLE_DISABLED", "CUTOVER_BOUNDARY", "NETWORK", "TIMEOUT", "HTTP_429", "HTTP_4XX", "HTTP_5XX", "INVALID_RESPONSE", "MAX_ATTEMPTS", "MAX_AGE"]);
 
 function uuid(value: string, label: string): string { if (!UUID.test(value)) throw new TypeError(`Invalid ${label}`); return value; }
 function failureCode(value: RecipientDeliveryFailureCode): RecipientDeliveryFailureCode { if (!failureCodes.has(value)) throw new TypeError("Invalid recipient delivery failure code"); return value; }
@@ -43,7 +44,7 @@ function evaluate(row: DeliveryForRecheck, timezone: string): RecipientDispatchE
 
 @Injectable()
 export class RecipientDeliveryRepository {
-  public constructor(private readonly database: DatabaseService) {}
+  public constructor(private readonly database: DatabaseService, private readonly scopes: VehicleScopeService) {}
 
   public async expireOverAge(): Promise<void> {
     await this.database.getClient().alertNotificationDelivery.updateMany({ where: { status: { in: [AlertNotificationDeliveryStatus.PENDING, AlertNotificationDeliveryStatus.SENDING] }, createdAt: { lte: new Date(Date.now() - RECIPIENT_DELIVERY_MAX_AGE_MS) } }, data: { status: AlertNotificationDeliveryStatus.FAILED, leaseUntil: null, leaseToken: null, lastFailureCode: "MAX_AGE" } });
@@ -73,7 +74,15 @@ export class RecipientDeliveryRepository {
     if (delivery === null) return { kind: "LOST_LEASE" };
     const settings = await client.applicationSettings.findUnique({ where: { id: 1 }, select: { timezone: true } });
     if (settings === null) return { kind: "SUPPRESS", code: "VEHICLE_DISABLED" };
-    return evaluate(delivery, settings.timezone);
+    const eligibility = evaluate(delivery, settings.timezone);
+    if (eligibility.kind !== "ELIGIBLE") return eligibility;
+    try {
+      if (!(await this.scopes.canAccess(delivery.userId, delivery.notification.alertEvent.vehicleId))) return { kind: "SUPPRESS", code: "VEHICLE_ACCESS_REVOKED" };
+    } catch (error) {
+      if (error instanceof VehicleScopeSubjectNotFoundError) return { kind: "SUPPRESS", code: "VEHICLE_ACCESS_REVOKED" };
+      throw error;
+    }
+    return eligibility;
   }
 
   public async markSuppressed(id: string, leaseToken: string, code: RecipientDeliveryFailureCode): Promise<void> { await this.transition(id, leaseToken, { status: AlertNotificationDeliveryStatus.SUPPRESSED, suppressedAt: new Date(), leaseUntil: null, leaseToken: null, lastFailureCode: failureCode(code) }); }

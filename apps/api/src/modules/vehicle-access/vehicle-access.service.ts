@@ -31,6 +31,30 @@ export function applyObservationScope(scope: VehicleScope, where: Prisma.Vehicle
   return scope.kind === "UNRESTRICTED" ? where : { AND: [where, { vehicle: scope.where }] };
 }
 
+export function usersWithProductAccessToVehicleWhere(vehicleId: string): Prisma.AuthUserWhereInput {
+  return {
+    OR: [
+      { role: AuthRole.ADMIN },
+      { vehicleAccessMode: VehicleAccessMode.ALL },
+      {
+        AND: [
+          { vehicleAccessMode: VehicleAccessMode.SELECTED },
+          {
+            OR: [
+              { vehicleGrants: { some: { vehicleId } } },
+              { vehicleGroupGrants: { some: { group: { vehicles: { some: { id: vehicleId } } } } } },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export function authorizedNotificationSelectionWhere(userId: string, scope: VehicleScope): Prisma.UserNotificationVehicleWhereInput {
+  return scope.kind === "UNRESTRICTED" ? { userId } : { userId, vehicle: scope.where };
+}
+
 @Injectable()
 export class VehicleScopeService {
   public constructor(private readonly database: DatabaseService) {}

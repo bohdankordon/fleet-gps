@@ -6,6 +6,8 @@ import type { ApiConfig } from "../../config/api-config";
 import { API_CONFIG } from "../../config/api-config.tokens";
 import { AuditEventRepository, buildTelegramDisconnectedAuditEvent, buildTelegramLinkedAuditEvent, type AuditUserActor } from "../audit";
 import { DatabaseService } from "../database/database.service";
+import { applyVehicleScope, authorizedNotificationSelectionWhere } from "../vehicle-access/vehicle-access.service";
+import { VehicleScopeService } from "../vehicle-access/vehicle-access.service";
 import { TelegramLinkRateLimiter } from "./telegram-link-rate-limiter";
 import { TELEGRAM_PRODUCT_BOT_TRANSPORT, type TelegramProductBotTransport } from "./telegram-product-bot.transport";
 
@@ -38,28 +40,43 @@ function preferenceInput(value: unknown, allowVehicles: boolean): Readonly<{ exp
 
 @Injectable()
 export class TelegramLinkingService {
-  public constructor(private readonly database: DatabaseService, private readonly audit: AuditEventRepository, @Inject(API_CONFIG) private readonly config: ApiConfig, private readonly limiter: TelegramLinkRateLimiter, @Inject(TELEGRAM_PRODUCT_BOT_TRANSPORT) private readonly bot: TelegramProductBotTransport) {}
+  public constructor(private readonly database: DatabaseService, private readonly audit: AuditEventRepository, @Inject(API_CONFIG) private readonly config: ApiConfig, private readonly limiter: TelegramLinkRateLimiter, @Inject(TELEGRAM_PRODUCT_BOT_TRANSPORT) private readonly bot: TelegramProductBotTransport, private readonly scopes: VehicleScopeService) {}
 
   public enabled(): boolean { return this.config.telegramProductLinking?.enabled === true; }
   public async preferences(userId: string, permissions: readonly string[]): Promise<NotificationPreferencesView> {
     const allowed = canSelectVehicles(permissions); const client = this.database.getClient();
-    const [stored, vehicles] = await Promise.all([client.userNotificationPreferences.findUnique({ where: { userId }, include: { vehicles: { orderBy: { vehicleId: "asc" } } } }), allowed ? client.vehicle.findMany({ orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, disabled: true } }) : Promise.resolve([])]);
+    const scope = allowed ? await this.scopes.resolve(userId) : null;
+    const [stored, vehicles] = await Promise.all([client.userNotificationPreferences.findUnique({ where: { userId }, include: { vehicles: { orderBy: { vehicleId: "asc" } } } }), allowed && scope ? client.vehicle.findMany({ where: applyVehicleScope(scope), orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, disabled: true } }) : Promise.resolve([])]);
     const base = stored ? { enabled: stored.enabled, speedingEnabled: stored.speedingEnabled, inactivityEnabled: stored.inactivityEnabled, vehicleScope: stored.vehicleScope, selectedVehicleIds: stored.vehicles.map(({ vehicleId }) => vehicleId), revision: stored.revision } : DEFAULT_PREFERENCES;
-    return Object.freeze({ enabled: base.enabled, speedingEnabled: base.speedingEnabled, inactivityEnabled: base.inactivityEnabled, vehicleScope: base.vehicleScope, selectedVehicleIds: Object.freeze(allowed ? base.selectedVehicleIds : []), revision: base.revision, canSelectVehicles: allowed, vehicles: Object.freeze(vehicles) });
+    const authorizedIds = new Set(vehicles.map((vehicle) => vehicle.id));
+    const visibleSelected = allowed ? base.selectedVehicleIds.filter((vehicleId) => authorizedIds.has(vehicleId)) : [];
+    return Object.freeze({ enabled: base.enabled, speedingEnabled: base.speedingEnabled, inactivityEnabled: base.inactivityEnabled, vehicleScope: base.vehicleScope, selectedVehicleIds: Object.freeze(visibleSelected), revision: base.revision, canSelectVehicles: allowed, vehicles: Object.freeze(vehicles) });
   }
   public async updatePreferences(userId: string, permissions: readonly string[], value: unknown): Promise<NotificationPreferencesView> {
     const allowed = canSelectVehicles(permissions); const input = preferenceInput(value, allowed); const client = this.database.getClient();
+    const scope = allowed ? await this.scopes.resolve(userId) : null;
     await client.$transaction(async (tx) => {
       const current = await tx.userNotificationPreferences.findUnique({ where: { userId } });
       if (!current) {
         if (input.expectedRevision !== 0) throw new NotificationPreferencesError("CONFLICT");
-        if (allowed) { const count = await tx.vehicle.count({ where: { id: { in: [...input.selectedVehicleIds] } } }); if (count !== input.selectedVehicleIds.length) throw new NotificationPreferencesError("INVALID_INPUT"); }
+        if (allowed && scope) { const count = input.selectedVehicleIds.length === 0 ? 0 : await tx.vehicle.count({ where: applyVehicleScope(scope, { id: { in: [...input.selectedVehicleIds] } }) }); if (count !== input.selectedVehicleIds.length) throw new NotificationPreferencesError("INVALID_INPUT"); }
         try { await tx.userNotificationPreferences.create({ data: { userId, enabled: input.enabled, speedingEnabled: input.speedingEnabled, inactivityEnabled: input.inactivityEnabled, vehicleScope: allowed ? input.vehicleScope as NotificationVehicleScope : NotificationVehicleScope.ALL, ...(allowed ? { vehicles: { createMany: { data: input.selectedVehicleIds.map((vehicleId) => ({ vehicleId })) } } } : {}) } }); }
         catch (error) { if (duplicate(error)) throw new NotificationPreferencesError("CONFLICT"); throw error; }
         return;
       }
       if (current.revision !== input.expectedRevision) throw new NotificationPreferencesError("CONFLICT");
-      if (allowed) { const count = await tx.vehicle.count({ where: { id: { in: [...input.selectedVehicleIds] } } }); if (count !== input.selectedVehicleIds.length) throw new NotificationPreferencesError("INVALID_INPUT"); await tx.userNotificationVehicle.deleteMany({ where: { userId } }); if (input.selectedVehicleIds.length) await tx.userNotificationVehicle.createMany({ data: input.selectedVehicleIds.map((vehicleId) => ({ userId, vehicleId })) }); }
+      if (allowed && scope) {
+        const submitted = [...input.selectedVehicleIds];
+        const authorizedCount = submitted.length === 0 ? 0 : await tx.vehicle.count({ where: applyVehicleScope(scope, { id: { in: submitted } }) });
+        if (authorizedCount !== submitted.length) throw new NotificationPreferencesError("INVALID_INPUT");
+        const existing = await tx.userNotificationVehicle.findMany({ where: { userId }, select: { vehicleId: true } });
+        const authorizedExisting = await tx.userNotificationVehicle.findMany({ where: authorizedNotificationSelectionWhere(userId, scope), select: { vehicleId: true } });
+        const authorizedSet = new Set(authorizedExisting.map((row) => row.vehicleId));
+        const dormant = existing.map((row) => row.vehicleId).filter((vehicleId) => !authorizedSet.has(vehicleId));
+        const merged = [...new Set([...submitted, ...dormant])];
+        await tx.userNotificationVehicle.deleteMany({ where: { userId } });
+        if (merged.length) await tx.userNotificationVehicle.createMany({ data: merged.map((vehicleId) => ({ userId, vehicleId })) });
+      }
       const updated = await tx.userNotificationPreferences.updateMany({ where: { userId, revision: input.expectedRevision }, data: { enabled: input.enabled, speedingEnabled: input.speedingEnabled, inactivityEnabled: input.inactivityEnabled, ...(allowed ? { vehicleScope: input.vehicleScope as NotificationVehicleScope } : {}), revision: { increment: 1 } } }); if (updated.count !== 1) throw new NotificationPreferencesError("CONFLICT");
     });
     return this.preferences(userId, permissions);
