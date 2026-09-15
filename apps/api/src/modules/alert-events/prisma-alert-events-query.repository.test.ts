@@ -9,14 +9,14 @@ import { UNRESTRICTED_VEHICLE_SCOPE } from "../vehicle-access/vehicle-access.ser
 
 const VEHICLE_ID = "00000000-0000-4000-8000-000000000001";
 const AT = new Date("2026-08-08T10:00:00.000Z");
-const baseParams: AlertEventsQueryParams = { status: undefined, type: undefined, vehicleId: undefined, limit: 2, cursor: undefined };
+const baseParams: AlertEventsQueryParams = { status: undefined, type: undefined, vehicleId: undefined, group: { kind: "ALL" }, limit: 2, cursor: undefined };
 
 function stored(id: string, confirmedAt = AT) {
   return {
     id, type: AlertEventType.SPEEDING, status: AlertEventStatus.OPEN, confirmedAt, resolvedAt: null,
     speedZone: AlertEventSpeedZone.CITY, confirmationSpeedKph: 70, lastSpeedKph: 70, peakSpeedKph: 70, speedThresholdKph: 60,
     confirmationTraveledDistanceMeters: null, lastTraveledDistanceMeters: null, minimumTraveledDistanceMeters: null, distanceThresholdMeters: null, durationThresholdMinutes: null,
-    vehicle: { id: VEHICLE_ID, name: "Vehicle" }, notificationOutbox: [{ status: AlertNotificationStatus.PENDING }],
+    vehicle: { id: VEHICLE_ID, name: "Vehicle", group: null }, notificationOutbox: [{ status: AlertNotificationStatus.PENDING }],
   };
 }
 
@@ -74,7 +74,7 @@ test("OPEN map uses one bounded deterministic read with an explicit coordinate-f
   let args: unknown;
   let reads = 0;
   let writes = 0;
-  const mapRow = { type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Vehicle" } };
+  const mapRow = { type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Vehicle", group: null } };
   const rows = Array.from({ length: MAX_OPEN_ALERT_MAP_EVENTS + 1 }, () => mapRow);
   const client = { alertEvent: {
     findMany: async (value: unknown) => { reads += 1; args = value; return rows; },
@@ -89,14 +89,14 @@ test("OPEN map uses one bounded deterministic read with an explicit coordinate-f
     where: { status: AlertEventStatus.OPEN },
     orderBy: [{ vehicle: { name: "asc" } }, { vehicleId: "asc" }, { type: "asc" }, { confirmedAt: "asc" }, { id: "asc" }],
     take: MAX_OPEN_ALERT_MAP_EVENTS + 1,
-    select: { type: true, confirmedAt: true, vehicle: { select: { id: true, name: true } } },
+    select: { type: true, confirmedAt: true, vehicle: { select: { id: true, name: true, group: { select: { id: true, name: true } } } } },
   });
   const serialized = JSON.stringify(args);
   for (const forbidden of ["currentState", "latitude", "longitude", "activeKey", "dedupeKey", "notificationOutbox", "confirmations", "createdAt", "updatedAt"]) assert.equal(serialized.includes(forbidden), false, forbidden);
 });
 
 test("OPEN map includes alerts regardless of whether the related vehicle has CurrentState", async () => {
-  const row = { type: AlertEventType.INACTIVITY, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "No position" } };
+  const row = { type: AlertEventType.INACTIVITY, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "No position", group: null } };
   const client = { alertEvent: { findMany: async () => [row] } } as unknown as PrismaClient;
   assert.deepEqual(await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getOpenMapSnapshot(UNRESTRICTED_VEHICLE_SCOPE), { rows: [row], exceededLimit: false });
 });
@@ -117,8 +117,8 @@ test("opening range is inclusive/exclusive and composes with status, type, vehic
 });
 test("vehicle options use only vehicles represented in Events and select identity without writes", async () => {
   let query: unknown;
-  const client = { vehicle: { findMany: async (args: unknown) => { query = args; return [{ id: VEHICLE_ID, name: "DEMO" }]; } } } as unknown as PrismaClient;
+  const client = { vehicle: { findMany: async (args: unknown) => { query = args; return [{ id: VEHICLE_ID, name: "DEMO", group: null }]; } } } as unknown as PrismaClient;
   const result = await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getVehicleOptions(UNRESTRICTED_VEHICLE_SCOPE);
-  assert.deepEqual(query, { where: { alertEvents: { some: {} } }, select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }] });
-  assert.deepEqual(result, [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO" }]);
+  assert.deepEqual(query, { where: { alertEvents: { some: {} } }, select: { id: true, name: true, group: { select: { id: true, name: true } } }, orderBy: [{ name: "asc" }, { id: "asc" }] });
+  assert.deepEqual(result, [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO", group: null }]);
 });

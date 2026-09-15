@@ -93,8 +93,8 @@ test("Fleet keeps one collapsible filter surface below the summary and directly 
   assert.doesNotMatch(dashboard, /const reset = activeFilterCount > 0 \?/);
   assert.doesNotMatch(dashboard, /<Button type="link"[^>]*>\{t\("dashboard\.toolbar\.resetFilters"\)\}/);
   assert.match(dashboard, /event\.stopPropagation\(\); onResetFilters\(\);/);
-  assert.match(dashboard, /activeFilterCount = Number\(Boolean\(query\.status\)\) \+ Number\(Boolean\(query\.activity\)\) \+ Number\(query\.includeDisabled === false\)/);
-  assert.match(dashboard, /const resetFilters = \(\) => commitQuery\(\{ \.\.\.queryRef\.current, status: undefined, activity: undefined, includeDisabled: true \}, FLEET_SEARCH_DEBOUNCE_MS\);/);
+  assert.match(dashboard, /activeFilterCount = Number\(Boolean\(query\.status\)\) \+ Number\(Boolean\(query\.activity\)\) \+ Number\(query\.includeDisabled === false\) \+ Number\(Boolean\(query.group\)\)/);
+  assert.match(dashboard, /const resetFilters = \(\) => commitQuery\(\{ \.\.\.queryRef\.current, status: undefined, activity: undefined, includeDisabled: true, group: undefined \}, FLEET_SEARCH_DEBOUNCE_MS\);/);
   assert.match(dashboard, /onResetFilters=\{resetFilters\}/);
   assert.doesNotMatch(dashboard, /dashboard\.toolbar\.list/);
   for (const label of ["dashboard.toolbar.filters", "dashboard.filters.status", "dashboard.filters.activity", "dashboard.sort.label"]) assert.ok(dashboard.includes(`t("${label}")`), label);
@@ -153,7 +153,7 @@ test("Fleet operational table improves scanability without changing its data or 
   assert.match(dashboard, /paddingBlock: token\.paddingSM/);
   assert.match(dashboard, /CarOutlined/);
   assert.match(dashboard, /styles=\{\{ root: \{ border: `\$\{token\.lineWidth\}px \$\{token\.lineType\} \$\{token\.colorBorder\}`, borderRadius: token\.borderRadiusLG, background: token\.colorBgContainer, overflow: "hidden" \}, header: \{ cell: headerCellStyle \} \}\}/);
-  assert.match(dashboard, /function VehicleIdentity[\s\S]*?<CarOutlined className="fleet-vehicle-link__car" style=\{\{ color: token\.colorTextTertiary \}\} aria-hidden \/><span className="fleet-vehicle-identity__content"><VehicleDetailLink vehicle=\{vehicle\} table=\{table\} \/>\{vehicle\.disabled \? <DisabledVehicleTag label=\{disabledLabel\} table=\{table\} \/> : null\}<\/span><\/span>/);
+  assert.match(dashboard, /function VehicleIdentity[\s\S]*?<CarOutlined className="fleet-vehicle-link__car" style=\{\{ color: token\.colorTextTertiary \}\} aria-hidden \/><span className="fleet-vehicle-identity__content"><VehicleDetailLink vehicle=\{vehicle\} table=\{table\} \/><VehicleGroupTag group=\{vehicle\.group\} \/>\{vehicle\.disabled \? <DisabledVehicleTag label=\{disabledLabel\} table=\{table\} \/> : null\}<\/span><\/span>/);
   assert.match(dashboard, /function VehicleDetailLink[\s\S]*?<Link className=\{`fleet-vehicle-link \$\{table \? "fleet-table__vehicle-link" : "fleet-mobile__vehicle-link"\}`\} href=\{`\/vehicles\/\$\{vehicle\.id\}`\}/);
   assert.match(dashboard, /<Link[^>]*><Paragraph className="fleet-vehicle-link__name" style=\{\{ color: "inherit", margin: 0 \}\}/);
   assert.match(dashboard, /\{vehicle\.name\}<\/Paragraph><\/Link>/);
@@ -187,7 +187,7 @@ test("Fleet vehicle identity gives enabled and disabled names deterministic line
   assert.match(styles, /fleet-vehicle-link \{[^}]*width: fit-content;[^}]*max-width: 100%/);
   assert.match(dashboard, /ellipsis=\{\{ rows: vehicle\.disabled \? 1 : 2, tooltip: vehicle\.name \}\}/);
   assert.match(dashboard, /<CarOutlined[^>]*aria-hidden \/><span className="fleet-vehicle-identity__content">/);
-  assert.match(dashboard, /<VehicleDetailLink vehicle=\{vehicle\} table=\{table\} \/>\{vehicle\.disabled \? <DisabledVehicleTag/);
+  assert.match(dashboard, /<VehicleDetailLink vehicle=\{vehicle\} table=\{table\} \/><VehicleGroupTag group=\{vehicle\.group\} \/>\{vehicle\.disabled \? <DisabledVehicleTag/);
   assert.doesNotMatch(dashboard.slice(dashboard.indexOf("function VehicleDetailLink"), dashboard.indexOf("function DisabledVehicleTag")), /<Tag|DisabledVehicleTag/);
   assert.doesNotMatch(dashboard, /onRow=/);
 });

@@ -14,7 +14,7 @@ function point(observedAt = from, overrides: Partial<StoredVehicleTrackPoint> = 
   return { observedAt, latitude: 49.2, longitude: 28.4, speedKph: null, valid: null, outdated: null, ...overrides };
 }
 
-function service(points: readonly StoredVehicleTrackPoint[], vehicle: { id: string; name: string } | null = { id: vehicleId, name: "Taxi" }) {
+function service(points: readonly StoredVehicleTrackPoint[], vehicle: { id: string; name: string; group: { id: string; name: string } | null } | null = { id: vehicleId, name: "Taxi", group: null }) {
   const repository: VehicleTrackQueryRepository = { getSnapshot: async () => ({ vehicle, points }) };
   return new VehicleTrackQueryService(repository, { now: () => now }, unrestrictedScopes);
 }
@@ -24,7 +24,7 @@ test("maps empty, single, and multiple point summaries with exact safe fields", 
   assert.deepEqual(empty.summary, { pointCount: 0, firstObservedAt: null, lastObservedAt: null });
   const one = await service([point(from, { speedKph: 0, valid: false, outdated: true })]).getTrack(vehicleId, from, to, testUserId);
   assert.deepEqual(one, {
-    generatedAt: now.toISOString(), vehicle: { id: vehicleId, name: "Taxi" }, range: { from: from.toISOString(), to: to.toISOString() },
+    generatedAt: now.toISOString(), vehicle: { id: vehicleId, name: "Taxi", group: null }, range: { from: from.toISOString(), to: to.toISOString() },
     summary: { pointCount: 1, firstObservedAt: from.toISOString(), lastObservedAt: from.toISOString() },
     points: [{ latitude: 49.2, longitude: 28.4, observedAt: from.toISOString(), speedKph: 0, valid: false, outdated: true }],
   });
@@ -38,7 +38,7 @@ test("maps empty, single, and multiple point summaries with exact safe fields", 
 
 test("captures generatedAt once after the complete repository snapshot", async () => {
   const calls: string[] = [];
-  const repository: VehicleTrackQueryRepository = { getSnapshot: async () => { calls.push("repository"); return { vehicle: { id: vehicleId, name: "Taxi" }, points: [] }; } };
+  const repository: VehicleTrackQueryRepository = { getSnapshot: async () => { calls.push("repository"); return { vehicle: { id: vehicleId, name: "Taxi", group: null }, points: [] }; } };
   let clockCalls = 0;
   const query = new VehicleTrackQueryService(repository, { now: () => { calls.push("clock"); clockCalls += 1; return now; } }, unrestrictedScopes);
   await query.getTrack(vehicleId, from, to, testUserId);
@@ -56,7 +56,7 @@ test("distinguishes unknown vehicle and fails safely on corrupt or unordered sto
   await assert.rejects(service([], null).getTrack(vehicleId, from, to, testUserId), VehicleTrackNotFoundError);
   await assert.rejects(service([point(from, { latitude: Number.NaN })]).getTrack(vehicleId, from, to, testUserId), VehicleTrackStateError);
   await assert.rejects(service([point(to), point(from)]).getTrack(vehicleId, from, to, testUserId), VehicleTrackStateError);
-  await assert.rejects(new VehicleTrackQueryService({ getSnapshot: async () => ({ vehicle: { id: vehicleId, name: "Taxi" }, points: [] }) }, { now: () => new Date(Number.NaN) }, unrestrictedScopes).getTrack(vehicleId, from, to, testUserId), VehicleTrackStateError);
+  await assert.rejects(new VehicleTrackQueryService({ getSnapshot: async () => ({ vehicle: { id: vehicleId, name: "Taxi", group: null }, points: [] }) }, { now: () => new Date(Number.NaN) }, unrestrictedScopes).getTrack(vehicleId, from, to, testUserId), VehicleTrackStateError);
 });
 
 test("preserves coordinate boundaries, nullable quality, and non-negative finite speed", async () => {

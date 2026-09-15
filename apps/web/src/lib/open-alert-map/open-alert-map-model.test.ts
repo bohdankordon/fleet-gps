@@ -11,16 +11,16 @@ const fleet: FleetMapResponse = {
   generatedAt: "2026-08-10T12:00:00.000Z", positionFreshnessSeconds: 300,
   summary: { totalVehicles: 2, withPosition: 2, withoutPosition: 0, invalidPosition: 0, fresh: 1, stale: 1 },
   vehicles: [
-    { vehicle: { id: idA, name: "Alpha" }, position: { latitude: 49, longitude: 28, observedAt: "2026-08-10T11:59:00.000Z" }, speedKph: 20, freshness: "FRESH" },
-    { vehicle: { id: idB, name: "Beta" }, position: { latitude: 50, longitude: 29, observedAt: "2026-08-10T11:00:00.000Z" }, speedKph: null, freshness: "STALE" },
+    { vehicle: { id: idA, name: "Alpha", group: null }, position: { latitude: 49, longitude: 28, observedAt: "2026-08-10T11:59:00.000Z" }, speedKph: 20, freshness: "FRESH" },
+    { vehicle: { id: idB, name: "Beta", group: null }, position: { latitude: 50, longitude: 29, observedAt: "2026-08-10T11:00:00.000Z" }, speedKph: null, freshness: "STALE" },
   ],
 };
 const alerts: OpenAlertMapResponse = {
   generatedAt: "2026-08-10T12:00:01.000Z",
   summary: { totalOpenAlerts: 3, vehiclesWithOpenAlerts: 2, speeding: 2, inactivity: 1 },
   vehicles: [
-    { vehicle: { id: idA, name: "Alpha" }, alerts: [{ type: "INACTIVITY", openedAt: "2026-08-10T10:01:00.000Z" }, { type: "SPEEDING", openedAt: "2026-08-10T10:00:00.000Z" }] },
-    { vehicle: { id: idMissing, name: "Missing" }, alerts: [{ type: "SPEEDING", openedAt: "2026-08-10T09:00:00.000Z" }] },
+    { vehicle: { id: idA, name: "Alpha", group: null }, alerts: [{ type: "INACTIVITY", openedAt: "2026-08-10T10:01:00.000Z" }, { type: "SPEEDING", openedAt: "2026-08-10T10:00:00.000Z" }] },
+    { vehicle: { id: idMissing, name: "Missing", group: null }, alerts: [{ type: "SPEEDING", openedAt: "2026-08-10T09:00:00.000Z" }] },
   ],
 };
 

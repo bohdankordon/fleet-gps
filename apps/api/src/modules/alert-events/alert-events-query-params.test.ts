@@ -7,9 +7,9 @@ const EVENT_ID = "00000000-0000-4000-8000-000000000002";
 const OPENED_AT = new Date("2026-08-08T10:00:00.000Z");
 
 test("parses defaults and every supported alert-event filter", () => {
-  assert.deepEqual(parseAlertEventsQueryParams({}), { status: undefined, type: undefined, vehicleId: undefined, limit: DEFAULT_ALERT_EVENTS_PAGE_SIZE, cursor: undefined });
-  assert.deepEqual(parseAlertEventsQueryParams({ status: "OPEN", type: "SPEEDING", vehicleId: VEHICLE_ID, limit: "25", ignored: "safe" }), { status: "OPEN", type: "SPEEDING", vehicleId: VEHICLE_ID, limit: 25, cursor: undefined });
-  assert.deepEqual(parseAlertEventsQueryParams({ status: "RESOLVED", type: "INACTIVITY" }), { status: "RESOLVED", type: "INACTIVITY", vehicleId: undefined, limit: DEFAULT_ALERT_EVENTS_PAGE_SIZE, cursor: undefined });
+  assert.deepEqual(parseAlertEventsQueryParams({}), { status: undefined, type: undefined, vehicleId: undefined, group: { kind: "ALL" }, limit: DEFAULT_ALERT_EVENTS_PAGE_SIZE, cursor: undefined });
+  assert.deepEqual(parseAlertEventsQueryParams({ status: "OPEN", type: "SPEEDING", vehicleId: VEHICLE_ID, limit: "25", ignored: "safe" }), { status: "OPEN", type: "SPEEDING", vehicleId: VEHICLE_ID, group: { kind: "ALL" }, limit: 25, cursor: undefined });
+  assert.deepEqual(parseAlertEventsQueryParams({ status: "RESOLVED", type: "INACTIVITY" }), { status: "RESOLVED", type: "INACTIVITY", vehicleId: undefined, group: { kind: "ALL" }, limit: DEFAULT_ALERT_EVENTS_PAGE_SIZE, cursor: undefined });
 });
 
 test("round-trips a deterministic opaque keyset cursor", () => {

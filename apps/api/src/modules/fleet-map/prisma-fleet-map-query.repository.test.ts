@@ -14,7 +14,7 @@ test("reads one bounded deterministic snapshot with explicit safe selects and no
   let transactionOptions: unknown;
   const transaction = {
     applicationSettings: { findUnique: async (args: unknown) => { settingsArgs = args; return { positionFreshnessSeconds: 300 }; } },
-    vehicle: { findMany: async (args: unknown) => { vehicleArgs = args; return [{ id: "id", name: "Taxi", currentState: null }]; } },
+    vehicle: { findMany: async (args: unknown) => { vehicleArgs = args; return [{ id: "id", name: "Taxi", group: null, currentState: null }]; } },
   };
   const client = {
     $transaction: async (callback: (value: typeof transaction) => Promise<unknown>, options: unknown) => {
@@ -24,7 +24,7 @@ test("reads one bounded deterministic snapshot with explicit safe selects and no
     },
   } as unknown as PrismaClient;
   const repository = new PrismaFleetMapQueryRepository({ getClient: () => client } as unknown as DatabaseService);
-  assert.deepEqual(await repository.getSnapshot(UNRESTRICTED_VEHICLE_SCOPE), { positionFreshnessSeconds: 300, vehicles: [{ id: "id", name: "Taxi", currentState: null }] });
+  assert.deepEqual(await repository.getSnapshot(UNRESTRICTED_VEHICLE_SCOPE), { positionFreshnessSeconds: 300, vehicles: [{ id: "id", name: "Taxi", group: null, currentState: null }] });
   assert.equal(transactions, 1);
   assert.deepEqual(transactionOptions, { timeout: 10_000 });
   assert.deepEqual(settingsArgs, { where: { id: 1 }, select: { positionFreshnessSeconds: true } });
@@ -35,6 +35,7 @@ test("reads one bounded deterministic snapshot with explicit safe selects and no
     select: {
       id: true,
       name: true,
+      group: { select: { id: true, name: true } },
       currentState: { select: { fixTime: true, latitude: true, longitude: true, speedKph: true, valid: true, outdated: true } },
     },
   });

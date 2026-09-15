@@ -22,7 +22,7 @@ function linking(client: unknown, scope: VehicleScope | null) {
 }
 
 test("B2 preferences read exposes only authorized vehicles", async () => {
-  const authorized = [{ id: vehicleA, name: "Car A", disabled: false }, { id: vehicleB, name: "Car B", disabled: false }];
+  const authorized = [{ id: vehicleA, name: "Car A", disabled: false, groupId: null, groupName: null }, { id: vehicleB, name: "Car B", disabled: false, groupId: null, groupName: null }];
   let vehicleWhere: unknown;
   const client = {
     userNotificationPreferences: { findUnique: async () => null },
@@ -35,7 +35,7 @@ test("B2 preferences read exposes only authorized vehicles", async () => {
 });
 
 test("B2 hidden stored selections are dormant, preserved, and restorable", async () => {
-  const authorized = [{ id: vehicleB, name: "Car B", disabled: false }];
+  const authorized = [{ id: vehicleB, name: "Car B", disabled: false, groupId: null, groupName: null }];
   const storedIds = [vehicleB, vehicleD];
   const client = {
     userNotificationPreferences: { findUnique: async () => ({ enabled: true, speedingEnabled: true, inactivityEnabled: true, vehicleScope: "SELECTED", revision: 1, vehicles: storedIds.map((vehicleId) => ({ vehicleId })) }) },

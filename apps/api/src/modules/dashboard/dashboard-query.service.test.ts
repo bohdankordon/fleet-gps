@@ -10,9 +10,9 @@ const now = new Date("2026-08-05T21:30:00.000Z");
 const testUserId = "00000000-0000-4000-8000-000000000001";
 const unrestrictedScopes = { resolve: async () => UNRESTRICTED_VEHICLE_SCOPE } as unknown as import("../vehicle-access/vehicle-access.service").VehicleScopeService;
 const rows: readonly DashboardStoredVehicle[] = [
-  { id: "b", name: " beta ", disabled: true, currentState: { status: VehicleStatus.OFFLINE, externalLastUpdateAt: null, fixTime: null, speedKph: null, valid: null, outdated: null }, dailyStat: null },
-  { id: "a", name: "Alpha", disabled: false, currentState: { status: VehicleStatus.ONLINE, externalLastUpdateAt: new Date("2026-08-05T21:00:00.000Z"), fixTime: new Date("2026-08-05T21:29:00.000Z"), speedKph: 33.5, valid: true, outdated: false }, dailyStat: { distanceMeters: { toNumber: () => 500 }, source: DailyStatSource.RUNS, quality: DataQuality.PROVISIONAL, isStale: false, isDegraded: false } },
-  { id: "c", name: "alpha", disabled: false, currentState: { status: VehicleStatus.UNKNOWN, externalLastUpdateAt: null, fixTime: new Date("2026-08-05T21:31:30.000Z"), speedKph: null, valid: false, outdated: true }, dailyStat: { distanceMeters: { toNumber: () => 499.99 }, source: DailyStatSource.MODE1, quality: DataQuality.EXACT, isStale: false, isDegraded: false } },
+  { id: "b", name: " beta ", disabled: true, group: null, currentState: { status: VehicleStatus.OFFLINE, externalLastUpdateAt: null, fixTime: null, speedKph: null, valid: null, outdated: null }, dailyStat: null },
+  { id: "a", name: "Alpha", disabled: false, group: { id: "11111111-1111-4111-8111-111111111111", name: "Taxi" }, currentState: { status: VehicleStatus.ONLINE, externalLastUpdateAt: new Date("2026-08-05T21:00:00.000Z"), fixTime: new Date("2026-08-05T21:29:00.000Z"), speedKph: 33.5, valid: true, outdated: false }, dailyStat: { distanceMeters: { toNumber: () => 500 }, source: DailyStatSource.RUNS, quality: DataQuality.PROVISIONAL, isStale: false, isDegraded: false } },
+  { id: "c", name: "alpha", disabled: false, group: null, currentState: { status: VehicleStatus.UNKNOWN, externalLastUpdateAt: null, fixTime: new Date("2026-08-05T21:31:30.000Z"), speedKph: null, valid: false, outdated: true }, dailyStat: { distanceMeters: { toNumber: () => 499.99 }, source: DailyStatSource.MODE1, quality: DataQuality.EXACT, isStale: false, isDegraded: false } },
 ];
 function createService(repository: DashboardQueryRepository, clock = { now: (): Date => now }): DashboardQueryService { return new DashboardQueryService(repository, clock, unrestrictedScopes); }
 
@@ -28,6 +28,27 @@ test("builds a filtered read model for Kyiv date without external identifiers or
   assert.equal(result.vehicles[2]?.positionFreshness, "missing");
   assert.deepEqual(result.summary, { total: 3, online: 1, offline: 1, unknown: 1, freshPositions: 1, stalePositions: 1, withoutPosition: 1, belowMinimumDistance: 1, withoutDailyStat: 1 });
   assert.equal(JSON.stringify(result).includes("externalDeviceId"), false); assert.equal(JSON.stringify(result).includes("latitude"), false);
+});
+
+test("exposes scope-safe group options and filters by group without leaking", async () => {
+  const repository: DashboardQueryRepository = { getSettings: async () => ({ timezone: "UTC", minimumDailyDistanceMeters: 500, positionFreshnessSeconds: 300 }), getVehiclesForServiceDate: async () => rows };
+  const service = createService(repository);
+  const all = await service.getVehicles(parseDashboardQueryParams({}), testUserId);
+  assert.deepEqual(all.groups, [{ id: "11111111-1111-4111-8111-111111111111", name: "Taxi" }]);
+  assert.equal(all.hasUngrouped, true);
+  assert.equal(all.vehicles[0]?.group?.name, "Taxi");
+  assert.equal(all.vehicles[1]?.group, null);
+  const grouped = await service.getVehicles(parseDashboardQueryParams({ group: "11111111-1111-4111-8111-111111111111" }), testUserId);
+  assert.deepEqual(grouped.vehicles.map((item) => item.id), ["a"]);
+  assert.deepEqual(grouped.groups, [{ id: "11111111-1111-4111-8111-111111111111", name: "Taxi" }]);
+  assert.deepEqual(grouped.summary.total, 1);
+  const ungrouped = await service.getVehicles(parseDashboardQueryParams({ group: "ungrouped" }), testUserId);
+  assert.deepEqual(ungrouped.vehicles.map((item) => item.id), ["c", "b"]);
+  const unknown = await service.getVehicles(parseDashboardQueryParams({ group: "22222222-2222-4222-8222-222222222222" }), testUserId);
+  assert.deepEqual(unknown.vehicles, []);
+  assert.deepEqual(unknown.summary.total, 0);
+  assert.deepEqual(unknown.groups, [{ id: "11111111-1111-4111-8111-111111111111", name: "Taxi" }]);
+  assert.throws(() => parseDashboardQueryParams({ group: "not-a-group" }), (error: unknown) => error instanceof Error);
 });
 
 test("filters by activity, status, case-insensitive search and disabled state", async () => {

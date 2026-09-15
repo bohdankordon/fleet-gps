@@ -36,7 +36,7 @@ function snapshot(overrides: Partial<StoredVehicleDetailsSnapshot> = {}): Stored
     timezone: "Europe/Kyiv",
     positionFreshnessSeconds: 300,
     serviceDate: new Date("2026-07-01T00:00:00.000Z"),
-    vehicle: { id: VEHICLE_ID, name: "Taxi 7", disabled: false, currentState: CURRENT, dailyStat: { distanceMeters: 12345.67, movementDurationSeconds: 3600, maxSpeedKph: 87.125, source: DailyStatSource.MODE1, quality: DataQuality.EXACT, isStale: false, isDegraded: false } },
+    vehicle: { id: VEHICLE_ID, name: "Taxi 7", disabled: false, group: null, currentState: CURRENT, dailyStat: { distanceMeters: 12345.67, movementDurationSeconds: 3600, maxSpeedKph: 87.125, source: DailyStatSource.MODE1, quality: DataQuality.EXACT, isStale: false, isDegraded: false } },
     activeAlerts: [], activeAlertsExceededLimit: false, recentEvents: [], ...overrides,
   };
 }
@@ -49,7 +49,7 @@ function subject(value: StoredVehicleDetailsSnapshot, calls?: string[]): Vehicle
 test("returns the allow-listed vehicle, current state, Kyiv operational today, and empty alert states", async () => {
   const response = await subject(snapshot()).getDetails(VEHICLE_ID, testUserId);
   assert.deepEqual(response, {
-    generatedAt: NOW.toISOString(), vehicle: { id: VEHICLE_ID, name: "Taxi 7", disabled: false }, connectivity: "ONLINE",
+    generatedAt: NOW.toISOString(), vehicle: { id: VEHICLE_ID, name: "Taxi 7", disabled: false, group: null }, connectivity: "ONLINE",
     currentState: { position: { latitude: 49.2331, longitude: 28.4682, observedAt: "2026-06-30T20:59:01.000Z" }, speedKph: 32.5, freshness: "FRESH" },
     today: { date: "2026-07-01", distanceMeters: 12345.67, movementDurationSeconds: 3600, maxSpeedKph: 87.125, source: "MODE1", quality: "EXACT", isStale: false, isDegraded: false },
     activeAlerts: [], recentEvents: [],
@@ -57,7 +57,7 @@ test("returns the allow-listed vehicle, current state, Kyiv operational today, a
 });
 
 test("missing CurrentState and missing DailyVehicleStat are normal null states", async () => {
-  const value = snapshot({ vehicle: { id: VEHICLE_ID, name: "Taxi 7", disabled: true, currentState: null, dailyStat: null } });
+  const value = snapshot({ vehicle: { id: VEHICLE_ID, name: "Taxi 7", disabled: true, group: null, currentState: null, dailyStat: null } });
   const response = await subject(value).getDetails(VEHICLE_ID, testUserId);
   assert.equal(response.currentState, null);
   assert.equal(response.today, null);
@@ -132,10 +132,10 @@ test("recent events reuse type-specific and notification projections without rep
 
 test("observable shared projections align with fleet-map and alert-events list behavior", async () => {
   const details = await subject(snapshot({ recentEvents: [speedingEvent({ notificationOutbox: [{ status: AlertNotificationStatus.FAILED }] })] })).getDetails(VEHICLE_ID, testUserId);
-  const fleet = await new FleetMapQueryService({ getSnapshot: async () => ({ positionFreshnessSeconds: 300, vehicles: [{ id: VEHICLE_ID, name: "Taxi 7", currentState: CURRENT }] }) }, { now: () => NOW }, unrestrictedScopes).getSnapshot(testUserId);
+  const fleet = await new FleetMapQueryService({ getSnapshot: async () => ({ positionFreshnessSeconds: 300, vehicles: [{ id: VEHICLE_ID, name: "Taxi 7", group: null, currentState: CURRENT }] }) }, { now: () => NOW }, unrestrictedScopes).getSnapshot(testUserId);
   assert.deepEqual(details.currentState, { position: fleet.vehicles[0]?.position, speedKph: fleet.vehicles[0]?.speedKph, freshness: fleet.vehicles[0]?.freshness });
-  const alertRow = { lastObservedAt: NOW, ...speedingEvent({ notificationOutbox: [{ status: AlertNotificationStatus.FAILED }] }), vehicle: { id: VEHICLE_ID, name: "Taxi 7" } };
-  const events = await new AlertEventsQueryService({ getVehicleOptions: async () => [], list: async () => ({ rows: [alertRow], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }) }, { now: () => NOW }, unrestrictedScopes).list({ status: undefined, type: undefined, vehicleId: VEHICLE_ID, limit: 10, cursor: undefined }, testUserId);
+  const alertRow = { lastObservedAt: NOW, ...speedingEvent({ notificationOutbox: [{ status: AlertNotificationStatus.FAILED }] }), vehicle: { id: VEHICLE_ID, name: "Taxi 7", group: null } };
+  const events = await new AlertEventsQueryService({ getVehicleOptions: async () => [], list: async () => ({ rows: [alertRow], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }) }, { now: () => NOW }, unrestrictedScopes).list({ status: undefined, type: undefined, vehicleId: VEHICLE_ID, group: { kind: "ALL" }, limit: 10, cursor: undefined }, testUserId);
   const { vehicle: _vehicle, lastObservedAt: _lastObservedAt, ...scoped } = events.items[0]!;
   assert.deepEqual(details.recentEvents[0], scoped);
 });

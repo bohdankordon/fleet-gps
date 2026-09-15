@@ -22,7 +22,7 @@ test("workspace uses Ant Design with a compact heading, global metrics, chronolo
   for (const state of ["NONE", "PENDING", "SENT", "FAILED"] as const) {
     const html = renderPage({}, [{ ...speeding, notificationDeliveryStatus: state }]);
     for (const forbidden of ["Not sent", "Pending", "Delivery failed", "Telegram", "<table", "events-summary-card"]) assert.ok(!html.includes(forbidden), forbidden);
-    assert.match(html, /Open now/); assert.match(html, /Fleet-wide/); assert.match(html, /aria-pressed="false"/);
+    assert.match(html, /Open now/); assert.match(html, /Accessible fleet/); assert.match(html, /aria-pressed="false"/);
   }
   assert.doesNotMatch(source + detailSource, /notificationDelivery|notificationDeliveryLabel|events.delivery|maplibre/);
   assert.match(source, /from "antd"/); assert.doesNotMatch(styles, /\.ant-/);

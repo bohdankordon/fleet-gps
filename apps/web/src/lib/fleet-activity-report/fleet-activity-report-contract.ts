@@ -15,6 +15,7 @@ const policy = z.object({
 }).strict();
 const row = z.object({
   vehicleId: z.string().uuid(), vehicleName: z.string().min(1).max(255),
+  group: z.object({ id: z.string().uuid(), name: z.string().min(1).max(255) }).strict().nullable(),
   hasGpsData: z.boolean(), rawObservationCount: count,
   firstObservationAt: timestamp.nullable(), lastObservationAt: timestamp.nullable(),
   tripCount: count, observedDistanceMeters: metric, tripDurationSeconds: metric,

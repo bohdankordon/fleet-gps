@@ -48,7 +48,7 @@ const TRACK_MAP_MARKER_CSS_VARS = {
   "--track-marker-outline": VEHICLE_TRACK_PRESENTATION.outline,
 } as CSSProperties;
 
-type Props = Readonly<{ vehicleId: string; initialVehicleName: string | null; initialVehicleGeneratedAt: string | null; initialData: VehicleTrackLoadedData | null; initialRange: VehicleTrackRange | null; initialError: VehicleTrackLoadError; initialGeofence: CityGeofenceMapResponse | null; initialGeofenceUnavailable: boolean }>;
+type Props = Readonly<{ vehicleId: string; initialVehicleName: string | null; initialVehicleGroup?: Readonly<{ id: string; name: string }> | null; initialVehicleGeneratedAt: string | null; initialData: VehicleTrackLoadedData | null; initialRange: VehicleTrackRange | null; initialError: VehicleTrackLoadError; initialGeofence: CityGeofenceMapResponse | null; initialGeofenceUnavailable: boolean }>;
 
 function applyCamera(map: MapLibreMap, model: VehicleTrackPresentationModel, geofence: CityGeofenceMapResponse | null): void {
   const camera = vehicleTrackCamera(model, geofence);
@@ -71,7 +71,7 @@ function TrackSectionTitle({ icon, title }: Readonly<{ icon: ReactNode; title: s
   return <Flex className="vehicle-track__section-title" align="center" gap="small"><span className="vehicle-track__section-icon" aria-hidden style={{ color: token.colorPrimary }}>{icon}</span><span>{title}</span></Flex>;
 }
 
-export function VehicleTrackClient({ vehicleId, initialVehicleName, initialVehicleGeneratedAt, initialData, initialRange, initialError, initialGeofence, initialGeofenceUnavailable }: Props) {
+export function VehicleTrackClient({ vehicleId, initialVehicleName, initialVehicleGroup, initialVehicleGeneratedAt, initialData, initialRange, initialError, initialGeofence, initialGeofenceUnavailable }: Props) {
   const { locale, t } = useI18n();
   const { token } = theme.useToken();
   const [state, setState] = useState(() => initialVehicleTrackRequestState(initialData, initialRange, initialError));
@@ -242,7 +242,7 @@ export function VehicleTrackClient({ vehicleId, initialVehicleName, initialVehic
     </form>
   </div>;
 
-  return <VehicleDetailShell vehicleId={vehicleId} vehicleName={state.data?.response.vehicle.name ?? initialVehicleName ?? t("track.defaultTitle")} activeTab="history" generatedAt={state.data?.response.generatedAt ?? initialVehicleGeneratedAt} showMapAction>
+  return <VehicleDetailShell vehicleId={vehicleId} vehicleName={state.data?.response.vehicle.name ?? initialVehicleName ?? t("track.defaultTitle")} vehicleGroup={state.data?.response.vehicle.group ?? initialVehicleGroup ?? undefined} activeTab="history" generatedAt={state.data?.response.generatedAt ?? initialVehicleGeneratedAt} showMapAction>
     <div className="vehicle-track" style={pageStyle}>
       <section className="vehicle-track__period-bar" aria-label={t("track.controls.label")}>
         <div className="vehicle-track__period-context">

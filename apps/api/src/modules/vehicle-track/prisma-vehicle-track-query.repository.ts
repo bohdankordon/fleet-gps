@@ -13,8 +13,9 @@ export class PrismaVehicleTrackQueryRepository implements VehicleTrackQueryRepos
 
   public async getSnapshot(vehicleId: string, from: Date, to: Date, scope: VehicleScope): Promise<StoredVehicleTrackSnapshot> {
     return this.database.getClient().$transaction(async (transaction) => {
-      const vehicle = await transaction.vehicle.findFirst({ where: applyVehicleScope(scope, { id: vehicleId }), select: { id: true, name: true } });
-      if (!vehicle) return { vehicle: null, points: [] };
+      const stored = await transaction.vehicle.findFirst({ where: applyVehicleScope(scope, { id: vehicleId }), select: { id: true, name: true, group: { select: { id: true, name: true } } } });
+      if (!stored) return { vehicle: null, points: [] };
+      const vehicle = { id: stored.id, name: stored.name, group: stored.group ? { id: stored.group.id, name: stored.group.name } : null };
       const points = await transaction.vehiclePositionObservation.findMany({
         where: { vehicleId, observedAt: { gte: from, lte: to } },
         orderBy: [{ observedAt: "asc" }, { fixFingerprint: "asc" }],

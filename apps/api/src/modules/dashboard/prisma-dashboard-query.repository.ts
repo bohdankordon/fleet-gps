@@ -24,9 +24,10 @@ export class PrismaDashboardQueryRepository implements DashboardQueryRepository 
       where: applyVehicleScope(scope),
       select: {
         id: true, name: true, disabled: true,
+        group: { select: { id: true, name: true } },
         currentState: { select: { status: true, externalLastUpdateAt: true, fixTime: true, speedKph: true, valid: true, outdated: true } },
         dailyStats: { where: { serviceDate: date }, take: 1, select: { distanceMeters: true, source: true, quality: true, isStale: true, isDegraded: true } },
       },
-    }).then((vehicles) => vehicles.map((vehicle) => ({ id: vehicle.id, name: vehicle.name, disabled: vehicle.disabled, currentState: vehicle.currentState, dailyStat: vehicle.dailyStats[0] ?? null }))), { timeout: readTransactionTimeoutMs });
+    }).then((vehicles) => vehicles.map((vehicle) => ({ id: vehicle.id, name: vehicle.name, disabled: vehicle.disabled, group: vehicle.group ? { id: vehicle.group.id, name: vehicle.group.name } : null, currentState: vehicle.currentState, dailyStat: vehicle.dailyStats[0] ?? null }))), { timeout: readTransactionTimeoutMs });
   }
 }

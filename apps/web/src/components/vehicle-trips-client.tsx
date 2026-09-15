@@ -57,6 +57,7 @@ const TRIP_MAP_MARKER_CSS_VARS = {
 type Props = Readonly<{
   vehicleId: string;
   vehicleName: string | null;
+  vehicleGroup?: Readonly<{ id: string; name: string }> | null;
   shellGeneratedAt: string | null;
   initialData: TripAnalysisResponse | null;
   initialRange: VehicleTrackRange;
@@ -85,7 +86,7 @@ function pickerValue(value: string) {
   return parsed?.isValid() ? parsed : null;
 }
 
-export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, initialData, initialRange, initialPreset, initialOpenEnded, initialError, timezone }: Props) {
+export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shellGeneratedAt, initialData, initialRange, initialPreset, initialOpenEnded, initialError, timezone }: Props) {
   const { locale, t } = useI18n();
   const { token } = theme.useToken();
   const [analysis, setAnalysis] = useState(initialData);
@@ -361,7 +362,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, shellGeneratedAt, i
     </form>
   </div>;
 
-  return <VehicleDetailShell vehicleId={vehicleId} vehicleName={vehicleName ?? t("trips.title")} activeTab="trips" generatedAt={shellGeneratedAt}>
+  return <VehicleDetailShell vehicleId={vehicleId} vehicleName={vehicleName ?? t("trips.title")} vehicleGroup={vehicleGroup} activeTab="trips" generatedAt={shellGeneratedAt}>
     <div className="vehicle-trips" style={pageStyle}>
       <section className="vehicle-trips__period-bar" aria-label={t("trips.controls.title")}>
         <div className="vehicle-trips__period-context">

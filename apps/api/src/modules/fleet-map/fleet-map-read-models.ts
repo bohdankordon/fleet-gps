@@ -1,7 +1,9 @@
+import type { VehicleGroupRef } from "../vehicle-access/vehicle-access.types";
+
 export type FleetMapPositionFreshness = "FRESH" | "STALE";
 
 export type FleetMapVehicleReadModel = Readonly<{
-  vehicle: Readonly<{ id: string; name: string }>;
+  vehicle: Readonly<{ id: string; name: string; group: VehicleGroupRef | null }>;
   position: Readonly<{ latitude: number; longitude: number; observedAt: string }>;
   speedKph: number | null;
   freshness: FleetMapPositionFreshness;

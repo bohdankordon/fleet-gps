@@ -5,7 +5,7 @@ import type { MessageKey } from "../../i18n/messages";
 
 export type VehicleScope = "ALL" | "SELECTED";
 
-export type PreferenceVehicle = Readonly<{ id: string; name: string; disabled: boolean }>;
+export type PreferenceVehicle = Readonly<{ id: string; name: string; disabled: boolean; groupId: string | null; groupName: string | null }>;
 
 export type PreferenceDraft = Readonly<{
   enabled: boolean;
@@ -43,7 +43,7 @@ function isScope(value: unknown): value is VehicleScope {
 function isVehicle(value: unknown): value is PreferenceVehicle {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
-  return typeof candidate.id === "string" && typeof candidate.name === "string" && typeof candidate.disabled === "boolean";
+  return typeof candidate.id === "string" && typeof candidate.name === "string" && typeof candidate.disabled === "boolean" && (candidate.groupId === null || typeof candidate.groupId === "string") && (candidate.groupName === null || typeof candidate.groupName === "string");
 }
 
 function sameIdSet(left: readonly string[], right: readonly string[]): boolean {
@@ -83,7 +83,7 @@ export function parsePreferenceBaseline(value: unknown): PreferenceBaseline | nu
     revision: candidate.revision as number,
     canSelectVehicles: candidate.canSelectVehicles as boolean,
     hasDormantSelections: candidate.hasDormantSelections as boolean,
-    vehicles: Object.freeze((candidate.vehicles as PreferenceVehicle[]).map((vehicle) => Object.freeze({ ...vehicle }))),
+    vehicles: Object.freeze((candidate.vehicles as PreferenceVehicle[]).map((vehicle) => Object.freeze({ id: vehicle.id, name: vehicle.name, disabled: vehicle.disabled, groupId: vehicle.groupId, groupName: vehicle.groupName }))),
   });
 }
 

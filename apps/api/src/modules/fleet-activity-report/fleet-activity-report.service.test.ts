@@ -12,7 +12,7 @@ const ids = ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-00
 const observation = (vehicleId: string, seconds: number, speedKph: number | null, latitude = 49) => ({ vehicleId, observedAt: new Date(from.getTime() + seconds * 1_000), fixFingerprint: `${vehicleId}-${seconds}`, latitude, longitude: 28, speedKph, valid: true, outdated: false });
 
 test("groups one bounded snapshot and aggregates the authoritative Stage 15A core for every persisted vehicle", async () => {
-  let reads = 0; const repository: FleetActivityReportRepository = { getSnapshot: async () => { reads += 1; return { vehicles: [{ id: ids[0]!, name: "Trip" }, { id: ids[1]!, name: "GPS only" }, { id: ids[2]!, name: "No GPS" }], observations: [observation(ids[1]!, 0, null), observation(ids[0]!, 0, 10), observation(ids[0]!, 60, 10, 49.01), observation(ids[0]!, 120, 0, 49.01), observation(ids[0]!, 420, 0, 49.01)] }; } };
+  let reads = 0; const repository: FleetActivityReportRepository = { getSnapshot: async () => { reads += 1; return { vehicles: [{ id: ids[0]!, name: "Trip", group: null }, { id: ids[1]!, name: "GPS only", group: null }, { id: ids[2]!, name: "No GPS", group: null }], observations: [observation(ids[1]!, 0, null), observation(ids[0]!, 0, 10), observation(ids[0]!, 60, 10, 49.01), observation(ids[0]!, 120, 0, 49.01), observation(ids[0]!, 420, 0, 49.01)] }; } };
   const report = await new FleetActivityReportService(repository, { getReportContext: async () => ({ timezone: "Europe/Kyiv", policy: DEFAULT_TRIP_STOP_ANALYTICS_POLICY }) } as any, unrestrictedScopes).getReport({ from, to }, testUserId);
   assert.equal(reads, 1); assert.equal(report.vehicles.length, 3); assert.equal(new Set(report.vehicles.map((row) => row.vehicleId)).size, 3);
   const trip = report.vehicles.find((row) => row.vehicleId === ids[0])!; const gpsOnly = report.vehicles.find((row) => row.vehicleId === ids[1])!; const noGps = report.vehicles.find((row) => row.vehicleId === ids[2])!;
@@ -23,15 +23,15 @@ test("groups one bounded snapshot and aggregates the authoritative Stage 15A cor
   assert.deepEqual(report.vehicles.map((row) => row.vehicleId), [ids[0], ids[1], ids[2]]);
 });
 
-test("sorts GPS rows by distance, no-data last, and UUID as deterministic tie breaker", async () => { const service = new FleetActivityReportService({ getSnapshot: async () => ({ vehicles: [{ id: ids[2]!, name: "C" }, { id: ids[1]!, name: "B" }, { id: ids[0]!, name: "A" }], observations: [observation(ids[1]!, 0, null), observation(ids[0]!, 0, null)] }) }, { getReportContext: async () => ({ timezone: "Europe/Kyiv", policy: DEFAULT_TRIP_STOP_ANALYTICS_POLICY }) } as any, unrestrictedScopes); const report = await service.getReport({ from, to }, testUserId); assert.deepEqual(report.vehicles.map((row) => row.vehicleId), [ids[0], ids[1], ids[2]]); });
+test("sorts GPS rows by distance, no-data last, and UUID as deterministic tie breaker", async () => { const service = new FleetActivityReportService({ getSnapshot: async () => ({ vehicles: [{ id: ids[2]!, name: "C", group: null }, { id: ids[1]!, name: "B", group: null }, { id: ids[0]!, name: "A", group: null }], observations: [observation(ids[1]!, 0, null), observation(ids[0]!, 0, null)] }) }, { getReportContext: async () => ({ timezone: "Europe/Kyiv", policy: DEFAULT_TRIP_STOP_ANALYTICS_POLICY }) } as any, unrestrictedScopes); const report = await service.getReport({ from, to }, testUserId); assert.deepEqual(report.vehicles.map((row) => row.vehicleId), [ids[0], ids[1], ids[2]]); });
 
-test("report resolves one current trip/stop policy for every vehicle in its bounded snapshot", async () => { let reads = 0; const report = await new FleetActivityReportService({ getSnapshot: async () => ({ vehicles: [{ id: ids[0]!, name: "Trip" }, { id: ids[1]!, name: "Also trip" }], observations: [observation(ids[0]!, 0, 6), observation(ids[0]!, 60, 6), observation(ids[1]!, 0, 6), observation(ids[1]!, 60, 6)] }) }, { getReportContext: async () => { reads += 1; return { timezone: "Europe/Kyiv", policy: { ...DEFAULT_TRIP_STOP_ANALYTICS_POLICY, tripMovementSpeedKph: 7 } }; } } as any, unrestrictedScopes).getReport({ from, to }, testUserId); assert.equal(reads, 1); assert.equal(report.summary.tripCount, 0); });
+test("report resolves one current trip/stop policy for every vehicle in its bounded snapshot", async () => { let reads = 0; const report = await new FleetActivityReportService({ getSnapshot: async () => ({ vehicles: [{ id: ids[0]!, name: "Trip", group: null }, { id: ids[1]!, name: "Also trip", group: null }], observations: [observation(ids[0]!, 0, 6), observation(ids[0]!, 60, 6), observation(ids[1]!, 0, 6), observation(ids[1]!, 60, 6)] }) }, { getReportContext: async () => { reads += 1; return { timezone: "Europe/Kyiv", policy: { ...DEFAULT_TRIP_STOP_ANALYTICS_POLICY, tripMovementSpeedKph: 7 } }; } } as any, unrestrictedScopes).getReport({ from, to }, testUserId); assert.equal(reads, 1); assert.equal(report.summary.tripCount, 0); });
 
 
 const reportPolicy = { getReportContext: async () => ({ timezone: "Europe/Kyiv", policy: DEFAULT_TRIP_STOP_ANALYTICS_POLICY }) } as any;
 function boundaryService() {
   return new FleetActivityReportService({ getSnapshot: async () => ({
-    vehicles: ids.map((id, index) => ({ id, name: String(index) })),
+    vehicles: ids.map((id, index) => ({ id, name: String(index), group: null })),
     // Deliberately broad fixture proves the Reports service protects its boundary
     // even if an alternate repository returns an endpoint observation.
     observations: [observation(ids[0]!, -1, 10), observation(ids[0]!, 0, 10), observation(ids[0]!, 60, 10), observation(ids[0]!, 86400, 10)],
@@ -73,7 +73,7 @@ test("Kyiv spring 23h and autumn 25h calendar days remain valid", async () => {
 test("returns captured generation time, actual policy, nullable bounds and internal gap duration from core", async () => {
   const generatedAt = new Date("2026-09-07T12:00:00Z");
   const report = await new FleetActivityReportService({ getSnapshot: async () => ({
-    vehicles: ids.map((id) => ({ id, name: id })),
+    vehicles: ids.map((id) => ({ id, name: id, group: null })),
     observations: [observation(ids[0]!, 60, null), observation(ids[0]!, 660, null), observation(ids[0]!, 1560, null), observation(ids[1]!, 60, null)],
   }) }, reportPolicy, unrestrictedScopes).getReport({ from, to }, testUserId, generatedAt);
   assert.deepEqual(report.generatedAt, generatedAt); assert.notEqual(report.generatedAt, generatedAt);

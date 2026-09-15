@@ -15,5 +15,5 @@ export default async function VehicleTripsPage({ params, searchParams }: Readonl
   if (resolved.kind === "not-found") notFound();
   if (resolved.kind === "context-unavailable") { const { t } = await getServerI18n(); return <VehicleDetailShell vehicleId={vehicleId} vehicleName={resolved.vehicleName ?? t("trips.title")} activeTab="trips" generatedAt={resolved.generatedAt}><VehicleTripsUnavailable /></VehicleDetailShell>; }
   const range = resolved.range;
-  return <div><VehicleTripsClient vehicleId={vehicleId} vehicleName={resolved.vehicleName} shellGeneratedAt={resolved.shellGeneratedAt} initialData={resolved.initialData} initialRange={range} initialPreset={resolved.restoredFromUrl ? null : "TODAY"} initialOpenEnded={resolved.openEnded} initialError={resolved.initialError} timezone={resolved.timezone} /></div>;
+  return <div><VehicleTripsClient vehicleId={vehicleId} vehicleName={resolved.vehicleName} vehicleGroup={resolved.vehicleGroup} shellGeneratedAt={resolved.shellGeneratedAt} initialData={resolved.initialData} initialRange={range} initialPreset={resolved.restoredFromUrl ? null : "TODAY"} initialOpenEnded={resolved.openEnded} initialError={resolved.initialError} timezone={resolved.timezone} /></div>;
 }

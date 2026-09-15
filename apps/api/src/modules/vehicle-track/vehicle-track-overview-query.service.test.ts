@@ -13,7 +13,7 @@ const testUserId = "00000000-0000-4000-8000-000000000099"; const unrestrictedSco
 const from = new Date("2026-08-01T00:00:00.000Z");
 const to = new Date("2026-08-08T00:00:00.000Z");
 const now = new Date("2026-08-10T12:00:00.000Z");
-const vehicle = Object.freeze({ id: vehicleId, name: "Taxi" });
+const vehicle = Object.freeze({ id: vehicleId, name: "Taxi", group: null });
 
 function point(observedAt: Date, overrides: Partial<StoredVehicleTrackOverviewPoint> = {}): StoredVehicleTrackOverviewPoint {
   return {

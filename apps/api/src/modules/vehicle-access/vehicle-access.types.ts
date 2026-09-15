@@ -9,3 +9,12 @@ export type ConfiguredVehicleAccess = Readonly<{
 export type VehicleScope =
   | Readonly<{ kind: "UNRESTRICTED" }>
   | Readonly<{ kind: "FILTERED"; where: Prisma.VehicleWhereInput }>;
+
+export type VehicleGroupRef = Readonly<{ id: string; name: string }>;
+
+export type VehicleGroupOption = Readonly<{ id: string; name: string }>;
+
+export type GroupFilter =
+  | Readonly<{ kind: "ALL" }>
+  | Readonly<{ kind: "UNGROUPED" }>
+  | Readonly<{ kind: "GROUP"; groupId: string }>;

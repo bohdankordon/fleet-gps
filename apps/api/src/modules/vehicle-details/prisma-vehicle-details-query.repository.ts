@@ -57,6 +57,7 @@ export class PrismaVehicleDetailsQueryRepository implements VehicleDetailsQueryR
           id: true,
           name: true,
           disabled: true,
+          group: { select: { id: true, name: true } },
           currentState: { select: { status: true, fixTime: true, latitude: true, longitude: true, speedKph: true, valid: true, outdated: true } },
           dailyStats: {
             where: { serviceDate },
@@ -95,6 +96,7 @@ export class PrismaVehicleDetailsQueryRepository implements VehicleDetailsQueryR
           id: storedVehicle.id,
           name: storedVehicle.name,
           disabled: storedVehicle.disabled,
+          group: storedVehicle.group ? { id: storedVehicle.group.id, name: storedVehicle.group.name } : null,
           currentState: storedVehicle.currentState,
           dailyStat: storedVehicle.dailyStats[0] ?? null,
         },

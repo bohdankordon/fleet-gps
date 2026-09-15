@@ -12,6 +12,7 @@ function row(overrides: Partial<FleetMapStoredVehicle> = {}): FleetMapStoredVehi
   return {
     id: "00000000-0000-4000-8000-000000000001",
     name: "Taxi 1",
+    group: null,
     currentState: {
       fixTime: new Date("2026-08-09T11:59:00.000Z"),
       latitude: 49.2331,
@@ -41,7 +42,7 @@ test("returns a deterministic empty fleet snapshot", async () => {
 test("maps one valid current position, persisted speed in km/h, and fixTime as observedAt", async () => {
   const result = await service([row()]).getSnapshot(testUserId);
   assert.deepEqual(result.vehicles[0], {
-    vehicle: { id: "00000000-0000-4000-8000-000000000001", name: "Taxi 1" },
+    vehicle: { id: "00000000-0000-4000-8000-000000000001", name: "Taxi 1", group: null },
     position: { latitude: 49.2331, longitude: 28.4682, observedAt: "2026-08-09T11:59:00.000Z" },
     speedKph: 32.5,
     freshness: "FRESH",
@@ -144,7 +145,7 @@ test("public serialization is allow-listed and excludes provider and database in
   const result = await service([row()]).getSnapshot(testUserId);
   const marker = result.vehicles[0] as unknown as Record<string, unknown>;
   assert.deepEqual(Object.keys(marker), ["vehicle", "position", "speedKph", "freshness"]);
-  assert.deepEqual(Object.keys(marker.vehicle as object), ["id", "name"]);
+  assert.deepEqual(Object.keys(marker.vehicle as object), ["id", "name", "group"]);
   assert.deepEqual(Object.keys(marker.position as object), ["latitude", "longitude", "observedAt"]);
   const json = JSON.stringify(result);
   for (const forbidden of ["externalDeviceId", "provider", "telegram", "dedupe", "outbox", "journal", "fetchedAt", "externalLastUpdateAt", "createdAt", "updatedAt"]) assert.equal(json.includes(forbidden), false);

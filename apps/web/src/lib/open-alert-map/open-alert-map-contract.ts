@@ -6,7 +6,7 @@ const alertSchema = z.strictObject({
   openedAt: z.string().datetime({ offset: true }),
 });
 const vehicleSchema = z.strictObject({
-  vehicle: z.strictObject({ id: z.string().uuid(), name: z.string() }),
+  vehicle: z.strictObject({ id: z.string().uuid(), name: z.string(), group: z.strictObject({ id: z.string().uuid(), name: z.string() }).nullable() }),
   alerts: z.array(alertSchema).min(1).max(2),
 });
 

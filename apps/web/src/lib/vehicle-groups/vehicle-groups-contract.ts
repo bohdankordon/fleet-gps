@@ -66,3 +66,46 @@ export function validateGroupName(value: string): string | null {
   if (value.trim().length > 128) return "tooLong";
   return null;
 }
+
+export const PRODUCT_GROUP_FILTER_ALL = "ALL";
+export const PRODUCT_GROUP_FILTER_UNGROUPED = "ungrouped";
+
+export type ProductGroupOption = Readonly<{ id: string; name: string }>;
+
+export type ProductGroupCarrier = Readonly<{ group: Readonly<{ id: string; name: string }> | null }>;
+
+export type ProductNotificationGroupCarrier = Readonly<{ groupId: string | null; groupName: string | null }>;
+
+export function productGroupOptionsFromVehicles(vehicles: readonly ProductGroupCarrier[]): Readonly<{ options: readonly ProductGroupOption[]; hasUngrouped: boolean }> {
+  const seen = new Map<string, string>();
+  let hasUngrouped = false;
+  for (const vehicle of vehicles) {
+    if (!vehicle.group) { hasUngrouped = true; continue; }
+    if (!seen.has(vehicle.group.id)) seen.set(vehicle.group.id, vehicle.group.name);
+  }
+  const options = [...seen].map(([id, name]) => ({ id, name })).sort((left, right) => left.name.localeCompare(right.name, "uk", { numeric: true }) || left.id.localeCompare(right.id));
+  return Object.freeze({ options: Object.freeze(options), hasUngrouped });
+}
+
+export function productGroupOptionsFromNotificationVehicles(vehicles: readonly ProductNotificationGroupCarrier[]): Readonly<{ options: readonly ProductGroupOption[]; hasUngrouped: boolean }> {
+  const seen = new Map<string, string>();
+  let hasUngrouped = false;
+  for (const vehicle of vehicles) {
+    if (!vehicle.groupId || !vehicle.groupName) { hasUngrouped = true; continue; }
+    if (!seen.has(vehicle.groupId)) seen.set(vehicle.groupId, vehicle.groupName);
+  }
+  const options = [...seen].map(([id, name]) => ({ id, name })).sort((left, right) => left.name.localeCompare(right.name, "uk", { numeric: true }) || left.id.localeCompare(right.id));
+  return Object.freeze({ options: Object.freeze(options), hasUngrouped });
+}
+
+export function matchesProductGroupFilter(group: Readonly<{ id: string }> | null, filter: string): boolean {
+  if (filter === PRODUCT_GROUP_FILTER_ALL) return true;
+  if (filter === PRODUCT_GROUP_FILTER_UNGROUPED) return group === null;
+  return group?.id === filter;
+}
+
+export function matchesProductNotificationGroupFilter(vehicle: ProductNotificationGroupCarrier, filter: string): boolean {
+  if (filter === PRODUCT_GROUP_FILTER_ALL) return true;
+  if (filter === PRODUCT_GROUP_FILTER_UNGROUPED) return vehicle.groupId === null;
+  return vehicle.groupId === filter;
+}

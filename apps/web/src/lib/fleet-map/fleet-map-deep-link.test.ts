@@ -9,7 +9,7 @@ const snapshot: FleetMapResponse = {
   generatedAt: "2026-08-10T12:01:00.000Z",
   positionFreshnessSeconds: 300,
   summary: { totalVehicles: 2, withPosition: 1, withoutPosition: 1, invalidPosition: 0, fresh: 1, stale: 0 },
-  vehicles: [{ vehicle: { id: VEHICLE_ID, name: "Taxi" }, position: { latitude: 49, longitude: 28, observedAt: "2026-08-10T12:00:00.000Z" }, speedKph: null, freshness: "FRESH" }],
+  vehicles: [{ vehicle: { id: VEHICLE_ID, name: "Taxi", group: null }, position: { latitude: 49, longitude: 28, observedAt: "2026-08-10T12:00:00.000Z" }, speedKph: null, freshness: "FRESH" }],
 };
 
 test("vehicle map links use one explicit encoded UUID query contract", () => {

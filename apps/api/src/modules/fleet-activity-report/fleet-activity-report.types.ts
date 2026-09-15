@@ -1,15 +1,16 @@
 import type { TripStopAnalyticsObservation, TripStopAnalyticsRange, TripStopAnalyticsPolicy } from "../trip-stop-analytics";
 import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
+import type { VehicleGroupRef } from "../vehicle-access/vehicle-access.types";
 
 export const FLEET_ACTIVITY_REPORT_MAX_RANGE_MS = 25 * 60 * 60 * 1_000;
 
-export type FleetActivityVehicle = Readonly<{ id: string; name: string }>;
+export type FleetActivityVehicle = Readonly<{ id: string; name: string; group: VehicleGroupRef | null }>;
 export type FleetActivityStoredObservation = TripStopAnalyticsObservation & Readonly<{ vehicleId: string }>;
 export type FleetActivitySnapshot = Readonly<{ vehicles: readonly FleetActivityVehicle[]; observations: readonly FleetActivityStoredObservation[] }>;
 export interface FleetActivityReportRepository { getSnapshot(range: TripStopAnalyticsRange, scope: VehicleScope): Promise<FleetActivitySnapshot>; }
 
 export type FleetActivityVehicleRow = Readonly<{
-  vehicleId: string; vehicleName: string; hasGpsData: boolean; rawObservationCount: number;
+  vehicleId: string; vehicleName: string; group: VehicleGroupRef | null; hasGpsData: boolean; rawObservationCount: number;
   tripCount: number; observedDistanceMeters: number; tripDurationSeconds: number;
   stopCount: number; stopDurationSeconds: number; gapCount: number;
   firstObservationAt: Date | null; lastObservationAt: Date | null; gapDurationSeconds: number;

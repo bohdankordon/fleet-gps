@@ -37,7 +37,8 @@ export class PrismaVehicleTrackOverviewQueryRepository implements VehicleTrackOv
 
   public async getOverviewSnapshot(vehicleId: string, from: Date, to: Date, scope: VehicleScope): Promise<StoredVehicleTrackOverviewSnapshot> {
     return this.database.getClient().$transaction(async (transaction) => {
-      const vehicle = await transaction.vehicle.findFirst({ where: applyVehicleScope(scope, { id: vehicleId }), select: { id: true, name: true } });
+      const stored = await transaction.vehicle.findFirst({ where: applyVehicleScope(scope, { id: vehicleId }), select: { id: true, name: true, group: { select: { id: true, name: true } } } });
+      const vehicle = stored ? { id: stored.id, name: stored.name, group: stored.group ? { id: stored.group.id, name: stored.group.name } : null } : null;
       if (!vehicle) return { vehicle: null, rawPointCount: 0, segmentCount: 0, qualityWarningCount: 0, firstObservedAt: null, lastObservedAt: null, tooFragmented: false, points: [] };
 
       const rows = await transaction.$queryRaw<readonly RawOverviewRow[]>`

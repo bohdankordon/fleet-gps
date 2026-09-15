@@ -6,7 +6,7 @@ const latitude = z.number().finite().min(-90).max(90);
 const longitude = z.number().finite().min(-180).max(180);
 const speedKph = z.number().finite().nonnegative().nullable();
 
-const vehicleSchema = z.strictObject({ id: z.string().uuid(), name: z.string() });
+const vehicleSchema = z.strictObject({ id: z.string().uuid(), name: z.string(), group: z.strictObject({ id: z.string().uuid(), name: z.string() }).nullable() });
 const positionSchema = z.strictObject({ latitude, longitude, observedAt: isoTimestamp });
 const markerSchema = z.strictObject({ vehicle: vehicleSchema, position: positionSchema, speedKph, freshness: z.enum(["FRESH", "STALE"]) });
 

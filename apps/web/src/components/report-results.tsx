@@ -11,13 +11,15 @@ import { hasPermission } from "../lib/auth/auth-contract";
 import type { FleetActivityReportResponse, FleetActivityVehicleRow } from "../lib/fleet-activity-report/fleet-activity-report-contract";
 import { formatReportTimestamp } from "../lib/fleet-activity-report/fleet-activity-report-formatters";
 import { nextReportSort, reportSortDirection, reportVehicleActions, type ReportFilters, type ReportSort } from "../lib/fleet-activity-report/fleet-activity-report-ui-model";
+import { VehicleGroupTag } from "./vehicle-detail-shell";
 import { formatObservedDistance, formatTripAnalysisDuration } from "../lib/trip-analysis/trip-analysis-formatters";
 
 type Row = FleetActivityVehicleRow;
 type Context = Readonly<{ data: FleetActivityReportResponse; user: AuthUser | null }>;
 
 export function ReportVehicleIdentity({ row, user }: Readonly<{ row: Row; user: AuthUser | null }>) {
-  return user && hasPermission(user, "vehicles.view") ? <Link className="reports-vehicle-link" href={`/vehicles/${row.vehicleId}`}><CarOutlined aria-hidden /><span>{row.vehicleName}</span></Link> : <strong>{row.vehicleName}</strong>;
+  const name = user && hasPermission(user, "vehicles.view") ? <Link className="reports-vehicle-link" href={`/vehicles/${row.vehicleId}`}><CarOutlined aria-hidden /><span>{row.vehicleName}</span></Link> : <strong>{row.vehicleName}</strong>;
+  return <span className="reports-identity__name">{name}<VehicleGroupTag group={row.group} /></span>;
 }
 
 export function ReportActions({ row, data, user, expanded = false }: Context & Readonly<{ row: Row; expanded?: boolean }>) {

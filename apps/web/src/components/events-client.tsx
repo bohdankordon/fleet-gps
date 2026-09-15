@@ -18,6 +18,7 @@ import { useI18n } from "../i18n/client";
 import { PeriodPopover } from "./period-popover";
 import { CompactPageHeading } from "./compact-page-heading";
 import { FleetFilterResetButton } from "./fleet-filter-reset-button";
+import { PRODUCT_GROUP_FILTER_ALL, PRODUCT_GROUP_FILTER_UNGROUPED, productGroupOptionsFromVehicles } from "../lib/vehicle-groups/vehicle-groups-contract";
 import { eventSemanticPresentation } from "./event-semantic-presentation";
 import { EventDetail } from "./event-detail";
 import { StableLoadingButton } from "./stable-loading-button";
@@ -67,8 +68,8 @@ export function EventsClient({ initialData, initialSummary, initialFilters, init
   const retry = () => { if (list.error === "more") void loadMore(); else void firstRequest(list.filters, list.error === "first" ? "retry" : "refresh"); };
   const mode = alertEventsMode(list.filters);
   const selected = list.data.items.find((event) => event.id === selectedId) ?? null;
-  const filterCount = Number(Boolean(list.filters.type)) + Number(Boolean(list.filters.vehicleId)) + Number(mode === "history" && list.filters.period !== "7d");
-  const emptyKey = list.filters.type || list.filters.vehicleId ? "events.empty.filteredTitle" : mode === "history" ? "events.empty.history" : "events.empty.active";
+  const filterCount = Number(Boolean(list.filters.type)) + Number(Boolean(list.filters.vehicleId)) + Number(Boolean(list.filters.group)) + Number(mode === "history" && list.filters.period !== "7d");
+  const emptyKey = list.filters.type || list.filters.vehicleId || list.filters.group ? "events.empty.filteredTitle" : mode === "history" ? "events.empty.history" : "events.empty.active";
   const shortcut = (type?: AlertEventsFilters["type"]) => void firstRequest({ ...switchAlertEventsMode(list.filters, "active"), type }, "user");
   // Consume the accepted Fleet/Vehicle-family theme and owned CSS contracts locally.
   const variables = {
@@ -84,6 +85,9 @@ export function EventsClient({ initialData, initialSummary, initialFilters, init
     "--trip-record-accent": token.colorPrimary,
   } as CSSProperties;
   const vehicleOptions = vehicles.map((vehicle) => ({ value: vehicle.vehicleId, label: vehicle.vehicleName }));
+  const eventGroupMeta = productGroupOptionsFromVehicles(vehicles.map((vehicle) => ({ group: vehicle.group })));
+  const eventGroupOptions = [{ value: PRODUCT_GROUP_FILTER_ALL, label: t("group.filter.allGroups") }, ...eventGroupMeta.options.map((option) => ({ value: option.id, label: option.name })), ...(eventGroupMeta.hasUngrouped ? [{ value: PRODUCT_GROUP_FILTER_UNGROUPED, label: t("group.ungrouped") }] : [])];
+  const showEventGroupFilter = eventGroupMeta.options.length > 0 || eventGroupMeta.hasUngrouped;
   if (list.filters.vehicleId && !vehicleOptions.some((v) => v.value === list.filters.vehicleId)) vehicleOptions.push({ value: list.filters.vehicleId, label: list.data.items.find((event) => event.vehicle.id === list.filters.vehicleId)?.vehicle.name ?? initialData.items.find((event) => event.vehicle.id === list.filters.vehicleId)?.vehicle.name ?? t("events.table.vehicle") });
 
   return <div className="events-page" style={variables}>
@@ -99,6 +103,7 @@ export function EventsClient({ initialData, initialSummary, initialFilters, init
       <section className="events-toolbar fleet-toolbar" aria-label={t("events.filters.label")}>
         <div className="events-filter"><label htmlFor="events-type">{t("events.filters.type")}</label><Select size="large" className="fleet-toolbar__select-control" id="events-type" value={list.filters.type ?? "ALL"} options={[{ value: "ALL", label: t("common.all") }, { value: "SPEEDING", label: t("events.type.SPEEDING") }, { value: "INACTIVITY", label: t("events.type.INACTIVITY") }]} onChange={(value) => change("type", value === "ALL" ? undefined : value as AlertEventsFilters["type"])} /></div>
         <div className="events-filter"><label htmlFor="events-vehicle">{t("events.table.vehicle")}</label><Select size="large" className="fleet-toolbar__select-control" id="events-vehicle" showSearch={{ optionFilterProp: "label" }} allowClear placeholder={t("common.all")} loading={vehiclesLoading} value={list.filters.vehicleId} options={vehicleOptions} onChange={(value) => change("vehicleId", value)} /></div>
+        {showEventGroupFilter ? <div className="events-filter"><label htmlFor="events-group">{t("group.filter.label")}</label><Select size="large" className="fleet-toolbar__select-control" id="events-group" value={list.filters.group ?? "ALL"} options={eventGroupOptions} onChange={(value) => change("group", value === "ALL" ? undefined : value)} /></div> : null}
         <div className="events-filter-utility"><Typography.Text className="events-filter-count" type="secondary">{t("events.filterCount", { count: filterCount })}</Typography.Text>
         <FleetFilterResetButton disabled={filterCount === 0} onClick={() => void firstRequest(switchAlertEventsMode({}, mode), "user")}>{t("dashboard.toolbar.resetFilters")}</FleetFilterResetButton></div>
       </section>

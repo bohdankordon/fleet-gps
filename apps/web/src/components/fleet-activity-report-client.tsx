@@ -7,6 +7,7 @@ import { useI18n } from "../i18n/client";
 import type { ReportPageState } from "../lib/fleet-activity-report/fleet-activity-report-page-loader";
 import { formatReportDay, formatReportWindow } from "../lib/fleet-activity-report/fleet-activity-report-formatters";
 import { DEFAULT_REPORT_FILTERS, reportControlsChanged, reportFilterCount, visibleReportVehicles, type ReportFilters } from "../lib/fleet-activity-report/fleet-activity-report-ui-model";
+import { PRODUCT_GROUP_FILTER_ALL, PRODUCT_GROUP_FILTER_UNGROUPED, productGroupOptionsFromVehicles } from "../lib/vehicle-groups/vehicle-groups-contract";
 import { useAuth } from "./auth-provider";
 import { CompactPageHeading } from "./compact-page-heading";
 import { FleetFilterResetButton } from "./fleet-filter-reset-button";
@@ -28,6 +29,9 @@ export function FleetActivityReportWorkspace({ initialData: data, initialDate, i
   const context = data ? `${data.from}/${data.to}/${data.generatedAt}` : "";
   const selectedRow = selected?.context === context ? data?.vehicles.find((row) => row.vehicleId === selected.id) : undefined;
   const rows = data ? visibleReportVehicles(data.vehicles, screens.lg ? filters : { ...filters, sort: "distance", direction: "descend" }, locale) : [];
+  const reportGroupMeta = data ? productGroupOptionsFromVehicles(data.vehicles) : { options: [] as const, hasUngrouped: false };
+  const reportGroupOptions = [{ value: PRODUCT_GROUP_FILTER_ALL, label: t("group.filter.allGroups") }, ...reportGroupMeta.options.map((option) => ({ value: option.id, label: option.name })), ...(reportGroupMeta.hasUngrouped ? [{ value: PRODUCT_GROUP_FILTER_UNGROUPED, label: t("group.ungrouped") }] : [])];
+  const showReportGroupFilter = reportGroupMeta.options.length > 0 || reportGroupMeta.hasUngrouped;
   const filterCount = reportFilterCount(filters);
   const reset = () => setFilters(DEFAULT_REPORT_FILTERS);
   const variables = { "--reports-surface": token.colorBgContainer, "--reports-border": token.colorBorder, "--reports-divider": token.colorBorderSecondary, "--reports-muted": token.colorTextSecondary, "--reports-text": token.colorText, "--reports-fill": token.colorFillQuaternary, "--reports-radius": `${token.borderRadiusLG}px`, "--reports-primary": token.colorPrimary } as CSSProperties;
@@ -42,6 +46,7 @@ export function FleetActivityReportWorkspace({ initialData: data, initialDate, i
         <div className="reports-results__header"><div className="reports-toolbar" role="search" aria-label={t("reports.filters")}>
           <Input size="large" prefix={<SearchOutlined />} styles={{ root: { height: token.controlHeightLG }, input: { minHeight: 0 } }} className="reports-search fleet-toolbar__search" aria-label={t("reports.search")} placeholder={t("reports.search")} allowClear value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} />
           <Select size="large" className="reports-gps-filter" aria-label={t("reports.gpsFilter")} labelRender={({ value, label }) => value === "ALL" ? t("reports.allGps") : label} value={filters.gps} onChange={(gps) => setFilters({ ...filters, gps })} options={[{ value: "ALL", label: t("reports.all") }, { value: "WITH_GPS", label: t("reports.withGps") }, { value: "NO_GPS", label: t("reports.noGps") }]} />
+          {showReportGroupFilter ? <Select size="large" className="reports-group-filter" aria-label={t("group.filter.label")} value={filters.group} onChange={(group) => setFilters({ ...filters, group })} options={reportGroupOptions} /> : null}
         </div>
         <div className="reports-results__context" role="status"><span>{t("reports.visible", { visible: rows.length, total: data.vehicles.length })}</span><span className="reports-filter-meta"><span>{t("reports.filterCount", { count: filterCount })}</span><FleetFilterResetButton disabled={!reportControlsChanged(filters)} onClick={reset}>{t("reports.reset")}</FleetFilterResetButton></span>{filterCount > 0 && <span className="reports-subset">{t("reports.subset")}</span>}</div>
         {data.summary.vehicleCount > 0 && data.summary.vehiclesWithGps === 0 && <p role="status" className="reports-result-note"><InfoCircleOutlined aria-hidden />{t("reports.noGpsDay")}</p>}</div>

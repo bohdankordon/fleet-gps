@@ -14,7 +14,7 @@ function toReadModel(vehicle: FleetMapStoredVehicle, generatedAt: Date, threshol
   const state = projectFleetMapCurrentState(vehicle.currentState, generatedAt, thresholdSeconds);
   if (!state) return null;
   return {
-    vehicle: { id: vehicle.id, name: vehicle.name },
+    vehicle: Object.freeze({ id: vehicle.id, name: vehicle.name, group: vehicle.group ? Object.freeze({ id: vehicle.group.id, name: vehicle.group.name }) : null }),
     ...state,
   };
 }

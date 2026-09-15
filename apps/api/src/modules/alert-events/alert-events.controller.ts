@@ -1,7 +1,7 @@
 import { Controller, Get, HttpException, Query, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../auth/auth.types";
 import { AlertEventsQueryParamsError, parseAlertEventsQueryParams } from "./alert-events-query-params";
-import type { AlertEventsListResponse, AlertEventsSummaryResponse, OpenAlertMapResponse } from "./alert-events-read-models";
+import type { AlertEventsListResponse, AlertEventsSummaryResponse, AlertEventsVehicleOption, OpenAlertMapResponse } from "./alert-events-read-models";
 import { AlertEventsQueryService } from "./alert-events-query.service";
 import { RequireAnyPermission } from "../auth/auth.decorators";
 
@@ -11,7 +11,7 @@ export class AlertEventsController {
 
   @Get("vehicles")
   @RequireAnyPermission("events.view")
-  public async getVehicleOptions(@Req() request: AuthenticatedRequest): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]> {
+  public async getVehicleOptions(@Req() request: AuthenticatedRequest): Promise<readonly AlertEventsVehicleOption[]> {
     try { return await this.query.getVehicleOptions(request.auth!.id); }
     catch { throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500); }
   }

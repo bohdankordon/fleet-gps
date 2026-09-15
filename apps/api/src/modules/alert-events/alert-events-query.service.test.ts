@@ -11,14 +11,14 @@ const testUserId = "00000000-0000-4000-8000-000000000099";
 const unrestrictedScopes = { resolve: async () => UNRESTRICTED_VEHICLE_SCOPE } as unknown as import("../vehicle-access/vehicle-access.service").VehicleScopeService;
 const EVENT_ID = "00000000-0000-4000-8000-000000000002";
 const AT = new Date("2026-08-08T10:00:00.000Z");
-const params: AlertEventsQueryParams = { status: undefined, type: undefined, vehicleId: undefined, limit: 50, cursor: undefined };
+const params: AlertEventsQueryParams = { status: undefined, type: undefined, vehicleId: undefined, group: { kind: "ALL" }, limit: 50, cursor: undefined };
 
 function row(overrides: Partial<StoredAlertEventReadRow> = {}): StoredAlertEventReadRow {
   return {
     id: EVENT_ID, type: AlertEventType.SPEEDING, status: AlertEventStatus.OPEN, confirmedAt: AT, lastObservedAt: AT, resolvedAt: null,
     speedZone: AlertEventSpeedZone.CITY, confirmationSpeedKph: 72, lastSpeedKph: 75, peakSpeedKph: 81, speedThresholdKph: 60,
     confirmationTraveledDistanceMeters: null, lastTraveledDistanceMeters: null, minimumTraveledDistanceMeters: null, distanceThresholdMeters: null, durationThresholdMinutes: null,
-    vehicle: { id: VEHICLE_ID, name: "Taxi 7" }, notificationOutbox: [], ...overrides,
+    vehicle: { id: VEHICLE_ID, name: "Taxi 7", group: null }, notificationOutbox: [], ...overrides,
   };
 }
 
@@ -46,8 +46,8 @@ test("maps persisted SPEEDING and INACTIVITY snapshots without current settings"
     confirmationTraveledDistanceMeters: 12, lastTraveledDistanceMeters: 350, minimumTraveledDistanceMeters: 8, distanceThresholdMeters: 300, durationThresholdMinutes: 60,
   });
   const response = await service([row(), inactivity]).subject.list(params, testUserId);
-  assert.deepEqual(response.items[0], { id: EVENT_ID, vehicle: { id: VEHICLE_ID, name: "Taxi 7" }, type: "SPEEDING", status: "OPEN", openedAt: AT.toISOString(), lastObservedAt: AT.toISOString(), resolvedAt: null, notificationDeliveryStatus: "NONE", details: { zone: "CITY", confirmationSpeedKph: 72, lastSpeedKph: 75, peakSpeedKph: 81, thresholdKph: 60 } });
-  assert.deepEqual(response.items[1], { id: inactivity.id, vehicle: { id: VEHICLE_ID, name: "Taxi 7" }, type: "INACTIVITY", status: "RESOLVED", openedAt: AT.toISOString(), lastObservedAt: AT.toISOString(), resolvedAt: "2026-08-08T11:00:00.000Z", notificationDeliveryStatus: "NONE", details: { confirmationDistanceMeters: 12, lastDistanceMeters: 350, minimumDistanceMeters: 8, distanceThresholdMeters: 300, durationThresholdMinutes: 60 } });
+  assert.deepEqual(response.items[0], { id: EVENT_ID, vehicle: { id: VEHICLE_ID, name: "Taxi 7", group: null }, type: "SPEEDING", status: "OPEN", openedAt: AT.toISOString(), lastObservedAt: AT.toISOString(), resolvedAt: null, notificationDeliveryStatus: "NONE", details: { zone: "CITY", confirmationSpeedKph: 72, lastSpeedKph: 75, peakSpeedKph: 81, thresholdKph: 60 } });
+  assert.deepEqual(response.items[1], { id: inactivity.id, vehicle: { id: VEHICLE_ID, name: "Taxi 7", group: null }, type: "INACTIVITY", status: "RESOLVED", openedAt: AT.toISOString(), lastObservedAt: AT.toISOString(), resolvedAt: "2026-08-08T11:00:00.000Z", notificationDeliveryStatus: "NONE", details: { confirmationDistanceMeters: 12, lastDistanceMeters: 350, minimumDistanceMeters: 8, distanceThresholdMeters: 300, durationThresholdMinutes: 60 } });
 });
 
 test("maps PENDING and internal SENDING to the stable PENDING delivery state", async () => {
@@ -100,8 +100,8 @@ test("returns an empty bounded OPEN map projection", async () => {
 });
 
 test("groups SPEEDING and INACTIVITY per vehicle with deterministic vehicle and alert ordering", async () => {
-  const vehicleA = { id: "00000000-0000-4000-8000-000000000010", name: "Alpha" };
-  const vehicleB = { id: "00000000-0000-4000-8000-000000000020", name: "Beta" };
+  const vehicleA = { id: "00000000-0000-4000-8000-000000000010", name: "Alpha", group: null };
+  const vehicleB = { id: "00000000-0000-4000-8000-000000000020", name: "Beta", group: null };
   const result = await service([], false, { speeding: 0, inactivity: 0 }, [
     { type: AlertEventType.SPEEDING, confirmedAt: new Date("2026-08-10T11:02:00.000Z"), vehicle: vehicleB },
     { type: AlertEventType.INACTIVITY, confirmedAt: new Date("2026-08-10T11:01:00.000Z"), vehicle: vehicleA },
@@ -118,7 +118,7 @@ test("groups SPEEDING and INACTIVITY per vehicle with deterministic vehicle and 
 });
 
 test("OPEN map projection exposes only vehicle identity, type, and openedAt", async () => {
-  const map = await service([], false, { speeding: 0, inactivity: 0 }, [{ type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Taxi 7" } }]).subject.getOpenMap(testUserId);
+  const map = await service([], false, { speeding: 0, inactivity: 0 }, [{ type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Taxi 7", group: null } }]).subject.getOpenMap(testUserId);
   assert.deepEqual(Object.keys(map), ["generatedAt", "summary", "vehicles"]);
   assert.deepEqual(Object.keys(map.vehicles[0] ?? {}), ["vehicle", "alerts"]);
   const json = JSON.stringify(map);
@@ -126,7 +126,7 @@ test("OPEN map projection exposes only vehicle identity, type, and openedAt", as
 });
 
 test("rejects over-limit, duplicate same-type OPEN state, invalid persisted timestamps, and invalid clock", async () => {
-  const duplicate = { type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Taxi 7" } };
+  const duplicate = { type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Taxi 7", group: null } };
   await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [], true).subject.getOpenMap(testUserId));
   await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [duplicate, duplicate]).subject.getOpenMap(testUserId));
   await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [{ ...duplicate, confirmedAt: new Date(Number.NaN) }]).subject.getOpenMap(testUserId));
@@ -141,6 +141,6 @@ test("lastObservedAt is the stored factual timestamp and malformed persisted val
   await assert.rejects(service([row({ lastObservedAt: new Date(NaN) })]).subject.list(params, testUserId));
 });
 test("vehicle options are locale ordered and project safe fields even when repository has extras", async () => {
-  const repository: AlertEventsQueryRepository = { list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }), getVehicleOptions: async () => [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", providerId: "secret" }, { vehicleId: EVENT_ID, vehicleName: "DEMO 2", providerId: "secret" }] };
-  assert.deepEqual(await new AlertEventsQueryService(repository, { now: () => new Date("2026-08-10T12:00:00.000Z") }, unrestrictedScopes).getVehicleOptions(testUserId), [{ vehicleId: EVENT_ID, vehicleName: "DEMO 2" }, { vehicleId: VEHICLE_ID, vehicleName: "DEMO 10" }]);
+  const repository: AlertEventsQueryRepository = { list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }), getVehicleOptions: async () => [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", group: null, providerId: "secret" }, { vehicleId: EVENT_ID, vehicleName: "DEMO 2", group: null, providerId: "secret" }] as unknown as readonly import("./alert-events-read-models").AlertEventsVehicleOption[] };
+  assert.deepEqual(await new AlertEventsQueryService(repository, { now: () => new Date("2026-08-10T12:00:00.000Z") }, unrestrictedScopes).getVehicleOptions(testUserId), [{ vehicleId: EVENT_ID, vehicleName: "DEMO 2", group: null }, { vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", group: null }]);
 });

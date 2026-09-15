@@ -2,13 +2,36 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../generated/prisma/client";
 import { AuthRole, VehicleAccessMode } from "../../generated/prisma/enums";
 import { DatabaseService } from "../database/database.service";
-import type { VehicleScope } from "./vehicle-access.types";
+import type { GroupFilter, VehicleScope } from "./vehicle-access.types";
 
 export class VehicleScopeSubjectNotFoundError extends Error {
   public constructor() { super("Vehicle scope subject does not exist"); this.name = "VehicleScopeSubjectNotFoundError"; }
 }
 
 export const UNRESTRICTED_VEHICLE_SCOPE: VehicleScope = Object.freeze({ kind: "UNRESTRICTED" });
+
+export const UNGROUPED_GROUP_FILTER_VALUE = "ungrouped";
+
+const GROUP_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function parseGroupFilterParam(value: unknown): GroupFilter | null {
+  if (value === undefined) return Object.freeze({ kind: "ALL" });
+  if (value === UNGROUPED_GROUP_FILTER_VALUE) return Object.freeze({ kind: "UNGROUPED" });
+  if (typeof value === "string" && GROUP_ID_PATTERN.test(value)) return Object.freeze({ kind: "GROUP", groupId: value });
+  return null;
+}
+
+export function groupVehicleWhere(filter: GroupFilter): Prisma.VehicleWhereInput {
+  if (filter.kind === "ALL") return {};
+  if (filter.kind === "UNGROUPED") return { groupId: null };
+  return { groupId: filter.groupId };
+}
+
+export function groupAlertEventWhere(filter: GroupFilter): Prisma.AlertEventWhereInput {
+  if (filter.kind === "ALL") return {};
+  if (filter.kind === "UNGROUPED") return { vehicle: { groupId: null } };
+  return { vehicle: { groupId: filter.groupId } };
+}
 
 export function selectedVehicleWhere(userId: string): Prisma.VehicleWhereInput {
   return {

@@ -1,5 +1,6 @@
 import type { ScopedAlertEventReadModel } from "../alert-events/alert-event-read.projection";
 import type { FleetMapCurrentStateProjection } from "../fleet-map/fleet-map-current-state.projection";
+import type { VehicleGroupRef } from "../vehicle-access/vehicle-access.types";
 
 export const RECENT_VEHICLE_ALERT_EVENTS_LIMIT = 10;
 
@@ -16,7 +17,7 @@ export type VehicleDetailsTodayReadModel = Readonly<{
 
 export type VehicleDetailsResponse = Readonly<{
   generatedAt: string;
-  vehicle: Readonly<{ id: string; name: string; disabled: boolean }>;
+  vehicle: Readonly<{ id: string; name: string; disabled: boolean; group: VehicleGroupRef | null }>;
   connectivity: "ONLINE" | "OFFLINE" | "UNKNOWN";
   currentState: FleetMapCurrentStateProjection | null;
   today: VehicleDetailsTodayReadModel | null;

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { CarOutlined, EnvironmentOutlined } from "@ant-design/icons";
-import { Button, Flex, Tabs, Typography, theme } from "antd";
+import { Button, Flex, Tabs, Tag, Typography, theme } from "antd";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { hasPermission } from "@/lib/auth/auth-contract";
@@ -14,9 +14,18 @@ const { Text, Title } = Typography;
 
 export type VehicleDetailTab = "overview" | "trips" | "history";
 
+export type VehicleGroupRef = Readonly<{ id: string; name: string }>;
+
+export function VehicleGroupTag({ group, showUngrouped = false }: Readonly<{ group: VehicleGroupRef | null | undefined; showUngrouped?: boolean }>) {
+  const { t } = useI18n();
+  if (!group) return showUngrouped ? <Tag color="default">{t("group.ungrouped")}</Tag> : null;
+  return <Tag color="default">{group.name}</Tag>;
+}
+
 type Props = Readonly<{
   vehicleId: string;
   vehicleName: string;
+  vehicleGroup?: VehicleGroupRef | null;
   activeTab: VehicleDetailTab;
   generatedAt?: string | null;
   description?: string;
@@ -35,7 +44,7 @@ export function visibleVehicleDetailTabs(canViewTrips: boolean): readonly Vehicl
   return canViewTrips ? ["overview", "trips", "history"] : ["overview"];
 }
 
-export function VehicleDetailShell({ vehicleId, vehicleName, activeTab, generatedAt = null, description, showMapAction = false, actions, children }: Props) {
+export function VehicleDetailShell({ vehicleId, vehicleName, vehicleGroup, activeTab, generatedAt = null, description, showMapAction = false, actions, children }: Props) {
   const router = useRouter();
   const auth = useAuth();
   const { locale, t } = useI18n();
@@ -52,6 +61,7 @@ export function VehicleDetailShell({ vehicleId, vehicleName, activeTab, generate
         <Flex className="vehicle-detail-shell__identity" align="center" gap="middle">
           <CarOutlined className="vehicle-detail-shell__vehicle-icon" aria-hidden style={{ color: token.colorTextTertiary }} />
           <Title level={1}>{vehicleName}</Title>
+          {vehicleGroup !== undefined ? <VehicleGroupTag group={vehicleGroup} showUngrouped /> : null}
         </Flex>
         {showMapAction || actions ? <Flex className="vehicle-detail-shell__actions" align="center" gap="small" wrap="wrap">
           {showMapAction && canOpenMap ? <Button type="default" size="large" href={fleetMapVehicleHref(vehicleId)} icon={<EnvironmentOutlined aria-hidden />}>{t("vehicle.openMap")}</Button> : null}

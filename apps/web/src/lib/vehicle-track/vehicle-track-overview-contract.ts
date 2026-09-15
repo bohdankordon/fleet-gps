@@ -23,7 +23,7 @@ const overviewSegment = z.object({
 
 export const vehicleTrackOverviewResponseSchema = z.object({
   generatedAt: timestamp,
-  vehicle: z.object({ id: z.string().uuid(), name: z.string().min(1).max(255) }).strict(),
+  vehicle: z.object({ id: z.string().uuid(), name: z.string().min(1).max(255), group: z.object({ id: z.string().uuid(), name: z.string().min(1).max(255) }).strict().nullable() }).strict(),
   range: z.object({ from: timestamp, to: timestamp }).strict(),
   summary: z.object({
     rawPointCount: count,

@@ -35,6 +35,7 @@ test("reads one consistent bounded snapshot with four entity reads, explicit sel
     where: { id: ID },
     select: {
       id: true, name: true, disabled: true,
+      group: { select: { id: true, name: true } },
       currentState: { select: { status: true, fixTime: true, latitude: true, longitude: true, speedKph: true, valid: true, outdated: true } },
       dailyStats: { where: { serviceDate: DATE }, take: 1, select: { distanceMeters: true, movementDurationSeconds: true, maxSpeedKph: true, source: true, quality: true, isStale: true, isDegraded: true } },
     },

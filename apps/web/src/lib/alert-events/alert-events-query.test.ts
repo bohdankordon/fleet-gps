@@ -31,15 +31,19 @@ test("History and old RESOLVED links default to seven days of opening time", () 
 });
 test("type, vehicle and all period choices survive URL serialization and Back/Forward restoration", () => {
   for (const period of ["24h", "7d", "30d"] as const) {
-    const filters = { mode: "history" as const, status: "RESOLVED" as const, type: "INACTIVITY" as const, vehicleId, ...alertEventsPreset(period, now) };
+    const filters = { mode: "history" as const, status: "RESOLVED" as const, type: "INACTIVITY" as const, vehicleId, group: undefined, ...alertEventsPreset(period, now) };
     assert.deepEqual(parseAlertEventsFilters(new URLSearchParams(serializeAlertEventsFilters(filters)), new Date("2027-01-01")), filters);
   }
   const custom = parseAlertEventsFilters(new URLSearchParams("mode=history&period=custom&from=2020-01-01T00:00:00Z&to=2026-01-01T00:00:00Z")); assert.equal(custom.period, "custom");
 });
-test("mode switching retains type and vehicle but drops period in Active", () => {
-  const active = switchAlertEventsMode({ ...alertEventsPreset("30d", now), type: "SPEEDING", vehicleId }, "active", now);
-  assert.deepEqual(active, { mode: "active", status: "OPEN", type: "SPEEDING", vehicleId });
+test("mode switching retains type, vehicle and group but drops period in Active", () => {
+  const groupId = "11111111-1111-4111-8111-111111111111";
+  const active = switchAlertEventsMode({ ...alertEventsPreset("30d", now), type: "SPEEDING", vehicleId, group: groupId }, "active", now);
+  assert.deepEqual(active, { mode: "active", status: "OPEN", type: "SPEEDING", vehicleId, group: groupId });
   assert.equal(switchAlertEventsMode(active, "history", now).period, "7d");
+  assert.equal(switchAlertEventsMode(active, "history", now).group, groupId);
+  const ungrouped = switchAlertEventsMode({ ...alertEventsPreset("30d", now), group: "ungrouped" }, "active", now);
+  assert.equal(ungrouped.group, "ungrouped");
 });
 test("BFF accepts one-sided ranges and rejects unsafe UUIDs, repeats and malformed ranges", () => {
   for (const bound of ["from", "to"]) assert.equal(parseAlertEventsRequestQuery(new URLSearchParams(`${bound}=2026-08-01T00:00:00Z`))[bound as "from" | "to"], "2026-08-01T00:00:00.000Z");

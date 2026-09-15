@@ -1,3 +1,5 @@
+import type { VehicleGroupRef } from "../vehicle-access/vehicle-access.types";
+
 export type AlertNotificationDeliveryStatus = "NONE" | "PENDING" | "SENT" | "FAILED";
 
 export type SpeedingAlertDetails = Readonly<{
@@ -18,7 +20,7 @@ export type InactivityAlertDetails = Readonly<{
 
 type AlertEventReadModelBase = Readonly<{
   id: string;
-  vehicle: Readonly<{ id: string; name: string }>;
+  vehicle: Readonly<{ id: string; name: string; group: VehicleGroupRef | null }>;
   lastObservedAt: string;
   status: "OPEN" | "RESOLVED";
   openedAt: string;
@@ -43,13 +45,19 @@ export type AlertEventsSummaryResponse = Readonly<{
   }>;
 }>;
 
+export type AlertEventsVehicleOption = Readonly<{
+  vehicleId: string;
+  vehicleName: string;
+  group: VehicleGroupRef | null;
+}>;
+
 export type OpenAlertMapAlert = Readonly<{
   type: "SPEEDING" | "INACTIVITY";
   openedAt: string;
 }>;
 
 export type OpenAlertMapVehicle = Readonly<{
-  vehicle: Readonly<{ id: string; name: string }>;
+  vehicle: Readonly<{ id: string; name: string; group: VehicleGroupRef | null }>;
   alerts: readonly OpenAlertMapAlert[];
 }>;
 

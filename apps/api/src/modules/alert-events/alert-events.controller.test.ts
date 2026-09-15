@@ -14,7 +14,7 @@ test("controller returns parsed list and summary responses", async () => {
   } as unknown as AlertEventsQueryService;
   const controller = new AlertEventsController(query);
   assert.deepEqual(await controller.list({ status: "OPEN", type: "INACTIVITY", limit: "10" }, testAuth), { items: [], nextCursor: null });
-  assert.deepEqual(params, { status: "OPEN", type: "INACTIVITY", vehicleId: undefined, limit: 10, cursor: undefined });
+  assert.deepEqual(params, { status: "OPEN", type: "INACTIVITY", vehicleId: undefined, group: { kind: "ALL" }, limit: 10, cursor: undefined });
   assert.deepEqual(await controller.getSummary(testAuth), { open: { total: 0, speeding: 0, inactivity: 0 } });
   assert.deepEqual(await controller.getOpenMap(testAuth), { generatedAt: "2026-08-10T12:00:00.000Z", summary: { totalOpenAlerts: 0, vehiclesWithOpenAlerts: 0, speeding: 0, inactivity: 0 }, vehicles: [] });
 });
