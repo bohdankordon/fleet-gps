@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+  PASSWORD_BLOCKLIST_WHITESPACE_RULE,
+  trimBlocklistWhitespace,
+} from "../modules/auth/password-canonical";
 
 export const PASSWORD_BLOCKLIST_SOURCE = Object.freeze({
   repository: "https://github.com/danielmiessler/SecLists",
@@ -25,7 +29,7 @@ export function gitBlobSha(bytes: Uint8Array): string {
 }
 
 export function canonicalizeSourceEntry(entry: string): string {
-  return entry.normalize("NFKC").toLowerCase().trim();
+  return trimBlocklistWhitespace(entry.normalize("NFKC").toLowerCase());
 }
 
 export function generatePasswordBlocklist(sourceBytes: Uint8Array): GeneratedPasswordBlocklist {
@@ -74,7 +78,7 @@ export function buildPasswordBlocklistMetadata(sourceBytes: Uint8Array, generate
       "decode source as strict UTF-8",
       "Unicode NFKC normalization",
       "deterministic Unicode lowercase",
-      "remove leading and trailing Unicode whitespace",
+      PASSWORD_BLOCKLIST_WHITESPACE_RULE,
       "omit empty identities and identities over 128 Unicode code points",
       "UTF-8 encode and SHA-256",
       "deduplicate and lexicographically sort full digests",

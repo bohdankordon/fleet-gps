@@ -4,12 +4,13 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
-import { buildPasswordBlocklistMetadata, generatePasswordBlocklist } from "../../maintenance/password-blocklist-generator";
+import { buildPasswordBlocklistMetadata, canonicalizeSourceEntry, generatePasswordBlocklist } from "../../maintenance/password-blocklist-generator";
+import { PASSWORD_BLOCKLIST_WHITESPACE_RULE, canonicalBlocklistIdentity, trimBlocklistWhitespace } from "./password-canonical";
 import { loadPasswordBlocklist, PasswordBlocklistArtifactError } from "./password-blocklist";
 
 function fixture() {
   const directory = mkdtempSync(resolve(tmpdir(), "fleet-gps-password-blocklist-"));
-  const source = Buffer.from("password\nＰＡＳＳＷＯＲＤ\n password \nunique phrase\n\n", "utf8");
+  const source = Buffer.from("password\n\uFF30\uFF21\uFF33\uFF33\uFF37\uFF2F\uFF32\uFF24\n password \nunique phrase\n\n", "utf8");
   const generated = generatePasswordBlocklist(source);
   const metadata = {
     ...JSON.parse(readFileSync(resolve(process.cwd(), "assets/password-policy/common-passwords.metadata.json"), "utf8")) as Record<string, unknown>,
@@ -24,7 +25,7 @@ function fixture() {
 }
 
 test("generation is deterministic, fixed-width, sorted, and deduplicated after canonicalization", () => {
-  const source = Buffer.from("password\nＰＡＳＳＷＯＲＤ\n password \nunique phrase\n\n", "utf8");
+  const source = Buffer.from("password\n\uFF30\uFF21\uFF33\uFF33\uFF37\uFF2F\uFF32\uFF24\n password \nunique phrase\n\n", "utf8");
   const first = generatePasswordBlocklist(source);
   const second = generatePasswordBlocklist(source);
   assert.deepEqual(first.binary, second.binary);
@@ -33,6 +34,26 @@ test("generation is deterministic, fixed-width, sorted, and deduplicated after c
   assert.equal(first.digestCount, 2);
   assert.equal(first.binary.byteLength, 64);
   assert.ok(Buffer.compare(first.binary.subarray(0, 32), first.binary.subarray(32, 64)) < 0);
+});
+
+test("canonicalization uses true Unicode White_Space trimming shared with runtime", () => {
+  assert.equal(PASSWORD_BLOCKLIST_WHITESPACE_RULE, "remove only leading and trailing Unicode \\p{White_Space}");
+  assert.equal(canonicalizeSourceEntry("  password  "), "password");
+  assert.equal(canonicalizeSourceEntry("\u0085password\u0085"), "password");
+  assert.equal("\u0085password\u0085".trim(), "\u0085password\u0085");
+  assert.equal(trimBlocklistWhitespace("\u0085password\u0085"), "password");
+  assert.equal(canonicalBlocklistIdentity("  PASSWORD  "), "password");
+  assert.equal(canonicalBlocklistIdentity("\u0085PASSWORD\u0085"), "password");
+  assert.equal(canonicalizeSourceEntry("a b"), "a b");
+  assert.equal(trimBlocklistWhitespace("  violet otters  navigate "), "violet otters  navigate");
+  assert.equal(canonicalizeSourceEntry("\uFF30\uFF21\uFF33\uFF33\uFF37\uFF2F\uFF32\uFF24"), "password");
+  const padded = Buffer.from("password\n\u0085password\u0085\n  PASSWORD  \nunique phrase\n\n", "utf8");
+  const generated = generatePasswordBlocklist(padded);
+  assert.equal(generated.sourceRecordCount, 5);
+  assert.equal(generated.digestCount, 2);
+  const again = generatePasswordBlocklist(padded);
+  assert.deepEqual(generated.binary, again.binary);
+  assert.deepEqual(buildPasswordBlocklistMetadata(padded, generated), buildPasswordBlocklistMetadata(padded, again));
 });
 
 test("runtime performs exact full-digest lookup", () => {
@@ -90,6 +111,7 @@ test("production build contains a loadable binary and deterministic metadata", (
   const index = loadPasswordBlocklist(binaryPath, metadataPath);
   assert.equal(index.count, 937_010);
   assert.equal(index.hasIdentity("password1234"), true);
-  const metadata = JSON.parse(readFileSync(metadataPath, "utf8")) as { binarySha256: string };
+  const metadata = JSON.parse(readFileSync(metadataPath, "utf8")) as { binarySha256: string; normalizationRules: string[] };
   assert.equal(createHash("sha256").update(readFileSync(binaryPath)).digest("hex"), metadata.binarySha256);
+  assert.equal(metadata.normalizationRules[3], PASSWORD_BLOCKLIST_WHITESPACE_RULE);
 });

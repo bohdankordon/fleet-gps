@@ -1,4 +1,5 @@
 import { COMMON_PASSWORD_BLOCKLIST, type PasswordBlocklist } from "./password-blocklist";
+import { trimBlocklistWhitespace } from "./password-canonical";
 
 export const PASSWORD_MIN_CODE_POINTS = 12;
 export const PASSWORD_MAX_CODE_POINTS = 128;
@@ -35,5 +36,7 @@ export function validateUserSelectedPassword(password: string, login: string, cu
   if (length < PASSWORD_MIN_CODE_POINTS || length > PASSWORD_MAX_CODE_POINTS) throw new PasswordPolicyError(PasswordPolicyReason.LENGTH);
   if (currentPassword !== undefined && password === currentPassword) throw new PasswordPolicyError(PasswordPolicyReason.SAME_AS_CURRENT);
   const canonical = canonicalPassword(password);
-  if (blocklist.hasIdentity(canonical) || blocklist.hasIdentity(canonical.trim()) || isContextuallyPredictable(password, login)) throw new PasswordPolicyError(PasswordPolicyReason.COMMON_OR_PREDICTABLE);
+  const trimmedIdentity = trimBlocklistWhitespace(canonical);
+  if (trimmedIdentity.length === 0) throw new PasswordPolicyError(PasswordPolicyReason.COMMON_OR_PREDICTABLE);
+  if (blocklist.hasIdentity(canonical) || blocklist.hasIdentity(trimmedIdentity) || isContextuallyPredictable(password, login)) throw new PasswordPolicyError(PasswordPolicyReason.COMMON_OR_PREDICTABLE);
 }

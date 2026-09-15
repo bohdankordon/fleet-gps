@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { PASSWORD_BLOCKLIST_WHITESPACE_RULE } from "./password-canonical";
 
 export const PASSWORD_BLOCKLIST_DIGEST_WIDTH = 32;
 export const PASSWORD_BLOCKLIST_FORMAT_VERSION = 1;
@@ -8,7 +9,7 @@ const EXPECTED_NORMALIZATION_RULES = Object.freeze([
   "decode source as strict UTF-8",
   "Unicode NFKC normalization",
   "deterministic Unicode lowercase",
-  "remove leading and trailing Unicode whitespace",
+  PASSWORD_BLOCKLIST_WHITESPACE_RULE,
   "omit empty identities and identities over 128 Unicode code points",
   "UTF-8 encode and SHA-256",
   "deduplicate and lexicographically sort full digests",
