@@ -25,7 +25,7 @@ test("audit foundation migration remains intact and later additive migrations ar
   const directories = readdirSync(migrationsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
-  assert.deepEqual(directories.sort(), [...existingMigrationDirectories, "20260813185936_add_audit_trail_foundation", "20260827000000_global_business_settings", "20260827010000_add_trip_stop_policy_settings", "20260828010000_add_telegram_user_linking", "20260829000000_add_user_notification_preferences", "20260829010000_add_alert_notification_recipient_delivery", "20260829020000_add_recipient_delivery_lease_token", "20260913000000_add_vehicle_history_ingestion_cursors", "20260913210000_add_position_history_replay_generations", "20260915090000_add_vehicle_groups_access", "20260915120000_add_vehicle_group_color"].sort());
+  assert.deepEqual(directories.sort(), [...existingMigrationDirectories, "20260813185936_add_audit_trail_foundation", "20260827000000_global_business_settings", "20260827010000_add_trip_stop_policy_settings", "20260828010000_add_telegram_user_linking", "20260829000000_add_user_notification_preferences", "20260829010000_add_alert_notification_recipient_delivery", "20260829020000_add_recipient_delivery_lease_token", "20260913000000_add_vehicle_history_ingestion_cursors", "20260913210000_add_position_history_replay_generations", "20260915090000_add_vehicle_groups_access", "20260915120000_add_vehicle_group_color", "20260915150000_add_speeding_confirmation_position"].sort());
 
   for (const directory of existingMigrationDirectories) {
     const files = readdirSync(`${migrationsRoot}/${directory}`);

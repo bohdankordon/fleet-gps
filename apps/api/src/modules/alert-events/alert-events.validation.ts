@@ -34,6 +34,11 @@ function positiveInteger(value: number, field: string): number {
   return value;
 }
 
+function coordinate(value: number, field: string, minimum: number, maximum: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < minimum || value > maximum) throw new AlertEventValidationError(field);
+  return value;
+}
+
 function rejectKeys(value: object, keys: readonly string[]): void {
   for (const key of keys) if (key in value) throw new AlertEventValidationError(key);
 }
@@ -45,7 +50,7 @@ export function validateOpenAlertEventCommand(command: OpenAlertEventCommand): O
     const speedKph = nonNegative(command.speedKph, "speedKph");
     const speedThresholdKph = positive(command.speedThresholdKph, "speedThresholdKph");
     if (speedKph <= speedThresholdKph) throw new AlertEventValidationError("speedKph");
-    return Object.freeze({ type: command.type, vehicleId: vehicleId(command.vehicleId), observedAt: observedAt(command.observedAt), zone: command.zone, speedKph, speedThresholdKph });
+    return Object.freeze({ type: command.type, vehicleId: vehicleId(command.vehicleId), observedAt: observedAt(command.observedAt), zone: command.zone, speedKph, speedThresholdKph, confirmationLatitude: coordinate(command.confirmationLatitude, "confirmationLatitude", -90, 90), confirmationLongitude: coordinate(command.confirmationLongitude, "confirmationLongitude", -180, 180) });
   }
   if (command.type === "INACTIVITY") {
     rejectKeys(command, ["zone", "speedKph", "speedThresholdKph"]);

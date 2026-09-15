@@ -66,10 +66,10 @@ export class SpeedingDetectorStateMachine {
     const confirmed = (continuing && previous.confirmed) || newlyConfirmed;
     this.states.set(observation.vehicleId, { lastAcceptedObservedAtMs: observation.observedAtMs, consecutiveCount, confirmed, context: currentContext });
     const status = newlyConfirmed ? "CONFIRMED" : confirmed ? "ACTIVE" : "PENDING";
-    return this.result(observation.vehicleId, observation.observedAt, status, contextChanged ? "RULE_CONTEXT_CHANGED" : "ABOVE_THRESHOLD", rule.zone, observation.speedKph, rule.thresholdKph, consecutiveCount, rule.confirmationRequired, newlyConfirmed);
+    return this.result(observation.vehicleId, observation.observedAt, status, contextChanged ? "RULE_CONTEXT_CHANGED" : "ABOVE_THRESHOLD", rule.zone, observation.speedKph, rule.thresholdKph, consecutiveCount, rule.confirmationRequired, newlyConfirmed, newlyConfirmed ? { latitude: observation.latitude, longitude: observation.longitude } : undefined);
   }
 
-  private result(vehicleId: string, observedAt: string | null, status: SpeedingDetectionResult["status"], reason: SpeedingDetectorReason, zone: SpeedingDetectionResult["zone"], speedKph: number | null, thresholdKph: number | null, consecutiveCount: number, confirmationRequired: number, newlyConfirmed: boolean): SpeedingDetectionResult {
-    return Object.freeze({ vehicleId, observedAt, status, reason, zone, speedKph, thresholdKph, consecutiveCount, confirmationRequired, newlyConfirmed });
+  private result(vehicleId: string, observedAt: string | null, status: SpeedingDetectionResult["status"], reason: SpeedingDetectorReason, zone: SpeedingDetectionResult["zone"], speedKph: number | null, thresholdKph: number | null, consecutiveCount: number, confirmationRequired: number, newlyConfirmed: boolean, confirmationPosition?: Readonly<{ latitude: number; longitude: number }>): SpeedingDetectionResult {
+    return Object.freeze({ vehicleId, observedAt, status, reason, zone, speedKph, thresholdKph, consecutiveCount, confirmationRequired, newlyConfirmed, ...(confirmationPosition ? { confirmationPosition: Object.freeze(confirmationPosition) } : {}) });
   }
 }

@@ -6,6 +6,7 @@ import { AlertEventValidationError, validateOpenAlertEventCommand, validateUpdat
 
 const VEHICLE_ID = "00000000-0000-4000-8000-000000000001";
 const AT = new Date("2026-08-08T10:00:00.000Z");
+const POSITION = { confirmationLatitude: 49.23, confirmationLongitude: 28.48 } as const;
 
 test("rejects a SPEEDING command carrying inactivity payload", () => {
   const invalid = { type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: AT, zone: "CITY", speedKph: 70, speedThresholdKph: 60, traveledDistanceMeters: 1 } as unknown as OpenAlertEventCommand;
@@ -30,8 +31,13 @@ test("rejects invalid and non-finite metrics", () => {
 });
 
 test("rejects SPEEDING confirmation at or below its threshold", () => {
-  for (const speedKph of [60, 59]) assert.throws(() => validateOpenAlertEventCommand({ type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: AT, zone: "CITY", speedKph, speedThresholdKph: 60 }), AlertEventValidationError);
-  assert.equal(validateOpenAlertEventCommand({ type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: AT, zone: "CITY", speedKph: 60.001, speedThresholdKph: 60 }).type, "SPEEDING");
+  for (const speedKph of [60, 59]) assert.throws(() => validateOpenAlertEventCommand({ type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: AT, zone: "CITY", speedKph, speedThresholdKph: 60, ...POSITION }), AlertEventValidationError);
+  assert.equal(validateOpenAlertEventCommand({ type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: AT, zone: "CITY", speedKph: 60.001, speedThresholdKph: 60, ...POSITION }).type, "SPEEDING");
+});
+
+test("rejects invalid SPEEDING confirmation coordinates", () => {
+  for (const confirmationLatitude of [Number.NaN, -91, 91]) assert.throws(() => validateOpenAlertEventCommand({ type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: AT, zone: "CITY", speedKph: 70, speedThresholdKph: 60, confirmationLatitude, confirmationLongitude: 28.48 }), AlertEventValidationError);
+  for (const confirmationLongitude of [Number.POSITIVE_INFINITY, -181, 181]) assert.throws(() => validateOpenAlertEventCommand({ type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: AT, zone: "CITY", speedKph: 70, speedThresholdKph: 60, confirmationLatitude: 49.23, confirmationLongitude }), AlertEventValidationError);
 });
 
 test("rejects INACTIVITY confirmation at or above its distance threshold", () => {

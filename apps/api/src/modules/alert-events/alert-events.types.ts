@@ -11,6 +11,8 @@ export type OpenSpeedingEventCommand = Readonly<{
   zone: AlertEventSpeedZone;
   speedKph: number;
   speedThresholdKph: number;
+  confirmationLatitude: number;
+  confirmationLongitude: number;
 }>;
 
 export type OpenInactivityEventCommand = Readonly<{
@@ -62,6 +64,8 @@ export type SpeedingAlertEventRecord = AlertEventRecordBase & Readonly<{
   type: "SPEEDING";
   speedZone: AlertEventSpeedZone;
   confirmationSpeedKph: number;
+  confirmationLatitude: number | null;
+  confirmationLongitude: number | null;
   lastSpeedKph: number;
   peakSpeedKph: number;
   speedThresholdKph: number;
@@ -87,4 +91,3 @@ export type AlertEventLifecycleResult =
   | Readonly<{ outcome: "UPDATED"; eventId: string }>
   | Readonly<{ outcome: "RESOLVED"; eventId: string }>
   | Readonly<{ outcome: "NOOP"; reason: AlertEventNoopReason }>;
-

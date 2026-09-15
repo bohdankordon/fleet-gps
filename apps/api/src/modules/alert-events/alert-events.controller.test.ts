@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { HttpException } from "@nestjs/common";
 import { AlertEventsController } from "./alert-events.controller";
-import type { AlertEventsQueryService } from "./alert-events-query.service";
+import { AlertEventInvestigationNotFoundError, type AlertEventsQueryService } from "./alert-events-query.service";
 const testAuth = { auth: { id: "00000000-0000-4000-8000-000000000001" } } as unknown as import("../auth/auth.types").AuthenticatedRequest;
 
 test("controller returns parsed list and summary responses", async () => {
@@ -35,4 +35,14 @@ test("vehicle options require events.view and fail with a safe response", async 
   assert.equal((await controller.getVehicleOptions(testAuth))[0]?.vehicleName, "DEMO");
   const failed = new AlertEventsController({ getVehicleOptions: async () => { throw new Error("secret"); } } as unknown as AlertEventsQueryService);
   await assert.rejects(failed.getVehicleOptions(testAuth), (error: unknown) => error instanceof HttpException && error.getStatus() === 500 && !JSON.stringify(error.getResponse()).includes("secret"));
+});
+
+test("investigation requires events.view and uses one non-disclosing 404 for invalid, missing, or inaccessible IDs", async () => {
+  assert.deepEqual(Reflect.getMetadata("auth:permissions", AlertEventsController.prototype.getInvestigation), ["events.view"]);
+  const payload = { eventId: "00000000-0000-4000-8000-000000000002", type: "SPEEDING" as const, vehicleId: "00000000-0000-4000-8000-000000000003", confirmedAt: "2026-08-08T10:00:00.000Z", confirmationPosition: { latitude: 49.23, longitude: 28.48 }, confirmationSpeedKph: 72, thresholdKph: 60, zone: "CITY" as const };
+  const controller = new AlertEventsController({ getSpeedingInvestigation: async () => payload } as unknown as AlertEventsQueryService);
+  assert.deepEqual(await controller.getInvestigation(payload.eventId, testAuth), payload);
+  await assert.rejects(controller.getInvestigation("not-a-uuid", testAuth), (error: unknown) => error instanceof HttpException && error.getStatus() === 404);
+  const hidden = new AlertEventsController({ getSpeedingInvestigation: async () => { throw new AlertEventInvestigationNotFoundError(); } } as unknown as AlertEventsQueryService);
+  await assert.rejects(hidden.getInvestigation(payload.eventId, testAuth), (error: unknown) => error instanceof HttpException && error.getStatus() === 404 && JSON.stringify(error.getResponse()) === JSON.stringify({ statusCode: 404, error: "Not Found" }));
 });

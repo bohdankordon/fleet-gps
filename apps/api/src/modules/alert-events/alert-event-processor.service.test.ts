@@ -11,7 +11,7 @@ const VEHICLE_ID = "00000000-0000-4000-8000-000000000001";
 const OBSERVED_AT = "2026-08-08T10:00:00.000Z";
 
 function speeding(overrides: Partial<SpeedingDetectionResult> = {}): SpeedingDetectionResult {
-  return { vehicleId: VEHICLE_ID, observedAt: OBSERVED_AT, status: "CONFIRMED", reason: "ABOVE_THRESHOLD", zone: "CITY", speedKph: 72, thresholdKph: 60, consecutiveCount: 2, confirmationRequired: 2, newlyConfirmed: true, ...overrides };
+  return { vehicleId: VEHICLE_ID, observedAt: OBSERVED_AT, status: "CONFIRMED", reason: "ABOVE_THRESHOLD", zone: "CITY", speedKph: 72, thresholdKph: 60, consecutiveCount: 2, confirmationRequired: 2, newlyConfirmed: true, confirmationPosition: { latitude: 49.23, longitude: 28.48 }, ...overrides };
 }
 
 function inactivity(overrides: Partial<InactivityDetectionResult> = {}): InactivityDetectionResult {
@@ -62,7 +62,7 @@ test("3. speeding CONFIRMED with newlyConfirmed=false returns NONE", async () =>
 test("4. speeding newly confirmed routes the mapper OPEN command to lifecycle", async () => {
   const { processor, calls } = setup();
   assert.equal((await processor.processSpeedingResult(speeding())).action, "OPEN");
-  assert.deepEqual(calls, [{ method: "openSpeedingEvent", command: { type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: new Date(OBSERVED_AT), zone: "CITY", speedKph: 72, speedThresholdKph: 60 } }]);
+  assert.deepEqual(calls, [{ method: "openSpeedingEvent", command: { type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: new Date(OBSERVED_AT), zone: "CITY", speedKph: 72, speedThresholdKph: 60, confirmationLatitude: 49.23, confirmationLongitude: 28.48 } }]);
 });
 
 test("5. speeding CREATED is returned transparently", async () => {

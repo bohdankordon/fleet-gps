@@ -143,7 +143,7 @@ test("7-8. speeding PENDING and inactivity COLLECTING both process as NONE", asy
 });
 
 test("9-10. both CONFIRMED preserve production OPEN/CREATED outcomes", async () => {
-  const speed = speeding({ status: "CONFIRMED", consecutiveCount: 2, newlyConfirmed: true });
+  const speed = speeding({ status: "CONFIRMED", consecutiveCount: 2, newlyConfirmed: true, confirmationPosition: { latitude: 49.2328, longitude: 28.481 } });
   const idle = inactivity({ status: "CONFIRMED", reason: "INACTIVITY_CONFIRMED", elapsedMinutes: 60, traveledDistanceMeters: 12, windowPointCount: 4, newlyConfirmed: true });
   const { processor, calls } = productionProcessor();
   const speedDetector = { detect: async () => speed, resetVehicle() {}, clearAll() {} } as unknown as SpeedingDetectorService;

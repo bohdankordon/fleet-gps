@@ -499,6 +499,8 @@ model AlertEvent {
   activeKey                          String?                   @unique @map("active_key") @db.VarChar(64)
   speedZone                          AlertEventSpeedZone?      @map("speed_zone")
   confirmationSpeedKph               Float?                    @map("confirmation_speed_kph")
+  confirmationLatitude               Float?                    @map("confirmation_latitude")
+  confirmationLongitude              Float?                    @map("confirmation_longitude")
   lastSpeedKph                       Float?                    @map("last_speed_kph")
   peakSpeedKph                       Float?                    @map("peak_speed_kph")
   speedThresholdKph                  Float?                    @map("speed_threshold_kph")

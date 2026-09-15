@@ -5,7 +5,7 @@ import { applyAlertEventScope, applyVehicleScope, groupAlertEventWhere } from ".
 import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
 import type { AlertEventsVehicleOption } from "./alert-events-read-models";
 import type { AlertEventsQueryParams } from "./alert-events-query-params";
-import { MAX_OPEN_ALERT_MAP_EVENTS, type AlertEventsQueryRepository, type StoredAlertEventReadRow, type StoredAlertEventsPage, type StoredOpenAlertEventsSummary, type StoredOpenAlertMapSnapshot } from "./alert-events-query.repository";
+import { MAX_OPEN_ALERT_MAP_EVENTS, type AlertEventsQueryRepository, type StoredAlertEventReadRow, type StoredAlertEventsPage, type StoredOpenAlertEventsSummary, type StoredOpenAlertMapSnapshot, type StoredSpeedingEventInvestigationRow } from "./alert-events-query.repository";
 
 const alertEventReadSelect = {
   id: true,
@@ -98,6 +98,13 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
     return Object.freeze({
       rows: Object.freeze(rows.slice(0, MAX_OPEN_ALERT_MAP_EVENTS)),
       exceededLimit: rows.length > MAX_OPEN_ALERT_MAP_EVENTS,
+    });
+  }
+
+  public findSpeedingInvestigation(eventId: string, scope: VehicleScope): Promise<StoredSpeedingEventInvestigationRow | null> {
+    return this.database.getClient().alertEvent.findFirst({
+      where: applyAlertEventScope(scope, { id: eventId, type: AlertEventType.SPEEDING }),
+      select: { id: true, type: true, vehicleId: true, confirmedAt: true, confirmationLatitude: true, confirmationLongitude: true, confirmationSpeedKph: true, speedThresholdKph: true, speedZone: true },
     });
   }
 }

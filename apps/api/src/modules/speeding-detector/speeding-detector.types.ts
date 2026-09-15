@@ -40,4 +40,6 @@ export type SpeedingDetectionResult = Readonly<{
   consecutiveCount: number;
   confirmationRequired: number;
   newlyConfirmed: boolean;
+  /** Present only on the normalized observation that newly confirms SPEEDING. */
+  confirmationPosition?: Readonly<{ latitude: number; longitude: number }>;
 }>;
