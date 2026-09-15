@@ -331,6 +331,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "admin.vehicleAccess.noGroups": { ru: "Групп пока нет. Сначала создайте группу.", uk: "Груп поки немає. Спочатку створіть групу.", en: "No groups yet. Create a group first." },
   "admin.vehicleAccess.noVehicles": { ru: "В автопарке пока нет машин.", uk: "В автопарку поки немає автомобілів.", en: "The fleet has no vehicles yet." },
   "admin.vehicleAccess.alreadyViaGroup": { ru: "Уже доступна через выбранную группу", uk: "Уже доступний через вибрану групу", en: "Already accessible through a selected group" },
+  "admin.vehicleAccess.directPlusGroup": { ru: "Прямое разрешение + доступ через группу", uk: "Прямий дозвіл + доступ через групу", en: "Direct + group access" },
   "admin.vehicleAccess.summaryAll": { ru: "Все машины", uk: "Усі автомобілі", en: "All vehicles" },
   "admin.vehicleAccess.summarySelected": { ru: "Групп: {groups}; прямых разрешений: {vehicles}; доступно машин: {effective}", uk: "Груп: {groups}; прямих дозволів: {vehicles}; доступно автомобілів: {effective}", en: "Groups: {groups}; direct grants: {vehicles}; effective vehicles: {effective}" },
   "admin.vehicleAccess.adminNote": { ru: "Администратор имеет полный доступ ко всему автопарку.", uk: "Адміністратор має повний доступ до всього автопарку.", en: "Administrators have full fleet access." },

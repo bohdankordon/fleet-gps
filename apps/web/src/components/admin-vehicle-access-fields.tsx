@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Alert, Checkbox, Empty, Input, Radio, Typography } from "antd";
-import { SearchOutlined } from "@ant-design/icons";
+import { CheckOutlined, SearchOutlined } from "@ant-design/icons";
 import { useI18n } from "../i18n/client";
 import type { VehicleAccessMode } from "../lib/admin-users/admin-users-contract";
 import { effectiveVehicleIds, type VehicleAccessDraft } from "../lib/admin-users/vehicle-access-form-model";
@@ -66,13 +66,33 @@ export function AdminVehicleAccessFields({ draft, groups, vehicles, busy, modeEr
         <Typography.Paragraph type="secondary">{t("admin.vehicleAccess.grantHint")}</Typography.Paragraph>
         <Input allowClear prefix={<SearchOutlined />} value={query} disabled={busy} onChange={(event) => setQuery(event.target.value)} placeholder={t("admin.groups.searchPlaceholder")} aria-label={t("admin.groups.searchVehicles")} />
         {(vehicles ?? []).length === 0 ? <Typography.Paragraph type="secondary">{t("admin.vehicleAccess.noVehicles")}</Typography.Paragraph> : filteredVehicles.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("admin.groups.noSearchResults")} /> : <div className="vehicle-access-fields__vehicles">
-          {filteredVehicles.map((vehicle) => <div key={vehicle.id}><Checkbox checked={draft.vehicleIds.includes(vehicle.id)} disabled={busy} onChange={(event) => onToggleVehicle(vehicle.id, event.target.checked)}>{vehicle.name}</Checkbox>
-          <Typography.Text type="secondary"> · {vehicle.disabled ? `${t("admin.groups.disabledLabel")} · ` : ""}{vehicle.groupId ? (groupNameById.get(vehicle.groupId) ?? t("admin.groups.ungroupedLabel")) : t("admin.groups.ungroupedLabel")}{viaGroup.has(vehicle.id) && !draft.vehicleIds.includes(vehicle.id) ? ` · ${t("admin.vehicleAccess.alreadyViaGroup")}` : ""}</Typography.Text></div>)}
+          {filteredVehicles.map((vehicle) => <VehicleAccessRow key={vehicle.id} vehicle={vehicle} groupName={vehicle.groupId ? (groupNameById.get(vehicle.groupId) ?? t("admin.groups.ungroupedLabel")) : t("admin.groups.ungroupedLabel")} direct={draft.vehicleIds.includes(vehicle.id)} viaGroup={viaGroup.has(vehicle.id)} busy={busy} onToggle={(checked) => onToggleVehicle(vehicle.id, checked)} />)}
         </div>}
       </div>
     </> : null}
     {draft.mode === "SELECTED" && directoryMissing ? null : <VehicleAccessSummary draft={draft} effective={effective} />}
   </section>;
+}
+
+export type VehicleAccessRowProps = Readonly<{
+  vehicle: ManagedVehicle;
+  groupName: string;
+  direct: boolean;
+  viaGroup: boolean;
+  busy: boolean;
+  onToggle(checked: boolean): void;
+}>;
+
+export function VehicleAccessRow({ vehicle, groupName, direct, viaGroup, busy, onToggle }: VehicleAccessRowProps) {
+  const { t } = useI18n();
+  const status = direct && viaGroup ? t("admin.vehicleAccess.directPlusGroup") : !direct && viaGroup ? t("admin.vehicleAccess.alreadyViaGroup") : null;
+  return <div className="vehicle-access-row">
+    <Checkbox checked={direct} disabled={busy} onChange={(event) => onToggle(event.target.checked)}><span className="vehicle-access-row__name">{vehicle.name}</span></Checkbox>
+    <div className="vehicle-access-row__meta">
+      <Typography.Text type="secondary">{groupName}{vehicle.disabled ? ` · ${t("admin.groups.disabledLabel")}` : ""}</Typography.Text>
+      {status ? <Typography.Text type="success"><CheckOutlined aria-hidden="true" /> {status}</Typography.Text> : null}
+    </div>
+  </div>;
 }
 
 export function VehicleAccessSummary({ draft, effective }: Readonly<{ draft: VehicleAccessDraft; effective: ReadonlySet<string> }>) {

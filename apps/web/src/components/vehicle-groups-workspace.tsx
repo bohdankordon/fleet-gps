@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Divider, Empty, Grid, Input, List, Modal, Space, Table, Typography } from "antd";
+import { Alert, Button, Card, Divider, Empty, Grid, Input, Listy, Modal, Pagination, Space, Table, Typography } from "antd";
 import type { TableColumnsType } from "antd";
 import { useI18n } from "../i18n/client";
 import { vehicleGroupErrorMessage } from "../i18n/errors";
@@ -75,7 +75,7 @@ export function VehicleGroupsDirectory({ groups }: Readonly<{ groups: readonly V
   return <section className="vehicle-groups-directory" aria-labelledby="vehicle-groups-directory-title">
     <Typography.Title id="vehicle-groups-directory-title" level={2}>{t("admin.groups.directory")}</Typography.Title>
     <Divider />
-    {groups.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("admin.groups.empty")} /> : screens.lg ? <Table<VehicleGroupSummary> rowKey="id" dataSource={[...groups]} columns={columns} pagination={false} /> : <List dataSource={[...groups]} renderItem={(group) => <List.Item actions={[<Link key="open" href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`}>{t("admin.groups.open")}</Link>]}><List.Item.Meta title={<Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`}>{group.name}</Link>} description={t("admin.groups.vehicleCount", { count: group.vehicleCount })} /></List.Item>} />}
+    {groups.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("admin.groups.empty")} /> : screens.lg ? <Table<VehicleGroupSummary> rowKey="id" dataSource={[...groups]} columns={columns} pagination={false} /> : <Listy className="vehicle-groups-list" aria-label={t("admin.groups.directory")} items={[...groups]} rowKey="id" itemRender={(group) => <div className="vehicle-groups-list__item"><div className="vehicle-groups-list__main"><Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`} aria-label={t("admin.groups.openGroup", { name: group.name })}>{group.name}</Link><Typography.Text type="secondary">{t("admin.groups.vehicleCount", { count: group.vehicleCount })}</Typography.Text></div><Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`}>{t("admin.groups.open")}</Link></div>} />}
   </section>;
 }
 
@@ -90,7 +90,7 @@ export function UngroupedCard({ vehicles }: Readonly<{ vehicles: readonly Manage
     <Typography.Paragraph type="secondary">{t("admin.groups.ungroupedText")}</Typography.Paragraph>
     {vehicles.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("admin.groups.ungroupedEmpty")} /> : <>
       <Input allowClear prefix={<SearchOutlined />} value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder={t("admin.groups.searchPlaceholder")} aria-label={t("admin.groups.searchVehicles")} />
-      {filtered.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("admin.groups.noSearchResults")} /> : <List dataSource={items} pagination={filtered.length > pageSize ? { current: page, pageSize, total: filtered.length, onChange: setPage, size: "small" } : false} renderItem={(vehicle) => <List.Item><Space>{vehicle.name}{vehicle.disabled ? <Typography.Text type="secondary">· {t("admin.groups.disabledLabel")}</Typography.Text> : null}</Space></List.Item>} />}
+      {filtered.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("admin.groups.noSearchResults")} /> : <><Listy items={items} rowKey="id" itemRender={(vehicle) => <div className="vehicle-groups-ungrouped__item"><Space>{vehicle.name}{vehicle.disabled ? <Typography.Text type="secondary">· {t("admin.groups.disabledLabel")}</Typography.Text> : null}</Space></div>} />{filtered.length > pageSize ? <Pagination current={page} pageSize={pageSize} total={filtered.length} onChange={setPage} size="small" /> : null}</>}
     </>}
   </Card>;
 }

@@ -44,3 +44,23 @@ test("create flow posts only the trimmed name and surfaces backend errors", () =
   assert.match(source, /router\.refresh\(\)/);
   assert.doesNotMatch(source, /body\.message|\.message\s*\?\?/);
 });
+
+test("directory uses the supported Ant Design 6 list primitives with working search and pagination", () => {
+  const source = readFileSync("src/components/vehicle-groups-workspace.tsx", "utf8");
+  assert.ok(source.includes("Listy"), "supported list primitive");
+  assert.doesNotMatch(source, /<List[ >]/);
+  assert.doesNotMatch(source, /List\.Item/);
+  assert.ok(source.includes("Pagination"), "explicit pager");
+  const many = Array.from({ length: 11 }, (_, index) => ({ id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`, name: `Car ${index}`, disabled: false, groupId: null as string | null }));
+  const html = renderToStaticMarkup(<I18nProvider locale="en"><UngroupedCard vehicles={many} /></I18nProvider>);
+  assert.ok(html.includes("Car 0") && html.includes("Car 9"), "first page");
+  assert.equal(html.includes("Car 10"), false, "second page not rendered");
+  assert.match(html, /ant-pagination/);
+});
+
+test("vehicle rows and transfer lists stack without page overflow on narrow widths", () => {
+  const css = readFileSync("src/styles/vehicle-groups.css", "utf8");
+  assert.match(css, /\.vehicle-access-row\s*\{[^}]*grid-template-columns:[^}]*\}/);
+  assert.match(css, /@media \(max-width: 575px\)[\s\S]*?\.vehicle-access-row\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.ant-transfer\s*\{[^}]*overflow-x:\s*auto/);
+});
