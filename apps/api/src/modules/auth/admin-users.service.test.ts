@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
-import { AuthRole } from "../../generated/prisma/enums";
+import { AuthRole, VehicleAccessMode } from "../../generated/prisma/enums";
 import type { AuditUserActor } from "../audit";
 import type { DatabaseService } from "../database/database.service";
 import { ADMIN_CARDINALITY_ADVISORY_LOCK_KEY, AdminUsersError, AdminUsersService, DEFAULT_ADMIN_USER_SECURITY, type AdminUserSecurity } from "./admin-users.service";
@@ -26,6 +26,7 @@ type Row = {
   login: string;
   normalizedLogin: string;
   role: AuthRole;
+  vehicleAccessMode: VehicleAccessMode;
   disabled: boolean;
   mustChangePassword: boolean;
   passwordHashVersion: number;
@@ -41,6 +42,7 @@ const row = (id: string, role: AuthRole, disabled = false, login = id): Row => (
   login,
   normalizedLogin: login.toLowerCase(),
   role,
+  vehicleAccessMode: VehicleAccessMode.ALL,
   disabled,
   mustChangePassword: false,
   passwordHashVersion: 1,
@@ -77,7 +79,7 @@ function fixture(
       return { id: `audit-${auditEvents.length}` };
     },
   };
-  const withPermissions = (user: Row) => ({ ...user, permissions: (permissionRows.get(user.id) ?? []).map((key) => ({ key })) });
+  const withPermissions = (user: Row) => ({ ...user, permissions: (permissionRows.get(user.id) ?? []).map((key) => ({ key })), vehicleGroupGrants: [], vehicleGrants: [] });
 
   function transaction() {
     let release: (() => void) | undefined;
@@ -124,6 +126,10 @@ function fixture(
           for (const item of data) permissionRows.set(item.userId, [...(permissionRows.get(item.userId) ?? []), item.key]);
         },
       },
+      authUserVehicleGroupGrant: { deleteMany: async () => {}, createMany: async () => {} },
+      authUserVehicleGrant: { deleteMany: async () => {}, createMany: async () => {} },
+      vehicleGroup: { findMany: async () => [] },
+      vehicle: { findMany: async () => [] },
       authSession: { deleteMany: async ({ where }: { where: { userId: string } }) => { sessions.set(where.userId, []); } },
       release: () => release?.(),
     };
@@ -175,11 +181,11 @@ function fixture(
 
 test("USER creation commits factual canonical audit details without the generated secret", async () => {
   const state = fixture();
-  const result = await state.service.create(actor(), { login: "Dispatcher.1", role: "USER", permissions: ["trips.view"] });
+  const result = await state.service.create(actor(), { login: "Dispatcher.1", role: "USER", permissions: ["trips.view"], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] } });
   assert.deepEqual(result.user.permissions, ["vehicles.view", "trips.view"]);
   assert.deepEqual(state.hashes, [result.temporaryPassword]);
   assert.equal(JSON.stringify(state.dbArguments).includes(result.temporaryPassword), false);
-  assert.equal(state.auditEvents.length, 1);
+  assert.equal(state.auditEvents.length, 2);
   assert.deepEqual(state.auditEvents[0], {
     eventType: "USER_CREATED",
     actor: actor(),
@@ -189,6 +195,13 @@ test("USER creation commits factual canonical audit details without the generate
   });
   assert.equal((state.auditClients[0] as { authUser?: unknown }).authUser !== undefined, true);
   assert.equal(JSON.stringify(state.auditEvents[0]).includes(result.temporaryPassword), false);
+  assert.deepEqual(state.auditEvents[1], {
+    eventType: "USER_VEHICLE_ACCESS_CHANGED",
+    actor: actor(),
+    targetType: "USER",
+    targetId: result.user.id,
+    details: { targetLoginSnapshot: "Dispatcher.1", previousMode: null, mode: "ALL", previousGroupGrantCount: 0, groupGrantCount: 0, previousVehicleGrantCount: 0, vehicleGrantCount: 0, addedGroupGrantCount: 0, removedGroupGrantCount: 0, addedVehicleGrantCount: 0, removedVehicleGrantCount: 0 },
+  });
 });
 
 test("ADMIN creation audits effective full access while persisting zero permission rows", async () => {
@@ -202,20 +215,20 @@ test("ADMIN creation audits effective full access while persisting zero permissi
 test("create audit failure rolls back user and permission rows; conflicts and invalid input write zero audit", async () => {
   const failed = fixture(undefined, undefined, { append: async () => { throw new Error("audit failure"); } });
   const before = failed.users.size;
-  await assert.rejects(failed.service.create(actor(), { login: "New.User", role: "USER", permissions: ["trips.view"] }), /audit failure/);
+  await assert.rejects(failed.service.create(actor(), { login: "New.User", role: "USER", permissions: ["trips.view"], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] } }), /audit failure/);
   assert.equal(failed.users.size, before);
   assert.equal([...failed.users.values()].some((user) => user.login === "New.User"), false);
   assert.equal([...failed.permissions.keys()].some((id) => !failed.users.has(id)), false);
 
   const rejected = fixture();
   await assert.rejects(rejected.service.create(actor(), { login: actorId, role: "ADMIN", permissions: [] }), (error: unknown) => error instanceof AdminUsersError && error.code === "DUPLICATE_LOGIN");
-  await assert.rejects(rejected.service.create(actor(), { login: "valid-user", role: "USER", permissions: ["unknown"] }), (error: unknown) => error instanceof AdminUsersError && error.code === "INVALID_INPUT");
+  await assert.rejects(rejected.service.create(actor(), { login: "valid-user", role: "USER", permissions: ["unknown"], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] } }), (error: unknown) => error instanceof AdminUsersError && error.code === "INVALID_INPUT");
   assert.equal(rejected.auditEvents.length, 0);
 });
 
 test("access change records factual canonical before/after access and no-op writes zero event", async () => {
   const state = fixture([row(actorId, AuthRole.ADMIN), row(targetId, AuthRole.USER), row(otherId, AuthRole.ADMIN)]);
-  await state.service.updateAccess(actor(), targetId, { role: "USER", permissions: ["historyAdmin.populate"] });
+  await state.service.updateAccess(actor(), targetId, { role: "USER", permissions: ["historyAdmin.populate"], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] } });
   assert.deepEqual(state.permissions.get(targetId), ["historyAdmin.view", "historyAdmin.populate"]);
   assert.deepEqual((state.auditEvents[0] as { details: unknown }).details, {
     targetLoginSnapshot: targetId,
@@ -225,7 +238,7 @@ test("access change records factual canonical before/after access and no-op writ
     permissions: ["historyAdmin.view", "historyAdmin.populate"],
   });
   const count = state.auditEvents.length;
-  await state.service.updateAccess(actor(), targetId, { role: "USER", permissions: ["historyAdmin.view", "historyAdmin.populate"] });
+  await state.service.updateAccess(actor(), targetId, { role: "USER", permissions: ["historyAdmin.view", "historyAdmin.populate"], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] } });
   assert.equal(state.auditEvents.length, count);
 });
 
@@ -238,13 +251,13 @@ test("access audit failure rolls role and permission replacement back", async ()
 
 test("self and last-enabled ADMIN invariants remain zero-audit", async () => {
   const self = fixture();
-  await assert.rejects(self.service.updateAccess(actor(), actorId, { role: "USER", permissions: [] }), AdminUsersError);
+  await assert.rejects(self.service.updateAccess(actor(), actorId, { role: "USER", permissions: [], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] } }), AdminUsersError);
   await assert.rejects(self.service.disable(actor(), actorId), AdminUsersError);
   await assert.rejects(self.service.resetPassword(actor(), actorId), AdminUsersError);
   assert.equal(self.auditEvents.length, 0);
 
   const last = fixture([row(actorId, AuthRole.ADMIN), row(otherId, AuthRole.ADMIN, true)]);
-  await assert.rejects(last.service.updateAccess(actor(otherId), actorId, { role: "USER", permissions: [] }), AdminUsersError);
+  await assert.rejects(last.service.updateAccess(actor(otherId), actorId, { role: "USER", permissions: [], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] } }), AdminUsersError);
   await assert.rejects(last.service.disable(actor(otherId), actorId), AdminUsersError);
   assert.equal(last.auditEvents.length, 0);
 });
@@ -323,7 +336,7 @@ test("advisory lock key and ordering remain fixed", () => {
 });
 
 test("admin user projection exposes only a safe Telegram connection state", async () => {
-  const connected = { ...row(targetId, AuthRole.USER), permissions: [], telegramConnection: { status: "CONNECTED" as const, telegramUserId: 4_000_000_001n, telegramChatId: 4_000_000_002n } };
+  const connected = { ...row(targetId, AuthRole.USER), permissions: [], vehicleGroupGrants: [], vehicleGrants: [], telegramConnection: { status: "CONNECTED" as const, telegramUserId: 4_000_000_001n, telegramChatId: 4_000_000_002n } };
   const service = new AdminUsersService({ getClient: () => ({ authUser: { findMany: async () => [connected], findUnique: async () => connected } }) } as unknown as DatabaseService, DEFAULT_ADMIN_USER_SECURITY, { append: async () => ({}) } as never);
   const [listed] = await service.list(); const detail = await service.detail(targetId);
   for (const value of [listed!, detail]) {

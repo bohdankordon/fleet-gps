@@ -2,9 +2,10 @@ import { hasPermission, type AuthUser } from "../auth/auth-contract";
 import type { FleetActivityReportResponse, FleetActivityVehicleRow } from "./fleet-activity-report-contract";
 
 export type ReportGpsFilter = "ALL" | "WITH_GPS" | "NO_GPS";
+export const REPORT_UNGROUPED_FILTER = "ungrouped";
 export type ReportSort = "distance" | "name" | "trips" | "tripTime" | "stops" | "stopTime" | "gaps";
-export type ReportFilters = Readonly<{ search: string; gps: ReportGpsFilter; sort: ReportSort; direction?: "ascend" | "descend" }>;
-export const DEFAULT_REPORT_FILTERS: ReportFilters = Object.freeze({ search: "", gps: "ALL", sort: "distance", direction: "descend" });
+export type ReportFilters = Readonly<{ search: string; gps: ReportGpsFilter; group: string; sort: ReportSort; direction?: "ascend" | "descend" }>;
+export const DEFAULT_REPORT_FILTERS: ReportFilters = Object.freeze({ search: "", gps: "ALL", group: "ALL", sort: "distance", direction: "descend" });
 export const REPORT_SORTS: readonly ReportSort[] = ["distance", "name", "trips", "tripTime", "stops", "stopTime", "gaps"];
 
 export function reportSortDirection(state: Pick<ReportFilters, "sort" | "direction">): "ascend" | "descend" {
@@ -25,7 +26,7 @@ export function nextReportSort(state: Pick<ReportFilters, "sort" | "direction">,
 // These are local view controls over the complete response. They never change
 // server summary scope or recompute analytical metrics.
 export function reportFilterCount(filters: ReportFilters): number {
-  return Number(filters.search.trim().length > 0) + Number(filters.gps !== "ALL");
+  return Number(filters.search.trim().length > 0) + Number(filters.gps !== "ALL") + Number(filters.group !== "ALL");
 }
 export function reportControlsChanged(filters: ReportFilters): boolean {
   return reportFilterCount(filters) > 0 || filters.sort !== "distance" || reportSortDirection(filters) !== "descend";
@@ -33,7 +34,8 @@ export function reportControlsChanged(filters: ReportFilters): boolean {
 export function visibleReportVehicles(rows: readonly FleetActivityVehicleRow[], filters: ReportFilters, locale: string): FleetActivityVehicleRow[] {
   const needle = filters.search.trim().normalize("NFKC").toLocaleLowerCase(locale);
   const result = rows.filter((row) => (!needle || row.vehicleName.normalize("NFKC").toLocaleLowerCase(locale).includes(needle)) &&
-    (filters.gps === "ALL" || row.hasGpsData === (filters.gps === "WITH_GPS")));
+    (filters.gps === "ALL" || row.hasGpsData === (filters.gps === "WITH_GPS")) &&
+    (filters.group === "ALL" || (filters.group === REPORT_UNGROUPED_FILTER ? row.group === null : row.group?.id === filters.group)));
   const collator = new Intl.Collator(locale, { numeric: true, sensitivity: "base" });
   const metric = { distance: "observedDistanceMeters", trips: "tripCount", tripTime: "tripDurationSeconds", stops: "stopCount", stopTime: "stopDurationSeconds", gaps: "gapCount" } as const;
   const direction = reportSortDirection(filters) === "ascend" ? 1 : -1;

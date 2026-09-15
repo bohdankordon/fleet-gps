@@ -5,7 +5,7 @@ import { VehicleTrackOverviewController } from "./vehicle-track-overview.control
 import type { VehicleTrackOverviewQueryService } from "./vehicle-track-overview-query.service";
 import { VehicleTrackOverviewNotFoundError, VehicleTrackOverviewTooFragmentedError } from "./vehicle-track-overview.types";
 
-const id = "00000000-0000-4000-8000-000000000001";
+const testAuth = { auth: { id: "00000000-0000-4000-8000-000000000099" } } as unknown as import("../auth/auth.types").AuthenticatedRequest; const testUserId = "00000000-0000-4000-8000-000000000099"; const id = "00000000-0000-4000-8000-000000000001";
 const response = {
   generatedAt: "2026-08-10T12:00:00.000Z",
   vehicle: { id, name: "Taxi" },
@@ -31,15 +31,15 @@ test("rejects malformed UUID and invalid overview ranges before query execution"
     [id, "2026-08-01T00:00:00Z", "2026-08-01T00:00:00Z"],
     [id, "2026-08-02T00:00:00Z", "2026-08-01T00:00:00Z"],
     [id, "2026-08-01T00:00:00Z", "2026-08-08T00:00:00.001Z"],
-  ] as const) await assert.rejects(controller.getOverview(args[0], args[1], args[2]), status(400, { statusCode: 400, error: "Bad Request" }));
+  ] as const) await assert.rejects(controller.getOverview(args[0], args[1], args[2], testAuth), status(400, { statusCode: 400, error: "Bad Request" }));
   assert.equal(calls, 0);
 });
 
 test("normalizes UUID and accepts exactly seven days", async () => {
   const calls: unknown[] = [];
   const controller = new VehicleTrackOverviewController({ getOverview: async (...args: unknown[]) => { calls.push(args); return response; } } as unknown as VehicleTrackOverviewQueryService);
-  assert.equal(await controller.getOverview(id.toUpperCase(), "2026-08-01T02:00:00+02:00", "2026-08-08T00:00:00Z"), response);
-  assert.deepEqual(calls, [[id, new Date("2026-08-01T00:00:00Z"), new Date("2026-08-08T00:00:00Z")]]);
+  assert.equal(await controller.getOverview(id.toUpperCase(), "2026-08-01T02:00:00+02:00", "2026-08-08T00:00:00Z", testAuth), response);
+  assert.deepEqual(calls, [[id, new Date("2026-08-01T00:00:00Z"), new Date("2026-08-08T00:00:00Z"), testUserId]]);
 });
 
 test("maps unknown, pathological fragmentation, and internal failures safely", async () => {
@@ -49,6 +49,6 @@ test("maps unknown, pathological fragmentation, and internal failures safely", a
     [new Error("database secret"), 500, { statusCode: 500, error: "Internal Server Error" }],
   ] as const) {
     const controller = new VehicleTrackOverviewController({ getOverview: async () => { throw error; } } as unknown as VehicleTrackOverviewQueryService);
-    await assert.rejects(controller.getOverview(id, "2030-01-01T00:00:00Z", "2030-01-02T00:00:00Z"), status(code, body));
+    await assert.rejects(controller.getOverview(id, "2030-01-01T00:00:00Z", "2030-01-02T00:00:00Z", testAuth), status(code, body));
   }
 });

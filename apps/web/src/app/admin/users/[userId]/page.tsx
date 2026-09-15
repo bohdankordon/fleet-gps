@@ -5,6 +5,7 @@ import { AdminUserDetail } from "@/components/admin-user-detail";
 import { Alert } from "@/components/ui";
 import { getServerI18n } from "@/i18n/server";
 import { fetchAdminUser } from "@/lib/admin-users/admin-users-client";
+import { fetchManagedVehicles, fetchVehicleGroups } from "@/lib/vehicle-groups/vehicle-groups-client";
 import { requireAuthUser } from "@/lib/auth/auth-user";
 export const dynamic = "force-dynamic"; export const revalidate = 0;
 export default async function AdminUserPage({ params }: Readonly<{ params: Promise<{ userId: string }> }>) {
@@ -12,6 +13,8 @@ export default async function AdminUserPage({ params }: Readonly<{ params: Promi
   if (actor.role !== "ADMIN") redirect("/forbidden");
   const { userId } = await params;
   let user;
+  let groups = null;
+  let vehicles = null;
   try {
     user = await fetchAdminUser(userId);
   } catch {
@@ -22,5 +25,8 @@ export default async function AdminUserPage({ params }: Readonly<{ params: Promi
     </div>;
   }
   if (!user) notFound();
-  return <div className="admin-user-detail-page-v2"><AdminUserDetail initialUser={user} actorId={actor.id} /></div>;
+  try {
+    [groups, vehicles] = await Promise.all([fetchVehicleGroups(), fetchManagedVehicles()]);
+  } catch {}
+  return <div className="admin-user-detail-page-v2"><AdminUserDetail initialUser={user} actorId={actor.id} groups={groups} vehicles={vehicles} /></div>;
 }

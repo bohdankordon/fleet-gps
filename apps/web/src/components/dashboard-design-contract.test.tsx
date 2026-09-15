@@ -11,7 +11,7 @@ const styles = readFileSync("src/styles/dashboard.css", "utf8");
 const messages = readFileSync("src/i18n/messages.ts", "utf8");
 
 test("Fleet uses native Ant Design controls while preserving the dashboard request and URL contract", () => {
-  for (const component of ["Table", "Listy", "Card", "Statistic", "Select", "Checkbox", "Button", "Alert", "Empty", "Grid"]) assert.match(dashboard, new RegExp(`\\b${component}\\b`));
+  for (const component of ["Table", "Listy", "Card", "Statistic", "Checkbox", "Button", "Alert", "Empty", "Grid"]) assert.match(dashboard, new RegExp(`\\b${component}\\b`));
   assert.match(dashboard, /<FleetSearchInput value=\{query\.search\}/);
   assert.doesNotMatch(dashboard, /<FleetSearchInput key=/);
   assert.match(fleetSearchInput, /<Input\s+className="fleet-toolbar__search"/);
@@ -79,8 +79,9 @@ test("Fleet scheduler is collapsed by default, expands for degraded status, and 
 });
 
 test("Fleet keeps one collapsible filter surface below the summary and directly above its results", () => {
-  for (const control of ["<FleetSearchInput", "<Select", "<Checkbox", "<StableLoadingButton", "type=\"primary\""]) assert.ok(dashboard.includes(control), control);
+  for (const control of ["<FleetSearchInput", "<LabeledFilterSelect", "<Checkbox", "<StableLoadingButton", "type=\"primary\""]) assert.ok(dashboard.includes(control), control);
   assert.equal((dashboard.match(/function FleetToolbar/g) ?? []).length, 1);
+  assert.match(dashboard, /<LabeledFilterSelect/);
   assert.ok(dashboard.indexOf("<Summary data={data} />") < dashboard.indexOf("<FleetToolbar query={query}"));
   assert.ok(dashboard.indexOf("<FleetToolbar query={query}") < dashboard.indexOf("{screens.md ? <FleetTable"));
   assert.match(dashboard, /<section className="fleet-toolbar" aria-label=/);
@@ -93,21 +94,18 @@ test("Fleet keeps one collapsible filter surface below the summary and directly 
   assert.doesNotMatch(dashboard, /const reset = activeFilterCount > 0 \?/);
   assert.doesNotMatch(dashboard, /<Button type="link"[^>]*>\{t\("dashboard\.toolbar\.resetFilters"\)\}/);
   assert.match(dashboard, /event\.stopPropagation\(\); onResetFilters\(\);/);
-  assert.match(dashboard, /activeFilterCount = Number\(Boolean\(query\.status\)\) \+ Number\(Boolean\(query\.activity\)\) \+ Number\(query\.includeDisabled === false\)/);
-  assert.match(dashboard, /const resetFilters = \(\) => commitQuery\(\{ \.\.\.queryRef\.current, status: undefined, activity: undefined, includeDisabled: true \}, FLEET_SEARCH_DEBOUNCE_MS\);/);
+  assert.match(dashboard, /activeFilterCount = Number\(Boolean\(query\.status\)\) \+ Number\(Boolean\(query\.activity\)\) \+ Number\(query\.includeDisabled === false\) \+ Number\(Boolean\(query.group\)\)/);
+  assert.match(dashboard, /const resetFilters = \(\) => commitQuery\(\{ \.\.\.queryRef\.current, status: undefined, activity: undefined, includeDisabled: true, group: undefined \}, FLEET_SEARCH_DEBOUNCE_MS\);/);
   assert.match(dashboard, /onResetFilters=\{resetFilters\}/);
   assert.doesNotMatch(dashboard, /dashboard\.toolbar\.list/);
   for (const label of ["dashboard.toolbar.filters", "dashboard.filters.status", "dashboard.filters.activity", "dashboard.sort.label"]) assert.ok(dashboard.includes(`t("${label}")`), label);
   for (const label of ["dashboard.filters.status", "dashboard.filters.activity", "dashboard.sort.label"]) assert.ok(dashboard.includes(`fieldLabel={t("${label}")}`), label);
-  assert.match(dashboard, /labelRender=\{\(\{ label \}\) => <>\{fieldLabel\}: \{label\}<\/>\}/);
+  assert.match(dashboard, /from "\.\/labeled-filter-select"/);
+  assert.equal((dashboard.match(/<LabeledFilterSelect/g) ?? []).length, 4);
   assert.doesNotMatch(dashboard, /ToolbarSelectField|fleet-toolbar__field|dashboard\.toolbar\.view/);
   assert.match(dashboard, /<Checkbox aria-label=\{t\("dashboard\.filters\.showDisabledAria"\)\} styles=\{\{ root: \{ gap: 0, fontWeight: 400 \}, icon: \{ overflow: "clip" \} \}\} checked=\{query\.includeDisabled !== false\}/);
   assert.match(dashboard, />\{t\("dashboard\.filters\.showDisabled"\)\}<\/Checkbox>/);
   assert.match(fleetSearchInput, /className="fleet-toolbar__search"/);
-  assert.match(dashboard, /options\.map\(\(option\) => <span key=\{option\.value\}>\{fieldLabel\}: \{option\.label\}<\/span>\)/);
-  assert.match(dashboard, /popupMatchSelectWidth labelRender=/);
-  assert.match(dashboard, /styles=\{\{ input: \{ minHeight: 0, outline: "none", boxShadow: "none", transition: "none" \} \}\}/);
-  assert.match(dashboard, /<Select className="fleet-toolbar__select-control" size="large"/);
   for (const option of ["online", "offline", "unknown", "below_threshold", "normal", "no_data", "freshness", "speed"]) assert.ok(dashboard.includes(`value: "${option}"`), option);
   assert.match(dashboard, /sortFleetVehicles\(data\.vehicles, sort, locale\)/);
   assert.match(fleetOverviewModel, /export type FleetSort = "name" \| "freshness" \| "speed"/);
@@ -153,7 +151,7 @@ test("Fleet operational table improves scanability without changing its data or 
   assert.match(dashboard, /paddingBlock: token\.paddingSM/);
   assert.match(dashboard, /CarOutlined/);
   assert.match(dashboard, /styles=\{\{ root: \{ border: `\$\{token\.lineWidth\}px \$\{token\.lineType\} \$\{token\.colorBorder\}`, borderRadius: token\.borderRadiusLG, background: token\.colorBgContainer, overflow: "hidden" \}, header: \{ cell: headerCellStyle \} \}\}/);
-  assert.match(dashboard, /function VehicleIdentity[\s\S]*?<CarOutlined className="fleet-vehicle-link__car" style=\{\{ color: token\.colorTextTertiary \}\} aria-hidden \/><span className="fleet-vehicle-identity__content"><VehicleDetailLink vehicle=\{vehicle\} table=\{table\} \/>\{vehicle\.disabled \? <DisabledVehicleTag label=\{disabledLabel\} table=\{table\} \/> : null\}<\/span><\/span>/);
+  assert.match(dashboard, /function VehicleIdentity[\s\S]*?<CarOutlined className="fleet-vehicle-link__car" style=\{\{ color: token\.colorTextTertiary \}\} aria-hidden \/><span className="fleet-vehicle-identity__content"><VehicleDetailLink vehicle=\{vehicle\} table=\{table\} \/><VehicleGroupTag group=\{vehicle\.group\} \/>\{vehicle\.disabled \? <DisabledVehicleTag label=\{disabledLabel\} table=\{table\} \/> : null\}<\/span><\/span>/);
   assert.match(dashboard, /function VehicleDetailLink[\s\S]*?<Link className=\{`fleet-vehicle-link \$\{table \? "fleet-table__vehicle-link" : "fleet-mobile__vehicle-link"\}`\} href=\{`\/vehicles\/\$\{vehicle\.id\}`\}/);
   assert.match(dashboard, /<Link[^>]*><Paragraph className="fleet-vehicle-link__name" style=\{\{ color: "inherit", margin: 0 \}\}/);
   assert.match(dashboard, /\{vehicle\.name\}<\/Paragraph><\/Link>/);
@@ -187,7 +185,7 @@ test("Fleet vehicle identity gives enabled and disabled names deterministic line
   assert.match(styles, /fleet-vehicle-link \{[^}]*width: fit-content;[^}]*max-width: 100%/);
   assert.match(dashboard, /ellipsis=\{\{ rows: vehicle\.disabled \? 1 : 2, tooltip: vehicle\.name \}\}/);
   assert.match(dashboard, /<CarOutlined[^>]*aria-hidden \/><span className="fleet-vehicle-identity__content">/);
-  assert.match(dashboard, /<VehicleDetailLink vehicle=\{vehicle\} table=\{table\} \/>\{vehicle\.disabled \? <DisabledVehicleTag/);
+  assert.match(dashboard, /<VehicleDetailLink vehicle=\{vehicle\} table=\{table\} \/><VehicleGroupTag group=\{vehicle\.group\} \/>\{vehicle\.disabled \? <DisabledVehicleTag/);
   assert.doesNotMatch(dashboard.slice(dashboard.indexOf("function VehicleDetailLink"), dashboard.indexOf("function DisabledVehicleTag")), /<Tag|DisabledVehicleTag/);
   assert.doesNotMatch(dashboard, /onRow=/);
 });

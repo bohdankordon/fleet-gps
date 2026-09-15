@@ -27,7 +27,7 @@ test("Map uses the accepted open header and groups every existing real summary m
 test("Map controls remain client-only and preserve the coordinated refresh contract", () => {
   for (const component of ["AutoComplete", "Input", "Popover", "StableLoadingButton"]) assert.ok(map.includes(component), component);
   for (const icon of ["SearchOutlined", "InfoCircleOutlined", "ReloadOutlined"]) assert.ok(map.includes(icon), icon);
-  assert.match(map, /fleetMapSearchOptions\(snapshot, searchQuery\)/);
+  assert.match(map, /fleetMapSearchOptions\(visibleSnapshot, searchQuery\)/);
   assert.match(map, /onSelect=\{\(vehicleId\) => chooseVehicle\(vehicleId\)\}/);
   assert.match(map, /size="large"/);
   assert.match(map, /placeholder=\{t\("dashboard\.filters\.searchPlaceholder"\)\}/);
@@ -77,8 +77,8 @@ test("selection is map-adjacent on desktop and temporary at tablet and mobile wi
   assert.match(map, /\}, \[desktopInspector, mapReady, selectedId\]\);/);
   assert.match(map, /!selection\.hasSelectedVehicle \? <div className="map-selection-helper"/);
   assert.match(map, /<VehicleInspector[^>]*onClose=\{clearSelection\}/);
-  assert.match(map, /title=\{<VehicleInspectorTitle name=\{vehicle\.vehicle\.name\} \/>\}/);
-  assert.match(map, /title=\{selected \? <VehicleInspectorTitle name=\{selected\.vehicle\.name\} \/> : undefined\}/);
+  assert.match(map, /title=\{<VehicleInspectorTitle name=\{vehicle\.vehicle\.name\} group=\{vehicle\.vehicle\.group\} \/>\}/);
+  assert.match(map, /title=\{selected \? <VehicleInspectorTitle name=\{selected\.vehicle\.name\} group=\{selected\.vehicle\.group\} \/> : undefined\}/);
   assert.match(map, /<CarOutlined aria-hidden style=\{\{ color: token\.colorTextTertiary, flex: "none" \}\} \/>/);
   assert.match(map, /<CloseOutlined aria-hidden \/>/);
   assert.match(map, /aria-label=\{t\("map\.vehicle\.closeDetails"\)\}/);
@@ -139,4 +139,13 @@ test("Map page retains the three read-only sources and adds only the validated v
   assert.match(page, /searchParams/);
   assert.match(page, /parseFleetMapVehicleId\(query\.vehicleId\)/);
   assert.doesNotMatch(page, /redirect|router|fetchVehicleDetails/);
+});
+test("Map desktop keeps search, Group, Legend and Refresh on one row with compact fallbacks", () => {
+  assert.ok(map.includes('from "./labeled-filter-select"'));
+  assert.ok(map.includes('<LabeledFilterSelect fieldLabel={t("group.filter.label")}'));
+  assert.ok(map.includes('className="map-controls__legend"'));
+  assert.ok(styles.includes("grid-template-columns: minmax(220px, 1fr) auto auto auto"));
+  assert.ok(styles.includes(".map-controls > .fleet-toolbar__labeled-select"));
+  assert.ok(styles.includes(".map-controls > .map-controls__legend"));
+  assert.ok(styles.includes(".map-controls > .stable-loading-button"));
 });

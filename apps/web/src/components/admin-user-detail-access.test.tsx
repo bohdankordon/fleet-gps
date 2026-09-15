@@ -8,12 +8,12 @@ import type { AuthPermission } from "../lib/auth/auth-contract";
 import type { AdminManagedUser } from "../lib/admin-users/admin-users-contract";
 import { AdminAccessManagement, AdminAccessPendingChanges, AdminSecuritySection, isAccessDirty } from "./admin-user-detail";
 
-const admin: AdminManagedUser = { id: "admin-id", login: "admin", role: "ADMIN", disabled: false, mustChangePassword: false, permissions: [], telegramStatus: "NOT_CONNECTED", createdAt: "2026-08-21T15:09:00.000Z", updatedAt: "2026-08-21T15:09:00.000Z" };
-const operator: AdminManagedUser = { id: "user-id", login: "operator", role: "USER", disabled: false, mustChangePassword: false, permissions: ["fleet.view", "vehicles.view"], telegramStatus: "CONNECTED", createdAt: "2026-08-22T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" };
+const admin: AdminManagedUser = { id: "admin-id", login: "admin", role: "ADMIN", disabled: false, mustChangePassword: false, permissions: [], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] }, telegramStatus: "NOT_CONNECTED", createdAt: "2026-08-21T15:09:00.000Z", updatedAt: "2026-08-21T15:09:00.000Z" };
+const operator: AdminManagedUser = { id: "user-id", login: "operator", role: "USER", disabled: false, mustChangePassword: false, permissions: ["fleet.view", "vehicles.view"], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] }, telegramStatus: "CONNECTED", createdAt: "2026-08-22T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" };
 const noop = () => undefined;
 
-const renderPending = (user: AdminManagedUser, role: "ADMIN" | "USER", permissions: readonly AuthPermission[], locale: "uk" | "ru" | "en" = "en") => renderToStaticMarkup(<I18nProvider locale={locale}><AdminAccessPendingChanges user={user} role={role} permissions={permissions} /></I18nProvider>);
-const renderManagement = (overrides: Partial<ComponentProps<typeof AdminAccessManagement>> = {}, locale: "uk" | "ru" | "en" = "en") => renderToStaticMarkup(<I18nProvider locale={locale}><AdminAccessManagement user={operator} self={false} role="USER" permissions={operator.permissions} busy={false} saveTrigger={<button type="submit">Save access</button>} onRoleChange={noop} onPermissionsChange={noop} onSubmit={noop} {...overrides} /></I18nProvider>);
+const renderPending = (user: AdminManagedUser, role: "ADMIN" | "USER", permissions: readonly AuthPermission[], locale: "uk" | "ru" | "en" = "en") => renderToStaticMarkup(<I18nProvider locale={locale}><AdminAccessPendingChanges user={user} role={role} permissions={permissions} vehicle={{ mode: "ALL", groupIds: [], vehicleIds: [] }} groups={[]} vehicles={[]} /></I18nProvider>);
+const renderManagement = (overrides: Partial<ComponentProps<typeof AdminAccessManagement>> = {}, locale: "uk" | "ru" | "en" = "en") => renderToStaticMarkup(<I18nProvider locale={locale}><AdminAccessManagement user={operator} self={false} role="USER" permissions={operator.permissions} vehicle={{ mode: "ALL", groupIds: [], vehicleIds: [] }} groups={[]} vehicles={[]} vehicleError={null} busy={false} saveTrigger={<button type="submit">Save access</button>} onRoleChange={noop} onPermissionsChange={noop} onVehicleModeChange={noop} onToggleVehicleGroup={noop} onToggleVehicleGrant={noop} onSubmit={noop} {...overrides} /></I18nProvider>);
 const enActions = (disabled: boolean, telegram: boolean): Pick<ComponentProps<typeof AdminSecuritySection>, "statusAction" | "passwordAction" | "telegramAction"> => ({
   statusAction: disabled ? <button type="button">Enable account</button> : <button type="button">Disable account</button>,
   passwordAction: <button type="button">Reset password</button>,
@@ -43,6 +43,17 @@ test("pending block stays hidden without changes and explains real diffs", () =>
   assert.ok(!demote.includes("fleet.view") && !trimmed.includes("vehicles.view"), "no raw enums");
   const toAdmin = renderPending(operator, "ADMIN", []);
   assert.ok(toAdmin.includes("Full administrative authority"), "demotion result");
+});
+
+test("vehicle access edits stay separate from permissions with role-aware transitions", () => {
+  assert.equal(isAccessDirty(operator, "USER", operator.permissions, { mode: "ALL", groupIds: [], vehicleIds: [] }), false);
+  assert.equal(isAccessDirty(operator, "USER", operator.permissions, { mode: "SELECTED", groupIds: [], vehicleIds: [] }), true);
+  assert.equal(isAccessDirty(admin, "USER", [], { mode: null, groupIds: [], vehicleIds: [] }), true);
+  const selected = renderToStaticMarkup(<I18nProvider locale="en"><AdminAccessPendingChanges user={operator} role="USER" permissions={operator.permissions} vehicle={{ mode: "SELECTED", groupIds: [], vehicleIds: [] }} groups={[]} vehicles={[]} /></I18nProvider>);
+  assert.ok(selected.includes("Vehicle access"), "vehicle summary row");
+  const management = renderManagement({ vehicle: { mode: "SELECTED", groupIds: [], vehicleIds: [] } });
+  assert.ok(management.includes("Individual vehicles"), "separate vehicle selector");
+  assert.ok(management.includes("Groups"), "separate group selector");
 });
 
 test("access editor binds role, matrix, self note, and save trigger", () => {

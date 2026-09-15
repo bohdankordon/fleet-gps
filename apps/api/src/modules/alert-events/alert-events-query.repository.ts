@@ -1,4 +1,6 @@
 import type { AlertEventSpeedZone, AlertEventStatus, AlertEventType, AlertNotificationStatus } from "../../generated/prisma/client";
+import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
+import type { VehicleGroupRef } from "../vehicle-access/vehicle-access.types";
 import type { AlertEventsQueryParams } from "./alert-events-query-params";
 
 export type StoredAlertEventProjectionRow = Readonly<{
@@ -22,7 +24,7 @@ export type StoredAlertEventProjectionRow = Readonly<{
 
 export type StoredAlertEventReadRow = StoredAlertEventProjectionRow & Readonly<{
   lastObservedAt: Date;
-  vehicle: Readonly<{ id: string; name: string }>;
+  vehicle: Readonly<{ id: string; name: string; group: VehicleGroupRef | null }>;
 }>;
 
 export type StoredAlertEventsPage = Readonly<{
@@ -40,7 +42,7 @@ export const MAX_OPEN_ALERT_MAP_EVENTS = 1_000;
 export type StoredOpenAlertMapRow = Readonly<{
   type: AlertEventType;
   confirmedAt: Date;
-  vehicle: Readonly<{ id: string; name: string }>;
+  vehicle: Readonly<{ id: string; name: string; group: VehicleGroupRef | null }>;
 }>;
 
 export type StoredOpenAlertMapSnapshot = Readonly<{
@@ -48,9 +50,11 @@ export type StoredOpenAlertMapSnapshot = Readonly<{
   exceededLimit: boolean;
 }>;
 
+import type { AlertEventsVehicleOption } from "./alert-events-read-models";
+
 export interface AlertEventsQueryRepository {
-  getVehicleOptions(): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]>;
-  list(params: AlertEventsQueryParams): Promise<StoredAlertEventsPage>;
-  getOpenSummary(): Promise<StoredOpenAlertEventsSummary>;
-  getOpenMapSnapshot(): Promise<StoredOpenAlertMapSnapshot>;
+  getVehicleOptions(scope: VehicleScope): Promise<readonly AlertEventsVehicleOption[]>;
+  list(params: AlertEventsQueryParams, scope: VehicleScope): Promise<StoredAlertEventsPage>;
+  getOpenSummary(scope: VehicleScope): Promise<StoredOpenAlertEventsSummary>;
+  getOpenMapSnapshot(scope: VehicleScope): Promise<StoredOpenAlertMapSnapshot>;
 }

@@ -1,4 +1,5 @@
-import { Controller, Get, HttpException, Param, Query } from "@nestjs/common";
+import { Controller, Get, HttpException, Param, Query, Req } from "@nestjs/common";
+import type { AuthenticatedRequest } from "../auth/auth.types";
 import { normalizeUuid } from "../../common/uuid.validation";
 import type { VehicleTrackResponse } from "./vehicle-track-read-models";
 import { parseVehicleTrackRange } from "./vehicle-track-query-params";
@@ -12,12 +13,12 @@ export class VehicleTrackController {
   public constructor(private readonly queryService: VehicleTrackQueryService) {}
 
   @Get(":vehicleId/track")
-  public async getTrack(@Param("vehicleId") rawVehicleId: string, @Query("from") rawFrom: unknown, @Query("to") rawTo: unknown): Promise<VehicleTrackResponse> {
+  public async getTrack(@Param("vehicleId") rawVehicleId: string, @Query("from") rawFrom: unknown, @Query("to") rawTo: unknown, @Req() request: AuthenticatedRequest): Promise<VehicleTrackResponse> {
     const vehicleId = normalizeUuid(rawVehicleId);
     const range = parseVehicleTrackRange(rawFrom, rawTo);
     if (!vehicleId || !range) throw new HttpException({ statusCode: 400, error: "Bad Request" }, 400);
     try {
-      return await this.queryService.getTrack(vehicleId, range.from, range.to);
+      return await this.queryService.getTrack(vehicleId, range.from, range.to, request.auth!.id);
     } catch (error) {
       if (error instanceof VehicleTrackNotFoundError) throw new HttpException({ statusCode: 404, error: "Not Found" }, 404);
       if (error instanceof VehicleTrackTooDenseError) throw new HttpException({ statusCode: 422, error: "Unprocessable Entity" }, 422);

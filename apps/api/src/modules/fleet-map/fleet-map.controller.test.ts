@@ -5,15 +5,16 @@ import { FleetMapController } from "./fleet-map.controller";
 import type { FleetMapQueryService } from "./fleet-map-query.service";
 
 const response = { generatedAt: "2026-08-09T12:00:00.000Z", positionFreshnessSeconds: 300, summary: { totalVehicles: 0, withPosition: 0, withoutPosition: 0, invalidPosition: 0, fresh: 0, stale: 0 }, vehicles: [] } as const;
+const testAuth = { auth: { id: "00000000-0000-4000-8000-000000000001" } } as unknown as import("../auth/auth.types").AuthenticatedRequest;
 
 test("controller returns the fleet map snapshot once", async () => {
   let calls = 0;
   const controller = new FleetMapController({ getSnapshot: async () => { calls += 1; return response; } } as unknown as FleetMapQueryService);
-  assert.deepEqual(await controller.getSnapshot(), response);
+  assert.deepEqual(await controller.getSnapshot(testAuth), response);
   assert.equal(calls, 1);
 });
 
 test("controller maps internal details to a safe error", async () => {
   const controller = new FleetMapController({ getSnapshot: async () => { throw new Error("private database and coordinates"); } } as unknown as FleetMapQueryService);
-  await assert.rejects(controller.getSnapshot(), (error: unknown) => error instanceof HttpException && error.getStatus() === 500 && JSON.stringify(error.getResponse()) === JSON.stringify({ statusCode: 500, error: "Internal Server Error" }));
+  await assert.rejects(controller.getSnapshot(testAuth), (error: unknown) => error instanceof HttpException && error.getStatus() === 500 && JSON.stringify(error.getResponse()) === JSON.stringify({ statusCode: 500, error: "Internal Server Error" }));
 });

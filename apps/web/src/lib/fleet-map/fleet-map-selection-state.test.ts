@@ -11,7 +11,7 @@ const snapshot: FleetMapResponse = {
   positionFreshnessSeconds: 300,
   summary: { totalVehicles: 2, withPosition: 2, withoutPosition: 0, invalidPosition: 0, fresh: 2, stale: 0 },
   vehicles: [FIRST_ID, SECOND_ID].map((id, index) => ({
-    vehicle: { id, name: `Taxi ${index + 1}` },
+    vehicle: { id, name: `Taxi ${index + 1}`, group: null },
     position: { latitude: 49 + index, longitude: 28 + index, observedAt: "2026-08-10T12:00:00.000Z" },
     speedKph: null,
     freshness: "FRESH" as const,

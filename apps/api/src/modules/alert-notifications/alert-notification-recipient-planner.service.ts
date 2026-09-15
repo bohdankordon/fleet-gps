@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { API_CONFIG } from "../../config/api-config.tokens";
 import type { ApiConfig } from "../../config/api-config";
 import { AlertEventType, AlertNotificationDeliveryStatus, AlertNotificationKind, AuthRole, NotificationVehicleScope, TelegramConnectionStatus, type Prisma } from "../../generated/prisma/client";
+import { usersWithProductAccessToVehicleWhere } from "../vehicle-access/vehicle-access.service";
 
 export type ConfirmedAlertForRecipientPlanning = Readonly<{
   id: string;
@@ -49,6 +50,7 @@ export class AlertNotificationRecipientPlanner implements AlertNotificationRecip
           { role: AuthRole.ADMIN },
           { role: AuthRole.USER, permissions: { some: { key: "events.view" } }, AND: [{ permissions: { some: { key: "vehicles.view" } } }] },
         ],
+        AND: [usersWithProductAccessToVehicleWhere(event.vehicleId)],
       },
       select: { id: true, telegramConnection: { select: { connectionRevision: true } } },
     });

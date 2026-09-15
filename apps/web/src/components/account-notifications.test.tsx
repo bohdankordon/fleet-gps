@@ -10,12 +10,12 @@ import type { PreferenceBaseline } from "../lib/account/account-notification-pre
 import type { TelegramConnectionView } from "../lib/account/account-telegram-connection";
 
 const vehicles = [
-  { id: "11111111-1111-1111-8111-111111111111", name: "Car one", disabled: false },
-  { id: "22222222-2222-2222-8222-222222222222", name: "Car two", disabled: true },
+  { id: "11111111-1111-1111-8111-111111111111", name: "Car one", disabled: false, groupId: null, groupName: null, groupColor: null },
+  { id: "22222222-2222-2222-8222-222222222222", name: "Car two", disabled: true, groupId: null, groupName: null, groupColor: null },
 ] as const;
 const baseline = (
   overrides: Partial<PreferenceBaseline["draft"]> = {},
-  extra: Partial<Pick<PreferenceBaseline, "revision" | "canSelectVehicles" | "vehicles">> = {},
+  extra: Partial<Pick<PreferenceBaseline, "revision" | "canSelectVehicles" | "hasDormantSelections" | "vehicles">> = {},
 ): PreferenceBaseline => ({
   draft: {
     enabled: true,
@@ -27,6 +27,7 @@ const baseline = (
   },
   revision: 3,
   canSelectVehicles: true,
+  hasDormantSelections: false,
   vehicles: [...vehicles],
   ...extra,
 });
@@ -174,7 +175,7 @@ test("vehicle selector is segmented, searchable, and paged without touching the 
   assert.match(html, /Selected: 1/);
   assert.match(html, /ant-tag[^>]*>inactive</);
   // Twelve vehicles force a second bounded page; the count stays global.
-  const fleet = Array.from({ length: 12 }, (_, index) => ({ id: `fleet-vehicle-${index}`, name: `Fleet car ${index}`, disabled: false }));
+  const fleet = Array.from({ length: 12 }, (_, index) => ({ id: `fleet-vehicle-${index}`, name: `Fleet car ${index}`, disabled: false, groupId: null, groupName: null, groupColor: null }));
   const paged = render({ baseline: baseline({ selectedVehicleIds: ["fleet-vehicle-0"] }, { vehicles: fleet }) });
   assert.match(paged, /ant-pagination/);
   assert.match(paged, /Selected: 1/);
@@ -188,6 +189,16 @@ test("vehicle selector is segmented, searchable, and paged without touching the 
   // Search and pagination are ephemeral UI state, never draft edits.
   assert.doesNotMatch(source, /setQuery\(event\.target\.value\);[\s\S]{0,60}touchDraft/);
   assert.match(source, /VEHICLE_PAGE_SIZE = 10|VEHICLE_PAGE_SIZE,/);
+});
+test("group finder uses the shared labeled pattern and never changes the saved selection", () => {
+  const workspace = readFileSync("src/components/account-notifications-workspace.tsx", "utf8");
+  assert.ok(workspace.includes('from "./labeled-filter-select"'));
+  assert.ok(workspace.includes('<LabeledFilterSelect fieldLabel={t("group.filter.label")}'));
+  assert.ok(workspace.includes("setGroupFinder(value); setPage(1);"));
+  const html = render({});
+  assert.ok(html.includes("Group: All groups"));
+  assert.ok(html.includes("Group: Ungrouped"));
+  assert.ok(html.includes("Selected: 1"));
 });
 
 test("LINK_PENDING prerequisite and unavailable shell stay truthful", () => {

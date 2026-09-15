@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { analyzeTripStopObservations, TripStopAnalyticsPolicyService, type TripStopAnalyticsObservation, type TripStopAnalyticsRange } from "../trip-stop-analytics";
+import { VehicleScopeService } from "../vehicle-access/vehicle-access.service";
 import { FLEET_ACTIVITY_REPORT_REPOSITORY } from "./fleet-activity-report.tokens";
 import { FLEET_ACTIVITY_REPORT_MAX_RANGE_MS, type FleetActivityReport, type FleetActivityReportRepository, type FleetActivityVehicleRow } from "./fleet-activity-report.types";
 
@@ -7,12 +8,13 @@ function sum(values: readonly number[]): number { return values.reduce((total, v
 
 @Injectable()
 export class FleetActivityReportService {
-  public constructor(@Inject(FLEET_ACTIVITY_REPORT_REPOSITORY) private readonly repository: FleetActivityReportRepository, private readonly policy: TripStopAnalyticsPolicyService) {}
+  public constructor(@Inject(FLEET_ACTIVITY_REPORT_REPOSITORY) private readonly repository: FleetActivityReportRepository, private readonly policy: TripStopAnalyticsPolicyService, private readonly scopes: VehicleScopeService) {}
 
-  public async getReport(range: TripStopAnalyticsRange, generatedAt = new Date()): Promise<FleetActivityReport> {
+  public async getReport(range: TripStopAnalyticsRange, userId: string, generatedAt = new Date()): Promise<FleetActivityReport> {
     const from = range.from.getTime(); const to = range.to.getTime();
     if (!Number.isFinite(from) || !Number.isFinite(to) || from > to || to - from > FLEET_ACTIVITY_REPORT_MAX_RANGE_MS || !Number.isFinite(generatedAt.getTime())) throw new Error("Invalid report range or generation time");
-    const [snapshot, context] = await Promise.all([this.repository.getSnapshot(range), this.policy.getReportContext()]);
+    const scope = await this.scopes.resolve(userId);
+    const [snapshot, context] = await Promise.all([this.repository.getSnapshot(range, scope), this.policy.getReportContext()]);
     const grouped = new Map<string, TripStopAnalyticsObservation[]>();
     for (const observation of snapshot.observations) {
       // Enforce Reports' half-open boundary before the unchanged inclusive core.
@@ -26,7 +28,7 @@ export class FleetActivityReportService {
       const analytics = from === to ? null : analyzeTripStopObservations(grouped.get(vehicle.id) ?? [], range, context.policy);
       const rawObservationCount = analytics?.rawObservationCount ?? 0;
       return Object.freeze({
-        vehicleId: vehicle.id, vehicleName: vehicle.name, hasGpsData: rawObservationCount > 0, rawObservationCount,
+        vehicleId: vehicle.id, vehicleName: vehicle.name, group: vehicle.group ? Object.freeze({ id: vehicle.group.id, name: vehicle.group.name, color: vehicle.group.color }) : null, hasGpsData: rawObservationCount > 0, rawObservationCount,
         firstObservationAt: analytics?.firstObservationAt ?? null, lastObservationAt: analytics?.lastObservationAt ?? null,
         tripCount: analytics?.trips.length ?? 0, observedDistanceMeters: analytics?.totalObservedTripDistanceMeters ?? 0,
         tripDurationSeconds: sum(analytics?.trips.map((trip) => trip.durationSeconds) ?? []),

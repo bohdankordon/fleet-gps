@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { DatabaseModule } from "../database";
+import { VehicleAccessModule } from "../vehicle-access/vehicle-access.module";
 import { PrismaVehicleTrackOverviewQueryRepository } from "./prisma-vehicle-track-overview-query.repository";
 import { PrismaVehicleTrackQueryRepository } from "./prisma-vehicle-track-query.repository";
 import { VehicleTrackOverviewQueryService } from "./vehicle-track-overview-query.service";
@@ -10,7 +11,7 @@ import { VehicleTrackQueryService } from "./vehicle-track-query.service";
 import type { VehicleTrackClock } from "./vehicle-track.types";
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, VehicleAccessModule],
   controllers: [VehicleTrackController, VehicleTrackOverviewController],
   providers: [
     { provide: VEHICLE_TRACK_CLOCK, useValue: { now: (): Date => new Date() } satisfies VehicleTrackClock },

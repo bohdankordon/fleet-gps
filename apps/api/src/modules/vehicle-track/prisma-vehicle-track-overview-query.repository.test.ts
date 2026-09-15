@@ -3,7 +3,7 @@ import test from "node:test";
 import { Prisma } from "../../generated/prisma/client";
 import type { DatabaseService } from "../database";
 import { PrismaVehicleTrackOverviewQueryRepository } from "./prisma-vehicle-track-overview-query.repository";
-import { MAX_CONNECTED_RAW_GAP_SECONDS, MAX_OVERVIEW_POINTS } from "./vehicle-track-overview-query.repository";
+import { UNRESTRICTED_VEHICLE_SCOPE } from "../vehicle-access/vehicle-access.service"; import { MAX_CONNECTED_RAW_GAP_SECONDS, MAX_OVERVIEW_POINTS } from "./vehicle-track-overview-query.repository";
 
 const vehicleId = "00000000-0000-4000-8000-000000000001";
 const from = new Date("2026-08-01T00:00:00.000Z");
@@ -37,7 +37,7 @@ test("runs one database-side raw segmentation/sampling query in the repeatable-r
   let values: readonly unknown[] = [];
   let transactionOptions: unknown;
   const transaction = {
-    vehicle: { findUnique: async () => ({ id: vehicleId, name: "Taxi" }) },
+    vehicle: { findFirst: async () => ({ id: vehicleId, name: "Taxi" }) },
     $queryRaw: async (strings: TemplateStringsArray, ...parameters: unknown[]) => {
       sql = strings.join("?");
       values = parameters;
@@ -46,7 +46,7 @@ test("runs one database-side raw segmentation/sampling query in the repeatable-r
   };
   const client = { $transaction: async (callback: (value: typeof transaction) => unknown, options: unknown) => { transactionOptions = options; return callback(transaction); } };
   const repository = new PrismaVehicleTrackOverviewQueryRepository({ getClient: () => client } as unknown as DatabaseService);
-  const result = await repository.getOverviewSnapshot(vehicleId, from, to);
+  const result = await repository.getOverviewSnapshot(vehicleId, from, to, UNRESTRICTED_VEHICLE_SCOPE);
   assert.equal(result.points.length, 1);
   assert.deepEqual(result.points[0], {
     segmentOrdinal: 1, segmentRawPointCount: 1, segmentFirstObservedAt: at, segmentLastObservedAt: at,
@@ -72,15 +72,15 @@ test("runs one database-side raw segmentation/sampling query in the repeatable-r
 test("known empty range returns one summary and no point while unknown vehicle skips history SQL", async () => {
   let historyQueries = 0;
   const emptyRow = rawPoint({ rawPointCount: 0, segmentCount: 0, firstObservedAt: null, lastObservedAt: null, segmentOrdinal: null, segmentRawPointCount: null, segmentFirstObservedAt: null, segmentLastObservedAt: null, observedAt: null, latitude: null, longitude: null });
-  const knownTransaction = { vehicle: { findUnique: async () => ({ id: vehicleId, name: "Taxi" }) }, $queryRaw: async () => { historyQueries += 1; return [emptyRow]; } };
+  const knownTransaction = { vehicle: { findFirst: async () => ({ id: vehicleId, name: "Taxi" }) }, $queryRaw: async () => { historyQueries += 1; return [emptyRow]; } };
   const knownClient = { $transaction: async (callback: (value: typeof knownTransaction) => unknown) => callback(knownTransaction) };
-  const known = await new PrismaVehicleTrackOverviewQueryRepository({ getClient: () => knownClient } as unknown as DatabaseService).getOverviewSnapshot(vehicleId, from, to);
+  const known = await new PrismaVehicleTrackOverviewQueryRepository({ getClient: () => knownClient } as unknown as DatabaseService).getOverviewSnapshot(vehicleId, from, to, UNRESTRICTED_VEHICLE_SCOPE);
   assert.equal(known.rawPointCount, 0);
   assert.deepEqual(known.points, []);
 
-  const unknownTransaction = { vehicle: { findUnique: async () => null }, $queryRaw: async () => { historyQueries += 1; return []; } };
+  const unknownTransaction = { vehicle: { findFirst: async () => null }, $queryRaw: async () => { historyQueries += 1; return []; } };
   const unknownClient = { $transaction: async (callback: (value: typeof unknownTransaction) => unknown) => callback(unknownTransaction) };
-  const unknown = await new PrismaVehicleTrackOverviewQueryRepository({ getClient: () => unknownClient } as unknown as DatabaseService).getOverviewSnapshot(vehicleId, from, to);
+  const unknown = await new PrismaVehicleTrackOverviewQueryRepository({ getClient: () => unknownClient } as unknown as DatabaseService).getOverviewSnapshot(vehicleId, from, to, UNRESTRICTED_VEHICLE_SCOPE);
   assert.equal(unknown.vehicle, null);
   assert.equal(historyQueries, 1);
 });
@@ -96,9 +96,9 @@ test("large logical raw result transfers no more than the configured selected-ro
     segmentLastObservedAt: last,
     observedAt: index === MAX_OVERVIEW_POINTS - 1 ? last : new Date(at.getTime() + index),
   }));
-  const transaction = { vehicle: { findUnique: async () => ({ id: vehicleId, name: "Taxi" }) }, $queryRaw: async () => rows };
+  const transaction = { vehicle: { findFirst: async () => ({ id: vehicleId, name: "Taxi" }) }, $queryRaw: async () => rows };
   const client = { $transaction: async (callback: (value: typeof transaction) => unknown) => callback(transaction) };
-  const result = await new PrismaVehicleTrackOverviewQueryRepository({ getClient: () => client } as unknown as DatabaseService).getOverviewSnapshot(vehicleId, from, to);
+  const result = await new PrismaVehicleTrackOverviewQueryRepository({ getClient: () => client } as unknown as DatabaseService).getOverviewSnapshot(vehicleId, from, to, UNRESTRICTED_VEHICLE_SCOPE);
   assert.equal(result.rawPointCount, 50_000);
   assert.equal(result.points.length, MAX_OVERVIEW_POINTS);
 });

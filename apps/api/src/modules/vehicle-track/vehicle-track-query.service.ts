@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { VehicleScopeService } from "../vehicle-access/vehicle-access.service";
 import { MAX_TRACK_POINTS, type StoredVehicleTrackPoint, type VehicleTrackQueryRepository } from "./vehicle-track-query.repository";
 import type { VehicleTrackResponse } from "./vehicle-track-read-models";
 import { VEHICLE_TRACK_CLOCK, VEHICLE_TRACK_QUERY_REPOSITORY } from "./vehicle-track.tokens";
@@ -26,10 +27,11 @@ export class VehicleTrackQueryService {
   public constructor(
     @Inject(VEHICLE_TRACK_QUERY_REPOSITORY) private readonly repository: VehicleTrackQueryRepository,
     @Inject(VEHICLE_TRACK_CLOCK) private readonly clock: VehicleTrackClock,
+    private readonly scopes: VehicleScopeService,
   ) {}
 
-  public async getTrack(vehicleId: string, from: Date, to: Date): Promise<VehicleTrackResponse> {
-    const snapshot = await this.repository.getSnapshot(vehicleId, from, to);
+  public async getTrack(vehicleId: string, from: Date, to: Date, userId: string): Promise<VehicleTrackResponse> {
+    const snapshot = await this.repository.getSnapshot(vehicleId, from, to, await this.scopes.resolve(userId));
     if (!snapshot.vehicle) throw new VehicleTrackNotFoundError();
     if (snapshot.points.length > MAX_TRACK_POINTS) throw new VehicleTrackTooDenseError();
     const generatedAt = this.clock.now();
@@ -38,7 +40,7 @@ export class VehicleTrackQueryService {
     if (points.some((point, index) => index > 0 && point.observedAt < points[index - 1]!.observedAt)) throw new VehicleTrackStateError();
     return Object.freeze({
       generatedAt: generatedAt.toISOString(),
-      vehicle: Object.freeze({ id: snapshot.vehicle.id, name: snapshot.vehicle.name }),
+      vehicle: Object.freeze({ id: snapshot.vehicle.id, name: snapshot.vehicle.name, group: snapshot.vehicle.group ? Object.freeze({ id: snapshot.vehicle.group.id, name: snapshot.vehicle.group.name, color: snapshot.vehicle.group.color }) : null }),
       range: Object.freeze({ from: from.toISOString(), to: to.toISOString() }),
       summary: Object.freeze({
         pointCount: points.length,

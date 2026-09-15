@@ -1,3 +1,4 @@
+import "../test-setup-alias";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -118,6 +119,18 @@ test("one results surface owns toolbar, count, no-GPS context and comparison out
   assert.doesNotMatch(source, /reports-no-data|<Card/);
   assert.match(source, /fleet-toolbar__search/);
   assert.match(source, /SearchOutlined/);
+});
+test("GPS and Group filters always show their field label in the shared compact pattern", () => {
+  assert.ok(source.includes('from "./labeled-filter-select"'));
+  assert.ok(source.includes('<LabeledFilterSelect fieldLabel={t("reports.gps")}'));
+  assert.ok(source.includes('<LabeledFilterSelect fieldLabel={t("group.filter.label")}'));
+  assert.equal(source.includes("reports.allGps"), false);
+  assert.equal(source.includes("reports.withGps"), false);
+  for (const locale of ["uk", "ru", "en"] as const) {
+    const html = render(<FleetActivityReportWorkspace {...props} />, locale);
+    assert.ok(html.includes(MESSAGE_CATALOG["reports.gps"][locale] + ": " + MESSAGE_CATALOG["reports.all"][locale]), "gps-all-" + locale);
+    assert.ok(html.includes(MESSAGE_CATALOG["group.filter.label"][locale] + ": " + MESSAGE_CATALOG["group.filter.allGroups"][locale]), "group-all-" + locale);
+  }
 });
 
 test("comparison presentation uses neutral Fleet sorting and accepted operational detail rows", () => {

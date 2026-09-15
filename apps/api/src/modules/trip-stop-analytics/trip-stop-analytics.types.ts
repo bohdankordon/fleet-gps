@@ -1,3 +1,5 @@
+import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
+
 export type TripStopAnalyticsRange = Readonly<{ from: Date; to: Date }>;
 
 export type TripStopAnalyticsObservation = Readonly<{
@@ -68,7 +70,7 @@ export type StoredTripStopAnalyticsSnapshot = Readonly<{
 }>;
 
 export interface TripStopAnalyticsRepository {
-  getSnapshot(vehicleId: string, range: TripStopAnalyticsRange): Promise<StoredTripStopAnalyticsSnapshot>;
+  getSnapshot(vehicleId: string, range: TripStopAnalyticsRange, scope: VehicleScope): Promise<StoredTripStopAnalyticsSnapshot>;
 }
 
 export type TripStopAnalysisResult = Readonly<{
@@ -88,4 +90,3 @@ export type TripStopAnalysisResult = Readonly<{
   stops: readonly DerivedStop[];
   gaps: readonly DerivedDataGap[];
 }>;
-

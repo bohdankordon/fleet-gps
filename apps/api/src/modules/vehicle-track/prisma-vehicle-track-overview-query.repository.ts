@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database";
+import { applyVehicleScope } from "../vehicle-access/vehicle-access.service";
+import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
 import {
   MAX_CONNECTED_RAW_GAP_SECONDS,
   MAX_OVERVIEW_POINTS,
@@ -33,9 +35,10 @@ type RawOverviewRow = Readonly<{
 export class PrismaVehicleTrackOverviewQueryRepository implements VehicleTrackOverviewQueryRepository {
   public constructor(private readonly database: DatabaseService) {}
 
-  public async getOverviewSnapshot(vehicleId: string, from: Date, to: Date): Promise<StoredVehicleTrackOverviewSnapshot> {
+  public async getOverviewSnapshot(vehicleId: string, from: Date, to: Date, scope: VehicleScope): Promise<StoredVehicleTrackOverviewSnapshot> {
     return this.database.getClient().$transaction(async (transaction) => {
-      const vehicle = await transaction.vehicle.findUnique({ where: { id: vehicleId }, select: { id: true, name: true } });
+      const stored = await transaction.vehicle.findFirst({ where: applyVehicleScope(scope, { id: vehicleId }), select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } } });
+      const vehicle = stored ? { id: stored.id, name: stored.name, group: stored.group ? { id: stored.group.id, name: stored.group.name, color: stored.group.color } : null } : null;
       if (!vehicle) return { vehicle: null, rawPointCount: 0, segmentCount: 0, qualityWarningCount: 0, firstObservedAt: null, lastObservedAt: null, tooFragmented: false, points: [] };
 
       const rows = await transaction.$queryRaw<readonly RawOverviewRow[]>`

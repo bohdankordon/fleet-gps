@@ -20,6 +20,7 @@ export type VehicleTripsPageState =
       initialError: boolean;
       timezone: string;
       vehicleName: string | null;
+      vehicleGroup: Readonly<{ id: string; name: string; color: import("../vehicle-groups/vehicle-groups-contract").VehicleGroupColor }> | null;
       shellGeneratedAt: string | null;
     }>
   | Readonly<{ kind: "context-unavailable"; vehicleName: string | null; generatedAt: string | null }>
@@ -90,6 +91,7 @@ export async function loadVehicleTripsPageState(
     initialError: analysisResult.status === "rejected",
     timezone,
     vehicleName: detailsResult.status === "fulfilled" ? detailsResult.value.vehicle.name : null,
+    vehicleGroup: detailsResult.status === "fulfilled" ? detailsResult.value.vehicle.group : null,
     shellGeneratedAt: detailsResult.status === "fulfilled" ? detailsResult.value.generatedAt : null,
   });
 }

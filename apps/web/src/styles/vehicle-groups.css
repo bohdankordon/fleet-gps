@@ -1,0 +1,57 @@
+.vehicle-groups-page { display: grid; gap: var(--space-4); min-width: 0; }
+.vehicle-groups-page__header { display: grid; gap: var(--space-1); }
+.vehicle-groups-page__header h1 { margin: 0; font-size: var(--font-size-page-title); line-height: var(--line-height-page-title); letter-spacing: var(--letter-spacing-default); }
+.vehicle-groups-page__description { margin: 0; }
+.vehicle-groups-page__actions { display: flex; justify-content: flex-end; }
+.vehicle-groups-page > .admin-navigation-tabs { margin-bottom: 0; }
+.vehicle-groups-directory { display: grid; gap: var(--space-2); }
+.vehicle-groups-directory h2 { margin: 0; font-size: var(--font-size-section-title); line-height: var(--line-height-section-title); }
+.vehicle-groups-ungrouped { margin-top: var(--space-4); }
+.vehicle-groups-list__item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-block: var(--space-3); border-bottom: 1px solid var(--color-border-subtle); }
+.vehicle-groups-list__main { display: grid; gap: var(--space-1); min-width: 0; }
+.vehicle-groups-ungrouped__item { padding-block: var(--space-2); }
+.vehicle-groups-ungrouped .ant-pagination { margin-top: var(--space-3); text-align: right; }
+.vehicle-groups-modal__label { display: block; margin-bottom: var(--space-1); }
+.vehicle-groups-modal__error { color: var(--color-danger-foreground); margin: var(--space-1) 0 0; }
+.vehicle-groups-detail-page { display: grid; gap: var(--space-4); min-width: 0; }
+.vehicle-groups-detail__back { justify-self: start; }
+.vehicle-groups-detail__identity { display: grid; gap: var(--space-1); }
+.vehicle-groups-detail__identity h1 { margin: 0; font-size: var(--font-size-page-title); line-height: var(--line-height-page-title); }
+.vehicle-group-identity { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.vehicle-group-identity__name { min-width: 0; overflow-wrap: anywhere; }
+/* Ant Design 6 headings restore vertical margins through runtime-injected styles
+   that can outrank plain element selectors. A leaked heading margin becomes part
+   of the flex item box and pushes the tag off the name's visual center, so the
+   identity name margin is normalized here once for every placement. */
+.vehicle-group-identity > .vehicle-group-identity__name { margin-block-start: 0; margin-block-end: 0; }
+.vehicle-group-tag { flex: none; align-self: center; margin-inline-end: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--font-weight-regular); font-style: normal; letter-spacing: normal; text-transform: none; }
+.vehicle-detail-shell__identity .vehicle-group-tag { align-self: center; }
+.vehicle-group-color-field { display: grid; gap: 8px; }
+.vehicle-group-color-field__options { display: flex; flex-wrap: wrap; gap: 8px; }
+.vehicle-group-color-field__option { position: relative; display: inline-flex; border-radius: 50%; cursor: pointer; }
+.vehicle-group-color-field__input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.vehicle-group-color-field__swatch { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; color: #fff; }
+.vehicle-group-color-field__option--selected .vehicle-group-color-field__swatch { border-color: rgba(0, 0, 0, 0.55); box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(0, 0, 0, 0.25); }
+.vehicle-group-color-field__input:focus-visible + .vehicle-group-color-field__swatch { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; }
+.vehicle-group-color-field__check { font-size: 14px; color: #fff; }
+.vehicle-group-color-field__sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.vehicle-group-color-field__hint { margin: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.5; }
+.vehicle-groups-directory__group-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.vehicle-group-directory-swatch { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.vehicle-groups-detail__card { margin-top: var(--space-3); }
+.vehicle-groups-detail__danger { border-color: var(--color-danger-border); }
+.vehicle-access-fields__vehicles { max-height: 240px; overflow-y: auto; display: grid; gap: var(--space-1); margin-top: var(--space-2); padding-right: var(--space-2); }
+.vehicle-access-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: baseline; padding-block: var(--space-1); }
+.vehicle-access-row__name { overflow-wrap: anywhere; }
+.vehicle-access-row__meta { display: flex; gap: var(--space-2); white-space: nowrap; }
+@media (max-width: 575px) {
+  .vehicle-groups-page { gap: var(--space-3); }
+  .vehicle-groups-page__actions { justify-content: stretch; }
+  .vehicle-groups-page__actions > .ant-btn { width: 100%; }
+  .vehicle-access-row { grid-template-columns: minmax(0, 1fr); }
+  .vehicle-access-row__meta { padding-left: var(--space-6); white-space: normal; }
+}
+@media (max-width: 767px) {
+  .vehicle-groups-detail__card .ant-transfer { overflow-x: auto; padding-bottom: var(--space-2); }
+  .vehicle-groups-detail__card .ant-transfer-list { min-width: 220px; flex: 1 0 auto; }
+}

@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database/database.service";
+import { applyVehicleScope } from "../vehicle-access/vehicle-access.service";
+import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
 import type { StoredTripStopAnalyticsSnapshot, TripStopAnalyticsRange, TripStopAnalyticsRepository } from "./trip-stop-analytics.types";
 
 const readTransactionTimeoutMs = 30_000;
@@ -9,9 +11,9 @@ const readTransactionTimeoutMs = 30_000;
 export class PrismaTripStopAnalyticsRepository implements TripStopAnalyticsRepository {
   public constructor(private readonly database: DatabaseService) {}
 
-  public async getSnapshot(vehicleId: string, range: TripStopAnalyticsRange): Promise<StoredTripStopAnalyticsSnapshot> {
+  public async getSnapshot(vehicleId: string, range: TripStopAnalyticsRange, scope: VehicleScope): Promise<StoredTripStopAnalyticsSnapshot> {
     return this.database.getClient().$transaction(async (transaction) => {
-      const vehicle = await transaction.vehicle.findUnique({ where: { id: vehicleId }, select: { id: true, name: true } });
+      const vehicle = await transaction.vehicle.findFirst({ where: applyVehicleScope(scope, { id: vehicleId }), select: { id: true, name: true } });
       if (vehicle === null) return Object.freeze({ vehicle: null, observations: Object.freeze([]) });
       const observations = await transaction.vehiclePositionObservation.findMany({
         where: { vehicleId, observedAt: { gte: range.from, lte: range.to } },
@@ -22,4 +24,3 @@ export class PrismaTripStopAnalyticsRepository implements TripStopAnalyticsRepos
     }, { timeout: readTransactionTimeoutMs, isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 }
-

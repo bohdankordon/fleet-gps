@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { AUTH_PERMISSIONS } from "../auth/auth-contract";
+import { VEHICLE_GROUP_COLORS } from "../vehicle-groups/vehicle-groups-contract";
 
-export const AUDIT_EVENT_TYPES = ["USER_CREATED", "USER_ACCESS_CHANGED", "USER_DISABLED", "USER_ENABLED", "USER_PASSWORD_RESET", "OWN_PASSWORD_CHANGED", "SHORT_POPULATION_EXECUTED", "DURABLE_POPULATION_CREATED", "RETENTION_EXECUTED", "SYSTEM_POPULATION_CREATED", "AUTOMATIC_RETENTION_EXECUTED", "SETTINGS_UPDATED", "TELEGRAM_LINKED", "TELEGRAM_DISCONNECTED"] as const;
+export const AUDIT_EVENT_TYPES = ["USER_CREATED", "USER_ACCESS_CHANGED", "USER_DISABLED", "USER_ENABLED", "USER_PASSWORD_RESET", "OWN_PASSWORD_CHANGED", "SHORT_POPULATION_EXECUTED", "DURABLE_POPULATION_CREATED", "RETENTION_EXECUTED", "SYSTEM_POPULATION_CREATED", "AUTOMATIC_RETENTION_EXECUTED", "SETTINGS_UPDATED", "TELEGRAM_LINKED", "TELEGRAM_DISCONNECTED", "VEHICLE_GROUP_CREATED", "VEHICLE_GROUP_RENAMED", "VEHICLE_GROUP_UPDATED", "VEHICLE_GROUP_MEMBERSHIP_CHANGED", "VEHICLE_GROUP_DELETED", "USER_VEHICLE_ACCESS_CHANGED"] as const;
 export const AUDIT_ACTOR_TYPES = ["USER", "SYSTEM"] as const;
-export const AUDIT_TARGET_TYPES = ["USER", "POSITION_HISTORY", "POSITION_HISTORY_POPULATION_RUN", "POSITION_HISTORY_RETENTION", "APPLICATION_SETTINGS"] as const;
+export const AUDIT_TARGET_TYPES = ["USER", "VEHICLE_GROUP", "POSITION_HISTORY", "POSITION_HISTORY_POPULATION_RUN", "POSITION_HISTORY_RETENTION", "APPLICATION_SETTINGS"] as const;
 
 export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number];
 export type AuditActorType = (typeof AUDIT_ACTOR_TYPES)[number];
@@ -15,6 +16,8 @@ const count = z.number().int().nonnegative().safe();
 const positiveCount = z.number().int().positive().safe();
 const permission = z.enum(AUTH_PERMISSIONS);
 const role = z.enum(["ADMIN", "USER"]);
+const vehicleAccessMode = z.enum(["ALL", "SELECTED"]);
+const vehicleGroupColor = z.enum(VEHICLE_GROUP_COLORS);
 const unavailable = z.object({ status: z.literal("UNAVAILABLE") }).strict();
 const available = <T extends z.ZodRawShape>(shape: T) => z.object({ status: z.literal("AVAILABLE"), ...shape }).strict();
 const actor = z.discriminatedUnion("type", [z.object({ type: z.literal("USER"), login: z.string().regex(/^[A-Za-z0-9._-]{3,64}$/) }).strict(), z.object({ type: z.literal("SYSTEM") }).strict()]);
@@ -46,6 +49,12 @@ const auditItem = z.discriminatedUnion("eventType", [
   z.object({ ...common, eventType: z.literal("SETTINGS_UPDATED"), target: z.object({ type: z.literal("APPLICATION_SETTINGS"), id: z.literal("1") }).strict(), details: details({ changes: z.array(settingsChange).min(1).max(SETTINGS_AUDIT_CHANGES_MAX).refine((changes) => new Set(changes.map((c) => c.field)).size === changes.length, { message: "duplicate settings field" }) }) }).strict(),
   z.object({ ...common, eventType: z.literal("TELEGRAM_LINKED"), target: target("USER", true), details: details({}) }).strict(),
   z.object({ ...common, eventType: z.literal("TELEGRAM_DISCONNECTED"), target: target("USER", true), details: details({}) }).strict(),
+  z.object({ ...common, eventType: z.literal("VEHICLE_GROUP_CREATED"), target: target("VEHICLE_GROUP", true), details: details({ name: z.string().trim().min(1).max(128), color: vehicleGroupColor }) }).strict(),
+  z.object({ ...common, eventType: z.literal("VEHICLE_GROUP_RENAMED"), target: target("VEHICLE_GROUP", true), details: details({ previousName: z.string().trim().min(1).max(128), name: z.string().trim().min(1).max(128) }) }).strict(),
+  z.object({ ...common, eventType: z.literal("VEHICLE_GROUP_UPDATED"), target: target("VEHICLE_GROUP", true), details: details({ previousName: z.string().trim().min(1).max(128), name: z.string().trim().min(1).max(128), previousColor: vehicleGroupColor, color: vehicleGroupColor }) }).strict(),
+  z.object({ ...common, eventType: z.literal("VEHICLE_GROUP_MEMBERSHIP_CHANGED"), target: target("VEHICLE_GROUP", true), details: details({ name: z.string().trim().min(1).max(128), addedCount: count, removedCount: count }) }).strict(),
+  z.object({ ...common, eventType: z.literal("VEHICLE_GROUP_DELETED"), target: target("VEHICLE_GROUP", true), details: details({ name: z.string().trim().min(1).max(128), vehicleCount: count, userGrantCount: count }) }).strict(),
+  z.object({ ...common, eventType: z.literal("USER_VEHICLE_ACCESS_CHANGED"), target: target("USER", true), details: details({ targetLoginSnapshot: snapshot.targetLoginSnapshot, previousMode: vehicleAccessMode.nullable(), mode: vehicleAccessMode, previousGroupGrantCount: count, groupGrantCount: count, previousVehicleGrantCount: count, vehicleGrantCount: count, addedGroupGrantCount: count, removedGroupGrantCount: count, addedVehicleGrantCount: count, removedVehicleGrantCount: count }) }).strict(),
 ]);
 
 const responseSchema = z.object({ items: z.array(auditItem).max(50), nextCursor: z.string().regex(/^[A-Za-z0-9_-]{1,512}$/).nullable(), hasMore: z.boolean() }).strict().refine((value) => value.hasMore === (value.nextCursor !== null));

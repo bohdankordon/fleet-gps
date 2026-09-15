@@ -28,6 +28,9 @@ import { FLEET_MAP_HIT_LAYER_ID, FLEET_MAP_SELECTED_LAYER_ID, FLEET_MAP_SOURCE_I
 import { alertsForFleetVehicle, fleetAlertMapToGeoJson, joinFleetOpenAlerts } from "@/lib/open-alert-map/open-alert-map-model";
 import { abortCoordinatedMapRefresh, beginCoordinatedMapRefresh, initialCoordinatedMapRefreshState, settleCoordinatedMapRefresh, type MapRefreshResult } from "@/lib/open-alert-map/open-alert-map-refresh-state";
 import { CompactPageHeading } from "./compact-page-heading";
+import { LabeledFilterSelect } from "./labeled-filter-select";
+import { VehicleGroupTag } from "./vehicle-detail-shell";
+import { PRODUCT_GROUP_FILTER_ALL, PRODUCT_GROUP_FILTER_UNGROUPED, matchesProductGroupFilter, productGroupOptionsFromVehicles } from "@/lib/vehicle-groups/vehicle-groups-contract";
 import { useI18n } from "../i18n/client";
 import { formatNumber } from "../i18n/formatting";
 
@@ -86,6 +89,9 @@ export function FleetMapClient({ initialSnapshot, initialVehicleId, initialGeofe
   const [alerts, setAlerts] = useState(initialAlerts);
   const [selection, setSelection] = useState(initialDeepLink.selection);
   const selectedId = selection.selectedVehicleId;
+  const [groupFilter, setGroupFilter] = useState<string>(PRODUCT_GROUP_FILTER_ALL);
+  const groupMeta = useMemo(() => productGroupOptionsFromVehicles(snapshot.vehicles.map((item) => item.vehicle)), [snapshot.vehicles]);
+  const visibleSnapshot = useMemo(() => groupFilter === PRODUCT_GROUP_FILTER_ALL ? snapshot : { ...snapshot, vehicles: snapshot.vehicles.filter((item) => matchesProductGroupFilter(item.vehicle.group, groupFilter)) }, [snapshot, groupFilter]);
   const [searchQuery, setSearchQuery] = useState(initialSelectedVehicle?.vehicle.name ?? "");
   const [deepLinkUnavailable, setDeepLinkUnavailable] = useState(initialDeepLink.requestedVehicleUnavailable);
   const [refreshing, setRefreshing] = useState(false);
@@ -96,6 +102,7 @@ export function FleetMapClient({ initialSnapshot, initialVehicleId, initialGeofe
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const snapshotRef = useRef(snapshot);
+  const visibleRef = useRef(visibleSnapshot);
   const alertsRef = useRef(alerts);
   const selectedRef = useRef(selectedId);
   const geofenceRef = useRef(initialGeofence);
@@ -179,10 +186,10 @@ export function FleetMapClient({ initialSnapshot, initialVehicleId, initialGeofe
       setStyleError(false);
       setMapReady(true);
       ensureCityGeofenceLayers(map, geofenceRef.current);
-      const model = joinFleetOpenAlerts(snapshotRef.current, alertsRef.current);
+      const model = joinFleetOpenAlerts(visibleRef.current, alertsRef.current);
       const inactivityRing = createFleetMapInactivityRingImage(window.devicePixelRatio);
       ensureFleetAlertMapLayers(map, fleetAlertMapToGeoJson(model), selectedRef.current, inactivityRing);
-      updateMapData(map, snapshotRef.current, alertsRef.current, selectedRef.current);
+      updateMapData(map, visibleRef.current, alertsRef.current, selectedRef.current);
       if (!initialFitRef.current) {
         initialFitRef.current = true;
         applyInitialCamera(map, snapshotRef.current, geofenceRef.current);
@@ -232,18 +239,19 @@ export function FleetMapClient({ initialSnapshot, initialVehicleId, initialGeofe
 
   useEffect(() => {
     snapshotRef.current = snapshot;
+    visibleRef.current = visibleSnapshot;
     alertsRef.current = alerts;
     selectedRef.current = selectedId;
     const map = mapRef.current;
-    if (map?.isStyleLoaded()) updateMapData(map, snapshot, alerts, selectedId);
-  }, [snapshot, alerts, selectedId]);
+    if (map?.isStyleLoaded()) updateMapData(map, visibleSnapshot, alerts, selectedId);
+  }, [snapshot, visibleSnapshot, alerts, selectedId]);
 
   useLayoutEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const map = mapRef.current;
       if (!map) return;
       map.resize();
-      const vehicle = selectedFleetMapVehicle(snapshotRef.current, selectedId);
+      const vehicle = selectedFleetMapVehicle(visibleRef.current, selectedId);
       if (vehicle) map.easeTo({ center: [vehicle.position.longitude, vehicle.position.latitude], duration: 300 });
     });
     return () => window.cancelAnimationFrame(frame);
@@ -279,10 +287,10 @@ export function FleetMapClient({ initialSnapshot, initialVehicleId, initialGeofe
     };
   }, [refresh]);
 
-  const model = useMemo(() => joinFleetOpenAlerts(snapshot, alerts), [snapshot, alerts]);
-  const selected = selectedFleetMapVehicle(snapshot, selectedId);
+  const model = useMemo(() => joinFleetOpenAlerts(visibleSnapshot, alerts), [visibleSnapshot, alerts]);
+  const selected = selectedFleetMapVehicle(visibleSnapshot, selectedId);
   const selectedAlerts = alertsForFleetVehicle(model, selectedId);
-  const searchOptions = useMemo(() => fleetMapSearchOptions(snapshot, searchQuery), [snapshot, searchQuery]);
+  const searchOptions = useMemo(() => fleetMapSearchOptions(visibleSnapshot, searchQuery), [visibleSnapshot, searchQuery]);
   const surfaceStyle = { borderColor: token.colorBorder, borderRadius: token.borderRadiusLG, background: token.colorBgContainer } as const;
 
   return <div className="map-page">
@@ -331,8 +339,9 @@ export function FleetMapClient({ initialSnapshot, initialVehicleId, initialGeofe
           onClear={clearSelection}
         />
       </AutoComplete>
+      {(groupMeta.options.length > 0 || groupMeta.hasUngrouped) ? <LabeledFilterSelect fieldLabel={t("group.filter.label")} ariaLabel={t("group.filter.label")} value={groupFilter} onChange={setGroupFilter} options={[{ value: PRODUCT_GROUP_FILTER_ALL, label: t("group.filter.allGroups") }, ...groupMeta.options.map((option) => ({ value: option.id, label: option.name })), ...(groupMeta.hasUngrouped ? [{ value: PRODUCT_GROUP_FILTER_UNGROUPED, label: t("group.ungrouped") }] : [])]} /> : null}
       <Popover trigger="click" placement="bottomRight" content={<MapLegend />}>
-        <Button size="large" type="default" icon={<InfoCircleOutlined aria-hidden />}>{t("map.legend.label")}</Button>
+        <Button className="map-controls__legend" size="large" type="default" icon={<InfoCircleOutlined aria-hidden />}>{t("map.legend.label")}</Button>
       </Popover>
       <StableLoadingButton idleLabel={t("common.refresh")} loadingLabel={t("common.refreshing")} loading={refreshing} icon={<ReloadOutlined />} onClick={() => void refresh()} size="large" type="primary" />
     </section>
@@ -349,7 +358,7 @@ export function FleetMapClient({ initialSnapshot, initialVehicleId, initialGeofe
       {desktopInspector && selected ? <VehicleInspector vehicle={selected} alerts={selectedAlerts} generatedAt={snapshot.generatedAt} onClose={clearSelection} /> : null}
     </div>
 
-    {!desktopInspector ? <Drawer open={selected !== null} placement={screens.sm ? "right" : "bottom"} size={screens.sm ? 380 : "72vh"} title={selected ? <VehicleInspectorTitle name={selected.vehicle.name} /> : undefined} closeIcon={<CloseOutlined aria-label={t("map.vehicle.closeDetails")} />} onClose={clearSelection} styles={{ body: { padding: token.paddingLG } }}>
+    {!desktopInspector ? <Drawer open={selected !== null} placement={screens.sm ? "right" : "bottom"} size={screens.sm ? 380 : "72vh"} title={selected ? <VehicleInspectorTitle name={selected.vehicle.name} group={selected.vehicle.group} /> : undefined} closeIcon={<CloseOutlined aria-label={t("map.vehicle.closeDetails")} />} onClose={clearSelection} styles={{ body: { padding: token.paddingLG } }}>
       {selected ? <VehicleInspectorContent vehicle={selected} alerts={selectedAlerts} generatedAt={snapshot.generatedAt} /> : null}
     </Drawer> : null}
   </div>;
@@ -447,14 +456,15 @@ function VehicleInspector({ vehicle, alerts, generatedAt, onClose }: Readonly<{ 
   const { t } = useI18n();
   const { token } = theme.useToken();
   const closeButton = <Button type="text" icon={<CloseOutlined aria-hidden />} aria-label={t("map.vehicle.closeDetails")} title={t("map.vehicle.closeDetails")} onClick={onClose} />;
-  return <aside className="map-inspector" aria-live="polite" aria-label={vehicle.vehicle.name}><Card title={<VehicleInspectorTitle name={vehicle.vehicle.name} />} extra={closeButton} styles={{ root: { borderColor: token.colorBorder }, body: { padding: token.paddingLG } }}><VehicleInspectorContent vehicle={vehicle} alerts={alerts} generatedAt={generatedAt} /></Card></aside>;
+  return <aside className="map-inspector" aria-live="polite" aria-label={vehicle.vehicle.name}><Card title={<VehicleInspectorTitle name={vehicle.vehicle.name} group={vehicle.vehicle.group} />} extra={closeButton} styles={{ root: { borderColor: token.colorBorder }, body: { padding: token.paddingLG } }}><VehicleInspectorContent vehicle={vehicle} alerts={alerts} generatedAt={generatedAt} /></Card></aside>;
 }
 
-function VehicleInspectorTitle({ name }: Readonly<{ name: string }>) {
+function VehicleInspectorTitle({ name, group }: Readonly<{ name: string; group: FleetMapVehicle["vehicle"]["group"] }>) {
   const { token } = theme.useToken();
-  return <Flex className="map-inspector__title" align="center" gap="small">
+  return <Flex className="map-inspector__title vehicle-group-identity" align="center" gap="small">
     <CarOutlined aria-hidden style={{ color: token.colorTextTertiary, flex: "none" }} />
-    <span className="map-inspector__title-name">{name}</span>
+    <span className="map-inspector__title-name vehicle-group-identity__name">{name}</span>
+    <VehicleGroupTag group={group} />
   </Flex>;
 }
 

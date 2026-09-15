@@ -1,11 +1,12 @@
 # Per-user Telegram notifications
 
-The accepted product path uses the dedicated `fleet_signal_bot` for secure
-per-user linking, account-owned preferences, recipient planning, and delivery.
-The production cutover is complete: legacy global PRODUCT delivery is disabled,
-while OPS Telegram remains a separate operational concern. The sections below
-retain the staged implementation boundaries because they define the security
-and data contracts of the resulting system.
+The accepted product path uses a dedicated product bot for secure per-user
+linking, account-owned preferences, recipient planning, and delivery. Runtime
+feature gates control whether linking, planning, or dispatch is active; this
+document describes the architecture and does not assert a production rollout.
+Legacy global PRODUCT delivery and OPS Telegram remain separate operational
+concerns. The sections below retain the staged implementation boundaries
+because they define the security and data contracts of the resulting system.
 
 Telegram 2A creates a durable connection between one Fleet GPS account and one Telegram private chat. It does not send product alerts, create notification preferences, select vehicles, or change the existing legacy global alert dispatcher or OPS Telegram paths.
 
@@ -17,15 +18,29 @@ Product linking configuration is separate from legacy delivery: `TELEGRAM_PRODUC
 
 The link-creation guard is deliberately process-local: five requests per Fleet GPS user in ten minutes. This is safe under the current single-API-replica deployment assumption and must be replaced with shared limiting before horizontal API scaling.
 
-Future Telegram delivery must apply existing Fleet GPS authorization: alert/event content requires `events.view`; vehicle-scoped content must additionally respect `vehicles.view` (and `trips.view` or `reports.view` for those product surfaces). Vehicle selection in 2B is a notification preference, never an ACL.
+Product Telegram delivery applies existing Fleet GPS authorization: alert/event content requires `events.view`; vehicle-scoped content must additionally respect `vehicles.view` (and `trips.view` or `reports.view` for those product surfaces). Vehicle selection in 2B is a notification preference, never an ACL.
 
 ## Per-user notification preferences (2B)
 
 Each Fleet GPS account may save its own future-notification preferences independently of its Telegram connection. The implicit default is master notifications **off**, with SPEEDING and INACTIVITY enabled and vehicle scope **ALL**. The first successful save creates a durable, revisioned row; subsequent changes require the current revision and reject stale writes rather than silently overwriting another change.
 
-Users with `vehicles.view` may choose ALL vehicles or SELECTED vehicles (at least one selection is required for SELECTED). Selections remain stored while ALL is active and survive operational vehicle disablement. They are a preference only: they grant no fleet, event, trip, report, history, or future-delivery authorization. Accounts without `vehicles.view` can still edit their master and event-type choices, but are shown no vehicle metadata and cannot edit vehicle scope or arbitrary IDs.
+Users with `vehicles.view` may choose notification scope ALL or SELECTED
+vehicles. This scope is a preference only: it grants no fleet, event, trip,
+report, history, or delivery authorization. Notification ALL means all vehicles
+currently allowed by Product Vehicle Access; notification SELECTED means stored
+individual selections intersected with current Product Vehicle Access.
 
-Disconnect, relink, and ADMIN force-disconnect preserve preferences. Telegram 2B still sends no per-user alert: recipient eligibility, fan-out, durable delivery rows, dispatch, and retries are Telegram 2C work.
+Settings reads expose only currently authorized vehicle IDs, names, groups, and
+colors. An inaccessible stored selection becomes dormant rather than being
+revealed or erased. Visible edits preserve dormant selections, including the
+case where a SELECTED preference currently has only dormant rows; newly
+submitted inaccessible IDs are rejected. Accounts without `vehicles.view` can
+still edit their master and event-type choices, but are shown no vehicle
+metadata and cannot edit vehicle scope or arbitrary IDs.
+
+Disconnect, relink, and ADMIN force-disconnect preserve preferences. The 2B
+preference subsystem itself sends no alert; recipient eligibility, fan-out,
+durable delivery rows, dispatch, and retries are handled by the 2C subsystems.
 
 ## Recipient planning foundation (2C-1)
 
@@ -52,18 +67,23 @@ without a pending password change; ADMIN or both `events.view` and
 persisted enabled preferences; the matching SPEEDING/INACTIVITY toggle; and
 ALL scope or a matching SELECTED vehicle relation. The vehicle must also be
 currently not administratively disabled. Selected vehicles are preferences,
-never authorization, so they cannot overcome missing `vehicles.view`.
+never authorization, so they cannot overcome missing `vehicles.view` or current
+Product Vehicle Access. The recipient query applies both scopes before creating
+delivery intent.
 
 2C-1 sends no alert and does not rewrite or delete pending rows when later
 preferences, permissions, account state, connection state, or vehicle scope
 change. In particular, a relink increases the connection revision but old
-deliveries retain their original revision. The future 2C-2 dispatcher must
+deliveries retain their original revision. The 2C-2 dispatcher must
 immediately re-check account state, both permissions, CONNECTED status and the
 same revision, preferences/type/scope, and vehicle operational eligibility;
-then suppress stale rows. Its planned retry policy is at most 12 attempts over
-24 hours with exponential backoff capped at 60 minutes. Production cutover
-must ensure legacy global delivery and per-user delivery do not send the same
-alert simultaneously; that cutover is not implemented here.
+then suppress stale rows. The dispatcher also rechecks current Product Vehicle
+Access immediately before transport: a revoked product grant suppresses with
+`VEHICLE_ACCESS_REVOKED`, while a changed notification preference suppresses
+with `VEHICLE_SCOPE_CHANGED`. Its retry policy is at most 12 attempts over
+24 hours with exponential backoff capped at 60 minutes. Runtime validation
+prevents legacy global delivery and per-user dispatch from being enabled
+simultaneously.
 
 ## Recipient dispatcher (2C-2)
 
@@ -102,8 +122,8 @@ Telegram accepts a message but before SENT is persisted can produce a later
 duplicate after lease recovery.
 
 This dispatcher is additive. The legacy global outbox and its retry behavior
-remain unchanged, and 2D production cutover remains responsible for ensuring
-the two systems do not send the same alert at once.
+remain unchanged; the 2D configuration and cutover safeguards prevent the two
+systems from being intentionally operated at once.
 
 ## Production wiring and cutover safety (2D-0)
 

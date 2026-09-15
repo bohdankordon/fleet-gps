@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { AlertEventsContractError, parseAlertEventsVehicleOptions } from "../../../../lib/alert-events/alert-events-contract";
 import { createAlertEventsVehicleOptionsRouteHandler } from "../../../../lib/alert-events/alert-events-route-handler";
-const options = [{ vehicleId: "00000000-0000-4000-8000-000000000002", vehicleName: "DEMO" }];
+const options = [{ vehicleId: "00000000-0000-4000-8000-000000000002", vehicleName: "DEMO", group: null }];
 test("vehicle options BFF validates public identity only and maps upstream failure safely", async () => {
   assert.deepEqual(parseAlertEventsVehicleOptions(options), options);
   for (const extra of [{ providerId: "secret" }, { latitude: 1 }, { telegram: "secret" }]) assert.throws(() => parseAlertEventsVehicleOptions([{ ...options[0], ...extra }]), AlertEventsContractError);

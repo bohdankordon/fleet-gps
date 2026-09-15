@@ -59,8 +59,12 @@ does not silently call the provider or start a synchronization job.
 
 - Local username/password authentication with opaque sessions, forced initial
   password change, `ADMIN` and `USER` roles, and explicit USER permissions.
-- ADMIN account management, permission replacement, password reset, account
-  enable/disable controls, and a durable administrative audit trail.
+- One-group-per-vehicle organization with curated display colors, plus Product
+  Vehicle Access that independently limits a USER to all vehicles or the union
+  of selected groups and direct vehicle grants. ADMIN always has the full fleet.
+- ADMIN account and vehicle-group management, permission/access replacement,
+  password reset, account enable/disable controls, and a durable administrative
+  audit trail.
 - Russian, Ukrainian, and English product localization with explicit
   application timezone semantics.
 
@@ -141,8 +145,6 @@ From a fresh checkout on Windows:
 ```powershell
 npm ci
 Copy-Item .env.example .env
-npm run db:up
-npm run db:migrate:dev
 .\dev.ps1 start
 ```
 
@@ -150,9 +152,12 @@ Review the local `.env` before startup. The checked-in
 [`.env.example`](.env.example) is the development template; `.env` is ignored
 and must not be committed. Supply the required local provider identity and
 password in `.env`; the development helper disables provider jobs, but API
-startup still validates required configuration. `db:migrate:dev` is the normal
-development command for applying or creating Prisma migrations. Production
-uses the separate, controlled migration procedure in the deployment runbook.
+startup still validates required configuration. `dev.ps1 start` starts or
+reuses the local PostgreSQL service, verifies that `DATABASE_URL` targets a
+loopback PostgreSQL host, and applies only checked-in migrations with deploy
+semantics before launching either application process. Migration authors still
+use `db:migrate:dev` explicitly when creating a migration. Production uses the
+separate, controlled migration procedure in the deployment runbook.
 
 The helper starts or reuses local PostgreSQL, then starts the API on
 `http://127.0.0.1:3000` and Web on `http://127.0.0.1:3001`. It deliberately
@@ -230,7 +235,9 @@ documentation instead of running provider- or write-capable commands casually.
 Product Telegram notifications use the dedicated `fleet_signal_bot`. An
 eligible account can create a short-lived private-chat link, connect or
 disconnect Telegram, enable master notifications, choose SPEEDING and/or
-INACTIVITY, and select `ALL` or an allowed `SELECTED` vehicle set.
+INACTIVITY, and select `ALL` or an allowed `SELECTED` vehicle set. Notification
+scope is a preference, not authorization: it is always intersected with the
+account's current Product Vehicle Access.
 
 Confirmed alerts are planned into per-user delivery records. The dispatcher
 rechecks the account, permissions, connection revision, preferences, event

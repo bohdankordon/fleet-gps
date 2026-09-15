@@ -1,4 +1,5 @@
 import type { VehicleTrackPointReadModel } from "./vehicle-track-read-models";
+import type { VehicleGroupRef } from "../vehicle-access/vehicle-access.types";
 
 export type VehicleTrackOverviewSegmentReadModel = Readonly<{
   rawPointCount: number;
@@ -9,7 +10,7 @@ export type VehicleTrackOverviewSegmentReadModel = Readonly<{
 
 export type VehicleTrackOverviewResponse = Readonly<{
   generatedAt: string;
-  vehicle: Readonly<{ id: string; name: string }>;
+  vehicle: Readonly<{ id: string; name: string; group: VehicleGroupRef | null }>;
   range: Readonly<{ from: string; to: string }>;
   summary: Readonly<{
     rawPointCount: number;

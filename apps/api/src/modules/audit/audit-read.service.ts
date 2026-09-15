@@ -37,7 +37,14 @@ function target(row: StoredAuditReadRow): AuditReadTarget {
       case AuditEventType.OWN_PASSWORD_CHANGED:
       case AuditEventType.TELEGRAM_LINKED:
       case AuditEventType.TELEGRAM_DISCONNECTED:
+      case AuditEventType.USER_VEHICLE_ACCESS_CHANGED:
         return row.targetType === AuditTargetType.USER && id !== null;
+      case AuditEventType.VEHICLE_GROUP_CREATED:
+      case AuditEventType.VEHICLE_GROUP_RENAMED:
+      case AuditEventType.VEHICLE_GROUP_UPDATED:
+      case AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED:
+      case AuditEventType.VEHICLE_GROUP_DELETED:
+        return row.targetType === AuditTargetType.VEHICLE_GROUP && id !== null;
       case AuditEventType.SHORT_POPULATION_EXECUTED:
         return row.targetType === AuditTargetType.POSITION_HISTORY && row.targetId === null;
       case AuditEventType.DURABLE_POPULATION_CREATED:

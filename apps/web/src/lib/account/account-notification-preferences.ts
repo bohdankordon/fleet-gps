@@ -2,10 +2,11 @@
 // PATCH shaping, validation, and conflict merge without React, so the
 // preference contract is unit-testable. Drafts never leave React memory.
 import type { MessageKey } from "../../i18n/messages";
+import { isVehicleGroupColor, type VehicleGroupColor } from "../vehicle-groups/vehicle-groups-contract";
 
 export type VehicleScope = "ALL" | "SELECTED";
 
-export type PreferenceVehicle = Readonly<{ id: string; name: string; disabled: boolean }>;
+export type PreferenceVehicle = Readonly<{ id: string; name: string; disabled: boolean; groupId: string | null; groupName: string | null; groupColor: VehicleGroupColor | null }>;
 
 export type PreferenceDraft = Readonly<{
   enabled: boolean;
@@ -19,6 +20,7 @@ export type PreferenceBaseline = Readonly<{
   draft: PreferenceDraft;
   revision: number;
   canSelectVehicles: boolean;
+  hasDormantSelections: boolean;
   vehicles: readonly PreferenceVehicle[];
 }>;
 
@@ -42,7 +44,7 @@ function isScope(value: unknown): value is VehicleScope {
 function isVehicle(value: unknown): value is PreferenceVehicle {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
-  return typeof candidate.id === "string" && typeof candidate.name === "string" && typeof candidate.disabled === "boolean";
+  return typeof candidate.id === "string" && typeof candidate.name === "string" && typeof candidate.disabled === "boolean" && (candidate.groupId === null || typeof candidate.groupId === "string") && (candidate.groupName === null || typeof candidate.groupName === "string") && (candidate.groupColor === null || isVehicleGroupColor(candidate.groupColor));
 }
 
 function sameIdSet(left: readonly string[], right: readonly string[]): boolean {
@@ -67,6 +69,7 @@ export function parsePreferenceBaseline(value: unknown): PreferenceBaseline | nu
     || !Number.isInteger(candidate.revision)
     || (candidate.revision as number) < 0
     || typeof candidate.canSelectVehicles !== "boolean"
+    || typeof candidate.hasDormantSelections !== "boolean"
     || !Array.isArray(candidate.vehicles)
     || candidate.vehicles.some((vehicle) => !isVehicle(vehicle))
   ) return null;
@@ -80,7 +83,8 @@ export function parsePreferenceBaseline(value: unknown): PreferenceBaseline | nu
     }),
     revision: candidate.revision as number,
     canSelectVehicles: candidate.canSelectVehicles as boolean,
-    vehicles: Object.freeze((candidate.vehicles as PreferenceVehicle[]).map((vehicle) => Object.freeze({ ...vehicle }))),
+    hasDormantSelections: candidate.hasDormantSelections as boolean,
+    vehicles: Object.freeze((candidate.vehicles as PreferenceVehicle[]).map((vehicle) => Object.freeze({ id: vehicle.id, name: vehicle.name, disabled: vehicle.disabled, groupId: vehicle.groupId, groupName: vehicle.groupName, groupColor: vehicle.groupColor }))),
   });
 }
 
@@ -121,9 +125,11 @@ export function buildPreferencesPatchBody(baseline: PreferenceBaseline, draft: P
 export type DraftValidationError = Readonly<{ field: "vehicleScope"; messageKey: MessageKey }>;
 
 // The only client-checkable backend rule: SELECTED needs at least one
-// vehicle. Everything else is valid input; the backend stays authoritative.
-export function validatePreferencesDraft(draft: PreferenceDraft, canSelectVehicles: boolean): readonly DraftValidationError[] {
-  if (canSelectVehicles && draft.vehicleScope === "SELECTED" && draft.selectedVehicleIds.length === 0) {
+// visible vehicle, unless dormant stored selections exist that the backend
+// hides but preserves. Everything else is valid input; the backend stays
+// authoritative.
+export function validatePreferencesDraft(draft: PreferenceDraft, canSelectVehicles: boolean, hasDormantSelections = false): readonly DraftValidationError[] {
+  if (canSelectVehicles && draft.vehicleScope === "SELECTED" && draft.selectedVehicleIds.length === 0 && !hasDormantSelections) {
     return Object.freeze([{ field: "vehicleScope", messageKey: "telegram.preferences.error.selection" }]);
   }
   return Object.freeze([]);

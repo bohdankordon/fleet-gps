@@ -512,6 +512,16 @@
   margin-top: 0;
 }
 
+.account-notifications__finder-row { display: flex; align-items: flex-end; gap: 12px; width: 100%; min-width: 0; }
+.account-notifications__finder-row .account-notifications__search { flex: 1 1 auto; min-width: 0; }
+.account-notifications__finder-row .account-notifications__finder { flex: none; max-width: 100%; padding-bottom: 0; }
+.account-notifications__finder-row .account-notifications__finder .fleet-toolbar__labeled-select { vertical-align: bottom; }
+@media (max-width: 575px) {
+  .account-notifications__finder-row { flex-direction: column; align-items: stretch; }
+  .account-notifications__finder-row .account-notifications__finder { align-self: stretch; }
+  .account-notifications__finder-row .account-notifications__finder .fleet-toolbar__labeled-select { width: 100%; }
+}
+
 .account-notifications__search {
   display: grid;
   gap: var(--space-1);

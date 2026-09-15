@@ -7,7 +7,7 @@ const alert = (type: "SPEEDING" | "INACTIVITY", openedAt = "2026-08-10T11:00:00.
 const response = (alerts: ReturnType<typeof alert>[]) => ({
   generatedAt: "2026-08-10T12:00:00.000Z",
   summary: { totalOpenAlerts: alerts.length, vehiclesWithOpenAlerts: alerts.length === 0 ? 0 : 1, speeding: alerts.filter((item) => item.type === "SPEEDING").length, inactivity: alerts.filter((item) => item.type === "INACTIVITY").length },
-  vehicles: alerts.length === 0 ? [] : [{ vehicle: { id: vehicleId, name: "Taxi" }, alerts }],
+  vehicles: alerts.length === 0 ? [] : [{ vehicle: { id: vehicleId, name: "Taxi", group: null }, alerts }],
 });
 
 test("accepts empty, SPEEDING, INACTIVITY, and both OPEN types for one vehicle", () => {

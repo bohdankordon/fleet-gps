@@ -4,18 +4,21 @@ import { AlertEventSpeedZone, AlertEventStatus, AlertEventType, AlertNotificatio
 import type { AlertEventsQueryParams } from "./alert-events-query-params";
 import type { AlertEventsQueryRepository, StoredAlertEventReadRow, StoredOpenAlertMapRow } from "./alert-events-query.repository";
 import { AlertEventsQueryService } from "./alert-events-query.service";
+import { UNRESTRICTED_VEHICLE_SCOPE } from "../vehicle-access/vehicle-access.service";
 
 const VEHICLE_ID = "00000000-0000-4000-8000-000000000001";
+const testUserId = "00000000-0000-4000-8000-000000000099";
+const unrestrictedScopes = { resolve: async () => UNRESTRICTED_VEHICLE_SCOPE } as unknown as import("../vehicle-access/vehicle-access.service").VehicleScopeService;
 const EVENT_ID = "00000000-0000-4000-8000-000000000002";
 const AT = new Date("2026-08-08T10:00:00.000Z");
-const params: AlertEventsQueryParams = { status: undefined, type: undefined, vehicleId: undefined, limit: 50, cursor: undefined };
+const params: AlertEventsQueryParams = { status: undefined, type: undefined, vehicleId: undefined, group: { kind: "ALL" }, limit: 50, cursor: undefined };
 
 function row(overrides: Partial<StoredAlertEventReadRow> = {}): StoredAlertEventReadRow {
   return {
     id: EVENT_ID, type: AlertEventType.SPEEDING, status: AlertEventStatus.OPEN, confirmedAt: AT, lastObservedAt: AT, resolvedAt: null,
     speedZone: AlertEventSpeedZone.CITY, confirmationSpeedKph: 72, lastSpeedKph: 75, peakSpeedKph: 81, speedThresholdKph: 60,
     confirmationTraveledDistanceMeters: null, lastTraveledDistanceMeters: null, minimumTraveledDistanceMeters: null, distanceThresholdMeters: null, durationThresholdMinutes: null,
-    vehicle: { id: VEHICLE_ID, name: "Taxi 7" }, notificationOutbox: [], ...overrides,
+    vehicle: { id: VEHICLE_ID, name: "Taxi 7", group: null }, notificationOutbox: [], ...overrides,
   };
 }
 
@@ -27,12 +30,12 @@ function service(rows: readonly StoredAlertEventReadRow[], hasMore = false, summ
     getOpenSummary: async () => { calls.summaries += 1; return summary; },
     getOpenMapSnapshot: async () => { calls.maps += 1; return { rows: mapRows, exceededLimit }; },
   };
-  return { subject: new AlertEventsQueryService(repository, { now: () => new Date("2026-08-10T12:00:00.000Z") }), calls };
+  return { subject: new AlertEventsQueryService(repository, { now: () => new Date("2026-08-10T12:00:00.000Z") }, unrestrictedScopes), calls };
 }
 
 test("returns the valid empty alert-events page", async () => {
   const { subject, calls } = service([]);
-  assert.deepEqual(await subject.list(params), { items: [], nextCursor: null });
+  assert.deepEqual(await subject.list(params, testUserId), { items: [], nextCursor: null });
   assert.deepEqual(calls, { lists: 1, summaries: 0, maps: 0 });
 });
 
@@ -42,14 +45,14 @@ test("maps persisted SPEEDING and INACTIVITY snapshots without current settings"
     speedZone: null, confirmationSpeedKph: null, lastSpeedKph: null, peakSpeedKph: null, speedThresholdKph: null,
     confirmationTraveledDistanceMeters: 12, lastTraveledDistanceMeters: 350, minimumTraveledDistanceMeters: 8, distanceThresholdMeters: 300, durationThresholdMinutes: 60,
   });
-  const response = await service([row(), inactivity]).subject.list(params);
-  assert.deepEqual(response.items[0], { id: EVENT_ID, vehicle: { id: VEHICLE_ID, name: "Taxi 7" }, type: "SPEEDING", status: "OPEN", openedAt: AT.toISOString(), lastObservedAt: AT.toISOString(), resolvedAt: null, notificationDeliveryStatus: "NONE", details: { zone: "CITY", confirmationSpeedKph: 72, lastSpeedKph: 75, peakSpeedKph: 81, thresholdKph: 60 } });
-  assert.deepEqual(response.items[1], { id: inactivity.id, vehicle: { id: VEHICLE_ID, name: "Taxi 7" }, type: "INACTIVITY", status: "RESOLVED", openedAt: AT.toISOString(), lastObservedAt: AT.toISOString(), resolvedAt: "2026-08-08T11:00:00.000Z", notificationDeliveryStatus: "NONE", details: { confirmationDistanceMeters: 12, lastDistanceMeters: 350, minimumDistanceMeters: 8, distanceThresholdMeters: 300, durationThresholdMinutes: 60 } });
+  const response = await service([row(), inactivity]).subject.list(params, testUserId);
+  assert.deepEqual(response.items[0], { id: EVENT_ID, vehicle: { id: VEHICLE_ID, name: "Taxi 7", group: null }, type: "SPEEDING", status: "OPEN", openedAt: AT.toISOString(), lastObservedAt: AT.toISOString(), resolvedAt: null, notificationDeliveryStatus: "NONE", details: { zone: "CITY", confirmationSpeedKph: 72, lastSpeedKph: 75, peakSpeedKph: 81, thresholdKph: 60 } });
+  assert.deepEqual(response.items[1], { id: inactivity.id, vehicle: { id: VEHICLE_ID, name: "Taxi 7", group: null }, type: "INACTIVITY", status: "RESOLVED", openedAt: AT.toISOString(), lastObservedAt: AT.toISOString(), resolvedAt: "2026-08-08T11:00:00.000Z", notificationDeliveryStatus: "NONE", details: { confirmationDistanceMeters: 12, lastDistanceMeters: 350, minimumDistanceMeters: 8, distanceThresholdMeters: 300, durationThresholdMinutes: 60 } });
 });
 
 test("maps PENDING and internal SENDING to the stable PENDING delivery state", async () => {
   for (const status of [AlertNotificationStatus.PENDING, AlertNotificationStatus.SENDING]) {
-    const response = await service([row({ notificationOutbox: [{ status }] })]).subject.list(params);
+    const response = await service([row({ notificationOutbox: [{ status }] })]).subject.list(params, testUserId);
     assert.equal(response.items[0]?.notificationDeliveryStatus, "PENDING");
   }
 });
@@ -60,35 +63,35 @@ test("maps SENT, FAILED, and an event without outbox", async () => {
     row({ id: "00000000-0000-4000-8000-000000000004", notificationOutbox: [{ status: AlertNotificationStatus.FAILED }] }),
     row({ id: "00000000-0000-4000-8000-000000000005", notificationOutbox: [] }),
   ];
-  const response = await service(rows).subject.list(params);
+  const response = await service(rows).subject.list(params, testUserId);
   assert.deepEqual(response.items.map((item) => item.notificationDeliveryStatus), ["SENT", "FAILED", "NONE"]);
 });
 
 test("creates nextCursor only from the last returned event in a non-final page", async () => {
   const last = row({ id: "00000000-0000-4000-8000-000000000009", confirmedAt: new Date("2026-08-08T09:00:00.000Z") });
-  const response = await service([row(), last], true).subject.list(params);
+  const response = await service([row(), last], true).subject.list(params, testUserId);
   assert.notEqual(response.nextCursor, null);
   assert.deepEqual(response.nextCursor === null ? undefined : (await import("./alert-events-query-params")).parseAlertEventsQueryParams({ cursor: response.nextCursor }).cursor, { openedAt: last.confirmedAt, id: last.id });
-  assert.equal((await service([row()], false).subject.list(params)).nextCursor, null);
+  assert.equal((await service([row()], false).subject.list(params, testUserId)).nextCursor, null);
 });
 
 test("public serialization contains no internal or sensitive fields", async () => {
-  const json = JSON.stringify(await service([row({ notificationOutbox: [{ status: AlertNotificationStatus.FAILED }] })]).subject.list(params));
+  const json = JSON.stringify(await service([row({ notificationOutbox: [{ status: AlertNotificationStatus.FAILED }] })]).subject.list(params, testUserId));
   for (const forbidden of ["externalDeviceId", "latitude", "longitude", "dedupeKey", "activeKey", "lockToken", "lockedAt", "attemptCount", "availableAt", "lastError", "lastErrorCode", "telegram", "provider", "confirmationReceipts", "observations"]) {
     assert.equal(json.includes(forbidden), false, forbidden);
   }
 });
 
 test("returns zero and mixed OPEN summary counts", async () => {
-  assert.deepEqual(await service([]).subject.getSummary(), { open: { total: 0, speeding: 0, inactivity: 0 } });
+  assert.deepEqual(await service([]).subject.getSummary(testUserId), { open: { total: 0, speeding: 0, inactivity: 0 } });
   const mixed = service([], false, { speeding: 3, inactivity: 2 });
-  assert.deepEqual(await mixed.subject.getSummary(), { open: { total: 5, speeding: 3, inactivity: 2 } });
+  assert.deepEqual(await mixed.subject.getSummary(testUserId), { open: { total: 5, speeding: 3, inactivity: 2 } });
   assert.deepEqual(mixed.calls, { lists: 0, summaries: 1, maps: 0 });
 });
 
 test("returns an empty bounded OPEN map projection", async () => {
   const result = service([]);
-  assert.deepEqual(await result.subject.getOpenMap(), {
+  assert.deepEqual(await result.subject.getOpenMap(testUserId), {
     generatedAt: "2026-08-10T12:00:00.000Z",
     summary: { totalOpenAlerts: 0, vehiclesWithOpenAlerts: 0, speeding: 0, inactivity: 0 },
     vehicles: [],
@@ -97,13 +100,13 @@ test("returns an empty bounded OPEN map projection", async () => {
 });
 
 test("groups SPEEDING and INACTIVITY per vehicle with deterministic vehicle and alert ordering", async () => {
-  const vehicleA = { id: "00000000-0000-4000-8000-000000000010", name: "Alpha" };
-  const vehicleB = { id: "00000000-0000-4000-8000-000000000020", name: "Beta" };
+  const vehicleA = { id: "00000000-0000-4000-8000-000000000010", name: "Alpha", group: null };
+  const vehicleB = { id: "00000000-0000-4000-8000-000000000020", name: "Beta", group: null };
   const result = await service([], false, { speeding: 0, inactivity: 0 }, [
     { type: AlertEventType.SPEEDING, confirmedAt: new Date("2026-08-10T11:02:00.000Z"), vehicle: vehicleB },
     { type: AlertEventType.INACTIVITY, confirmedAt: new Date("2026-08-10T11:01:00.000Z"), vehicle: vehicleA },
     { type: AlertEventType.SPEEDING, confirmedAt: new Date("2026-08-10T11:00:00.000Z"), vehicle: vehicleA },
-  ]).subject.getOpenMap();
+  ]).subject.getOpenMap(testUserId);
   assert.deepEqual(result, {
     generatedAt: "2026-08-10T12:00:00.000Z",
     summary: { totalOpenAlerts: 3, vehiclesWithOpenAlerts: 2, speeding: 2, inactivity: 1 },
@@ -115,7 +118,7 @@ test("groups SPEEDING and INACTIVITY per vehicle with deterministic vehicle and 
 });
 
 test("OPEN map projection exposes only vehicle identity, type, and openedAt", async () => {
-  const map = await service([], false, { speeding: 0, inactivity: 0 }, [{ type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Taxi 7" } }]).subject.getOpenMap();
+  const map = await service([], false, { speeding: 0, inactivity: 0 }, [{ type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Taxi 7", group: null } }]).subject.getOpenMap(testUserId);
   assert.deepEqual(Object.keys(map), ["generatedAt", "summary", "vehicles"]);
   assert.deepEqual(Object.keys(map.vehicles[0] ?? {}), ["vehicle", "alerts"]);
   const json = JSON.stringify(map);
@@ -123,21 +126,21 @@ test("OPEN map projection exposes only vehicle identity, type, and openedAt", as
 });
 
 test("rejects over-limit, duplicate same-type OPEN state, invalid persisted timestamps, and invalid clock", async () => {
-  const duplicate = { type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Taxi 7" } };
-  await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [], true).subject.getOpenMap());
-  await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [duplicate, duplicate]).subject.getOpenMap());
-  await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [{ ...duplicate, confirmedAt: new Date(Number.NaN) }]).subject.getOpenMap());
+  const duplicate = { type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Taxi 7", group: null } };
+  await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [], true).subject.getOpenMap(testUserId));
+  await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [duplicate, duplicate]).subject.getOpenMap(testUserId));
+  await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [{ ...duplicate, confirmedAt: new Date(Number.NaN) }]).subject.getOpenMap(testUserId));
   const repository = { getVehicleOptions: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }) };
-  await assert.rejects(new AlertEventsQueryService(repository, { now: () => new Date(Number.NaN) }).getOpenMap());
+  await assert.rejects(new AlertEventsQueryService(repository, { now: () => new Date(Number.NaN) }, unrestrictedScopes).getOpenMap(testUserId));
 });
 
 
 test("lastObservedAt is the stored factual timestamp and malformed persisted values fail safely", async () => {
   const lastObservedAt = new Date("2026-08-08T10:21:00Z");
-  assert.equal((await service([row({ lastObservedAt })]).subject.list(params)).items[0]?.lastObservedAt, lastObservedAt.toISOString());
-  await assert.rejects(service([row({ lastObservedAt: new Date(NaN) })]).subject.list(params));
+  assert.equal((await service([row({ lastObservedAt })]).subject.list(params, testUserId)).items[0]?.lastObservedAt, lastObservedAt.toISOString());
+  await assert.rejects(service([row({ lastObservedAt: new Date(NaN) })]).subject.list(params, testUserId));
 });
 test("vehicle options are locale ordered and project safe fields even when repository has extras", async () => {
-  const repository: AlertEventsQueryRepository = { list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }), getVehicleOptions: async () => [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", providerId: "secret" }, { vehicleId: EVENT_ID, vehicleName: "DEMO 2", providerId: "secret" }] };
-  assert.deepEqual(await new AlertEventsQueryService(repository).getVehicleOptions(), [{ vehicleId: EVENT_ID, vehicleName: "DEMO 2" }, { vehicleId: VEHICLE_ID, vehicleName: "DEMO 10" }]);
+  const repository: AlertEventsQueryRepository = { list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }), getVehicleOptions: async () => [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", group: null, providerId: "secret" }, { vehicleId: EVENT_ID, vehicleName: "DEMO 2", group: null, providerId: "secret" }] as unknown as readonly import("./alert-events-read-models").AlertEventsVehicleOption[] };
+  assert.deepEqual(await new AlertEventsQueryService(repository, { now: () => new Date("2026-08-10T12:00:00.000Z") }, unrestrictedScopes).getVehicleOptions(testUserId), [{ vehicleId: EVENT_ID, vehicleName: "DEMO 2", group: null }, { vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", group: null }]);
 });

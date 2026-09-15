@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { parseVehicleTrackTimestamp } from "./vehicle-track-range";
 
+import { VEHICLE_GROUP_COLORS } from "../vehicle-groups/vehicle-groups-contract";
+
+const vehicleGroupColor = z.enum(VEHICLE_GROUP_COLORS);
 const uuid = z.string().uuid();
 const timestamp = z.string().refine((value) => parseVehicleTrackTimestamp(value) !== null);
 const metric = z.number().finite().nonnegative();
@@ -15,7 +18,7 @@ export const vehicleTrackPointSchema = z.object({
 
 export const vehicleTrackResponseSchema = z.object({
   generatedAt: timestamp,
-  vehicle: z.object({ id: uuid, name: z.string().min(1).max(255) }).strict(),
+  vehicle: z.object({ id: uuid, name: z.string().min(1).max(255), group: z.object({ id: uuid, name: z.string().min(1).max(255), color: vehicleGroupColor }).strict().nullable() }).strict(),
   range: z.object({ from: timestamp, to: timestamp }).strict(),
   summary: z.object({ pointCount: z.number().int().min(0).max(10_000), firstObservedAt: timestamp.nullable(), lastObservedAt: timestamp.nullable() }).strict(),
   points: z.array(vehicleTrackPointSchema).max(10_000),

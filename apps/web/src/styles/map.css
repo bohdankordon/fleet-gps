@@ -54,7 +54,7 @@
 
 .map-controls {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto auto;
+  grid-template-columns: minmax(220px, 1fr) auto auto auto;
   gap: 8px;
   align-items: center;
   min-width: 0;
@@ -272,6 +272,26 @@
 }
 
 @media (max-width: 991px) {
+  .map-controls {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .map-controls__search {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .map-controls > .fleet-toolbar__labeled-select {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .map-controls > .map-controls__legend {
+    grid-row: 3;
+    grid-column: 1;
+    justify-self: start;
+  }
+  .map-controls > .stable-loading-button {
+    grid-row: 3;
+    grid-column: 2;
+  }
   .map-summary-grid__events .map-summary-group__metrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     column-gap: 16px;

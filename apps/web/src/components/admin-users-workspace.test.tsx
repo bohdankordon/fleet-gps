@@ -7,8 +7,8 @@ import type { AdminManagedUser } from "../lib/admin-users/admin-users-contract";
 import { EMPTY_ADMIN_USERS_QUERY } from "../lib/admin-users/admin-users-directory-model";
 import { AdminUsersWorkspace } from "./admin-users-workspace";
 
-const admin: AdminManagedUser = { id: "internal-admin-id", login: "owner", role: "ADMIN", disabled: false, mustChangePassword: false, permissions: [], telegramStatus: "CONNECTED", createdAt: "2026-08-01T10:00:00Z", updatedAt: "2026-09-01T10:00:00Z" };
-const user: AdminManagedUser = { id: "internal-user-id", login: "operator", role: "USER", disabled: true, mustChangePassword: true, permissions: ["vehicles.view", "trips.view", "reports.view"], telegramStatus: "BROKEN", createdAt: "2026-08-02T10:00:00Z", updatedAt: "2026-09-02T10:00:00Z" };
+const admin: AdminManagedUser = { id: "internal-admin-id", login: "owner", role: "ADMIN", disabled: false, mustChangePassword: false, permissions: [], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] }, telegramStatus: "CONNECTED", createdAt: "2026-08-01T10:00:00Z", updatedAt: "2026-09-01T10:00:00Z" };
+const user: AdminManagedUser = { id: "internal-user-id", login: "operator", role: "USER", disabled: true, mustChangePassword: true, permissions: ["vehicles.view", "trips.view", "reports.view"], vehicleAccess: { mode: "SELECTED", groupIds: [], vehicleIds: [] }, telegramStatus: "BROKEN", createdAt: "2026-08-02T10:00:00Z", updatedAt: "2026-09-02T10:00:00Z" };
 const render = (node: React.ReactNode, locale: "uk" | "ru" | "en" = "en") => renderToStaticMarkup(<I18nProvider locale={locale}>{node}</I18nProvider>);
 
 test("directory records expose identity, simple authority, factual state and one descriptive detail action", () => {

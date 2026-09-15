@@ -1,12 +1,14 @@
 import { z } from "zod";
+import { VEHICLE_GROUP_COLORS } from "../vehicle-groups/vehicle-groups-contract";
 
+const vehicleGroupColor = z.enum(VEHICLE_GROUP_COLORS);
 const isoTimestamp = z.string().datetime({ offset: true });
 const count = z.number().int().nonnegative();
 const latitude = z.number().finite().min(-90).max(90);
 const longitude = z.number().finite().min(-180).max(180);
 const speedKph = z.number().finite().nonnegative().nullable();
 
-const vehicleSchema = z.strictObject({ id: z.string().uuid(), name: z.string() });
+const vehicleSchema = z.strictObject({ id: z.string().uuid(), name: z.string(), group: z.strictObject({ id: z.string().uuid(), name: z.string(), color: vehicleGroupColor }).nullable() });
 const positionSchema = z.strictObject({ latitude, longitude, observedAt: isoTimestamp });
 const markerSchema = z.strictObject({ vehicle: vehicleSchema, position: positionSchema, speedKph, freshness: z.enum(["FRESH", "STALE"]) });
 

@@ -1,4 +1,5 @@
-import { Controller, Get, HttpException, Param, Query } from "@nestjs/common";
+import { Controller, Get, HttpException, Param, Query, Req } from "@nestjs/common";
+import type { AuthenticatedRequest } from "../auth/auth.types";
 import { normalizeUuid } from "../../common/uuid.validation";
 import { parseAbsoluteTimestamp } from "../vehicle-track/vehicle-track-query-params";
 import { TRIP_STOP_ANALYTICS_MAX_RANGE_MS } from "./trip-stop-analytics.constants";
@@ -19,10 +20,10 @@ function parseRange(rawFrom: unknown, rawTo: unknown): Readonly<{ from: Date; to
 export class TripStopAnalysisController {
   public constructor(private readonly analytics: TripStopAnalyticsService) {}
   @Get(":vehicleId/trip-analysis")
-  public async getAnalysis(@Param("vehicleId") rawVehicleId: string, @Query("from") rawFrom: unknown, @Query("to") rawTo: unknown): Promise<TripAnalysisResponse> {
+  public async getAnalysis(@Param("vehicleId") rawVehicleId: string, @Query("from") rawFrom: unknown, @Query("to") rawTo: unknown, @Req() request: AuthenticatedRequest): Promise<TripAnalysisResponse> {
     const vehicleId = normalizeUuid(rawVehicleId); const range = parseRange(rawFrom, rawTo);
     if (!vehicleId || !range) throw new HttpException({ statusCode: 400, error: "Bad Request" }, 400);
-    try { return toTripAnalysisResponse(await this.analytics.analyze(vehicleId, range)); }
+    try { return toTripAnalysisResponse(await this.analytics.analyze(vehicleId, range, request.auth!.id)); }
     catch (error) {
       if (error instanceof TripStopAnalyticsVehicleNotFoundError) throw new HttpException({ statusCode: 404, error: "Not Found" }, 404);
       if (error instanceof TripStopAnalyticsTargetError) throw new HttpException({ statusCode: 400, error: "Bad Request" }, 400);

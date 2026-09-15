@@ -1,3 +1,6 @@
+import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
+import type { VehicleGroupRef } from "../vehicle-access/vehicle-access.types";
+
 export const MAX_TRACK_POINTS = 10_000;
 
 export type StoredVehicleTrackPoint = Readonly<{
@@ -10,10 +13,10 @@ export type StoredVehicleTrackPoint = Readonly<{
 }>;
 
 export type StoredVehicleTrackSnapshot = Readonly<{
-  vehicle: Readonly<{ id: string; name: string }> | null;
+  vehicle: Readonly<{ id: string; name: string; group: VehicleGroupRef | null }> | null;
   points: readonly StoredVehicleTrackPoint[];
 }>;
 
 export interface VehicleTrackQueryRepository {
-  getSnapshot(vehicleId: string, from: Date, to: Date): Promise<StoredVehicleTrackSnapshot>;
+  getSnapshot(vehicleId: string, from: Date, to: Date, scope: VehicleScope): Promise<StoredVehicleTrackSnapshot>;
 }

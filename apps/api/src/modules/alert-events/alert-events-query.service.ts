@@ -1,10 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AlertEventType } from "../../generated/prisma/client";
 import { projectAlertEventTimestamp, projectOpenAlert, projectScopedAlertEvent } from "./alert-event-read.projection";
-import type { AlertEventReadModel, AlertEventsListResponse, AlertEventsSummaryResponse, OpenAlertMapAlert, OpenAlertMapResponse, OpenAlertMapVehicle } from "./alert-events-read-models";
+import type { AlertEventReadModel, AlertEventsListResponse, AlertEventsSummaryResponse, AlertEventsVehicleOption, OpenAlertMapAlert, OpenAlertMapResponse, OpenAlertMapVehicle } from "./alert-events-read-models";
 import { encodeAlertEventsCursor, type AlertEventsQueryParams } from "./alert-events-query-params";
 import type { AlertEventsQueryRepository, StoredAlertEventReadRow, StoredOpenAlertMapRow } from "./alert-events-query.repository";
 import { ALERT_EVENTS_QUERY_CLOCK, ALERT_EVENTS_QUERY_REPOSITORY } from "./alert-events.tokens";
+import { VehicleScopeService } from "../vehicle-access/vehicle-access.service";
 
 export type AlertEventsQueryClock = Readonly<{ now(): Date }>;
 const systemClock: AlertEventsQueryClock = Object.freeze({ now: () => new Date() });
@@ -20,7 +21,7 @@ function toReadModel(row: StoredAlertEventReadRow): AlertEventReadModel {
   const scoped = projectScopedAlertEvent(row);
   return Object.freeze({
     id: scoped.id,
-    vehicle: Object.freeze({ id: row.vehicle.id, name: row.vehicle.name }),
+    vehicle: Object.freeze({ id: row.vehicle.id, name: row.vehicle.name, group: row.vehicle.group ? Object.freeze({ id: row.vehicle.group.id, name: row.vehicle.group.name, color: row.vehicle.group.color }) : null }),
     type: scoped.type,
     status: scoped.status,
     openedAt: scoped.openedAt,
@@ -36,29 +37,30 @@ export class AlertEventsQueryService {
   public constructor(
     @Inject(ALERT_EVENTS_QUERY_REPOSITORY) private readonly repository: AlertEventsQueryRepository,
     @Inject(ALERT_EVENTS_QUERY_CLOCK) private readonly clock: AlertEventsQueryClock = systemClock,
+    private readonly scopes: VehicleScopeService,
   ) {}
 
-  public async list(params: AlertEventsQueryParams): Promise<AlertEventsListResponse> {
-    const page = await this.repository.list(params);
+  public async list(params: AlertEventsQueryParams, userId: string): Promise<AlertEventsListResponse> {
+    const page = await this.repository.list(params, await this.scopes.resolve(userId));
     const items = Object.freeze(page.rows.map(toReadModel));
     const last = page.rows.at(-1);
     const nextCursor = page.hasMore && last !== undefined ? encodeAlertEventsCursor({ openedAt: last.confirmedAt, id: last.id }) : null;
     return Object.freeze({ items, nextCursor });
   }
 
-  public async getSummary(): Promise<AlertEventsSummaryResponse> {
-    const summary = await this.repository.getOpenSummary();
+  public async getSummary(userId: string): Promise<AlertEventsSummaryResponse> {
+    const summary = await this.repository.getOpenSummary(await this.scopes.resolve(userId));
     return Object.freeze({ open: Object.freeze({ total: summary.speeding + summary.inactivity, speeding: summary.speeding, inactivity: summary.inactivity }) });
   }
 
-  public async getVehicleOptions(): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]> {
-    const options = await this.repository.getVehicleOptions();
-    return options.map(({ vehicleId, vehicleName }) => ({ vehicleId, vehicleName }))
+  public async getVehicleOptions(userId: string): Promise<readonly AlertEventsVehicleOption[]> {
+    const options = await this.repository.getVehicleOptions(await this.scopes.resolve(userId));
+    return options.map(({ vehicleId, vehicleName, group }) => ({ vehicleId, vehicleName, group: group ? { id: group.id, name: group.name, color: group.color } : null }))
       .sort((a, b) => a.vehicleName.localeCompare(b.vehicleName, "uk", { numeric: true }) || a.vehicleId.localeCompare(b.vehicleId));
   }
 
-  public async getOpenMap(): Promise<OpenAlertMapResponse> {
-    const snapshot = await this.repository.getOpenMapSnapshot();
+  public async getOpenMap(userId: string): Promise<OpenAlertMapResponse> {
+    const snapshot = await this.repository.getOpenMapSnapshot(await this.scopes.resolve(userId));
     const generatedAt = this.clock.now();
     if (!(generatedAt instanceof Date) || !Number.isFinite(generatedAt.getTime()) || snapshot.exceededLimit) throw new AlertEventsQueryStateError();
 
@@ -74,7 +76,7 @@ export class AlertEventsQueryService {
         if (current.alerts.some((item) => item.type === type)) throw new AlertEventsQueryStateError();
         (current.alerts as OpenAlertMapAlert[]).push(alert);
       } else {
-        vehicles.push(Object.freeze({ vehicle: Object.freeze({ id: row.vehicle.id, name: row.vehicle.name }), alerts: [alert] }));
+        vehicles.push(Object.freeze({ vehicle: Object.freeze({ id: row.vehicle.id, name: row.vehicle.name, group: row.vehicle.group ? Object.freeze({ id: row.vehicle.group.id, name: row.vehicle.group.name, color: row.vehicle.group.color }) : null }), alerts: [alert] }));
       }
       if (type === "SPEEDING") speeding += 1;
       else inactivity += 1;

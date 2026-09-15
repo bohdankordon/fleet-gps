@@ -14,8 +14,8 @@ import {
 } from "./account-notification-preferences";
 
 const vehicles = Object.freeze([
-  Object.freeze({ id: "11111111-1111-1111-8111-111111111111", name: "Car one", disabled: false }),
-  Object.freeze({ id: "22222222-2222-2222-8222-222222222222", name: "Car two", disabled: true }),
+  Object.freeze({ id: "11111111-1111-1111-8111-111111111111", name: "Car one", disabled: false, groupId: null, groupName: null, groupColor: null }),
+  Object.freeze({ id: "22222222-2222-2222-8222-222222222222", name: "Car two", disabled: true, groupId: null, groupName: null, groupColor: null }),
 ]);
 const view = (overrides: Record<string, unknown> = {}) => ({
   enabled: true,
@@ -25,6 +25,7 @@ const view = (overrides: Record<string, unknown> = {}) => ({
   selectedVehicleIds: ["11111111-1111-1111-8111-111111111111"],
   revision: 3,
   canSelectVehicles: true,
+  hasDormantSelections: false,
   vehicles: [...vehicles],
   ...overrides,
 });
@@ -37,7 +38,7 @@ test("valid reads parse including virtual revision 0, malformed reads fail", () 
   assert.deepEqual(parsePreferenceBaseline(view({ revision: 0 }))?.revision, 0);
   for (const bad of [null, undefined, 7, "x", [], { ...view(), enabled: "yes" }, { ...view(), vehicleScope: "SOME" },
     { ...view(), selectedVehicleIds: "nope" }, { ...view(), selectedVehicleIds: [42] }, { ...view(), revision: 1.5 },
-    { ...view(), revision: -1 }, { ...view(), canSelectVehicles: 1 },
+    { ...view(), revision: -1 }, { ...view(), canSelectVehicles: 1 }, { ...view(), hasDormantSelections: 1 },
     { ...view(), vehicles: [{ id: "x" }] }, { enabled: true }]) {
     assert.equal(parsePreferenceBaseline(bad), null, JSON.stringify(bad)?.slice(0, 80));
   }
@@ -93,6 +94,7 @@ test("only SELECTED-without-vehicles is client-invalid", () => {
   assert.deepEqual(validatePreferencesDraft({ ...draftFromBaseline(base), selectedVehicleIds: [] }, true), [
     { field: "vehicleScope", messageKey: "telegram.preferences.error.selection" },
   ]);
+  assert.deepEqual(validatePreferencesDraft({ ...draftFromBaseline(base), selectedVehicleIds: [] }, true, true), []);
   assert.deepEqual(validatePreferencesDraft({ ...draftFromBaseline(base), vehicleScope: "ALL", selectedVehicleIds: [] }, true), []);
   assert.deepEqual(validatePreferencesDraft({ enabled: false, speedingEnabled: false, inactivityEnabled: false, vehicleScope: "ALL", selectedVehicleIds: [] }, true), []);
   assert.deepEqual(validatePreferencesDraft(draftFromBaseline(base), false), []);
@@ -134,9 +136,9 @@ test("conflict merge carries non-overlapping edits and flags real conflicts", ()
 });
 test("vehicle search is local, name-only, and case-insensitive", () => {
   const fleet = [
-    { id: "a", name: "Alpha Bus", disabled: false },
-    { id: "b", name: "beta van", disabled: false },
-    { id: "c", name: "Gamma", disabled: true },
+    { id: "a", name: "Alpha Bus", disabled: false, groupId: null, groupName: null, groupColor: null },
+    { id: "b", name: "beta van", disabled: false, groupId: null, groupName: null, groupColor: null },
+    { id: "c", name: "Gamma", disabled: true, groupId: null, groupName: null, groupColor: null },
   ] as const;
   assert.deepEqual(filterVehiclesByName(fleet, ""), fleet);
   assert.deepEqual(filterVehiclesByName(fleet, "  "), fleet);

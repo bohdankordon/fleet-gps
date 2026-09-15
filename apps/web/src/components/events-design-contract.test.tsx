@@ -1,3 +1,4 @@
+import "../test-setup-alias";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -22,7 +23,7 @@ test("workspace uses Ant Design with a compact heading, global metrics, chronolo
   for (const state of ["NONE", "PENDING", "SENT", "FAILED"] as const) {
     const html = renderPage({}, [{ ...speeding, notificationDeliveryStatus: state }]);
     for (const forbidden of ["Not sent", "Pending", "Delivery failed", "Telegram", "<table", "events-summary-card"]) assert.ok(!html.includes(forbidden), forbidden);
-    assert.match(html, /Open now/); assert.match(html, /Fleet-wide/); assert.match(html, /aria-pressed="false"/);
+    assert.match(html, /Open now/); assert.match(html, /Accessible fleet/); assert.match(html, /aria-pressed="false"/);
   }
   assert.doesNotMatch(source + detailSource, /notificationDelivery|notificationDeliveryLabel|events.delivery|maplibre/);
   assert.match(source, /from "antd"/); assert.doesNotMatch(styles, /\.ant-/);
@@ -38,6 +39,13 @@ test("INACTIVITY detail has distance and window metrics, with conditional resolu
   const html = renderDetail(inactivity);
   for (const text of ["Rolling window duration", "Confirmation traveled distance", "Last traveled distance", "Minimum distance during episode", "Distance threshold", "60 minutes", "35 m", "340 m", "12 m", "300 m", "<dt>Resolved:</dt>"]) assert.ok(html.includes(text), text);
   assert.doesNotMatch(html, /minimum duration|stayed at/i);
+});
+test("event list and detail show subtle vehicle group metadata without new badge styles", () => {
+  const grouped = { ...speeding, vehicle: { ...speeding.vehicle, group: { id: "11111111-1111-4111-8111-111111111111", name: "Night group", color: "BLUE" as const } } };
+  assert.ok(renderPage({}, [grouped]).includes("Night group"));
+  assert.ok(renderDetail(grouped).includes("Night group"));
+  assert.ok(source.includes("VehicleGroupTag"));
+  assert.ok(detailSource.includes("VehicleGroupTag"));
 });
 test("events.view-only identity remains visible and all restricted navigation is absent", () => {
   const html = renderToStaticMarkup(<AuthProvider user={{ ...admin, role: "USER", permissions: ["events.view"] }}><EventDetail event={speeding} now={new Date()} onClose={() => {}} /></AuthProvider>);
@@ -90,7 +98,7 @@ test("filter utility has label and control rows with the exact accepted Fleet Re
   assert.match(source, /<FleetFilterResetButton disabled=\{filterCount === 0\}/);
   assert.match(styles, /events-filter-count \{ grid-row: 1/);
   assert.match(styles, /events-filter-utility > .fleet-filter-reset \{ grid-row: 2/);
-  assert.match(styles, /events-filter-utility \{ grid-column: 1 \/ -1; grid-row: 3; display: flex; justify-content: space-between/);
+  assert.match(styles, /events-filter-utility \{ grid-column: 1 \/ -1; grid-row: 4; display: flex; justify-content: space-between/);
   const reset = readFileSync("src/components/fleet-filter-reset-button.tsx", "utf8");
   const fleet = readFileSync("src/components/dashboard-client.tsx", "utf8");
   const themeContract = /<ConfigProvider theme=([\s\S]*?)><Button/;
@@ -104,4 +112,15 @@ test("filter utility has label and control rows with the exact accepted Fleet Re
   const filtered = renderPage({ type: "SPEEDING", vehicleId: speeding.vehicle.id });
   assert.match(filtered, /Filters: 2/);
   assert.doesNotMatch(filtered, /class="[^"<>]*fleet-filter-reset[^"<>]*"[^>]*disabled/);
+  const grouped = renderPage({ group: "11111111-1111-4111-8111-111111111111" });
+  assert.match(grouped, /Filters: 1/);
+  assert.doesNotMatch(grouped, /class="[^"<>]*fleet-filter-reset[^"<>]*"[^>]*disabled/);
+  const ungrouped = renderPage({ group: "ungrouped" });
+  assert.match(ungrouped, /Filters: 1/);
+  assert.doesNotMatch(ungrouped, /class="[^"<>]*fleet-filter-reset[^"<>]*"[^>]*disabled/);
+});
+test("group filter stays comparable to sibling filters and stacks deterministically on narrow screens", () => {
+  assert.ok(styles.includes("grid-template-columns: minmax(180px, 260px) minmax(180px, 260px) minmax(180px, 260px) minmax(0, 1fr)"));
+  assert.ok(styles.includes(".events-filter--group"));
+  assert.ok(source.includes('className="events-filter events-filter--group"'));
 });

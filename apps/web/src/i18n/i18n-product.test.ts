@@ -142,3 +142,14 @@ test("locale is cookie-only with no schema, migration, auth, audit, or external 
   const i18nSource = filesUnder("src/i18n").filter((file) => !file.includes(".test.")).map((file) => readFileSync(file, "utf8")).join("\n");
   assert.doesNotMatch(i18nSource, /https?:\/\/|fetch\(|XMLHttpRequest|WebSocket/);
 });
+
+test("group filter and concise GPS options read naturally in ru, uk, and en", () => {
+  for (const locale of SUPPORTED_LOCALES) {
+    for (const key of ["group.filter.label", "group.filter.allGroups", "group.ungrouped", "reports.gps", "reports.gps.withData", "reports.gps.withoutData", "reports.all", "events.summary.scope"] as const) {
+      const text = MESSAGES[locale][key];
+      assert.equal(typeof text, "string");
+      assert.ok(text.trim().length > 0, locale + ":" + key);
+    }
+    assert.ok(MESSAGES[locale]["events.summary.scope"].includes("Accessible fleet") || MESSAGES.en["events.summary.scope"] !== MESSAGES[locale]["events.summary.scope"], locale);
+  }
+});

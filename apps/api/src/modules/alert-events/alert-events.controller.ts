@@ -1,6 +1,7 @@
-import { Controller, Get, HttpException, Query } from "@nestjs/common";
+import { Controller, Get, HttpException, Query, Req } from "@nestjs/common";
+import type { AuthenticatedRequest } from "../auth/auth.types";
 import { AlertEventsQueryParamsError, parseAlertEventsQueryParams } from "./alert-events-query-params";
-import type { AlertEventsListResponse, AlertEventsSummaryResponse, OpenAlertMapResponse } from "./alert-events-read-models";
+import type { AlertEventsListResponse, AlertEventsSummaryResponse, AlertEventsVehicleOption, OpenAlertMapResponse } from "./alert-events-read-models";
 import { AlertEventsQueryService } from "./alert-events-query.service";
 import { RequireAnyPermission } from "../auth/auth.decorators";
 
@@ -10,16 +11,16 @@ export class AlertEventsController {
 
   @Get("vehicles")
   @RequireAnyPermission("events.view")
-  public async getVehicleOptions(): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]> {
-    try { return await this.query.getVehicleOptions(); }
+  public async getVehicleOptions(@Req() request: AuthenticatedRequest): Promise<readonly AlertEventsVehicleOption[]> {
+    try { return await this.query.getVehicleOptions(request.auth!.id); }
     catch { throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500); }
   }
 
   @Get("summary")
   @RequireAnyPermission("events.view")
-  public async getSummary(): Promise<AlertEventsSummaryResponse> {
+  public async getSummary(@Req() request: AuthenticatedRequest): Promise<AlertEventsSummaryResponse> {
     try {
-      return await this.query.getSummary();
+      return await this.query.getSummary(request.auth!.id);
     } catch {
       throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500);
     }
@@ -27,9 +28,9 @@ export class AlertEventsController {
 
   @Get("map")
   @RequireAnyPermission("map.view", "events.view")
-  public async getOpenMap(): Promise<OpenAlertMapResponse> {
+  public async getOpenMap(@Req() request: AuthenticatedRequest): Promise<OpenAlertMapResponse> {
     try {
-      return await this.query.getOpenMap();
+      return await this.query.getOpenMap(request.auth!.id);
     } catch {
       throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500);
     }
@@ -37,9 +38,9 @@ export class AlertEventsController {
 
   @Get()
   @RequireAnyPermission("events.view")
-  public async list(@Query() rawQuery: Record<string, unknown>): Promise<AlertEventsListResponse> {
+  public async list(@Query() rawQuery: Record<string, unknown>, @Req() request: AuthenticatedRequest): Promise<AlertEventsListResponse> {
     try {
-      return await this.query.list(parseAlertEventsQueryParams(rawQuery));
+      return await this.query.list(parseAlertEventsQueryParams(rawQuery), request.auth!.id);
     } catch (error) {
       if (error instanceof AlertEventsQueryParamsError) throw new HttpException({ statusCode: 400, error: "Bad Request" }, 400);
       throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500);

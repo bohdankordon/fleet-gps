@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { parseVehicleTrackTimestamp } from "../vehicle-track/vehicle-track-range";
+import { VEHICLE_GROUP_COLORS } from "../vehicle-groups/vehicle-groups-contract";
 
+const vehicleGroupColor = z.enum(VEHICLE_GROUP_COLORS);
 const timestamp = z.string().refine((value) => parseVehicleTrackTimestamp(value) !== null);
 const count = z.number().int().nonnegative();
 const metric = z.number().finite().nonnegative();
@@ -15,6 +17,7 @@ const policy = z.object({
 }).strict();
 const row = z.object({
   vehicleId: z.string().uuid(), vehicleName: z.string().min(1).max(255),
+  group: z.object({ id: z.string().uuid(), name: z.string().min(1).max(255), color: vehicleGroupColor }).strict().nullable(),
   hasGpsData: z.boolean(), rawObservationCount: count,
   firstObservationAt: timestamp.nullable(), lastObservationAt: timestamp.nullable(),
   tripCount: count, observedDistanceMeters: metric, tripDurationSeconds: metric,

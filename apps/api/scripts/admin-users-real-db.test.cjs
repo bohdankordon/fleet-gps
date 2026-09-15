@@ -61,24 +61,24 @@ test("real PostgreSQL admin cardinality and user-state transactions", async () =
     await prisma.authUserPermission.create({ data: { userId: target.id, key: "reports.view" } });
     await prisma.authSession.create({ data: { userId: target.id, tokenHash: crypto.randomBytes(32), expiresAt: new Date(Date.now() + 60_000) } });
 
-    const replaced = await service.updateAccess(adminA.id, target.id, { role: "USER", permissions: ["historyAdmin.populate"] });
+    const replaced = await service.updateAccess(browserActor(adminA), target.id, { role: "USER", permissions: ["historyAdmin.populate"], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] } });
     assert.deepEqual(replaced.permissions, ["historyAdmin.view", "historyAdmin.populate"]);
     assert.equal((await service.disable(browserActor(adminA), target.id)).disabled, true);
     assert.equal(await prisma.authSession.count({ where: { userId: target.id } }), 0);
-    assert.equal((await service.enable(target.id)).disabled, false);
+    assert.equal((await service.enable(browserActor(adminA), target.id)).disabled, false);
     assert.equal(await prisma.authSession.count({ where: { userId: target.id } }), 0);
 
-    const promoted = await service.updateAccess(adminA.id, target.id, { role: "ADMIN", permissions: [] });
+    const promoted = await service.updateAccess(browserActor(adminA), target.id, { role: "ADMIN", permissions: [] });
     assert.equal(promoted.role, AuthRole.ADMIN);
     assert.equal(await prisma.authUserPermission.count({ where: { userId: target.id } }), 0);
-    const demoted = await service.updateAccess(adminA.id, target.id, { role: "USER", permissions: ["trips.view"] });
+    const demoted = await service.updateAccess(browserActor(adminA), target.id, { role: "USER", permissions: ["trips.view"], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] } });
     assert.deepEqual(demoted.permissions, ["vehicles.view", "trips.view"]);
 
     await service.disable(browserActor(adminA), adminB.id);
     await assert.rejects(service.disable(browserActor(adminB), adminA.id), (error) => error instanceof AdminUsersError && error.code === "LAST_ENABLED_ADMIN");
-    await assert.rejects(service.updateAccess(adminB.id, adminA.id, { role: "USER", permissions: ["reports.view"] }), (error) => error instanceof AdminUsersError && error.code === "LAST_ENABLED_ADMIN");
+    await assert.rejects(service.updateAccess(browserActor(adminB), adminA.id, { role: "USER", permissions: ["reports.view"], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] } }), (error) => error instanceof AdminUsersError && error.code === "LAST_ENABLED_ADMIN");
 
-    await service.enable(adminB.id);
+    await service.enable(browserActor(adminA), adminB.id);
     const outcomes = await Promise.allSettled([service.disable(browserActor(adminB), adminA.id), service.disable(browserActor(adminA), adminB.id)]);
     assert.equal(outcomes.filter(({ status }) => status === "fulfilled").length, 1);
     assert.equal(outcomes.filter((outcome) => outcome.status === "rejected" && outcome.reason instanceof AdminUsersError && outcome.reason.code === "LAST_ENABLED_ADMIN").length, 1);

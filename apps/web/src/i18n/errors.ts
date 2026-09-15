@@ -6,6 +6,8 @@ const adminUserErrorKeys = Object.freeze({
   NOT_FOUND: "admin.user.error.NOT_FOUND",
   SELF_PROTECTED: "admin.user.error.SELF_PROTECTED",
   LAST_ENABLED_ADMIN: "admin.user.error.LAST_ENABLED_ADMIN",
+  INVALID_GROUP_REFERENCE: "admin.user.error.INVALID_GROUP_REFERENCE",
+  INVALID_VEHICLE_REFERENCE: "admin.user.error.INVALID_VEHICLE_REFERENCE",
 } as const);
 
 export function errorCode(body: unknown): string | null {
@@ -15,4 +17,15 @@ export function errorCode(body: unknown): string | null {
 export function adminUserErrorMessage(body: unknown, t: Translator, fallback: "create" | "action" = "action"): string {
   const code = errorCode(body);
   return code && code in adminUserErrorKeys ? t(adminUserErrorKeys[code as keyof typeof adminUserErrorKeys]) : t(fallback === "create" ? "admin.user.createError" : "admin.user.actionError");
+}
+const vehicleGroupErrorKeys = Object.freeze({
+  INVALID_INPUT: "admin.groups.error.INVALID_INPUT",
+  DUPLICATE_NAME: "admin.groups.error.DUPLICATE_NAME",
+  NOT_FOUND: "admin.groups.error.NOT_FOUND",
+  INVALID_VEHICLE_REFERENCE: "admin.groups.error.INVALID_VEHICLE_REFERENCE",
+} as const);
+
+export function vehicleGroupErrorMessage(body: unknown, t: Translator): string {
+  const code = errorCode(body);
+  return code && code in vehicleGroupErrorKeys ? t(vehicleGroupErrorKeys[code as keyof typeof vehicleGroupErrorKeys]) : t("admin.groups.loadError");
 }

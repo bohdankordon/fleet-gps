@@ -1,3 +1,5 @@
+import type { VehicleGroupRef } from "../vehicle-access/vehicle-access.types";
+
 export type VehicleTrackPointReadModel = Readonly<{
   latitude: number;
   longitude: number;
@@ -9,7 +11,7 @@ export type VehicleTrackPointReadModel = Readonly<{
 
 export type VehicleTrackResponse = Readonly<{
   generatedAt: string;
-  vehicle: Readonly<{ id: string; name: string }>;
+  vehicle: Readonly<{ id: string; name: string; group: VehicleGroupRef | null }>;
   range: Readonly<{ from: string; to: string }>;
   summary: Readonly<{ pointCount: number; firstObservedAt: string | null; lastObservedAt: string | null }>;
   points: readonly VehicleTrackPointReadModel[];

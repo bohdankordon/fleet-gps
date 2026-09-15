@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { AlertEventStatus, AlertNotificationKind, Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database";
+import { applyVehicleScope } from "../vehicle-access/vehicle-access.service";
+import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
 import { RECENT_VEHICLE_ALERT_EVENTS_LIMIT } from "./vehicle-details-read-models";
 import type { StoredVehicleDetailsSnapshot, VehicleDetailsQueryRepository } from "./vehicle-details-query.repository";
 import { VehicleDetailsStateError } from "./vehicle-details.types";
@@ -35,7 +37,7 @@ const eventProjectionSelect = {
 export class PrismaVehicleDetailsQueryRepository implements VehicleDetailsQueryRepository {
   public constructor(private readonly database: DatabaseService) {}
 
-  public async getSnapshot(vehicleId: string): Promise<StoredVehicleDetailsSnapshot> {
+  public async getSnapshot(vehicleId: string, scope: VehicleScope): Promise<StoredVehicleDetailsSnapshot> {
     return this.database.getClient().$transaction(async (transaction) => {
       const settings = await transaction.applicationSettings.findUnique({
         where: { id: 1 },
@@ -49,12 +51,13 @@ export class PrismaVehicleDetailsQueryRepository implements VehicleDetailsQueryR
       const serviceDate = serviceDates[0]?.serviceDate;
       if (!(serviceDate instanceof Date) || !Number.isFinite(serviceDate.getTime())) throw new VehicleDetailsStateError();
 
-      const storedVehicle = await transaction.vehicle.findUnique({
-        where: { id: vehicleId },
+      const storedVehicle = await transaction.vehicle.findFirst({
+        where: applyVehicleScope(scope, { id: vehicleId }),
         select: {
           id: true,
           name: true,
           disabled: true,
+          group: { select: { id: true, name: true, color: true } },
           currentState: { select: { status: true, fixTime: true, latitude: true, longitude: true, speedKph: true, valid: true, outdated: true } },
           dailyStats: {
             where: { serviceDate },
@@ -93,6 +96,7 @@ export class PrismaVehicleDetailsQueryRepository implements VehicleDetailsQueryR
           id: storedVehicle.id,
           name: storedVehicle.name,
           disabled: storedVehicle.disabled,
+          group: storedVehicle.group ? { id: storedVehicle.group.id, name: storedVehicle.group.name, color: storedVehicle.group.color } : null,
           currentState: storedVehicle.currentState,
           dailyStat: storedVehicle.dailyStats[0] ?? null,
         },

@@ -8,6 +8,7 @@ import {
   type VehicleTrackOverviewQueryRepository,
 } from "./vehicle-track-overview-query.repository";
 import { VEHICLE_TRACK_CLOCK, VEHICLE_TRACK_OVERVIEW_QUERY_REPOSITORY } from "./vehicle-track.tokens";
+import { VehicleScopeService } from "../vehicle-access/vehicle-access.service";
 import {
   VehicleTrackOverviewNotFoundError,
   VehicleTrackOverviewStateError,
@@ -52,10 +53,11 @@ export class VehicleTrackOverviewQueryService {
   public constructor(
     @Inject(VEHICLE_TRACK_OVERVIEW_QUERY_REPOSITORY) private readonly repository: VehicleTrackOverviewQueryRepository,
     @Inject(VEHICLE_TRACK_CLOCK) private readonly clock: VehicleTrackClock,
+    private readonly scopes: VehicleScopeService,
   ) {}
 
-  public async getOverview(vehicleId: string, from: Date, to: Date): Promise<VehicleTrackOverviewResponse> {
-    const snapshot = await this.repository.getOverviewSnapshot(vehicleId, from, to);
+  public async getOverview(vehicleId: string, from: Date, to: Date, userId: string): Promise<VehicleTrackOverviewResponse> {
+    const snapshot = await this.repository.getOverviewSnapshot(vehicleId, from, to, await this.scopes.resolve(userId));
     if (!snapshot.vehicle) throw new VehicleTrackOverviewNotFoundError();
     if (snapshot.tooFragmented) throw new VehicleTrackOverviewTooFragmentedError();
     if (!isNonNegativeInteger(snapshot.rawPointCount)
@@ -124,7 +126,7 @@ export class VehicleTrackOverviewQueryService {
     const immutableSegments = Object.freeze(segments.map((segment) => Object.freeze({ ...segment, points: Object.freeze(segment.points) })));
     return Object.freeze({
       generatedAt: generatedAt.toISOString(),
-      vehicle: Object.freeze({ id: snapshot.vehicle.id, name: snapshot.vehicle.name }),
+      vehicle: Object.freeze({ id: snapshot.vehicle.id, name: snapshot.vehicle.name, group: snapshot.vehicle.group ? Object.freeze({ id: snapshot.vehicle.group.id, name: snapshot.vehicle.group.name, color: snapshot.vehicle.group.color }) : null }),
       range: Object.freeze({ from: from.toISOString(), to: to.toISOString() }),
       summary: Object.freeze({
         rawPointCount: snapshot.rawPointCount,

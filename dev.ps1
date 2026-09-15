@@ -123,6 +123,9 @@ $env:POSITION_HISTORY_MAINTENANCE_ENABLED = 'false'
 $env:POSITION_HISTORY_RETENTION_ENABLED = 'false'
 $env:POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED = 'false'
 $env:TELEGRAM_NOTIFICATIONS_ENABLED = 'false'
+$env:TELEGRAM_PRODUCT_LINKING_ENABLED = 'false'
+$env:TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED = 'false'
+$env:TELEGRAM_PER_USER_DISPATCH_ENABLED = 'false'
 $env:OPS_ALERTS_ENABLED = 'false'
 '@
         $environmentOverrides += "`n`$env:PORT = '$ApiPort'"
@@ -291,6 +294,45 @@ function Start-Postgres {
     throw 'PostgreSQL did not become ready within 75 seconds.'
 }
 
+function Get-DevDatabaseTarget {
+    $envFile = Join-Path $RepoRoot '.env'
+    if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) {
+        throw 'DATABASE_URL is not configured. Create .env for the local development database before starting.'
+    }
+    $match = Select-String -Path $envFile -Pattern '^\s*DATABASE_URL\s*=\s*(.+?)\s*$' | Select-Object -First 1
+    if ($null -eq $match) {
+        throw 'DATABASE_URL is not configured. Create .env for the local development database before starting.'
+    }
+    $raw = $match.Matches[0].Groups[1].Value.Trim().Trim('"').Trim("'")
+    try {
+        $uri = [Uri]$raw
+    }
+    catch {
+        throw 'DATABASE_URL is not a valid URL. Refusing to apply migrations.'
+    }
+    if ($uri.Scheme -notlike 'postgres*') {
+        throw "Refusing to apply migrations: DATABASE_URL scheme '$($uri.Scheme)' is not a local PostgreSQL target."
+    }
+    $loopback = @('127.0.0.1', 'localhost', '::1')
+    if ($loopback -notcontains $uri.Host) {
+        throw "Refusing to apply migrations: DATABASE_URL host '$($uri.Host)' is not the local development database."
+    }
+    return $uri
+}
+
+function Invoke-DevMigrations {
+    $target = Get-DevDatabaseTarget
+    $portText = if ($target.Port -gt 0) { ":$($target.Port)" } else { '' }
+    Write-Host "Applying checked-in database migrations (deploy) to the local development database ($($target.Host)$portText)..."
+    $npmPath = (Get-Command 'npm.cmd' -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+    $result = Invoke-NativeExecutable -FilePath $npmPath -Arguments @('run', 'db:migrate:deploy')
+    $result.Output | ForEach-Object { Write-Host $_ }
+    if ($result.ExitCode -ne 0) {
+        throw 'Database migration deployment failed. The database was preserved and no migration was generated. Fix the error above, then run .\dev.ps1 start again. API/Web were not started.'
+    }
+    Write-Host 'Database migrations are up to date.'
+}
+
 function Show-Status {
     foreach ($name in @('api', 'web')) {
         $settings = $ProcessSettings[$name]
@@ -336,6 +378,8 @@ switch ($Action) {
         }
 
         Start-Postgres
+
+        Invoke-DevMigrations
 
         foreach ($name in @('api', 'web')) {
             $settings = $ProcessSettings[$name]

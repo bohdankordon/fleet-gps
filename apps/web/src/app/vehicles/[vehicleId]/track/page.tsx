@@ -38,6 +38,7 @@ export default async function VehicleTrackPage({ params, searchParams }: Readonl
   return <div><VehicleTrackClient
     vehicleId={vehicleId}
     initialVehicleName={detailsResult.status === "fulfilled" ? detailsResult.value?.vehicle.name ?? null : null}
+    initialVehicleGroup={detailsResult.status === "fulfilled" ? detailsResult.value?.vehicle.group ?? null : null}
     initialVehicleGeneratedAt={detailsResult.status === "fulfilled" ? detailsResult.value?.generatedAt ?? null : null}
     initialData={initialData}
     initialRange={resolved.range}

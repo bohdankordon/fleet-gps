@@ -1,4 +1,4 @@
-import { AuditActorType, AuditEventType, AuditTargetType, AuthRole } from "../../generated/prisma/enums";
+import { AuditActorType, AuditEventType, AuditTargetType, AuthRole, VehicleAccessMode, type VehicleGroupColor } from "../../generated/prisma/enums";
 import type { Permission } from "../auth/permissions";
 
 export type AuditUserActor = Readonly<{
@@ -31,6 +31,25 @@ export type UserAccessChangedAuditDetails = Readonly<{
   role: AuthRole;
   previousPermissions: readonly Permission[];
   permissions: readonly Permission[];
+}>;
+
+export type VehicleGroupCreatedAuditDetails = Readonly<{ name: string; color: VehicleGroupColor }>;
+export type VehicleGroupRenamedAuditDetails = Readonly<{ previousName: string; name: string }>;
+export type VehicleGroupUpdatedAuditDetails = Readonly<{ previousName: string; name: string; previousColor: VehicleGroupColor; color: VehicleGroupColor }>;
+export type VehicleGroupMembershipChangedAuditDetails = Readonly<{ name: string; addedCount: number; removedCount: number }>;
+export type VehicleGroupDeletedAuditDetails = Readonly<{ name: string; vehicleCount: number; userGrantCount: number }>;
+export type UserVehicleAccessChangedAuditDetails = Readonly<{
+  targetLoginSnapshot: string;
+  previousMode: VehicleAccessMode | null;
+  mode: VehicleAccessMode;
+  previousGroupGrantCount: number;
+  groupGrantCount: number;
+  previousVehicleGrantCount: number;
+  vehicleGrantCount: number;
+  addedGroupGrantCount: number;
+  removedGroupGrantCount: number;
+  addedVehicleGrantCount: number;
+  removedVehicleGrantCount: number;
 }>;
 
 export type DurablePopulationCreatedAuditDetails = Readonly<{
@@ -144,6 +163,48 @@ export type AuditEventSpec =
       targetType: typeof AuditTargetType.USER;
       targetId: string;
       details: Readonly<Record<string, never>>;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.VEHICLE_GROUP_CREATED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.VEHICLE_GROUP;
+      targetId: string;
+      details: VehicleGroupCreatedAuditDetails;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.VEHICLE_GROUP_RENAMED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.VEHICLE_GROUP;
+      targetId: string;
+      details: VehicleGroupRenamedAuditDetails;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.VEHICLE_GROUP_UPDATED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.VEHICLE_GROUP;
+      targetId: string;
+      details: VehicleGroupUpdatedAuditDetails;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.VEHICLE_GROUP;
+      targetId: string;
+      details: VehicleGroupMembershipChangedAuditDetails;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.VEHICLE_GROUP_DELETED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.VEHICLE_GROUP;
+      targetId: string;
+      details: VehicleGroupDeletedAuditDetails;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.USER_VEHICLE_ACCESS_CHANGED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.USER;
+      targetId: string;
+      details: UserVehicleAccessChangedAuditDetails;
     }>;
 
 export type AuditEventDetails = AuditEventSpec["details"];

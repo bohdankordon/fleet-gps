@@ -1,12 +1,15 @@
 import { z } from "zod";
 
+import { VEHICLE_GROUP_COLORS } from "../vehicle-groups/vehicle-groups-contract";
+
+const vehicleGroupColor = z.enum(VEHICLE_GROUP_COLORS);
 const count = z.number().int().nonnegative();
 const alertSchema = z.strictObject({
   type: z.enum(["SPEEDING", "INACTIVITY"]),
   openedAt: z.string().datetime({ offset: true }),
 });
 const vehicleSchema = z.strictObject({
-  vehicle: z.strictObject({ id: z.string().uuid(), name: z.string() }),
+  vehicle: z.strictObject({ id: z.string().uuid(), name: z.string(), group: z.strictObject({ id: z.string().uuid(), name: z.string(), color: vehicleGroupColor }).nullable() }),
   alerts: z.array(alertSchema).min(1).max(2),
 });
 

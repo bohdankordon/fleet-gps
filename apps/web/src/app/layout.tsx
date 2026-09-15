@@ -18,6 +18,7 @@ import "../styles/admin-users.css";
 import "../styles/admin-user-detail-v2.css";
 import "../styles/admin-user-detail-access.css";
 import "../styles/admin-user-create-v2.css";
+import "../styles/vehicle-groups.css";
 import "../styles/business-settings.css";
 import "../styles/admin-audit.css";
 import "../styles/admin-history-overview.css";

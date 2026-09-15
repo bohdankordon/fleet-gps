@@ -1,6 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { AlertEventStatus, AlertEventType, AlertNotificationKind, Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database";
+import { applyAlertEventScope, applyVehicleScope, groupAlertEventWhere } from "../vehicle-access/vehicle-access.service";
+import type { VehicleScope } from "../vehicle-access/vehicle-access.types";
+import type { AlertEventsVehicleOption } from "./alert-events-read-models";
 import type { AlertEventsQueryParams } from "./alert-events-query-params";
 import { MAX_OPEN_ALERT_MAP_EVENTS, type AlertEventsQueryRepository, type StoredAlertEventReadRow, type StoredAlertEventsPage, type StoredOpenAlertEventsSummary, type StoredOpenAlertMapSnapshot } from "./alert-events-query.repository";
 
@@ -21,7 +24,7 @@ const alertEventReadSelect = {
   minimumTraveledDistanceMeters: true,
   distanceThresholdMeters: true,
   durationThresholdMinutes: true,
-  vehicle: { select: { id: true, name: true } },
+  vehicle: { select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } } },
   notificationOutbox: {
     where: { kind: AlertNotificationKind.ALERT_CONFIRMED },
     take: 1,
@@ -33,12 +36,13 @@ const alertEventReadSelect = {
 export class PrismaAlertEventsQueryRepository implements AlertEventsQueryRepository {
   public constructor(private readonly database: DatabaseService) {}
 
-  public async list(params: AlertEventsQueryParams): Promise<StoredAlertEventsPage> {
+  public async list(params: AlertEventsQueryParams, scope: VehicleScope): Promise<StoredAlertEventsPage> {
     const rows = await this.database.getClient().alertEvent.findMany({
-      where: {
+      where: applyAlertEventScope(scope, {
         ...(params.status === undefined ? {} : { status: params.status }),
         ...(params.type === undefined ? {} : { type: params.type }),
         ...(params.vehicleId === undefined ? {} : { vehicleId: params.vehicleId }),
+        ...groupAlertEventWhere(params.group),
         ...(params.from === undefined && params.to === undefined ? {} : {
           confirmedAt: { ...(params.from ? { gte: params.from } : {}), ...(params.to ? { lt: params.to } : {}) },
         }),
@@ -48,7 +52,7 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
             { confirmedAt: params.cursor.openedAt, id: { lt: params.cursor.id } },
           ],
         }),
-      },
+      }),
       orderBy: [{ confirmedAt: "desc" }, { id: "desc" }],
       take: params.limit + 1,
       select: alertEventReadSelect,
@@ -56,10 +60,10 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
     return Object.freeze({ rows: Object.freeze(rows.slice(0, params.limit)) as readonly StoredAlertEventReadRow[], hasMore: rows.length > params.limit });
   }
 
-  public async getOpenSummary(): Promise<StoredOpenAlertEventsSummary> {
+  public async getOpenSummary(scope: VehicleScope): Promise<StoredOpenAlertEventsSummary> {
     const groups = await this.database.getClient().alertEvent.groupBy({
       by: ["type"],
-      where: { status: AlertEventStatus.OPEN },
+      where: applyAlertEventScope(scope, { status: AlertEventStatus.OPEN }),
       _count: { _all: true },
     });
     let speeding = 0;
@@ -71,24 +75,24 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
     return Object.freeze({ speeding, inactivity });
   }
 
-  public async getVehicleOptions(): Promise<readonly Readonly<{ vehicleId: string; vehicleName: string }>[]> {
+  public async getVehicleOptions(scope: VehicleScope): Promise<readonly AlertEventsVehicleOption[]> {
     const vehicles = await this.database.getClient().vehicle.findMany({
-      where: { alertEvents: { some: {} } },
-      select: { id: true, name: true },
+      where: applyVehicleScope(scope, { alertEvents: { some: applyAlertEventScope(scope) } }),
+      select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } },
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
-    return vehicles.map((vehicle) => ({ vehicleId: vehicle.id, vehicleName: vehicle.name }));
+    return vehicles.map((vehicle) => ({ vehicleId: vehicle.id, vehicleName: vehicle.name, group: vehicle.group ? { id: vehicle.group.id, name: vehicle.group.name, color: vehicle.group.color } : null }));
   }
 
-  public async getOpenMapSnapshot(): Promise<StoredOpenAlertMapSnapshot> {
+  public async getOpenMapSnapshot(scope: VehicleScope): Promise<StoredOpenAlertMapSnapshot> {
     const rows = await this.database.getClient().alertEvent.findMany({
-      where: { status: AlertEventStatus.OPEN },
+      where: applyAlertEventScope(scope, { status: AlertEventStatus.OPEN }),
       orderBy: [{ vehicle: { name: "asc" } }, { vehicleId: "asc" }, { type: "asc" }, { confirmedAt: "asc" }, { id: "asc" }],
       take: MAX_OPEN_ALERT_MAP_EVENTS + 1,
       select: {
         type: true,
         confirmedAt: true,
-        vehicle: { select: { id: true, name: true } },
+        vehicle: { select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } } },
       },
     });
     return Object.freeze({

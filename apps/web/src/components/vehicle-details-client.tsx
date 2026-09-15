@@ -64,7 +64,7 @@ export function VehicleDetailsClient({ initialData }: Readonly<{ initialData: Ve
   const { data } = state;
   const refreshAction = <StableLoadingButton idleLabel={t("common.refresh")} loadingLabel={t("common.refreshing")} loading={state.loading} icon={<ReloadOutlined aria-hidden />} onClick={() => void refresh()} size="large" type="primary" />;
 
-  return <VehicleDetailShell vehicleId={data.vehicle.id} vehicleName={data.vehicle.name} activeTab="overview" generatedAt={data.generatedAt} showMapAction actions={refreshAction}>
+  return <VehicleDetailShell vehicleId={data.vehicle.id} vehicleName={data.vehicle.name} vehicleGroup={data.vehicle.group} activeTab="overview" generatedAt={data.generatedAt} showMapAction actions={refreshAction}>
     {state.refreshError ? <Alert className="vehicle-overview__refresh-error" type="error" showIcon message={t("vehicle.refreshError")} description={t("vehicle.refreshFallback")} /> : null}
     <Row className="vehicle-overview__primary" gutter={[16, 16]} align="stretch">
       <Col xs={24} md={12} xl={8}><CurrentStateCard data={data} /></Col>

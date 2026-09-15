@@ -9,6 +9,7 @@ import {
   TelegramLinkingService,
   type TelegramInbound,
 } from "./telegram-linking.service";
+import { UNRESTRICTED_VEHICLE_SCOPE } from "../vehicle-access/vehicle-access.service";
 import type { TelegramLinkRateLimiter } from "./telegram-link-rate-limiter";
 import type { TelegramProductBotTransport } from "./telegram-product-bot.transport";
 
@@ -25,6 +26,7 @@ function service(
   client: unknown,
   audit: Partial<AuditEventRepository> = {},
   bot: Partial<TelegramProductBotTransport> = {},
+  scopes: unknown = { resolve: async () => UNRESTRICTED_VEHICLE_SCOPE },
 ): TelegramLinkingService {
   return new TelegramLinkingService(
     { getClient: () => client } as unknown as DatabaseService,
@@ -37,6 +39,7 @@ function service(
       sendLinkFailure: async () => undefined,
       ...bot,
     } as TelegramProductBotTransport,
+    scopes as never,
   );
 }
 
@@ -88,6 +91,7 @@ test("successful first preference save keeps revision-zero input and creates rev
     selectedVehicleIds: [],
     revision: 1,
     canSelectVehicles: false,
+    hasDormantSelections: false,
     vehicles: [],
   });
 });

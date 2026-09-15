@@ -1,3 +1,4 @@
+import "../test-setup-alias";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -51,7 +52,8 @@ test("label/control pairs and utility share grid rows without changing Fleet Res
   const css = readFileSync("src/styles/events.css", "utf8");
   assert.match(css, /events-filter \{[^}]*grid-row: 1 \/ 3; grid-template-rows: subgrid/);
   assert.match(css, /events-filter-utility \{[^}]*grid-row: 1 \/ 3; grid-template-rows: subgrid/);
-  assert.match(css, /events-filter-utility \{ grid-column: 1 \/ -1; grid-row: 3; display: flex/);
+  assert.match(css, /events-filter--group \{ grid-column: 1 \/ -1; grid-row: 3; \}/);
+  assert.match(css, /events-filter-utility \{ grid-column: 1 \/ -1; grid-row: 4; display: flex/);
   assert.match(source, /<FleetFilterResetButton disabled=\{filterCount === 0\}/);
 });
 

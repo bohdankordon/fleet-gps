@@ -8,6 +8,7 @@ import { alertEventActions } from "../lib/alert-events/alert-events-investigatio
 import { formatUnit } from "../i18n/formatting";
 import { useI18n } from "../i18n/client";
 import { useAuth } from "./auth-provider";
+import { VehicleGroupTag } from "./vehicle-detail-shell";
 import { eventSemanticPresentation } from "./event-semantic-presentation";
 import { EventStatusTag } from "./events-presentation";
 
@@ -29,7 +30,7 @@ export function EventDetail({ event, onClose, now }: Readonly<{ event: AlertEven
   ];
   return <article className="event-detail" aria-label={t("events.detail")} style={{ fontFamily: token.fontFamily, fontSize: token.fontSize, color: token.colorText }}>
     <header className="event-detail__header">
-      <div><Typography.Text className="event-detail__type" type="secondary"><span className="vehicle-overview__section-icon">{eventSemanticPresentation(event, token).marker}</span> {alertTypeLabel(event.type, locale)}</Typography.Text><Typography.Title level={4} style={{ margin: "4px 0 8px" }}>{event.vehicle.name}</Typography.Title><EventStatusTag status={event.status} /></div>
+      <div><Typography.Text className="event-detail__type" type="secondary"><span className="vehicle-overview__section-icon">{eventSemanticPresentation(event, token).marker}</span> {alertTypeLabel(event.type, locale)}</Typography.Text><Typography.Title level={4} style={{ margin: "4px 0 8px" }}><span className="vehicle-group-identity"><span className="vehicle-group-identity__name">{event.vehicle.name}</span><VehicleGroupTag group={event.vehicle.group} /></span></Typography.Title><EventStatusTag status={event.status} /></div>
       <Button className="vehicle-track__observation-close" type="text" icon={<CloseOutlined />} aria-label={t("events.clearSelection")} onClick={onClose} />
     </header>
     <section><Typography.Title className="event-detail__section-title vehicle-overview__section-title" level={5} style={{ margin: 0, fontSize: token.fontSizeLG }}>{t("events.lifecycle")}</Typography.Title><dl className="event-detail__facts vehicle-overview__metric-rows vehicle-overview__event-lifecycle">

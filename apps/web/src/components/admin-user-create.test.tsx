@@ -6,12 +6,12 @@ import { AUTH_PERMISSIONS } from "../lib/auth/auth-contract";
 import { I18nProvider } from "../i18n/client";
 import { AdminUserCreateFields, AdminUserCreateSuccess, CREATE_CAPABILITY_GROUPS, buildCreateUserPayload, toggleCreatePermission } from "./admin-user-create-form";
 
-const fields = (overrides: Partial<React.ComponentProps<typeof AdminUserCreateFields>> = {}, locale: "uk" | "ru" | "en" = "en") => renderToStaticMarkup(<I18nProvider locale={locale}><AdminUserCreateFields login="" role="USER" permissions={[]} busy={false} loginError={null} error={null} onLoginChange={() => undefined} onRoleChange={() => undefined} onTogglePermission={() => undefined} onSubmit={() => undefined} {...overrides} /></I18nProvider>);
+const fields = (overrides: Partial<React.ComponentProps<typeof AdminUserCreateFields>> = {}, locale: "uk" | "ru" | "en" = "en") => renderToStaticMarkup(<I18nProvider locale={locale}><AdminUserCreateFields login="" role="USER" permissions={[]} access={{ mode: null, groupIds: [], vehicleIds: [] }} groups={[]} vehicles={[]} accessError={null} busy={false} loginError={null} error={null} onLoginChange={() => undefined} onRoleChange={() => undefined} onTogglePermission={() => undefined} onAccessModeChange={() => undefined} onToggleAccessGroup={() => undefined} onToggleAccessVehicle={() => undefined} onSubmit={() => undefined} {...overrides} /></I18nProvider>);
 
 test("USER payload keeps the normalized selection while ADMIN payload carries no permissions", () => {
-  assert.deepEqual(buildCreateUserPayload("operator", "USER", ["trips.view"]), { login: "operator", role: "USER", permissions: ["vehicles.view", "trips.view"] });
-  assert.deepEqual(buildCreateUserPayload("owner", "ADMIN", ["fleet.view"]), { login: "owner", role: "ADMIN", permissions: [] });
-  assert.deepEqual(buildCreateUserPayload("  operator  ", "USER", []), { login: "  operator  ", role: "USER", permissions: [] });
+  assert.deepEqual(buildCreateUserPayload("operator", "USER", ["trips.view"], { mode: "ALL", groupIds: [], vehicleIds: [] }), { login: "operator", role: "USER", permissions: ["vehicles.view", "trips.view"], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] } });
+  assert.deepEqual(buildCreateUserPayload("owner", "ADMIN", ["fleet.view"]), { login: "owner", role: "ADMIN", permissions: [], vehicleAccess: { mode: "ALL", groupIds: [], vehicleIds: [] } });
+  assert.deepEqual(buildCreateUserPayload("  operator  ", "USER", [], { mode: "SELECTED", groupIds: ["g"], vehicleIds: ["v"] }), { login: "  operator  ", role: "USER", permissions: [], vehicleAccess: { mode: "SELECTED", groupIds: ["g"], vehicleIds: ["v"] } });
 });
 
 test("capability groups cover every permission exactly once with readable labels", () => {
@@ -47,6 +47,15 @@ test("resulting access summarizes ADMIN authority and USER selections factually"
   assert.ok(userHtml.includes("Fleet, Vehicles, Trips"), "permission list");
   const emptyHtml = fields();
   assert.ok(emptyHtml.includes("No access"), "empty selection");
+});
+
+test("USER creation requires an explicit vehicle access decision", () => {
+  const undecided = fields({ access: { mode: null, groupIds: [], vehicleIds: [] }, accessError: "Choose vehicle access: all or selected." });
+  assert.ok(undecided.includes("Vehicle access"), "access section");
+  assert.ok(undecided.includes("Choose vehicle access: all or selected."), "explicit choice error");
+  assert.ok(undecided.includes("All vehicles") && undecided.includes("Selected vehicles and groups"), "mode choice");
+  const adminHtml = fields({ role: "ADMIN" });
+  assert.ok(adminHtml.includes("full fleet access"), "admin fleet note");
 });
 
 test("login keeps native constraints and surfaces concise validation near the field", () => {

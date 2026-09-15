@@ -5,17 +5,18 @@ import type { DatabaseService } from "../database";
 import type { AlertEventsQueryParams } from "./alert-events-query-params";
 import { MAX_OPEN_ALERT_MAP_EVENTS } from "./alert-events-query.repository";
 import { alertEventsReadSelectForTests, PrismaAlertEventsQueryRepository } from "./prisma-alert-events-query.repository";
+import { UNRESTRICTED_VEHICLE_SCOPE } from "../vehicle-access/vehicle-access.service";
 
 const VEHICLE_ID = "00000000-0000-4000-8000-000000000001";
 const AT = new Date("2026-08-08T10:00:00.000Z");
-const baseParams: AlertEventsQueryParams = { status: undefined, type: undefined, vehicleId: undefined, limit: 2, cursor: undefined };
+const baseParams: AlertEventsQueryParams = { status: undefined, type: undefined, vehicleId: undefined, group: { kind: "ALL" }, limit: 2, cursor: undefined };
 
 function stored(id: string, confirmedAt = AT) {
   return {
     id, type: AlertEventType.SPEEDING, status: AlertEventStatus.OPEN, confirmedAt, resolvedAt: null,
     speedZone: AlertEventSpeedZone.CITY, confirmationSpeedKph: 70, lastSpeedKph: 70, peakSpeedKph: 70, speedThresholdKph: 60,
     confirmationTraveledDistanceMeters: null, lastTraveledDistanceMeters: null, minimumTraveledDistanceMeters: null, distanceThresholdMeters: null, durationThresholdMinutes: null,
-    vehicle: { id: VEHICLE_ID, name: "Vehicle" }, notificationOutbox: [{ status: AlertNotificationStatus.PENDING }],
+    vehicle: { id: VEHICLE_ID, name: "Vehicle", group: null }, notificationOutbox: [{ status: AlertNotificationStatus.PENDING }],
   };
 }
 
@@ -26,7 +27,7 @@ test("uses bounded newest-first deterministic pagination and selects only the re
     findMany: async (value: unknown) => { reads += 1; args = value; return rows; },
     create: async () => { writes += 1; }, update: async () => { writes += 1; }, updateMany: async () => { writes += 1; }, delete: async () => { writes += 1; },
   } } as unknown as PrismaClient;
-  const result = await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).list(baseParams);
+  const result = await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).list(baseParams, UNRESTRICTED_VEHICLE_SCOPE);
   assert.equal(reads, 1); assert.equal(writes, 0); assert.equal(result.hasMore, true); assert.equal(result.rows.length, 2);
   const query = args as { orderBy: unknown; take: number; select: Record<string, unknown>; where: unknown };
   assert.deepEqual(query.orderBy, [{ confirmedAt: "desc" }, { id: "desc" }]); assert.equal(query.take, 3); assert.deepEqual(query.where, {});
@@ -43,7 +44,7 @@ test("pushes OPEN, RESOLVED, SPEEDING, INACTIVITY, combined, and vehicle filters
     { status: "OPEN" as const }, { status: "RESOLVED" as const }, { type: "SPEEDING" as const }, { type: "INACTIVITY" as const },
     { status: "OPEN" as const, type: "INACTIVITY" as const }, { vehicleId: VEHICLE_ID },
   ];
-  for (const filter of filters) await repository.list({ ...baseParams, ...filter });
+  for (const filter of filters) await repository.list({ ...baseParams, ...filter }, UNRESTRICTED_VEHICLE_SCOPE);
   assert.deepEqual(seen.map((value) => (value as { where: unknown }).where), filters);
 });
 
@@ -51,7 +52,7 @@ test("uses the cursor's openedAt and UUID as a strict keyset boundary", async ()
   let args: unknown;
   const cursor = { openedAt: AT, id: "00000000-0000-4000-8000-000000000008" };
   const client = { alertEvent: { findMany: async (value: unknown) => { args = value; return []; } } } as unknown as PrismaClient;
-  await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).list({ ...baseParams, status: "OPEN", type: "SPEEDING", cursor });
+  await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).list({ ...baseParams, status: "OPEN", type: "SPEEDING", cursor }, UNRESTRICTED_VEHICLE_SCOPE);
   assert.deepEqual((args as { where: unknown }).where, { status: "OPEN", type: "SPEEDING", OR: [{ confirmedAt: { lt: AT } }, { confirmedAt: AT, id: { lt: cursor.id } }] });
 });
 
@@ -60,9 +61,9 @@ test("summary performs one read-only OPEN groupBy and maps zero or mixed groups"
   let groups: readonly unknown[] = [];
   const client = { alertEvent: { groupBy: async (args: unknown) => { calls.push(args); return groups; } } } as unknown as PrismaClient;
   const repository = new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService);
-  assert.deepEqual(await repository.getOpenSummary(), { speeding: 0, inactivity: 0 });
+  assert.deepEqual(await repository.getOpenSummary(UNRESTRICTED_VEHICLE_SCOPE), { speeding: 0, inactivity: 0 });
   groups = [{ type: AlertEventType.INACTIVITY, _count: { _all: 4 } }, { type: AlertEventType.SPEEDING, _count: { _all: 2 } }];
-  assert.deepEqual(await repository.getOpenSummary(), { speeding: 2, inactivity: 4 });
+  assert.deepEqual(await repository.getOpenSummary(UNRESTRICTED_VEHICLE_SCOPE), { speeding: 2, inactivity: 4 });
   assert.deepEqual(calls, [
     { by: ["type"], where: { status: "OPEN" }, _count: { _all: true } },
     { by: ["type"], where: { status: "OPEN" }, _count: { _all: true } },
@@ -73,13 +74,13 @@ test("OPEN map uses one bounded deterministic read with an explicit coordinate-f
   let args: unknown;
   let reads = 0;
   let writes = 0;
-  const mapRow = { type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Vehicle" } };
+  const mapRow = { type: AlertEventType.SPEEDING, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "Vehicle", group: null } };
   const rows = Array.from({ length: MAX_OPEN_ALERT_MAP_EVENTS + 1 }, () => mapRow);
   const client = { alertEvent: {
     findMany: async (value: unknown) => { reads += 1; args = value; return rows; },
     create: async () => { writes += 1; }, update: async () => { writes += 1; }, updateMany: async () => { writes += 1; }, delete: async () => { writes += 1; },
   } } as unknown as PrismaClient;
-  const result = await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getOpenMapSnapshot();
+  const result = await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getOpenMapSnapshot(UNRESTRICTED_VEHICLE_SCOPE);
   assert.equal(reads, 1);
   assert.equal(writes, 0);
   assert.equal(result.rows.length, MAX_OPEN_ALERT_MAP_EVENTS);
@@ -88,16 +89,16 @@ test("OPEN map uses one bounded deterministic read with an explicit coordinate-f
     where: { status: AlertEventStatus.OPEN },
     orderBy: [{ vehicle: { name: "asc" } }, { vehicleId: "asc" }, { type: "asc" }, { confirmedAt: "asc" }, { id: "asc" }],
     take: MAX_OPEN_ALERT_MAP_EVENTS + 1,
-    select: { type: true, confirmedAt: true, vehicle: { select: { id: true, name: true } } },
+    select: { type: true, confirmedAt: true, vehicle: { select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } } } },
   });
   const serialized = JSON.stringify(args);
   for (const forbidden of ["currentState", "latitude", "longitude", "activeKey", "dedupeKey", "notificationOutbox", "confirmations", "createdAt", "updatedAt"]) assert.equal(serialized.includes(forbidden), false, forbidden);
 });
 
 test("OPEN map includes alerts regardless of whether the related vehicle has CurrentState", async () => {
-  const row = { type: AlertEventType.INACTIVITY, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "No position" } };
+  const row = { type: AlertEventType.INACTIVITY, confirmedAt: AT, vehicle: { id: VEHICLE_ID, name: "No position", group: null } };
   const client = { alertEvent: { findMany: async () => [row] } } as unknown as PrismaClient;
-  assert.deepEqual(await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getOpenMapSnapshot(), { rows: [row], exceededLimit: false });
+  assert.deepEqual(await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getOpenMapSnapshot(UNRESTRICTED_VEHICLE_SCOPE), { rows: [row], exceededLimit: false });
 });
 
 
@@ -106,8 +107,8 @@ test("opening range is inclusive/exclusive and composes with status, type, vehic
   const client = { alertEvent: { findMany: async (args: typeof queries[number]) => { queries.push(args); return []; } } } as unknown as PrismaClient;
   const repository = new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService);
   const from = new Date("2026-08-01T00:00:00Z"); const to = new Date("2026-09-01T00:00:00Z"); const cursor = { openedAt: AT, id: VEHICLE_ID };
-  await repository.list({ ...baseParams, from }); await repository.list({ ...baseParams, to });
-  await repository.list({ ...baseParams, from, to, status: "RESOLVED", type: "INACTIVITY", vehicleId: VEHICLE_ID, cursor });
+  await repository.list({ ...baseParams, from }, UNRESTRICTED_VEHICLE_SCOPE); await repository.list({ ...baseParams, to }, UNRESTRICTED_VEHICLE_SCOPE);
+  await repository.list({ ...baseParams, from, to, status: "RESOLVED", type: "INACTIVITY", vehicleId: VEHICLE_ID, cursor }, UNRESTRICTED_VEHICLE_SCOPE);
   assert.deepEqual(queries[0]?.where, { confirmedAt: { gte: from } });
   assert.deepEqual(queries[1]?.where, { confirmedAt: { lt: to } });
   assert.deepEqual(queries[2]?.where, { confirmedAt: { gte: from, lt: to }, status: "RESOLVED", type: "INACTIVITY", vehicleId: VEHICLE_ID, OR: [{ confirmedAt: { lt: AT } }, { confirmedAt: AT, id: { lt: VEHICLE_ID } }] });
@@ -116,8 +117,8 @@ test("opening range is inclusive/exclusive and composes with status, type, vehic
 });
 test("vehicle options use only vehicles represented in Events and select identity without writes", async () => {
   let query: unknown;
-  const client = { vehicle: { findMany: async (args: unknown) => { query = args; return [{ id: VEHICLE_ID, name: "DEMO" }]; } } } as unknown as PrismaClient;
-  const result = await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getVehicleOptions();
-  assert.deepEqual(query, { where: { alertEvents: { some: {} } }, select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }] });
-  assert.deepEqual(result, [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO" }]);
+  const client = { vehicle: { findMany: async (args: unknown) => { query = args; return [{ id: VEHICLE_ID, name: "DEMO", group: null }]; } } } as unknown as PrismaClient;
+  const result = await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getVehicleOptions(UNRESTRICTED_VEHICLE_SCOPE);
+  assert.deepEqual(query, { where: { alertEvents: { some: {} } }, select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } }, orderBy: [{ name: "asc" }, { id: "asc" }] });
+  assert.deepEqual(result, [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO", group: null }]);
 });

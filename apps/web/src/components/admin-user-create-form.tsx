@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, Checkbox, Descriptions, Divider, Input, Select, Typography } from "antd";
 import type { AuthPermission } from "../lib/auth/auth-contract";
 import { normalizePermissionSelection, parseOneTimePasswordResult, PERMISSION_DEPENDENCIES } from "../lib/admin-users/admin-users-contract";
+import { buildVehicleAccessPayload, effectiveVehicleIds, EMPTY_VEHICLE_ACCESS_DRAFT, toggleAccessGroup, toggleAccessVehicle, type VehicleAccessDraft } from "../lib/admin-users/vehicle-access-form-model";
+import type { AdminVehicleAccess } from "../lib/admin-users/admin-users-contract";
+import type { ManagedVehicle, VehicleGroupSummary } from "../lib/vehicle-groups/vehicle-groups-contract";
+import { AdminVehicleAccessFields, AdminVehicleAccessNote } from "./admin-vehicle-access-fields";
+import { groupVehiclesById } from "./admin-vehicle-access-fields";
 import { useI18n } from "../i18n/client";
 import { permissionLabel, roleLabel } from "../i18n/domain-labels";
 import { adminUserErrorMessage } from "../i18n/errors";
@@ -34,25 +39,33 @@ export function toggleCreatePermission(current: readonly AuthPermission[], permi
   return normalizePermissionSelection([...next]);
 }
 
-export function buildCreateUserPayload(login: string, role: AdminUserCreateRole, permissions: readonly AuthPermission[]): Readonly<{ login: string; role: AdminUserCreateRole; permissions: readonly AuthPermission[] }> {
-  return Object.freeze({ login, role, permissions: role === "USER" ? normalizePermissionSelection(permissions) : [] });
+export function buildCreateUserPayload(login: string, role: AdminUserCreateRole, permissions: readonly AuthPermission[], vehicleAccess: AdminVehicleAccess = { mode: "ALL", groupIds: [], vehicleIds: [] }): Readonly<{ login: string; role: AdminUserCreateRole; permissions: readonly AuthPermission[]; vehicleAccess: AdminVehicleAccess }> {
+  return Object.freeze({ login, role, permissions: role === "USER" ? normalizePermissionSelection(permissions) : [], vehicleAccess: role === "USER" ? vehicleAccess : { mode: "ALL" as const, groupIds: [], vehicleIds: [] } });
 }
 
 export type AdminUserCreateFieldsProps = Readonly<{
   login: string;
   role: AdminUserCreateRole;
   permissions: readonly AuthPermission[];
+  access: VehicleAccessDraft;
+  groups: readonly VehicleGroupSummary[] | null;
+  vehicles: readonly ManagedVehicle[] | null;
+  accessError: string | null;
   busy: boolean;
   loginError: string | null;
   error: string | null;
   onLoginChange(login: string): void;
   onRoleChange(role: AdminUserCreateRole): void;
   onTogglePermission(permission: AuthPermission, checked: boolean): void;
+  onAccessModeChange(mode: "ALL" | "SELECTED"): void;
+  onToggleAccessGroup(groupId: string, checked: boolean): void;
+  onToggleAccessVehicle(vehicleId: string, checked: boolean): void;
   onSubmit(): void;
 }>;
 
-export function AdminUserCreateFields({ login, role, permissions, busy, loginError, error, onLoginChange, onRoleChange, onTogglePermission, onSubmit }: AdminUserCreateFieldsProps) {
+export function AdminUserCreateFields({ login, role, permissions, access, groups, vehicles, accessError, busy, loginError, error, onLoginChange, onRoleChange, onTogglePermission, onAccessModeChange, onToggleAccessGroup, onToggleAccessVehicle, onSubmit }: AdminUserCreateFieldsProps) {
   const { locale, t } = useI18n();
+  const memberIds = groupVehiclesById(vehicles ?? []);
   const summary = role === "ADMIN" ? t("admin.users.fullAuthority") : permissions.length === 0 ? t("common.noAccess") : t("admin.users.permissionsCount", { count: permissions.length });
   const selectedLabels = role === "USER" && permissions.length > 0 ? permissions.map((permission) => permissionLabel(permission, locale)).join(", ") : null;
   function submitForm(event: { preventDefault(): void }): void {
@@ -93,6 +106,7 @@ export function AdminUserCreateFields({ login, role, permissions, busy, loginErr
         })}
       </div>
     </section> : null}
+    {role === "USER" ? <AdminVehicleAccessFields draft={access} groups={groups} vehicles={vehicles} busy={busy} modeError={accessError} onModeChange={onAccessModeChange} onToggleGroup={onToggleAccessGroup} onToggleVehicle={onToggleAccessVehicle} /> : <AdminVehicleAccessNote />}
     <section aria-labelledby="create-result-title">
       <Typography.Title level={3} id="create-result-title">{t("admin.user.create.resultingAccess")}</Typography.Title>
       <Descriptions bordered size="small" column={1}>
@@ -100,6 +114,7 @@ export function AdminUserCreateFields({ login, role, permissions, busy, loginErr
         {role === "ADMIN"
           ? <Descriptions.Item label={t("admin.user.access")}>{t("admin.users.fullAuthority")}</Descriptions.Item>
           : <Descriptions.Item label={t("admin.user.create.permissions")}><span className="admin-user-create-v2__result-access"><span>{summary}</span>{selectedLabels ? <Typography.Text type="secondary">{selectedLabels}</Typography.Text> : null}</span></Descriptions.Item>}
+        <Descriptions.Item label={t("admin.vehicleAccess.title")}>{role === "ADMIN" ? t("admin.vehicleAccess.adminNote") : role === "USER" && (groups === null || vehicles === null) ? t("admin.groups.loadError") : access.mode === null ? t("admin.vehicleAccess.chooseRequired") : access.mode === "ALL" ? t("admin.vehicleAccess.summaryAll") : t("admin.vehicleAccess.summarySelected", { groups: access.groupIds.length, vehicles: access.vehicleIds.length, effective: effectiveVehicleIds(access.groupIds, memberIds, access.vehicleIds).size })}</Descriptions.Item>
       </Descriptions>
     </section>
     {error ? <Alert type="error" message={error} showIcon /> : null}
@@ -121,12 +136,14 @@ export function AdminUserCreateSuccess({ login, secret, onDone }: Readonly<{ log
   </section>;
 }
 
-export function AdminUserCreateForm() {
+export function AdminUserCreateForm({ groups, vehicles }: Readonly<{ groups: readonly VehicleGroupSummary[] | null; vehicles: readonly ManagedVehicle[] | null }>) {
   const router = useRouter();
   const { t } = useI18n();
   const [login, setLogin] = useState("");
   const [role, setRole] = useState<AdminUserCreateRole>("USER");
   const [permissions, setPermissions] = useState<readonly AuthPermission[]>([]);
+  const [access, setAccess] = useState<VehicleAccessDraft>(EMPTY_VEHICLE_ACCESS_DRAFT);
+  const [accessError, setAccessError] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [createdLogin, setCreatedLogin] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -144,12 +161,21 @@ export function AdminUserCreateForm() {
       setLoginError(t("auth.login.loginInvalid"));
       return;
     }
+    if (role === "USER" && access.mode === null) {
+      setAccessError(t("admin.vehicleAccess.chooseRequired"));
+      return;
+    }
+    if (role === "USER" && (groups === null || vehicles === null)) {
+      setError(t("admin.groups.loadError"));
+      return;
+    }
     pendingRef.current = true;
     setBusy(true);
     setError(null);
     setLoginError(null);
+    setAccessError(null);
     try {
-      const response = await fetch("/api/admin/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildCreateUserPayload(login, role, permissions)) });
+      const response = await fetch("/api/admin/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildCreateUserPayload(login, role, permissions, buildVehicleAccessPayload(access))) });
       const body: unknown = await response.json();
       const result = response.ok ? parseOneTimePasswordResult(body) : null;
       if (!result) {
@@ -167,5 +193,6 @@ export function AdminUserCreateForm() {
   }
 
   if (secret) return <AdminUserCreateSuccess login={createdLogin} secret={secret} onDone={() => { setSecret(null); router.push("/admin/users"); router.refresh(); }} />;
-  return <AdminUserCreateFields login={login} role={role} permissions={permissions} busy={busy} loginError={loginError} error={error} onLoginChange={(value) => { setLogin(value); setLoginError(null); }} onRoleChange={setRole} onTogglePermission={(permission, checked) => setPermissions(toggleCreatePermission(permissions, permission, checked))} onSubmit={() => void submit()} />;
+  const directoryUnavailable = role === "USER" && (groups === null || vehicles === null);
+  return <AdminUserCreateFields login={login} role={role} permissions={permissions} access={access} groups={groups} vehicles={vehicles} accessError={accessError} busy={busy} loginError={loginError} error={directoryUnavailable ? t("admin.groups.loadError") : error} onLoginChange={(value) => { setLogin(value); setLoginError(null); }} onRoleChange={(value) => { setRole(value); setAccessError(null); }} onTogglePermission={(permission, checked) => setPermissions(toggleCreatePermission(permissions, permission, checked))} onAccessModeChange={(mode) => { setAccess((current) => Object.freeze({ ...current, mode })); setAccessError(null); }} onToggleAccessGroup={(groupId, checked) => setAccess(toggleAccessGroup(access, groupId, checked))} onToggleAccessVehicle={(vehicleId, checked) => setAccess(toggleAccessVehicle(access, vehicleId, checked))} onSubmit={() => void submit()} />;
 }
