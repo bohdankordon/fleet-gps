@@ -7,7 +7,7 @@ import type { ManagedVehicle, VehicleGroupSummary } from "../lib/vehicle-groups/
 import { AdminVehicleAccessFields, AdminVehicleAccessNote, groupVehiclesById, VehicleAccessRow } from "./admin-vehicle-access-fields";
 
 const groups: readonly VehicleGroupSummary[] = [
-  { id: "11111111-1111-1111-1111-111111111111", name: "Taxi", vehicleCount: 2, userGrantCount: 0, createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" },
+  { id: "11111111-1111-1111-1111-111111111111", name: "Taxi", color: "BLUE", vehicleCount: 2, userGrantCount: 0, createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" },
 ];
 const vehicles: readonly ManagedVehicle[] = [
   { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Car one", disabled: false, groupId: "11111111-1111-1111-1111-111111111111" },

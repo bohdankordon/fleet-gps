@@ -35,7 +35,7 @@ test("reads one bounded deterministic snapshot with explicit safe selects and no
     select: {
       id: true,
       name: true,
-      group: { select: { id: true, name: true } },
+      group: { select: { id: true, name: true, color: true } },
       currentState: { select: { fixTime: true, latitude: true, longitude: true, speedKph: true, valid: true, outdated: true } },
     },
   });

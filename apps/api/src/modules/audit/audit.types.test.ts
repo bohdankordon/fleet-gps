@@ -22,6 +22,7 @@ import {
   buildVehicleGroupDeletedAuditEvent,
   buildVehicleGroupMembershipChangedAuditEvent,
   buildVehicleGroupRenamedAuditEvent,
+  buildVehicleGroupUpdatedAuditEvent,
   parseAuditEventSpec,
 } from "./audit-events";
 
@@ -45,8 +46,9 @@ function specs() {
     buildSystemPopulationCreatedAuditEvent(runId, durable),
     buildRetentionExecutedAuditEvent(actor, retention),
     buildAutomaticRetentionExecutedAuditEvent(retention),
-    buildVehicleGroupCreatedAuditEvent(actor, targetId, { name: "Taxi" }),
+    buildVehicleGroupCreatedAuditEvent(actor, targetId, { name: "Taxi", color: "BLUE" }),
     buildVehicleGroupRenamedAuditEvent(actor, targetId, { previousName: "Taxi", name: "City Taxi" }),
+    buildVehicleGroupUpdatedAuditEvent(actor, targetId, { previousName: "City Taxi", name: "City Taxi", previousColor: "BLUE", color: "GREEN" }),
     buildVehicleGroupMembershipChangedAuditEvent(actor, targetId, { name: "City Taxi", addedCount: 1, removedCount: 0 }),
     buildVehicleGroupDeletedAuditEvent(actor, targetId, { name: "City Taxi", vehicleCount: 1, userGrantCount: 2 }),
     buildUserVehicleAccessChangedAuditEvent(actor, targetId, { targetLoginSnapshot: "target-user", previousMode: null, mode: "ALL", previousGroupGrantCount: 0, groupGrantCount: 0, previousVehicleGrantCount: 0, vehicleGrantCount: 0, addedGroupGrantCount: 0, removedGroupGrantCount: 0, addedVehicleGrantCount: 0, removedVehicleGrantCount: 0 }),
@@ -68,6 +70,7 @@ test("builders and parser implement the exact complete approved event catalog", 
     AuditEventType.AUTOMATIC_RETENTION_EXECUTED,
     AuditEventType.VEHICLE_GROUP_CREATED,
     AuditEventType.VEHICLE_GROUP_RENAMED,
+    AuditEventType.VEHICLE_GROUP_UPDATED,
     AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED,
     AuditEventType.VEHICLE_GROUP_DELETED,
     AuditEventType.USER_VEHICLE_ACCESS_CHANGED,
@@ -86,6 +89,8 @@ test("new event details have only their approved exact keys", () => {
   assert.deepEqual(byType.get(AuditEventType.SYSTEM_POPULATION_CREATED), ["to", "windowBudget", "excludeProviderDisabled"]);
   assert.deepEqual(byType.get(AuditEventType.AUTOMATIC_RETENTION_EXECUTED), ["canonicalAnchor", "policyCutoff", "deletedCheckpoints", "deletedObservations", "remainingFullyObsoleteCheckpoints", "remainingExecutableObservationCandidates", "stoppedByBudget"]);
   assert.deepEqual(byType.get(AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED), ["name", "addedCount", "removedCount"]);
+  assert.deepEqual(byType.get(AuditEventType.VEHICLE_GROUP_CREATED), ["name", "color"]);
+  assert.deepEqual(byType.get(AuditEventType.VEHICLE_GROUP_UPDATED), ["previousName", "name", "previousColor", "color"]);
   assert.deepEqual(byType.get(AuditEventType.USER_VEHICLE_ACCESS_CHANGED), ["targetLoginSnapshot", "previousMode", "mode", "previousGroupGrantCount", "groupGrantCount", "previousVehicleGrantCount", "vehicleGrantCount", "addedGroupGrantCount", "removedGroupGrantCount", "addedVehicleGrantCount", "removedVehicleGrantCount"]);
 });
 

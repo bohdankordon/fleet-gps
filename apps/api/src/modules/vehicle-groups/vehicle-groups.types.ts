@@ -1,6 +1,9 @@
+import type { VehicleGroupColor } from "../../generated/prisma/client";
+
 export type VehicleGroupSummary = Readonly<{
   id: string;
   name: string;
+  color: VehicleGroupColor;
   vehicleCount: number;
   userGrantCount: number;
   createdAt: Date;

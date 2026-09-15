@@ -16,7 +16,7 @@ function stored(eventType: AuditEventType, details: unknown, index = 1): StoredA
   const system = eventType === AuditEventType.SYSTEM_POPULATION_CREATED || eventType === AuditEventType.AUTOMATIC_RETENTION_EXECUTED;
   const userTargetEvents: readonly AuditEventType[] = [AuditEventType.USER_CREATED, AuditEventType.USER_ACCESS_CHANGED, AuditEventType.USER_DISABLED, AuditEventType.USER_ENABLED, AuditEventType.USER_PASSWORD_RESET, AuditEventType.OWN_PASSWORD_CHANGED, AuditEventType.TELEGRAM_LINKED, AuditEventType.TELEGRAM_DISCONNECTED, AuditEventType.USER_VEHICLE_ACCESS_CHANGED];
   const userTarget = userTargetEvents.includes(eventType);
-  const groupTargetEvents: readonly AuditEventType[] = [AuditEventType.VEHICLE_GROUP_CREATED, AuditEventType.VEHICLE_GROUP_RENAMED, AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED, AuditEventType.VEHICLE_GROUP_DELETED];
+  const groupTargetEvents: readonly AuditEventType[] = [AuditEventType.VEHICLE_GROUP_CREATED, AuditEventType.VEHICLE_GROUP_RENAMED, AuditEventType.VEHICLE_GROUP_UPDATED, AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED, AuditEventType.VEHICLE_GROUP_DELETED];
   const groupTarget = groupTargetEvents.includes(eventType);
   const runTarget = eventType === AuditEventType.DURABLE_POPULATION_CREATED || eventType === AuditEventType.SYSTEM_POPULATION_CREATED;
   return {
@@ -46,11 +46,12 @@ const validRows: readonly StoredAuditReadRow[] = [
   stored(AuditEventType.SETTINGS_UPDATED, { changes: [{ field: "timezone", previous: "Europe/Kyiv", next: "UTC" }] }, 12),
   stored(AuditEventType.TELEGRAM_LINKED, {}, 13),
   stored(AuditEventType.TELEGRAM_DISCONNECTED, {}, 14),
-  stored(AuditEventType.VEHICLE_GROUP_CREATED, { name: "Taxi" }, 15),
+  stored(AuditEventType.VEHICLE_GROUP_CREATED, { name: "Taxi", color: "BLUE" }, 15),
   stored(AuditEventType.VEHICLE_GROUP_RENAMED, { previousName: "Taxi", name: "City Taxi" }, 16),
-  stored(AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED, { name: "City Taxi", addedCount: 2, removedCount: 1 }, 17),
-  stored(AuditEventType.VEHICLE_GROUP_DELETED, { name: "City Taxi", vehicleCount: 3, userGrantCount: 1 }, 18),
-  stored(AuditEventType.USER_VEHICLE_ACCESS_CHANGED, { targetLoginSnapshot: "target", previousMode: null, mode: VehicleAccessMode.ALL, previousGroupGrantCount: 0, groupGrantCount: 0, previousVehicleGrantCount: 0, vehicleGrantCount: 0, addedGroupGrantCount: 0, removedGroupGrantCount: 0, addedVehicleGrantCount: 0, removedVehicleGrantCount: 0 }, 19),
+  stored(AuditEventType.VEHICLE_GROUP_UPDATED, { previousName: "Taxi", name: "City Taxi", previousColor: "BLUE", color: "GREEN" }, 17),
+  stored(AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED, { name: "City Taxi", addedCount: 2, removedCount: 1 }, 18),
+  stored(AuditEventType.VEHICLE_GROUP_DELETED, { name: "City Taxi", vehicleCount: 3, userGrantCount: 1 }, 19),
+  stored(AuditEventType.USER_VEHICLE_ACCESS_CHANGED, { targetLoginSnapshot: "target", previousMode: null, mode: VehicleAccessMode.ALL, previousGroupGrantCount: 0, groupGrantCount: 0, previousVehicleGrantCount: 0, vehicleGrantCount: 0, addedGroupGrantCount: 0, removedGroupGrantCount: 0, addedVehicleGrantCount: 0, removedVehicleGrantCount: 0 }, 20),
 ];
 
 function service(rows: readonly StoredAuditReadRow[], hasMore = false): AuditReadService {
@@ -59,7 +60,7 @@ function service(rows: readonly StoredAuditReadRow[], hasMore = false): AuditRea
 
 test("maps all audit event types to safe actor, target, and validated available details", async () => {
   const response = await service(validRows).list(parseAuditReadQuery({}));
-  assert.equal(response.items.length, 19);
+  assert.equal(response.items.length, 20);
   assert.deepEqual(response.items.map((item) => item.eventType), Object.values(AuditEventType));
   assert.equal(response.items.every((item) => item.details.status === "AVAILABLE"), true);
   assert.deepEqual(response.items[0]?.actor, { type: "USER", login: "operator" });

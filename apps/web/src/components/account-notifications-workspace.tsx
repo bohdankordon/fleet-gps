@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Alert, Button, Checkbox, Input, Pagination, Segmented, Switch, Tag } from "antd";
+import { Alert, Button, Checkbox, Input, Modal, Pagination, Segmented, Switch, Tag, Typography } from "antd";
 import { LabeledFilterSelect } from "./labeled-filter-select";
 import { AlertDialog } from "./ui/dialog";
 import { useI18n } from "../i18n/client";
@@ -71,10 +71,14 @@ export function AccountNotificationsWorkspace({ baseline: initialBaseline, conne
     generation.current += 1;
   }, []);
 
-  // Reload/close protection: dirty drafts only, never after save/discard.
+  // Reload/close protection: dirty drafts only, never after save/discard and
+  // never for an intentional leave that already passed through the custom
+  // Fleet GPS modal. The leaving flag is checked at event time so the
+  // confirmed location.assign below never triggers a duplicate native prompt.
   useEffect(() => {
-    if (!dirty || leavingRef.current) return;
+    if (!dirty) return;
     const onBeforeUnload = (event: BeforeUnloadEvent): void => {
+      if (leavingRef.current) return;
       event.preventDefault();
     };
     window.addEventListener("beforeunload", onBeforeUnload);
@@ -222,11 +226,16 @@ export function AccountNotificationsWorkspace({ baseline: initialBaseline, conne
   }
 
   function handleLeave(): void {
+    const href = pendingHref.current;
+    if (!href) {
+      setLeaveOpen(false);
+      pendingAnchor.current = null;
+      return;
+    }
     leavingRef.current = true;
     setLeaveOpen(false);
-    const href = pendingHref.current;
     pendingHref.current = null;
-    if (href) window.location.assign(href);
+    window.location.assign(href);
   }
 
   function handleStay(): void {
@@ -354,18 +363,23 @@ export function AccountNotificationsWorkspace({ baseline: initialBaseline, conne
           />
           {draft.vehicleScope === "SELECTED" ? (
             <div className="account-notifications__selector">
-              <label htmlFor="notifications-vehicle-search" className="account-notifications__label">{t("account.notifications.searchLabel")}</label>
-              <Input
-                id="notifications-vehicle-search"
-                value={query}
-                disabled={saving}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setPage(1);
-                }}
-                allowClear
-              />
-              {showNotificationGroupFinder ? <LabeledFilterSelect fieldLabel={t("group.filter.label")} ariaLabel={t("group.filter.label")} value={groupFinder} disabled={saving} onChange={(value) => { setGroupFinder(value); setPage(1); }} options={notificationGroupOptions} /> : null}
+              <div className="account-notifications__finder-row">
+                <div className="account-notifications__search">
+                  <label htmlFor="notifications-vehicle-search" className="account-notifications__label">{t("account.notifications.searchLabel")}</label>
+                  <Input
+                    id="notifications-vehicle-search"
+                    size="large"
+                    value={query}
+                    disabled={saving}
+                    onChange={(event) => {
+                      setQuery(event.target.value);
+                      setPage(1);
+                    }}
+                    allowClear
+                  />
+                </div>
+                {showNotificationGroupFinder ? <div className="account-notifications__finder"><LabeledFilterSelect fieldLabel={t("group.filter.label")} ariaLabel={t("group.filter.label")} value={groupFinder} disabled={saving} onChange={(value) => { setGroupFinder(value); setPage(1); }} options={notificationGroupOptions} /></div> : null}
+              </div>
               <p className="account-notifications__supporting">{t("telegram.preferences.selectedCount", { count: draft.selectedVehicleIds.length })}</p>
               {paged.items.length === 0 ? (
                 <p className="account-notifications__supporting">{t("account.notifications.noVehiclesFound")}</p>
@@ -469,17 +483,17 @@ export function AccountNotificationsWorkspace({ baseline: initialBaseline, conne
       confirmLabel={t("account.notifications.discardConfirm")}
       onConfirm={handleDiscard}
     />
-    <AlertDialog
+    <Modal
       open={leaveOpen}
-      onOpenChange={(open) => {
-        if (!open) handleStay();
-        else setLeaveOpen(true);
-      }}
       title={t("account.notifications.leaveTitle")}
-      description={t("account.notifications.leaveBody")}
-      cancelLabel={t("account.notifications.keepEditing")}
-      confirmLabel={t("account.notifications.leaveConfirm")}
-      onConfirm={handleLeave}
-    />
+      okText={t("account.notifications.leaveConfirm")}
+      cancelText={t("account.notifications.keepEditing")}
+      onOk={() => void handleLeave()}
+      onCancel={() => void handleStay()}
+      destroyOnHidden
+      centered
+    >
+      <Typography.Paragraph style={{ marginBottom: 0 }}>{t("account.notifications.leaveBody")}</Typography.Paragraph>
+    </Modal>
   </>;
 }

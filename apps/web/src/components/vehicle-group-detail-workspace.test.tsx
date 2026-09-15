@@ -7,8 +7,8 @@ import type { ManagedVehicle, VehicleGroupDetail, VehicleGroupSummary } from "..
 import { VehicleGroupDetailWorkspace } from "./vehicle-group-detail-workspace";
 
 const groups: readonly VehicleGroupSummary[] = [
-  { id: "11111111-1111-1111-1111-111111111111", name: "Taxi", vehicleCount: 1, userGrantCount: 0, createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" },
-  { id: "22222222-2222-2222-2222-222222222222", name: "Support", vehicleCount: 1, userGrantCount: 0, createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" },
+  { id: "11111111-1111-1111-1111-111111111111", name: "Taxi", color: "BLUE", vehicleCount: 1, userGrantCount: 0, createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" },
+  { id: "22222222-2222-2222-2222-222222222222", name: "Support", color: "GREEN", vehicleCount: 1, userGrantCount: 0, createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" },
 ];
 const vehicles: readonly ManagedVehicle[] = [
   { id: "33333333-3333-3333-3333-333333333333", name: "Car one", disabled: false, groupId: "11111111-1111-1111-1111-111111111111" },

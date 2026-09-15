@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, Card, Input, Modal, Space, Transfer, Typography } from "antd";
 import { useI18n } from "../i18n/client";
 import { vehicleGroupErrorMessage } from "../i18n/errors";
-import { validateGroupName, type ManagedVehicle, type VehicleGroupDetail } from "../lib/vehicle-groups/vehicle-groups-contract";
+import { validateGroupName, type ManagedVehicle, type VehicleGroupColor, type VehicleGroupDetail } from "../lib/vehicle-groups/vehicle-groups-contract";
+import { VehicleGroupColorField } from "./vehicle-group-color-field";
 
 export type GroupDetailNavigation = Readonly<{ refresh(): void; push(href: string): void }>;
 
@@ -20,11 +21,12 @@ export function VehicleGroupDetailWorkspace({ group, vehicles, groups, navigatio
   const groupNames = useMemo(() => new Map(vehicles.map((vehicle) => [vehicle.id, vehicle.groupId])), [vehicles]);
   const groupNameById = useMemo(() => new Map(groups.map((entry) => [entry.id, entry.name])), [groups]);
   const [rename, setRename] = useState(group.name);
+  const [color, setColor] = useState<VehicleGroupColor>(group.color);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [targetKeys, setTargetKeys] = useState<readonly string[]>(group.vehicles.map((vehicle) => vehicle.id));
   const [confirmMove, setConfirmMove] = useState<readonly string[] | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [busy, setBusy] = useState<"rename" | "members" | "delete" | null>(null);
+  const [busy, setBusy] = useState<"details" | "members" | "delete" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [gone, setGone] = useState(false);
   const memberIds = useMemo(() => new Set(group.vehicles.map((vehicle) => vehicle.id)), [group]);
@@ -36,12 +38,16 @@ export function VehicleGroupDetailWorkspace({ group, vehicles, groups, navigatio
     const response = await fetch(path, { method, headers: payload ? { "Content-Type": "application/json" } : undefined, body: payload ? JSON.stringify(payload) : undefined });
     return { ok: response.ok, body: await response.json().catch(() => null) };
   }
-  async function saveRename(): Promise<void> {
+  const detailsDirty = rename.trim() !== group.name || color !== group.color;
+  async function saveDetails(): Promise<void> {
     if (validateGroupName(rename)) { setRenameError(t("admin.groups.nameRequired")); return; }
-    if (rename.trim() === group.name) return;
-    setBusy("rename"); setError(null);
+    if (!detailsDirty) return;
+    const payload: Record<string, string> = {};
+    if (rename.trim() !== group.name) payload.name = rename.trim();
+    if (color !== group.color) payload.color = color;
+    setBusy("details"); setError(null);
     try {
-      const { ok, body } = await request(`/api/admin/vehicle-groups/${encodeURIComponent(group.id)}`, "PATCH", { name: rename.trim() });
+      const { ok, body } = await request(`/api/admin/vehicle-groups/${encodeURIComponent(group.id)}`, "PATCH", payload);
       if (!ok) { if ((body as { error?: string })?.error === "NOT_FOUND") setGone(true); setError(vehicleGroupErrorMessage(body, t)); return; }
       setRenameError(null); router.refresh();
     } catch { setError(vehicleGroupErrorMessage(null, t)); }
@@ -74,12 +80,19 @@ export function VehicleGroupDetailWorkspace({ group, vehicles, groups, navigatio
       <Typography.Text type="secondary">{t("admin.groups.vehicleCount", { count: group.vehicleCount })}</Typography.Text>
     </header>
     {error ? <Alert type="error" showIcon message={error} closable onClose={() => setError(null)} /> : null}
-    <Card className="vehicle-groups-detail__card" title={t("admin.groups.rename")}>
+    <Card className="vehicle-groups-detail__card" title={t("admin.groups.details")}>
+      <label className="vehicle-groups-modal__label" htmlFor="group-detail-name">{t("admin.groups.name")}</label>
       <Space.Compact block>
-        <Input value={rename} maxLength={128} disabled={busy !== null} status={renameError ? "error" : undefined} aria-label={t("admin.groups.name")} onChange={(event) => { setRename(event.target.value); if (renameError) setRenameError(null); }} onPressEnter={() => void saveRename()} />
-        <Button type="primary" loading={busy === "rename"} disabled={busy !== null || rename.trim() === group.name} onClick={() => void saveRename()}>{t("admin.groups.save")}</Button>
+        <Input id="group-detail-name" value={rename} maxLength={128} disabled={busy !== null} status={renameError ? "error" : undefined} aria-label={t("admin.groups.name")} onChange={(event) => { setRename(event.target.value); if (renameError) setRenameError(null); }} onPressEnter={() => void saveDetails()} />
+        <Button type="primary" loading={busy === "details"} disabled={busy !== null || !detailsDirty} onClick={() => void saveDetails()}>{t("admin.groups.save")}</Button>
       </Space.Compact>
       {renameError ? <p role="alert">{renameError}</p> : null}
+      <div style={{ marginTop: 16 }}>
+        <span className="vehicle-groups-modal__label" id="group-detail-color-label">{t("admin.groups.color")}</span>
+        <div role="group" aria-labelledby="group-detail-color-label">
+          <VehicleGroupColorField value={color} disabled={busy !== null} onChange={setColor} name="group-detail-color" />
+        </div>
+      </div>
     </Card>
     <Card className="vehicle-groups-detail__card" title={t("admin.groups.membership")} extra={<Button type="primary" loading={busy === "members"} disabled={busy !== null || !dirtyMembers} onClick={() => { if (movedIn.length > 0) setConfirmMove(movedIn); else void saveMembers(targetKeys); }}>{t("admin.groups.save")}</Button>}>
       <Typography.Paragraph type="secondary">{t("admin.groups.membershipHint")}</Typography.Paragraph>

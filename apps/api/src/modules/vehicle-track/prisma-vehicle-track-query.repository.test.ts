@@ -21,7 +21,7 @@ test("reads vehicle and inclusive ordered bounded history in one repeatable-read
   const repository = new PrismaVehicleTrackQueryRepository({ getClient: () => client } as unknown as DatabaseService);
   assert.deepEqual(await repository.getSnapshot(vehicleId, from, to, UNRESTRICTED_VEHICLE_SCOPE), { vehicle: { id: vehicleId, name: "Taxi", group: null }, points: [point] });
   assert.deepEqual(calls, [
-    ["vehicle", { where: { id: vehicleId }, select: { id: true, name: true, group: { select: { id: true, name: true } } } }],
+    ["vehicle", { where: { id: vehicleId }, select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } } }],
     ["points", { where: { vehicleId, observedAt: { gte: from, lte: to } }, orderBy: [{ observedAt: "asc" }, { fixFingerprint: "asc" }], take: MAX_TRACK_POINTS + 1, select: { observedAt: true, latitude: true, longitude: true, speedKph: true, valid: true, outdated: true } }],
   ]);
   assert.deepEqual(transactionOptions, { timeout: 10_000, isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });

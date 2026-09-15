@@ -1,11 +1,13 @@
 import { z } from "zod";
+import { VEHICLE_GROUP_COLORS } from "../vehicle-groups/vehicle-groups-contract";
 
+const vehicleGroupColor = z.enum(VEHICLE_GROUP_COLORS);
 const isoTimestamp = z.string().datetime({ offset: true });
 const finiteNonNegative = z.number().finite().nonnegative();
 const count = z.number().int().nonnegative();
 const vehicleSchema = z.object({
   id: z.string().min(1), name: z.string(), disabled: z.boolean(),
-  group: z.object({ id: z.string().uuid(), name: z.string() }).nullable(),
+  group: z.object({ id: z.string().uuid(), name: z.string(), color: vehicleGroupColor }).nullable(),
   status: z.enum(["online", "offline", "unknown"]),
   externalLastUpdateAt: isoTimestamp.nullable(), fixTime: isoTimestamp.nullable(),
   speedKph: finiteNonNegative.nullable(), positionValid: z.boolean().nullable(), positionOutdated: z.boolean().nullable(),

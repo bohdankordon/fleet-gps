@@ -21,7 +21,7 @@ function toReadModel(row: StoredAlertEventReadRow): AlertEventReadModel {
   const scoped = projectScopedAlertEvent(row);
   return Object.freeze({
     id: scoped.id,
-    vehicle: Object.freeze({ id: row.vehicle.id, name: row.vehicle.name, group: row.vehicle.group ? Object.freeze({ id: row.vehicle.group.id, name: row.vehicle.group.name }) : null }),
+    vehicle: Object.freeze({ id: row.vehicle.id, name: row.vehicle.name, group: row.vehicle.group ? Object.freeze({ id: row.vehicle.group.id, name: row.vehicle.group.name, color: row.vehicle.group.color }) : null }),
     type: scoped.type,
     status: scoped.status,
     openedAt: scoped.openedAt,
@@ -55,7 +55,7 @@ export class AlertEventsQueryService {
 
   public async getVehicleOptions(userId: string): Promise<readonly AlertEventsVehicleOption[]> {
     const options = await this.repository.getVehicleOptions(await this.scopes.resolve(userId));
-    return options.map(({ vehicleId, vehicleName, group }) => ({ vehicleId, vehicleName, group: group ? { id: group.id, name: group.name } : null }))
+    return options.map(({ vehicleId, vehicleName, group }) => ({ vehicleId, vehicleName, group: group ? { id: group.id, name: group.name, color: group.color } : null }))
       .sort((a, b) => a.vehicleName.localeCompare(b.vehicleName, "uk", { numeric: true }) || a.vehicleId.localeCompare(b.vehicleId));
   }
 
@@ -76,7 +76,7 @@ export class AlertEventsQueryService {
         if (current.alerts.some((item) => item.type === type)) throw new AlertEventsQueryStateError();
         (current.alerts as OpenAlertMapAlert[]).push(alert);
       } else {
-        vehicles.push(Object.freeze({ vehicle: Object.freeze({ id: row.vehicle.id, name: row.vehicle.name, group: row.vehicle.group ? Object.freeze({ id: row.vehicle.group.id, name: row.vehicle.group.name }) : null }), alerts: [alert] }));
+        vehicles.push(Object.freeze({ vehicle: Object.freeze({ id: row.vehicle.id, name: row.vehicle.name, group: row.vehicle.group ? Object.freeze({ id: row.vehicle.group.id, name: row.vehicle.group.name, color: row.vehicle.group.color }) : null }), alerts: [alert] }));
       }
       if (type === "SPEEDING") speeding += 1;
       else inactivity += 1;

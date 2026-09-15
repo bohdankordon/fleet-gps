@@ -20,7 +20,7 @@ export type VehicleTripsPageState =
       initialError: boolean;
       timezone: string;
       vehicleName: string | null;
-      vehicleGroup: Readonly<{ id: string; name: string }> | null;
+      vehicleGroup: Readonly<{ id: string; name: string; color: import("../vehicle-groups/vehicle-groups-contract").VehicleGroupColor }> | null;
       shellGeneratedAt: string | null;
     }>
   | Readonly<{ kind: "context-unavailable"; vehicleName: string | null; generatedAt: string | null }>

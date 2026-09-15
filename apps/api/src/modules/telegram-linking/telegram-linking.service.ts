@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { Prisma } from "../../generated/prisma/client";
+import { Prisma, type VehicleGroupColor } from "../../generated/prisma/client";
 import { NotificationVehicleScope, TelegramConnectionStatus } from "../../generated/prisma/enums";
 import type { ApiConfig } from "../../config/api-config";
 import { API_CONFIG } from "../../config/api-config.tokens";
@@ -12,7 +12,7 @@ import { TelegramLinkRateLimiter } from "./telegram-link-rate-limiter";
 import { TELEGRAM_PRODUCT_BOT_TRANSPORT, type TelegramProductBotTransport } from "./telegram-product-bot.transport";
 
 export type TelegramConnectionView = Readonly<{ status: "NOT_CONNECTED" | "LINK_PENDING" | "CONNECTED" | "BROKEN"; pendingExpiresAt: string | null }>;
-export type NotificationPreferenceVehicleView = Readonly<{ id: string; name: string; disabled: boolean; groupId: string | null; groupName: string | null }>;
+export type NotificationPreferenceVehicleView = Readonly<{ id: string; name: string; disabled: boolean; groupId: string | null; groupName: string | null; groupColor: VehicleGroupColor | null }>;
 export type NotificationPreferencesView = Readonly<{ enabled: boolean; speedingEnabled: boolean; inactivityEnabled: boolean; vehicleScope: "ALL" | "SELECTED"; selectedVehicleIds: readonly string[]; revision: number; canSelectVehicles: boolean; hasDormantSelections: boolean; vehicles: readonly NotificationPreferenceVehicleView[] }>;
 export type TelegramLinkResult = Readonly<{ status: "LINK_PENDING"; expiresAt: string; telegramUrl: string }>;
 export type TelegramInbound = Readonly<{ updateId: bigint; chatId: bigint; userId: bigint; chatType: string; text: string | null }>;
@@ -47,8 +47,8 @@ export class TelegramLinkingService {
   public async preferences(userId: string, permissions: readonly string[]): Promise<NotificationPreferencesView> {
     const allowed = canSelectVehicles(permissions); const client = this.database.getClient();
     const scope = allowed ? await this.scopes.resolve(userId) : null;
-    const [stored, vehicleRows] = await Promise.all([client.userNotificationPreferences.findUnique({ where: { userId }, include: { vehicles: { orderBy: { vehicleId: "asc" } } } }), allowed && scope ? client.vehicle.findMany({ where: applyVehicleScope(scope), orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, disabled: true, group: { select: { id: true, name: true } } } }) : Promise.resolve([])]);
-    const vehicles = vehicleRows.map((vehicle) => Object.freeze({ id: vehicle.id, name: vehicle.name, disabled: vehicle.disabled, groupId: vehicle.group?.id ?? null, groupName: vehicle.group?.name ?? null }));
+    const [stored, vehicleRows] = await Promise.all([client.userNotificationPreferences.findUnique({ where: { userId }, include: { vehicles: { orderBy: { vehicleId: "asc" } } } }), allowed && scope ? client.vehicle.findMany({ where: applyVehicleScope(scope), orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, disabled: true, group: { select: { id: true, name: true, color: true } } } }) : Promise.resolve([])]);
+    const vehicles = vehicleRows.map((vehicle) => Object.freeze({ id: vehicle.id, name: vehicle.name, disabled: vehicle.disabled, groupId: vehicle.group?.id ?? null, groupName: vehicle.group?.name ?? null, groupColor: (vehicle.group?.color ?? null) as VehicleGroupColor | null }));
     const base = stored ? { enabled: stored.enabled, speedingEnabled: stored.speedingEnabled, inactivityEnabled: stored.inactivityEnabled, vehicleScope: stored.vehicleScope, selectedVehicleIds: stored.vehicles.map(({ vehicleId }) => vehicleId), revision: stored.revision } : DEFAULT_PREFERENCES;
     const authorizedIds = new Set(vehicles.map((vehicle) => vehicle.id));
     const visibleSelected = allowed ? base.selectedVehicleIds.filter((vehicleId) => authorizedIds.has(vehicleId)) : [];

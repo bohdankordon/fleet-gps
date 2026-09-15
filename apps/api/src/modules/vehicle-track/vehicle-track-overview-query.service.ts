@@ -126,7 +126,7 @@ export class VehicleTrackOverviewQueryService {
     const immutableSegments = Object.freeze(segments.map((segment) => Object.freeze({ ...segment, points: Object.freeze(segment.points) })));
     return Object.freeze({
       generatedAt: generatedAt.toISOString(),
-      vehicle: Object.freeze({ id: snapshot.vehicle.id, name: snapshot.vehicle.name, group: snapshot.vehicle.group ? Object.freeze({ id: snapshot.vehicle.group.id, name: snapshot.vehicle.group.name }) : null }),
+      vehicle: Object.freeze({ id: snapshot.vehicle.id, name: snapshot.vehicle.name, group: snapshot.vehicle.group ? Object.freeze({ id: snapshot.vehicle.group.id, name: snapshot.vehicle.group.name, color: snapshot.vehicle.group.color }) : null }),
       range: Object.freeze({ from: from.toISOString(), to: to.toISOString() }),
       summary: Object.freeze({
         rawPointCount: snapshot.rawPointCount,

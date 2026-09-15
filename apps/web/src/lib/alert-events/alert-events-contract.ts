@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+import { VEHICLE_GROUP_COLORS } from "../vehicle-groups/vehicle-groups-contract";
+
+const vehicleGroupColor = z.enum(VEHICLE_GROUP_COLORS);
 const isoTimestamp = z.string().datetime({ offset: true });
 const metric = z.number().finite().nonnegative();
 const count = z.number().int().nonnegative();
@@ -22,7 +25,7 @@ const inactivityDetailsSchema = z.object({
 
 const commonAlertEventSchema = z.object({
   id: z.string().uuid(),
-  vehicle: z.object({ id: z.string().uuid(), name: z.string(), group: z.object({ id: z.string().uuid(), name: z.string() }).strict().nullable() }).strict(),
+  vehicle: z.object({ id: z.string().uuid(), name: z.string(), group: z.object({ id: z.string().uuid(), name: z.string(), color: vehicleGroupColor }).strict().nullable() }).strict(),
   status: z.enum(["OPEN", "RESOLVED"]),
   openedAt: isoTimestamp,
   lastObservedAt: isoTimestamp,
@@ -45,6 +48,6 @@ export class AlertEventsContractError extends Error { public constructor() { sup
 export function parseAlertEventsListResponse(value: unknown): AlertEventsListResponse { const parsed = alertEventsListResponseSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }
 export function parseAlertEventsSummaryResponse(value: unknown): AlertEventsSummaryResponse { const parsed = alertEventsSummaryResponseSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }
 
-export const alertEventsVehicleOptionsSchema = z.array(z.object({ vehicleId: z.string().uuid(), vehicleName: z.string(), group: z.object({ id: z.string().uuid(), name: z.string() }).strict().nullable() }).strict());
+export const alertEventsVehicleOptionsSchema = z.array(z.object({ vehicleId: z.string().uuid(), vehicleName: z.string(), group: z.object({ id: z.string().uuid(), name: z.string(), color: vehicleGroupColor }).strict().nullable() }).strict());
 export type AlertEventsVehicleOptions = z.infer<typeof alertEventsVehicleOptionsSchema>;
 export function parseAlertEventsVehicleOptions(value: unknown): AlertEventsVehicleOptions { const parsed = alertEventsVehicleOptionsSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }

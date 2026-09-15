@@ -17,6 +17,23 @@
 .vehicle-groups-detail__back { justify-self: start; }
 .vehicle-groups-detail__identity { display: grid; gap: var(--space-1); }
 .vehicle-groups-detail__identity h1 { margin: 0; font-size: var(--font-size-page-title); line-height: var(--line-height-page-title); }
+.vehicle-group-identity { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.vehicle-group-identity__name { min-width: 0; overflow-wrap: anywhere; }
+.vehicle-group-tag { flex: none; align-self: center; margin-inline-end: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vehicle-group-tag--header { font-weight: 500; }
+.vehicle-detail-shell__identity .vehicle-group-tag { align-self: center; }
+.vehicle-group-color-field { display: grid; gap: 8px; }
+.vehicle-group-color-field__options { display: flex; flex-wrap: wrap; gap: 8px; }
+.vehicle-group-color-field__option { position: relative; display: inline-flex; border-radius: 50%; cursor: pointer; }
+.vehicle-group-color-field__input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.vehicle-group-color-field__swatch { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; color: #fff; }
+.vehicle-group-color-field__option--selected .vehicle-group-color-field__swatch { border-color: rgba(0, 0, 0, 0.55); box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(0, 0, 0, 0.25); }
+.vehicle-group-color-field__input:focus-visible + .vehicle-group-color-field__swatch { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; }
+.vehicle-group-color-field__check { font-size: 14px; color: #fff; }
+.vehicle-group-color-field__sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.vehicle-group-color-field__hint { margin: 0; color: var(--color-text-secondary); font-size: 12px; line-height: 1.5; }
+.vehicle-groups-directory__group-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.vehicle-group-directory-swatch { flex: none; width: 10px; height: 10px; border-radius: 50%; }
 .vehicle-groups-detail__card { margin-top: var(--space-3); }
 .vehicle-groups-detail__danger { border-color: var(--color-danger-border); }
 .vehicle-access-fields__vehicles { max-height: 240px; overflow-y: auto; display: grid; gap: var(--space-1); margin-top: var(--space-2); padding-right: var(--space-2); }

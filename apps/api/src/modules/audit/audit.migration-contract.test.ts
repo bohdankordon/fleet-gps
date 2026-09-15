@@ -25,7 +25,7 @@ test("audit foundation migration remains intact and later additive migrations ar
   const directories = readdirSync(migrationsRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
-  assert.deepEqual(directories.sort(), [...existingMigrationDirectories, "20260813185936_add_audit_trail_foundation", "20260827000000_global_business_settings", "20260827010000_add_trip_stop_policy_settings", "20260828010000_add_telegram_user_linking", "20260829000000_add_user_notification_preferences", "20260829010000_add_alert_notification_recipient_delivery", "20260829020000_add_recipient_delivery_lease_token", "20260913000000_add_vehicle_history_ingestion_cursors", "20260913210000_add_position_history_replay_generations", "20260915090000_add_vehicle_groups_access"].sort());
+  assert.deepEqual(directories.sort(), [...existingMigrationDirectories, "20260813185936_add_audit_trail_foundation", "20260827000000_global_business_settings", "20260827010000_add_trip_stop_policy_settings", "20260828010000_add_telegram_user_linking", "20260829000000_add_user_notification_preferences", "20260829010000_add_alert_notification_recipient_delivery", "20260829020000_add_recipient_delivery_lease_token", "20260913000000_add_vehicle_history_ingestion_cursors", "20260913210000_add_position_history_replay_generations", "20260915090000_add_vehicle_groups_access", "20260915120000_add_vehicle_group_color"].sort());
 
   for (const directory of existingMigrationDirectories) {
     const files = readdirSync(`${migrationsRoot}/${directory}`);
@@ -35,6 +35,13 @@ test("audit foundation migration remains intact and later additive migrations ar
 });
 
 test("Stage 20A migration declares the exact approved audit enums", () => {
+  const colorMigration = readFileSync("prisma/migrations/20260915120000_add_vehicle_group_color/migration.sql", "utf8");
+  assert.ok(colorMigration.includes("CREATE TYPE"));
+  assert.ok(colorMigration.includes("VehicleGroupColor"));
+  assert.ok(colorMigration.includes("DEFAULT"));
+  assert.ok(colorMigration.includes("VEHICLE_GROUP_UPDATED"));
+  assert.equal(colorMigration.includes("RED"), false);
+  assert.doesNotMatch(colorMigration, /DROP TABLE|DELETE FROM|TRUNCATE/i);
   assert.deepEqual(Object.values(AuditEventType), [
     "USER_CREATED",
     "USER_ACCESS_CHANGED",
@@ -48,7 +55,7 @@ test("Stage 20A migration declares the exact approved audit enums", () => {
     "SYSTEM_POPULATION_CREATED",
   "AUTOMATIC_RETENTION_EXECUTED",
     "SETTINGS_UPDATED", "TELEGRAM_LINKED", "TELEGRAM_DISCONNECTED",
-    "VEHICLE_GROUP_CREATED", "VEHICLE_GROUP_RENAMED", "VEHICLE_GROUP_MEMBERSHIP_CHANGED", "VEHICLE_GROUP_DELETED", "USER_VEHICLE_ACCESS_CHANGED",
+    "VEHICLE_GROUP_CREATED", "VEHICLE_GROUP_RENAMED", "VEHICLE_GROUP_UPDATED", "VEHICLE_GROUP_MEMBERSHIP_CHANGED", "VEHICLE_GROUP_DELETED", "USER_VEHICLE_ACCESS_CHANGED",
   ]);
   assert.deepEqual(Object.values(AuditActorType), ["USER", "SYSTEM"]);
   assert.deepEqual(Object.values(AuditTargetType), [

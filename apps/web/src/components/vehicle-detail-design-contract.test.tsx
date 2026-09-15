@@ -40,14 +40,13 @@ test("all three vehicle routes reuse the shell and select one exact active route
   assert.doesNotMatch(history, /<PageHeader|<header className="vehicle-detail/);
 });
 
-test("vehicle header shows a prominent primary-tinted group tag while dense contexts stay compact", () => {
+test("vehicle header shows a color-aware group tag while dense contexts stay compact", () => {
   assert.ok(shell.includes('variant="header"'));
   assert.ok(shell.includes("vehicle-group-tag--header"));
-  assert.ok(shell.includes("token.colorPrimaryBg"));
-  assert.ok(shell.includes("token.colorPrimaryBorder"));
-  assert.ok(shell.includes("token.colorPrimaryText"));
-  assert.ok(shell.includes("token.colorFillQuaternary"));
-  assert.ok(shell.includes('<Tag color="default">'));
+  assert.ok(shell.includes("VEHICLE_GROUP_TAG_COLORS"));
+  assert.ok(shell.includes("vehicle-group-tag--compact"));
+  assert.ok(shell.includes("vehicle-group-identity"));
+  assert.doesNotMatch(shell, /token\.colorPrimaryBg/);
 });
 
 test("Overview uses three equal-height native Cards and bounded Listy surfaces", () => {

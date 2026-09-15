@@ -89,7 +89,7 @@ test("OPEN map uses one bounded deterministic read with an explicit coordinate-f
     where: { status: AlertEventStatus.OPEN },
     orderBy: [{ vehicle: { name: "asc" } }, { vehicleId: "asc" }, { type: "asc" }, { confirmedAt: "asc" }, { id: "asc" }],
     take: MAX_OPEN_ALERT_MAP_EVENTS + 1,
-    select: { type: true, confirmedAt: true, vehicle: { select: { id: true, name: true, group: { select: { id: true, name: true } } } } },
+    select: { type: true, confirmedAt: true, vehicle: { select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } } } },
   });
   const serialized = JSON.stringify(args);
   for (const forbidden of ["currentState", "latitude", "longitude", "activeKey", "dedupeKey", "notificationOutbox", "confirmations", "createdAt", "updatedAt"]) assert.equal(serialized.includes(forbidden), false, forbidden);
@@ -119,6 +119,6 @@ test("vehicle options use only vehicles represented in Events and select identit
   let query: unknown;
   const client = { vehicle: { findMany: async (args: unknown) => { query = args; return [{ id: VEHICLE_ID, name: "DEMO", group: null }]; } } } as unknown as PrismaClient;
   const result = await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).getVehicleOptions(UNRESTRICTED_VEHICLE_SCOPE);
-  assert.deepEqual(query, { where: { alertEvents: { some: {} } }, select: { id: true, name: true, group: { select: { id: true, name: true } } }, orderBy: [{ name: "asc" }, { id: "asc" }] });
+  assert.deepEqual(query, { where: { alertEvents: { some: {} } }, select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } }, orderBy: [{ name: "asc" }, { id: "asc" }] });
   assert.deepEqual(result, [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO", group: null }]);
 });

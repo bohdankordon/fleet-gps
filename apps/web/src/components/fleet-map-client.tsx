@@ -461,9 +461,9 @@ function VehicleInspector({ vehicle, alerts, generatedAt, onClose }: Readonly<{ 
 
 function VehicleInspectorTitle({ name, group }: Readonly<{ name: string; group: FleetMapVehicle["vehicle"]["group"] }>) {
   const { token } = theme.useToken();
-  return <Flex className="map-inspector__title" align="center" gap="small">
+  return <Flex className="map-inspector__title vehicle-group-identity" align="center" gap="small">
     <CarOutlined aria-hidden style={{ color: token.colorTextTertiary, flex: "none" }} />
-    <span className="map-inspector__title-name">{name}</span>
+    <span className="map-inspector__title-name vehicle-group-identity__name">{name}</span>
     <VehicleGroupTag group={group} />
   </Flex>;
 }

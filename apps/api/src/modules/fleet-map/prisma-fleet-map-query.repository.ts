@@ -26,7 +26,7 @@ export class PrismaFleetMapQueryRepository implements FleetMapQueryRepository {
         select: {
           id: true,
           name: true,
-          group: { select: { id: true, name: true } },
+          group: { select: { id: true, name: true, color: true } },
           currentState: {
             select: {
               fixTime: true,

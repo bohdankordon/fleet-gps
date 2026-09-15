@@ -28,7 +28,7 @@ export class FleetActivityReportService {
       const analytics = from === to ? null : analyzeTripStopObservations(grouped.get(vehicle.id) ?? [], range, context.policy);
       const rawObservationCount = analytics?.rawObservationCount ?? 0;
       return Object.freeze({
-        vehicleId: vehicle.id, vehicleName: vehicle.name, group: vehicle.group ? Object.freeze({ id: vehicle.group.id, name: vehicle.group.name }) : null, hasGpsData: rawObservationCount > 0, rawObservationCount,
+        vehicleId: vehicle.id, vehicleName: vehicle.name, group: vehicle.group ? Object.freeze({ id: vehicle.group.id, name: vehicle.group.name, color: vehicle.group.color }) : null, hasGpsData: rawObservationCount > 0, rawObservationCount,
         firstObservationAt: analytics?.firstObservationAt ?? null, lastObservationAt: analytics?.lastObservationAt ?? null,
         tripCount: analytics?.trips.length ?? 0, observedDistanceMeters: analytics?.totalObservedTripDistanceMeters ?? 0,
         tripDurationSeconds: sum(analytics?.trips.map((trip) => trip.durationSeconds) ?? []),

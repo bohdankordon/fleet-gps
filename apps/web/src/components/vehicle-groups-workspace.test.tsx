@@ -7,8 +7,8 @@ import type { ManagedVehicle, VehicleGroupSummary } from "../lib/vehicle-groups/
 import { UngroupedCard, VehicleGroupsDirectory } from "./vehicle-groups-workspace";
 
 const groups: readonly VehicleGroupSummary[] = [
-  { id: "11111111-1111-1111-1111-111111111111", name: "Taxi", vehicleCount: 2, userGrantCount: 1, createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-02T10:00:00.000Z" },
-  { id: "22222222-2222-2222-2222-222222222222", name: "Support", vehicleCount: 0, userGrantCount: 0, createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" },
+  { id: "11111111-1111-1111-1111-111111111111", name: "Taxi", color: "BLUE", vehicleCount: 2, userGrantCount: 1, createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-02T10:00:00.000Z" },
+  { id: "22222222-2222-2222-2222-222222222222", name: "Support", color: "GREEN", vehicleCount: 0, userGrantCount: 0, createdAt: "2026-09-01T10:00:00.000Z", updatedAt: "2026-09-01T10:00:00.000Z" },
 ];
 const vehicles: readonly ManagedVehicle[] = [
   { id: "33333333-3333-3333-3333-333333333333", name: "Car one", disabled: false, groupId: "11111111-1111-1111-1111-111111111111" },
@@ -35,10 +35,10 @@ test("directory empty and failure states stay truthful", () => {
   assert.match(source, /window\.location\.reload\(\)/);
 });
 
-test("create flow posts only the trimmed name and surfaces backend errors", () => {
+test("create flow posts the trimmed name with color and surfaces backend errors", () => {
   const source = readFileSync("src/components/vehicle-groups-workspace.tsx", "utf8");
   assert.match(source, /fetch\("\/api\/admin\/vehicle-groups", \{ method: "POST"/);
-  assert.match(source, /JSON\.stringify\(\{ name: name\.trim\(\) \}\)/);
+  assert.match(source, /JSON\.stringify\(\{ name: name\.trim\(\), color \}\)/);
   assert.ok(source.includes("vehicleGroupErrorMessage"), "backend error mapping");
   assert.ok(source.includes("admin.groups.nameRequired"), "empty feedback");
   assert.match(source, /router\.refresh\(\)/);

@@ -41,6 +41,7 @@ function target(row: StoredAuditReadRow): AuditReadTarget {
         return row.targetType === AuditTargetType.USER && id !== null;
       case AuditEventType.VEHICLE_GROUP_CREATED:
       case AuditEventType.VEHICLE_GROUP_RENAMED:
+      case AuditEventType.VEHICLE_GROUP_UPDATED:
       case AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED:
       case AuditEventType.VEHICLE_GROUP_DELETED:
         return row.targetType === AuditTargetType.VEHICLE_GROUP && id !== null;

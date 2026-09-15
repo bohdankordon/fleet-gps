@@ -57,7 +57,7 @@ const TRIP_MAP_MARKER_CSS_VARS = {
 type Props = Readonly<{
   vehicleId: string;
   vehicleName: string | null;
-  vehicleGroup?: Readonly<{ id: string; name: string }> | null;
+  vehicleGroup?: Readonly<{ id: string; name: string; color?: import("../lib/vehicle-groups/vehicle-groups-contract").VehicleGroupColor | null }> | null;
   shellGeneratedAt: string | null;
   initialData: TripAnalysisResponse | null;
   initialRange: VehicleTrackRange;

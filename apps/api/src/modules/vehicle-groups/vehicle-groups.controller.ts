@@ -32,7 +32,7 @@ export class VehicleGroupsController {
   public async create(@Req() request: AuthenticatedRequest, @Body() body: unknown): Promise<VehicleGroupDetail> { try { return await this.groups.create(actor(request), body); } catch (error) { return groupError(error); } }
 
   @Patch(":groupId")
-  public async rename(@Req() request: AuthenticatedRequest, @Param("groupId") id: string, @Body() body: unknown): Promise<VehicleGroupDetail> { try { return await this.groups.rename(actor(request), groupId(id), body); } catch (error) { return groupError(error); } }
+  public async updateDetails(@Req() request: AuthenticatedRequest, @Param("groupId") id: string, @Body() body: unknown): Promise<VehicleGroupDetail> { try { return await this.groups.updateDetails(actor(request), groupId(id), body); } catch (error) { return groupError(error); } }
 
   @Put(":groupId/vehicles")
   public async replaceVehicles(@Req() request: AuthenticatedRequest, @Param("groupId") id: string, @Body() body: unknown): Promise<VehicleGroupDetail> { try { return await this.groups.replaceVehicles(actor(request), groupId(id), body); } catch (error) { return groupError(error); } }

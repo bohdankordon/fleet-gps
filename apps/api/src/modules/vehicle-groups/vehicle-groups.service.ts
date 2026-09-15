@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
-import type { Prisma } from "../../generated/prisma/client";
+import { VehicleGroupColor, type Prisma } from "../../generated/prisma/client";
 import { normalizeUuid } from "../../common/uuid.validation";
-import { AuditEventRepository, buildVehicleGroupCreatedAuditEvent, buildVehicleGroupDeletedAuditEvent, buildVehicleGroupMembershipChangedAuditEvent, buildVehicleGroupRenamedAuditEvent, type AuditUserActor } from "../audit";
+import { AuditEventRepository, buildVehicleGroupCreatedAuditEvent, buildVehicleGroupDeletedAuditEvent, buildVehicleGroupMembershipChangedAuditEvent, buildVehicleGroupUpdatedAuditEvent, type AuditUserActor } from "../audit";
 import { DatabaseService } from "../database/database.service";
 import type { VehicleGroupDetail, VehicleGroupManagedVehicle, VehicleGroupSummary } from "./vehicle-groups.types";
 
@@ -30,6 +30,10 @@ function groupName(input: unknown): string {
   if (name.length === 0 || name.length > 128) throw new VehicleGroupsError("INVALID_INPUT");
   return name;
 }
+function groupColor(input: unknown): VehicleGroupColor {
+  if (typeof input !== "string" || !(Object.values(VehicleGroupColor) as readonly string[]).includes(input)) throw new VehicleGroupsError("INVALID_INPUT");
+  return input as VehicleGroupColor;
+}
 
 function vehicleIds(input: unknown): readonly string[] {
   if (!Array.isArray(input)) throw new VehicleGroupsError("INVALID_INPUT");
@@ -48,7 +52,7 @@ async function lockGroup(transaction: Prisma.TransactionClient, groupId: string)
 }
 
 function summary(row: any): VehicleGroupSummary {
-  return Object.freeze({ id: row.id, name: row.name, vehicleCount: row._count.vehicles, userGrantCount: row._count.userGrants, createdAt: row.createdAt, updatedAt: row.updatedAt });
+  return Object.freeze({ id: row.id, name: row.name, color: row.color as VehicleGroupColor, vehicleCount: row._count.vehicles, userGrantCount: row._count.userGrants, createdAt: row.createdAt, updatedAt: row.updatedAt });
 }
 
 function detail(row: any): VehicleGroupDetail {
@@ -71,11 +75,11 @@ export class VehicleGroupsService {
   }
 
   public async create(actor: AuditUserActor, input: unknown): Promise<VehicleGroupDetail> {
-    const value = record(input); exactKeys(value, ["name"]); const name = groupName(value.name);
+    const value = record(input); exactKeys(value, ["name", "color"]); const name = groupName(value.name); const color = groupColor(value.color);
     try {
       return await this.database.getClient().$transaction(async (transaction: Prisma.TransactionClient) => {
-        const created = await transaction.vehicleGroup.create({ data: { name }, include: DETAIL_INCLUDE });
-        await this.audit.append(transaction, buildVehicleGroupCreatedAuditEvent(actor, created.id, { name: created.name }));
+        const created = await transaction.vehicleGroup.create({ data: { name, color }, include: DETAIL_INCLUDE });
+        await this.audit.append(transaction, buildVehicleGroupCreatedAuditEvent(actor, created.id, { name: created.name, color: created.color as VehicleGroupColor }));
         return detail(created);
       });
     } catch (error) {
@@ -84,17 +88,23 @@ export class VehicleGroupsService {
     }
   }
 
-  public async rename(actor: AuditUserActor, groupId: string, input: unknown): Promise<VehicleGroupDetail> {
-    const value = record(input); exactKeys(value, ["name"]); const name = groupName(value.name);
+  public async updateDetails(actor: AuditUserActor, groupId: string, input: unknown): Promise<VehicleGroupDetail> {
+    const value = record(input);
+    const keys = Object.keys(value);
+    if (keys.length === 0 || keys.some((key) => key !== "name" && key !== "color")) throw new VehicleGroupsError("INVALID_INPUT");
+    const name = value.name === undefined ? undefined : groupName(value.name);
+    const color = value.color === undefined ? undefined : groupColor(value.color);
     try {
       return await this.database.getClient().$transaction(async (transaction: Prisma.TransactionClient) => {
         await lockGroup(transaction, groupId);
         const current = await transaction.vehicleGroup.findUnique({ where: { id: groupId }, include: DETAIL_INCLUDE });
         if (!current) throw new VehicleGroupsError("NOT_FOUND");
-        if (current.name === name) return detail(current);
-        const renamed = await transaction.vehicleGroup.update({ where: { id: groupId }, data: { name }, include: DETAIL_INCLUDE });
-        await this.audit.append(transaction, buildVehicleGroupRenamedAuditEvent(actor, groupId, { previousName: current.name, name: renamed.name }));
-        return detail(renamed);
+        const nextName = name ?? current.name;
+        const nextColor = (color ?? current.color) as VehicleGroupColor;
+        if (current.name === nextName && (current.color as VehicleGroupColor) === nextColor) return detail(current);
+        const updated = await transaction.vehicleGroup.update({ where: { id: groupId }, data: { name: nextName, color: nextColor }, include: DETAIL_INCLUDE });
+        await this.audit.append(transaction, buildVehicleGroupUpdatedAuditEvent(actor, groupId, { previousName: current.name, name: updated.name, previousColor: current.color as VehicleGroupColor, color: updated.color as VehicleGroupColor }));
+        return detail(updated);
       });
     } catch (error) {
       if (duplicate(error)) throw new VehicleGroupsError("DUPLICATE_NAME");

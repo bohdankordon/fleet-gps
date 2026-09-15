@@ -24,7 +24,7 @@ const alertEventReadSelect = {
   minimumTraveledDistanceMeters: true,
   distanceThresholdMeters: true,
   durationThresholdMinutes: true,
-  vehicle: { select: { id: true, name: true, group: { select: { id: true, name: true } } } },
+  vehicle: { select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } } },
   notificationOutbox: {
     where: { kind: AlertNotificationKind.ALERT_CONFIRMED },
     take: 1,
@@ -78,10 +78,10 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
   public async getVehicleOptions(scope: VehicleScope): Promise<readonly AlertEventsVehicleOption[]> {
     const vehicles = await this.database.getClient().vehicle.findMany({
       where: applyVehicleScope(scope, { alertEvents: { some: applyAlertEventScope(scope) } }),
-      select: { id: true, name: true, group: { select: { id: true, name: true } } },
+      select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } },
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
-    return vehicles.map((vehicle) => ({ vehicleId: vehicle.id, vehicleName: vehicle.name, group: vehicle.group ? { id: vehicle.group.id, name: vehicle.group.name } : null }));
+    return vehicles.map((vehicle) => ({ vehicleId: vehicle.id, vehicleName: vehicle.name, group: vehicle.group ? { id: vehicle.group.id, name: vehicle.group.name, color: vehicle.group.color } : null }));
   }
 
   public async getOpenMapSnapshot(scope: VehicleScope): Promise<StoredOpenAlertMapSnapshot> {
@@ -92,7 +92,7 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
       select: {
         type: true,
         confirmedAt: true,
-        vehicle: { select: { id: true, name: true, group: { select: { id: true, name: true } } } },
+        vehicle: { select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } } },
       },
     });
     return Object.freeze({

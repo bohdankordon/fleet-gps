@@ -26,7 +26,7 @@ function toModel(vehicle: DashboardStoredVehicle, now: Date, minimum: number, th
     id: vehicle.id,
     name: vehicle.name,
     disabled: vehicle.disabled,
-    group: vehicle.group ? Object.freeze({ id: vehicle.group.id, name: vehicle.group.name }) : null,
+    group: vehicle.group ? Object.freeze({ id: vehicle.group.id, name: vehicle.group.name, color: vehicle.group.color }) : null,
     status: state ? normalizeStatus(state.status) : "unknown",
     externalLastUpdateAt: state?.externalLastUpdateAt?.toISOString() ?? null,
     fixTime: state?.fixTime?.toISOString() ?? null,

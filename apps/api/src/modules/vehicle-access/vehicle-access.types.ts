@@ -1,4 +1,4 @@
-import type { Prisma, VehicleAccessMode } from "../../generated/prisma/client";
+import type { Prisma, VehicleAccessMode, VehicleGroupColor } from "../../generated/prisma/client";
 
 export type ConfiguredVehicleAccess = Readonly<{
   mode: VehicleAccessMode;
@@ -10,7 +10,7 @@ export type VehicleScope =
   | Readonly<{ kind: "UNRESTRICTED" }>
   | Readonly<{ kind: "FILTERED"; where: Prisma.VehicleWhereInput }>;
 
-export type VehicleGroupRef = Readonly<{ id: string; name: string }>;
+export type VehicleGroupRef = Readonly<{ id: string; name: string; color: VehicleGroupColor }>;
 
 export type VehicleGroupOption = Readonly<{ id: string; name: string }>;
 

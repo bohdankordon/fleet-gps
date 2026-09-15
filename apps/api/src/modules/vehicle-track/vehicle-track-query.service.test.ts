@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { VehicleGroupColor } from "../../generated/prisma/client";
 import type { VehicleTrackQueryRepository, StoredVehicleTrackPoint } from "./vehicle-track-query.repository";
 import { MAX_TRACK_POINTS } from "./vehicle-track-query.repository";
 import { VehicleTrackQueryService } from "./vehicle-track-query.service";
@@ -14,7 +15,7 @@ function point(observedAt = from, overrides: Partial<StoredVehicleTrackPoint> = 
   return { observedAt, latitude: 49.2, longitude: 28.4, speedKph: null, valid: null, outdated: null, ...overrides };
 }
 
-function service(points: readonly StoredVehicleTrackPoint[], vehicle: { id: string; name: string; group: { id: string; name: string } | null } | null = { id: vehicleId, name: "Taxi", group: null }) {
+function service(points: readonly StoredVehicleTrackPoint[], vehicle: { id: string; name: string; group: { id: string; name: string; color: VehicleGroupColor } | null } | null = { id: vehicleId, name: "Taxi", group: null }) {
   const repository: VehicleTrackQueryRepository = { getSnapshot: async () => ({ vehicle, points }) };
   return new VehicleTrackQueryService(repository, { now: () => now }, unrestrictedScopes);
 }

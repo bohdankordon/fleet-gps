@@ -8,7 +8,8 @@ import { Alert, Button, Card, Divider, Empty, Grid, Input, Listy, Modal, Paginat
 import type { TableColumnsType } from "antd";
 import { useI18n } from "../i18n/client";
 import { vehicleGroupErrorMessage } from "../i18n/errors";
-import { ungroupedVehicles, validateGroupName, type ManagedVehicle, type VehicleGroupSummary } from "../lib/vehicle-groups/vehicle-groups-contract";
+import { DEFAULT_VEHICLE_GROUP_COLOR, ungroupedVehicles, validateGroupName, type ManagedVehicle, type VehicleGroupColor, type VehicleGroupSummary } from "../lib/vehicle-groups/vehicle-groups-contract";
+import { VEHICLE_GROUP_SWATCH_BACKGROUNDS, VehicleGroupColorField } from "./vehicle-group-color-field";
 
 export function VehicleGroupsPageHeader() {
   const { t } = useI18n();
@@ -30,6 +31,7 @@ export function VehicleGroupsWorkspace({ groups, vehicles }: Props) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
+  const [color, setColor] = useState<VehicleGroupColor>(DEFAULT_VEHICLE_GROUP_COLOR);
   const [nameError, setNameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,25 +42,31 @@ export function VehicleGroupsWorkspace({ groups, vehicles }: Props) {
     if (violation) { setNameError(t("admin.groups.nameRequired")); return; }
     setBusy(true); setError(null);
     try {
-      const response = await fetch("/api/admin/vehicle-groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim() }) });
+      const response = await fetch("/api/admin/vehicle-groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim(), color }) });
       if (!response.ok) { setError(vehicleGroupErrorMessage(await response.json().catch(() => null), t)); return; }
-      setCreateOpen(false); setName(""); setNameError(null); router.refresh();
+      setCreateOpen(false); setName(""); setColor(DEFAULT_VEHICLE_GROUP_COLOR); setNameError(null); router.refresh();
     } catch { setError(vehicleGroupErrorMessage(null, t)); }
     finally { setBusy(false); }
   }
   const columns: TableColumnsType<VehicleGroupSummary> = [
-    { title: t("admin.groups.directory"), key: "name", render: (_, group) => <Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`} aria-label={t("admin.groups.openGroup", { name: group.name })}>{group.name}</Link> },
+    { title: t("admin.groups.directory"), key: "name", render: (_, group) => <span className="vehicle-groups-directory__group-name"><span className="vehicle-group-directory-swatch" style={{ background: VEHICLE_GROUP_SWATCH_BACKGROUNDS[group.color] }} aria-hidden="true" /><Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`} aria-label={t("admin.groups.openGroup", { name: group.name })}>{group.name}</Link></span> },
     { title: t("admin.groups.vehicles"), key: "vehicles", width: 160, render: (_, group) => t("admin.groups.vehicleCount", { count: group.vehicleCount }) },
     { key: "open", align: "right", width: 120, render: (_, group) => <Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`}>{t("admin.groups.open")}</Link> },
   ];
   return <>
-    <div className="vehicle-groups-page__actions"><Button type="primary" icon={<PlusOutlined />} onClick={() => { setCreateOpen(true); setName(""); setNameError(null); setError(null); }}>{t("admin.groups.create")}</Button></div>
+    <div className="vehicle-groups-page__actions"><Button type="primary" icon={<PlusOutlined />} onClick={() => { setCreateOpen(true); setName(""); setColor(DEFAULT_VEHICLE_GROUP_COLOR); setNameError(null); setError(null); }}>{t("admin.groups.create")}</Button></div>
     <VehicleGroupsDirectory groups={groups} />
     <UngroupedCard vehicles={ungrouped} />
     <Modal open={createOpen} title={t("admin.groups.createTitle")} okText={t("admin.groups.create")} cancelText={t("common.cancel")} confirmLoading={busy} onOk={() => void create()} onCancel={() => { if (!busy) setCreateOpen(false); }} destroyOnHidden>
       <label className="vehicle-groups-modal__label" htmlFor="create-group-name">{t("admin.groups.name")}</label>
       <Input id="create-group-name" value={name} maxLength={128} autoComplete="off" placeholder={t("admin.groups.namePlaceholder")} status={nameError ? "error" : undefined} disabled={busy} onChange={(event) => { setName(event.target.value); if (nameError) setNameError(null); }} onPressEnter={() => void create()} />
       {nameError ? <p className="vehicle-groups-modal__error" role="alert">{nameError}</p> : null}
+      <div style={{ marginTop: 16 }}>
+        <span className="vehicle-groups-modal__label" id="create-group-color-label">{t("admin.groups.color")}</span>
+        <div role="group" aria-labelledby="create-group-color-label">
+          <VehicleGroupColorField value={color} disabled={busy} onChange={setColor} name="create-group-color" />
+        </div>
+      </div>
       {error ? <Alert type="error" showIcon message={error} /> : null}
     </Modal>
   </>;
@@ -68,14 +76,14 @@ export function VehicleGroupsDirectory({ groups }: Readonly<{ groups: readonly V
   const { t } = useI18n();
   const screens = Grid.useBreakpoint();
   const columns: TableColumnsType<VehicleGroupSummary> = [
-    { title: t("admin.groups.directory"), key: "name", render: (_, group) => <Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`} aria-label={t("admin.groups.openGroup", { name: group.name })}>{group.name}</Link> },
+    { title: t("admin.groups.directory"), key: "name", render: (_, group) => <span className="vehicle-groups-directory__group-name"><span className="vehicle-group-directory-swatch" style={{ background: VEHICLE_GROUP_SWATCH_BACKGROUNDS[group.color] }} aria-hidden="true" /><Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`} aria-label={t("admin.groups.openGroup", { name: group.name })}>{group.name}</Link></span> },
     { title: t("admin.groups.vehicles"), key: "vehicles", width: 160, render: (_, group) => t("admin.groups.vehicleCount", { count: group.vehicleCount }) },
     { key: "open", align: "right", width: 120, render: (_, group) => <Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`}>{t("admin.groups.open")}</Link> },
   ];
   return <section className="vehicle-groups-directory" aria-labelledby="vehicle-groups-directory-title">
     <Typography.Title id="vehicle-groups-directory-title" level={2}>{t("admin.groups.directory")}</Typography.Title>
     <Divider />
-    {groups.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("admin.groups.empty")} /> : screens.lg ? <Table<VehicleGroupSummary> rowKey="id" dataSource={[...groups]} columns={columns} pagination={false} /> : <Listy className="vehicle-groups-list" aria-label={t("admin.groups.directory")} items={[...groups]} rowKey="id" itemRender={(group) => <div className="vehicle-groups-list__item"><div className="vehicle-groups-list__main"><Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`} aria-label={t("admin.groups.openGroup", { name: group.name })}>{group.name}</Link><Typography.Text type="secondary">{t("admin.groups.vehicleCount", { count: group.vehicleCount })}</Typography.Text></div><Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`}>{t("admin.groups.open")}</Link></div>} />}
+    {groups.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("admin.groups.empty")} /> : screens.lg ? <Table<VehicleGroupSummary> rowKey="id" dataSource={[...groups]} columns={columns} pagination={false} /> : <Listy className="vehicle-groups-list" aria-label={t("admin.groups.directory")} items={[...groups]} rowKey="id" itemRender={(group) => <div className="vehicle-groups-list__item"><div className="vehicle-groups-list__main"><span className="vehicle-groups-directory__group-name"><span className="vehicle-group-directory-swatch" style={{ background: VEHICLE_GROUP_SWATCH_BACKGROUNDS[group.color] }} aria-hidden="true" /><Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`} aria-label={t("admin.groups.openGroup", { name: group.name })}>{group.name}</Link></span><Typography.Text type="secondary">{t("admin.groups.vehicleCount", { count: group.vehicleCount })}</Typography.Text></div><Link href={`/admin/vehicle-groups/${encodeURIComponent(group.id)}`}>{t("admin.groups.open")}</Link></div>} />}
   </section>;
 }
 

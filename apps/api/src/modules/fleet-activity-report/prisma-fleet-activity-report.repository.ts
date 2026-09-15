@@ -13,8 +13,8 @@ export class PrismaFleetActivityReportRepository implements FleetActivityReportR
   public constructor(private readonly database: DatabaseService) {}
   public async getSnapshot(range: TripStopAnalyticsRange, scope: VehicleScope): Promise<FleetActivitySnapshot> {
     return this.database.getClient().$transaction(async (transaction) => {
-      const stored = await transaction.vehicle.findMany({ where: applyVehicleScope(scope), orderBy: { id: "asc" }, select: { id: true, name: true, group: { select: { id: true, name: true } } } });
-      const vehicles = stored.map((vehicle) => ({ id: vehicle.id, name: vehicle.name, group: vehicle.group ? { id: vehicle.group.id, name: vehicle.group.name } : null }));
+      const stored = await transaction.vehicle.findMany({ where: applyVehicleScope(scope), orderBy: { id: "asc" }, select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } } });
+      const vehicles = stored.map((vehicle) => ({ id: vehicle.id, name: vehicle.name, group: vehicle.group ? { id: vehicle.group.id, name: vehicle.group.name, color: vehicle.group.color } : null }));
       const observations = await transaction.vehiclePositionObservation.findMany({
         // Reports owns a half-open day; Trips/History keep their own contracts.
         where: applyObservationScope(scope, { observedAt: { gte: range.from, lt: range.to } }),

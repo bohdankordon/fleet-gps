@@ -70,7 +70,7 @@ export class VehicleDetailsQueryService {
 
     return Object.freeze({
       generatedAt: generatedAt.toISOString(),
-      vehicle: Object.freeze({ id: snapshot.vehicle.id, name: snapshot.vehicle.name, disabled: snapshot.vehicle.disabled, group: snapshot.vehicle.group ? Object.freeze({ id: snapshot.vehicle.group.id, name: snapshot.vehicle.group.name }) : null }),
+      vehicle: Object.freeze({ id: snapshot.vehicle.id, name: snapshot.vehicle.name, disabled: snapshot.vehicle.disabled, group: snapshot.vehicle.group ? Object.freeze({ id: snapshot.vehicle.group.id, name: snapshot.vehicle.group.name, color: snapshot.vehicle.group.color }) : null }),
       connectivity: snapshot.vehicle.currentState?.status ?? "UNKNOWN",
       currentState: projectFleetMapCurrentState(snapshot.vehicle.currentState, generatedAt, snapshot.positionFreshnessSeconds),
       today: mapToday(snapshot.serviceDate, snapshot.vehicle.dailyStat),

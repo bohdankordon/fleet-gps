@@ -19,7 +19,7 @@ type Context = Readonly<{ data: FleetActivityReportResponse; user: AuthUser | nu
 
 export function ReportVehicleIdentity({ row, user }: Readonly<{ row: Row; user: AuthUser | null }>) {
   const name = user && hasPermission(user, "vehicles.view") ? <Link className="reports-vehicle-link" href={`/vehicles/${row.vehicleId}`}><CarOutlined aria-hidden /><span>{row.vehicleName}</span></Link> : <strong>{row.vehicleName}</strong>;
-  return <span className="reports-identity__name">{name}<VehicleGroupTag group={row.group} /></span>;
+  return <span className="reports-identity__name vehicle-group-identity"><span className="vehicle-group-identity__name">{name}</span><VehicleGroupTag group={row.group} /></span>;
 }
 
 export function ReportActions({ row, data, user, expanded = false }: Context & Readonly<{ row: Row; expanded?: boolean }>) {

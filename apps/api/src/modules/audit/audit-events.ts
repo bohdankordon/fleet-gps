@@ -1,5 +1,5 @@
 import { normalizeUuid } from "../../common/uuid.validation";
-import { AuditActorType, AuditEventType, AuditTargetType, AuthRole, VehicleAccessMode } from "../../generated/prisma/enums";
+import { AuditActorType, AuditEventType, AuditTargetType, AuthRole, VehicleAccessMode, VehicleGroupColor } from "../../generated/prisma/enums";
 import { LOGIN_PATTERN } from "../auth/login";
 import { isPermission, PERMISSIONS, resolvePermissions, type Permission } from "../auth/permissions";
 import { POSITION_HISTORY_BROWSER_WINDOW_BUDGETS, type PositionHistoryBrowserWindowBudget } from "../position-history-horizon-execution/position-history-horizon-execution.types";
@@ -21,6 +21,7 @@ import type {
   VehicleGroupDeletedAuditDetails,
   VehicleGroupMembershipChangedAuditDetails,
   VehicleGroupRenamedAuditDetails,
+  VehicleGroupUpdatedAuditDetails,
 } from "./audit.types";
 
 export class AuditEventValidationError extends Error {
@@ -266,11 +267,18 @@ export function buildTelegramDisconnectedAuditEvent(actor: AuditUserActor, targe
 }
 
 function vehicleGroupCreatedDetails(details: VehicleGroupCreatedAuditDetails): VehicleGroupCreatedAuditDetails {
-  return Object.freeze({ name: requiredGroupName(details.name, "name") });
+  return Object.freeze({ name: requiredGroupName(details.name, "name"), color: requiredGroupColor(details.color, "color") });
 }
 
 function vehicleGroupRenamedDetails(details: VehicleGroupRenamedAuditDetails): VehicleGroupRenamedAuditDetails {
   return Object.freeze({ previousName: requiredGroupName(details.previousName, "previousName"), name: requiredGroupName(details.name, "name") });
+}
+function requiredGroupColor(value: unknown, label: string): VehicleGroupColor {
+  if (typeof value !== "string" || !(Object.values(VehicleGroupColor) as readonly string[]).includes(value)) throw new AuditEventValidationError(`${label} must be an approved vehicle group color`);
+  return value as VehicleGroupColor;
+}
+function vehicleGroupUpdatedDetails(details: VehicleGroupUpdatedAuditDetails): VehicleGroupUpdatedAuditDetails {
+  return Object.freeze({ previousName: requiredGroupName(details.previousName, "previousName"), name: requiredGroupName(details.name, "name"), previousColor: requiredGroupColor(details.previousColor, "previousColor"), color: requiredGroupColor(details.color, "color") });
 }
 
 function vehicleGroupMembershipChangedDetails(details: VehicleGroupMembershipChangedAuditDetails): VehicleGroupMembershipChangedAuditDetails {
@@ -311,6 +319,9 @@ export function buildVehicleGroupCreatedAuditEvent(actor: AuditUserActor, target
 
 export function buildVehicleGroupRenamedAuditEvent(actor: AuditUserActor, targetId: string, details: VehicleGroupRenamedAuditDetails): AuditEventSpec {
   return Object.freeze({ eventType: AuditEventType.VEHICLE_GROUP_RENAMED, actor: buildUserActor(actor.actorUserId, actor.actorLoginSnapshot), targetType: AuditTargetType.VEHICLE_GROUP, targetId: requiredUuid(targetId, "targetId"), details: vehicleGroupRenamedDetails(details) });
+}
+export function buildVehicleGroupUpdatedAuditEvent(actor: AuditUserActor, targetId: string, details: VehicleGroupUpdatedAuditDetails): AuditEventSpec {
+  return Object.freeze({ eventType: AuditEventType.VEHICLE_GROUP_UPDATED, actor: buildUserActor(actor.actorUserId, actor.actorLoginSnapshot), targetType: AuditTargetType.VEHICLE_GROUP, targetId: requiredUuid(targetId, "targetId"), details: vehicleGroupUpdatedDetails(details) });
 }
 
 export function buildVehicleGroupMembershipChangedAuditEvent(actor: AuditUserActor, targetId: string, details: VehicleGroupMembershipChangedAuditDetails): AuditEventSpec {
@@ -451,11 +462,14 @@ export function parseAuditEventDetails(eventType: unknown, value: unknown): Audi
       exactKeys(details, ["changes"], "SETTINGS_UPDATED details");
       return settingsDetails(details as SettingsUpdatedAuditDetails);
     case AuditEventType.VEHICLE_GROUP_CREATED:
-      exactKeys(details, ["name"], "VEHICLE_GROUP_CREATED details");
+      exactKeys(details, ["name", "color"], "VEHICLE_GROUP_CREATED details");
       return vehicleGroupCreatedDetails(details as VehicleGroupCreatedAuditDetails);
     case AuditEventType.VEHICLE_GROUP_RENAMED:
       exactKeys(details, ["previousName", "name"], "VEHICLE_GROUP_RENAMED details");
       return vehicleGroupRenamedDetails(details as VehicleGroupRenamedAuditDetails);
+    case AuditEventType.VEHICLE_GROUP_UPDATED:
+      exactKeys(details, ["previousName", "name", "previousColor", "color"], "VEHICLE_GROUP_UPDATED details");
+      return vehicleGroupUpdatedDetails(details as VehicleGroupUpdatedAuditDetails);
     case AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED:
       exactKeys(details, ["name", "addedCount", "removedCount"], "VEHICLE_GROUP_MEMBERSHIP_CHANGED details");
       return vehicleGroupMembershipChangedDetails(details as VehicleGroupMembershipChangedAuditDetails);
@@ -539,13 +553,18 @@ export function parseAuditEventSpec(value: unknown): AuditEventSpec {
       return buildSettingsUpdatedAuditEvent(parseUserActor(event.actor), settingsDetails(event.details as SettingsUpdatedAuditDetails));
     case AuditEventType.VEHICLE_GROUP_CREATED: {
       const target = vehicleGroupTarget(event, AuditEventType.VEHICLE_GROUP_CREATED);
-      const details = object(event.details, "details"); exactKeys(details, ["name"], "VEHICLE_GROUP_CREATED details");
+      const details = object(event.details, "details"); exactKeys(details, ["name", "color"], "VEHICLE_GROUP_CREATED details");
       return buildVehicleGroupCreatedAuditEvent(target.actor, target.targetId, details as VehicleGroupCreatedAuditDetails);
     }
     case AuditEventType.VEHICLE_GROUP_RENAMED: {
       const target = vehicleGroupTarget(event, AuditEventType.VEHICLE_GROUP_RENAMED);
       const details = object(event.details, "details"); exactKeys(details, ["previousName", "name"], "VEHICLE_GROUP_RENAMED details");
       return buildVehicleGroupRenamedAuditEvent(target.actor, target.targetId, details as VehicleGroupRenamedAuditDetails);
+    }
+    case AuditEventType.VEHICLE_GROUP_UPDATED: {
+      const target = vehicleGroupTarget(event, AuditEventType.VEHICLE_GROUP_UPDATED);
+      const details = object(event.details, "details"); exactKeys(details, ["previousName", "name", "previousColor", "color"], "VEHICLE_GROUP_UPDATED details");
+      return buildVehicleGroupUpdatedAuditEvent(target.actor, target.targetId, details as VehicleGroupUpdatedAuditDetails);
     }
     case AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED: {
       const target = vehicleGroupTarget(event, AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED);

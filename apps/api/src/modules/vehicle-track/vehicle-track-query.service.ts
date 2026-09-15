@@ -40,7 +40,7 @@ export class VehicleTrackQueryService {
     if (points.some((point, index) => index > 0 && point.observedAt < points[index - 1]!.observedAt)) throw new VehicleTrackStateError();
     return Object.freeze({
       generatedAt: generatedAt.toISOString(),
-      vehicle: Object.freeze({ id: snapshot.vehicle.id, name: snapshot.vehicle.name, group: snapshot.vehicle.group ? Object.freeze({ id: snapshot.vehicle.group.id, name: snapshot.vehicle.group.name }) : null }),
+      vehicle: Object.freeze({ id: snapshot.vehicle.id, name: snapshot.vehicle.name, group: snapshot.vehicle.group ? Object.freeze({ id: snapshot.vehicle.group.id, name: snapshot.vehicle.group.name, color: snapshot.vehicle.group.color }) : null }),
       range: Object.freeze({ from: from.toISOString(), to: to.toISOString() }),
       summary: Object.freeze({
         pointCount: points.length,

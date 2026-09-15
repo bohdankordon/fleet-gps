@@ -14,8 +14,8 @@ import {
 } from "./account-notification-preferences";
 
 const vehicles = Object.freeze([
-  Object.freeze({ id: "11111111-1111-1111-8111-111111111111", name: "Car one", disabled: false, groupId: null, groupName: null }),
-  Object.freeze({ id: "22222222-2222-2222-8222-222222222222", name: "Car two", disabled: true, groupId: null, groupName: null }),
+  Object.freeze({ id: "11111111-1111-1111-8111-111111111111", name: "Car one", disabled: false, groupId: null, groupName: null, groupColor: null }),
+  Object.freeze({ id: "22222222-2222-2222-8222-222222222222", name: "Car two", disabled: true, groupId: null, groupName: null, groupColor: null }),
 ]);
 const view = (overrides: Record<string, unknown> = {}) => ({
   enabled: true,
@@ -136,9 +136,9 @@ test("conflict merge carries non-overlapping edits and flags real conflicts", ()
 });
 test("vehicle search is local, name-only, and case-insensitive", () => {
   const fleet = [
-    { id: "a", name: "Alpha Bus", disabled: false, groupId: null, groupName: null },
-    { id: "b", name: "beta van", disabled: false, groupId: null, groupName: null },
-    { id: "c", name: "Gamma", disabled: true, groupId: null, groupName: null },
+    { id: "a", name: "Alpha Bus", disabled: false, groupId: null, groupName: null, groupColor: null },
+    { id: "b", name: "beta van", disabled: false, groupId: null, groupName: null, groupColor: null },
+    { id: "c", name: "Gamma", disabled: true, groupId: null, groupName: null, groupColor: null },
   ] as const;
   assert.deepEqual(filterVehiclesByName(fleet, ""), fleet);
   assert.deepEqual(filterVehiclesByName(fleet, "  "), fleet);

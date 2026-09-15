@@ -1,4 +1,4 @@
-import { AuditActorType, AuditEventType, AuditTargetType, AuthRole, VehicleAccessMode } from "../../generated/prisma/enums";
+import { AuditActorType, AuditEventType, AuditTargetType, AuthRole, VehicleAccessMode, type VehicleGroupColor } from "../../generated/prisma/enums";
 import type { Permission } from "../auth/permissions";
 
 export type AuditUserActor = Readonly<{
@@ -33,8 +33,9 @@ export type UserAccessChangedAuditDetails = Readonly<{
   permissions: readonly Permission[];
 }>;
 
-export type VehicleGroupCreatedAuditDetails = Readonly<{ name: string }>;
+export type VehicleGroupCreatedAuditDetails = Readonly<{ name: string; color: VehicleGroupColor }>;
 export type VehicleGroupRenamedAuditDetails = Readonly<{ previousName: string; name: string }>;
+export type VehicleGroupUpdatedAuditDetails = Readonly<{ previousName: string; name: string; previousColor: VehicleGroupColor; color: VehicleGroupColor }>;
 export type VehicleGroupMembershipChangedAuditDetails = Readonly<{ name: string; addedCount: number; removedCount: number }>;
 export type VehicleGroupDeletedAuditDetails = Readonly<{ name: string; vehicleCount: number; userGrantCount: number }>;
 export type UserVehicleAccessChangedAuditDetails = Readonly<{
@@ -176,6 +177,13 @@ export type AuditEventSpec =
       targetType: typeof AuditTargetType.VEHICLE_GROUP;
       targetId: string;
       details: VehicleGroupRenamedAuditDetails;
+    }>
+  | Readonly<{
+      eventType: typeof AuditEventType.VEHICLE_GROUP_UPDATED;
+      actor: AuditUserActor;
+      targetType: typeof AuditTargetType.VEHICLE_GROUP;
+      targetId: string;
+      details: VehicleGroupUpdatedAuditDetails;
     }>
   | Readonly<{
       eventType: typeof AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED;

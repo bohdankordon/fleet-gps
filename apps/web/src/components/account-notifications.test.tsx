@@ -10,8 +10,8 @@ import type { PreferenceBaseline } from "../lib/account/account-notification-pre
 import type { TelegramConnectionView } from "../lib/account/account-telegram-connection";
 
 const vehicles = [
-  { id: "11111111-1111-1111-8111-111111111111", name: "Car one", disabled: false, groupId: null, groupName: null },
-  { id: "22222222-2222-2222-8222-222222222222", name: "Car two", disabled: true, groupId: null, groupName: null },
+  { id: "11111111-1111-1111-8111-111111111111", name: "Car one", disabled: false, groupId: null, groupName: null, groupColor: null },
+  { id: "22222222-2222-2222-8222-222222222222", name: "Car two", disabled: true, groupId: null, groupName: null, groupColor: null },
 ] as const;
 const baseline = (
   overrides: Partial<PreferenceBaseline["draft"]> = {},
@@ -175,7 +175,7 @@ test("vehicle selector is segmented, searchable, and paged without touching the 
   assert.match(html, /Selected: 1/);
   assert.match(html, /ant-tag[^>]*>inactive</);
   // Twelve vehicles force a second bounded page; the count stays global.
-  const fleet = Array.from({ length: 12 }, (_, index) => ({ id: `fleet-vehicle-${index}`, name: `Fleet car ${index}`, disabled: false, groupId: null, groupName: null }));
+  const fleet = Array.from({ length: 12 }, (_, index) => ({ id: `fleet-vehicle-${index}`, name: `Fleet car ${index}`, disabled: false, groupId: null, groupName: null, groupColor: null }));
   const paged = render({ baseline: baseline({ selectedVehicleIds: ["fleet-vehicle-0"] }, { vehicles: fleet }) });
   assert.match(paged, /ant-pagination/);
   assert.match(paged, /Selected: 1/);

@@ -41,7 +41,7 @@ test("INACTIVITY detail has distance and window metrics, with conditional resolu
   assert.doesNotMatch(html, /minimum duration|stayed at/i);
 });
 test("event list and detail show subtle vehicle group metadata without new badge styles", () => {
-  const grouped = { ...speeding, vehicle: { ...speeding.vehicle, group: { id: "11111111-1111-4111-8111-111111111111", name: "Night group" } } };
+  const grouped = { ...speeding, vehicle: { ...speeding.vehicle, group: { id: "11111111-1111-4111-8111-111111111111", name: "Night group", color: "BLUE" as const } } };
   assert.ok(renderPage({}, [grouped]).includes("Night group"));
   assert.ok(renderDetail(grouped).includes("Night group"));
   assert.ok(source.includes("VehicleGroupTag"));

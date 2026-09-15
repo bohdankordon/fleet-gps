@@ -2,9 +2,31 @@ function isUuid(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+export const VEHICLE_GROUP_COLORS = ["BLUE", "CYAN", "GREEN", "GOLD", "ORANGE", "PURPLE", "MAGENTA", "GRAY"] as const;
+
+export type VehicleGroupColor = (typeof VEHICLE_GROUP_COLORS)[number];
+
+export const DEFAULT_VEHICLE_GROUP_COLOR: VehicleGroupColor = "BLUE";
+
+export function isVehicleGroupColor(value: unknown): value is VehicleGroupColor {
+  return typeof value === "string" && (VEHICLE_GROUP_COLORS as readonly string[]).includes(value);
+}
+
+export const VEHICLE_GROUP_TAG_COLORS: Readonly<Record<VehicleGroupColor, "blue" | "cyan" | "green" | "gold" | "orange" | "purple" | "magenta" | "default">> = Object.freeze({
+  BLUE: "blue",
+  CYAN: "cyan",
+  GREEN: "green",
+  GOLD: "gold",
+  ORANGE: "orange",
+  PURPLE: "purple",
+  MAGENTA: "magenta",
+  GRAY: "default",
+});
+
 export type VehicleGroupSummary = Readonly<{
   id: string;
   name: string;
+  color: VehicleGroupColor;
   vehicleCount: number;
   userGrantCount: number;
   createdAt: string;
@@ -20,8 +42,8 @@ export type ManagedVehicle = Readonly<{ id: string; name: string; disabled: bool
 function parseSummary(value: unknown): VehicleGroupSummary | null {
   if (typeof value !== "object" || value === null) return null;
   const group = value as Record<string, unknown>;
-  if (!isUuid(group.id) || typeof group.name !== "string" || typeof group.vehicleCount !== "number" || typeof group.userGrantCount !== "number" || typeof group.createdAt !== "string" || typeof group.updatedAt !== "string") return null;
-  return Object.freeze({ id: group.id, name: group.name, vehicleCount: group.vehicleCount, userGrantCount: group.userGrantCount, createdAt: group.createdAt, updatedAt: group.updatedAt });
+  if (!isUuid(group.id) || typeof group.name !== "string" || !isVehicleGroupColor(group.color) || typeof group.vehicleCount !== "number" || typeof group.userGrantCount !== "number" || typeof group.createdAt !== "string" || typeof group.updatedAt !== "string") return null;
+  return Object.freeze({ id: group.id, name: group.name, color: group.color, vehicleCount: group.vehicleCount, userGrantCount: group.userGrantCount, createdAt: group.createdAt, updatedAt: group.updatedAt });
 }
 
 export function parseVehicleGroupSummaries(value: unknown): readonly VehicleGroupSummary[] | null {
@@ -72,9 +94,9 @@ export const PRODUCT_GROUP_FILTER_UNGROUPED = "ungrouped";
 
 export type ProductGroupOption = Readonly<{ id: string; name: string }>;
 
-export type ProductGroupCarrier = Readonly<{ group: Readonly<{ id: string; name: string }> | null }>;
+export type ProductGroupCarrier = Readonly<{ group: Readonly<{ id: string; name: string; color: VehicleGroupColor }> | null }>;
 
-export type ProductNotificationGroupCarrier = Readonly<{ groupId: string | null; groupName: string | null }>;
+export type ProductNotificationGroupCarrier = Readonly<{ groupId: string | null; groupName: string | null; groupColor: VehicleGroupColor | null }>;
 
 export function productGroupOptionsFromVehicles(vehicles: readonly ProductGroupCarrier[]): Readonly<{ options: readonly ProductGroupOption[]; hasUngrouped: boolean }> {
   const seen = new Map<string, string>();

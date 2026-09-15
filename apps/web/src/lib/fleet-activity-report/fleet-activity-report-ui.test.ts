@@ -17,7 +17,7 @@ test("search and GPS filter compose without modifying fleet-wide summary or sour
   assert.equal(reportControlsChanged({ ...DEFAULT_REPORT_FILTERS, sort: "name" }), true);
 });
 test("group filter narrows rows while the top summary stays the full authorized fleet", () => {
-  const taxiGroup = { id: "11111111-1111-4111-8111-111111111111", name: "Taxi" };
+  const taxiGroup = { id: "11111111-1111-4111-8111-111111111111", name: "Taxi", color: "BLUE" as const };
   const rows = [{ ...report.vehicles[0]!, group: taxiGroup }, { ...report.vehicles[1]!, group: null }];
   const summaryBefore = JSON.stringify(report.summary);
   assert.deepEqual(visibleReportVehicles(rows, { ...DEFAULT_REPORT_FILTERS, group: taxiGroup.id }, "en").map((row) => row.vehicleId), [rows[0]!.vehicleId]);

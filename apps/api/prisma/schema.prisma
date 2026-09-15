@@ -74,6 +74,17 @@ enum VehicleAccessMode {
   SELECTED
 }
 
+enum VehicleGroupColor {
+  BLUE
+  CYAN
+  GREEN
+  GOLD
+  ORANGE
+  PURPLE
+  MAGENTA
+  GRAY
+}
+
 enum PositionHistoryPopulationRunStatus {
   PENDING
   RUNNING
@@ -114,6 +125,7 @@ enum AuditEventType {
   TELEGRAM_DISCONNECTED
   VEHICLE_GROUP_CREATED
   VEHICLE_GROUP_RENAMED
+  VEHICLE_GROUP_UPDATED
   VEHICLE_GROUP_MEMBERSHIP_CHANGED
   VEHICLE_GROUP_DELETED
   USER_VEHICLE_ACCESS_CHANGED
@@ -335,6 +347,7 @@ model Vehicle {
 model VehicleGroup {
   id             String                      @id @default(uuid()) @map("id") @db.Uuid
   name           String                      @map("name") @db.VarChar(128)
+  color          VehicleGroupColor           @default(BLUE) @map("color")
   normalizedName String                      @unique(map: "vehicle_groups_normalized_name_key") @default(dbgenerated()) @map("normalized_name") @db.VarChar(128)
   createdAt      DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(6)

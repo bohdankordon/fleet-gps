@@ -7,6 +7,7 @@ import { useI18n } from "../i18n/client";
 import type { VehicleAccessMode } from "../lib/admin-users/admin-users-contract";
 import { effectiveVehicleIds, type VehicleAccessDraft } from "../lib/admin-users/vehicle-access-form-model";
 import type { ManagedVehicle, VehicleGroupSummary } from "../lib/vehicle-groups/vehicle-groups-contract";
+import { VEHICLE_GROUP_SWATCH_BACKGROUNDS } from "./vehicle-group-color-field";
 
 export function groupVehiclesById(vehicles: readonly ManagedVehicle[]): Readonly<Record<string, readonly string[]>> {
   const grouped: Record<string, string[]> = {};
@@ -59,7 +60,7 @@ export function AdminVehicleAccessFields({ draft, groups, vehicles, busy, modeEr
     {draft.mode === "SELECTED" && !directoryMissing ? <>
       <div role="group" aria-labelledby="vehicle-access-groups-label">
         <Typography.Text strong id="vehicle-access-groups-label">{t("admin.vehicleAccess.groups")}</Typography.Text>
-        {(groups ?? []).length === 0 ? <Typography.Paragraph type="secondary">{t("admin.vehicleAccess.noGroups")}</Typography.Paragraph> : (groups ?? []).map((group) => <div key={group.id}><Checkbox checked={draft.groupIds.includes(group.id)} disabled={busy} onChange={(event) => onToggleGroup(group.id, event.target.checked)}>{group.name}</Checkbox><Typography.Text type="secondary"> · {t("admin.groups.vehicleCount", { count: group.vehicleCount })}</Typography.Text></div>)}
+        {(groups ?? []).length === 0 ? <Typography.Paragraph type="secondary">{t("admin.vehicleAccess.noGroups")}</Typography.Paragraph> : (groups ?? []).map((group) => <div key={group.id}><Checkbox checked={draft.groupIds.includes(group.id)} disabled={busy} onChange={(event) => onToggleGroup(group.id, event.target.checked)}><span className="vehicle-groups-directory__group-name"><span className="vehicle-group-directory-swatch" style={{ background: VEHICLE_GROUP_SWATCH_BACKGROUNDS[group.color] }} aria-hidden="true" />{group.name}</span></Checkbox><Typography.Text type="secondary"> · {t("admin.groups.vehicleCount", { count: group.vehicleCount })}</Typography.Text></div>)}
       </div>
       <div role="group" aria-labelledby="vehicle-access-vehicles-label">
         <Typography.Text strong id="vehicle-access-vehicles-label">{t("admin.vehicleAccess.vehicles")} · {draft.vehicleIds.length}</Typography.Text>
