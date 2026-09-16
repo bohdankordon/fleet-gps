@@ -85,10 +85,28 @@ test("Events consumes accepted Fleet and Vehicle-family presentation without cha
   assert.match(presentation, /vehicle-track__map-empty-icon/);
   assert.match(presentation, /eventStatusColor\(status\)/);
   assert.match(detailSource, /vehicle-overview__metric-row/);
-  assert.match(detailSource, /<Button size="large" type=\{action\.key === "eventTrip" \? "primary" : "default"\} key=\{action\.key\}/);
+  assert.match(detailSource, /ordinaryActions\.map\(\(action\) => <Button size="large" type="default"/);
+  assert.match(detailSource, /event-detail__actions event-detail__actions--event/);
+  assert.match(detailSource, /<Button size="large" type="primary" key=\{eventTripAction\.key\}/);
   assert.match(styles, /--font-weight-semibold/);
   assert.doesNotMatch(styles, /#[0-9a-f]{3,8}\b|\.ant-/i);
   assert.doesNotMatch(source + detailSource + presentation, /severity|colorError|colorWarning/);
+});
+
+test("event rows keep status metadata stable while the direct trip action remains a sibling control", () => {
+  assert.match(source, /<button type="button" className="events-item vehicle-trips__record-button"[^]*<EventStatusTag status=\{event\.status\} \/>[^]*<\/button>\{eventTripAction \? <span className="events-item__trip-action">/);
+  assert.match(source, /event\.type === "SPEEDING" \? alertEventActions/);
+  assert.match(styles, /\.events-list \.vehicle-trips__record \{ grid-template-columns: 34px minmax\(0, 1fr\); \}/);
+  assert.match(styles, /\.events-list__item \{ position: relative; \}/);
+  assert.match(styles, /\.events-item__trip-action \{ position: absolute;/);
+  assert.match(styles, /@media \(max-width: 575px\)[^]*\.events-list \.vehicle-trips__record \{ grid-template-columns: 30px minmax\(0, 1fr\); \}/);
+});
+
+test("event detail keeps ordinary navigation together and event investigation on its own row", () => {
+  assert.match(detailSource, /const ordinaryActions = actions\.filter\(\(action\) => action\.key !== "eventTrip"\)/);
+  assert.match(detailSource, /const eventTripAction = actions\.find\(\(action\) => action\.key === "eventTrip"\)/);
+  assert.ok(detailSource.indexOf("ordinaryActions.map") < detailSource.indexOf("eventTripAction ?"));
+  assert.match(styles, /\.event-detail__actions--event \{ justify-content: flex-start; \}/);
 });
 
 

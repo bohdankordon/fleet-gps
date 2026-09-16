@@ -29,6 +29,8 @@ export const TRIP_MAP_PRESENTATION = Object.freeze({
   baseRadius: FLEET_MAP_PRESENTATION.baseRadius,
   warningRadius: FLEET_MAP_PRESENTATION.speedingRadius,
   eventColor: FLEET_MAP_PRESENTATION.speeding,
+  eventRadius: 8,
+  eventHaloRadius: 14,
 } as const);
 
 export const TRIP_MAP_LEGEND_ITEMS = Object.freeze([
@@ -117,8 +119,8 @@ export function tripEventGeoJson(position: TripEventPosition): FeatureCollection
 
 export function tripEventLayers(): readonly CircleLayerSpecification[] {
   return [
-    { id: TRIP_EVENT_HALO_LAYER_ID, type: "circle", source: TRIP_EVENT_SOURCE_ID, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 13, 16, 20], "circle-color": TRIP_MAP_PRESENTATION.eventColor, "circle-opacity": 0.18, "circle-stroke-width": 2, "circle-stroke-color": TRIP_MAP_PRESENTATION.eventColor, "circle-stroke-opacity": 0.45 } },
-    { id: TRIP_EVENT_MARKER_LAYER_ID, type: "circle", source: TRIP_EVENT_SOURCE_ID, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 7, 16, 10], "circle-color": TRIP_MAP_PRESENTATION.eventColor, "circle-opacity": 1, "circle-stroke-width": 3, "circle-stroke-color": TRIP_MAP_PRESENTATION.outlineColor } },
+    { id: TRIP_EVENT_HALO_LAYER_ID, type: "circle", source: TRIP_EVENT_SOURCE_ID, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 10, 16, TRIP_MAP_PRESENTATION.eventHaloRadius], "circle-color": TRIP_MAP_PRESENTATION.eventColor, "circle-opacity": 0.18, "circle-stroke-width": 2, "circle-stroke-color": TRIP_MAP_PRESENTATION.eventColor, "circle-stroke-opacity": 0.45 } },
+    { id: TRIP_EVENT_MARKER_LAYER_ID, type: "circle", source: TRIP_EVENT_SOURCE_ID, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 6, 16, TRIP_MAP_PRESENTATION.eventRadius], "circle-color": TRIP_MAP_PRESENTATION.eventColor, "circle-opacity": 1, "circle-stroke-width": 2, "circle-stroke-color": TRIP_MAP_PRESENTATION.outlineColor } },
   ];
 }
 

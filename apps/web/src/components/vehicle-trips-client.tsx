@@ -54,6 +54,9 @@ const TRIP_MAP_MARKER_CSS_VARS = {
   "--trip-marker-start": TRIP_MAP_PRESENTATION.startColor,
   "--trip-marker-end": TRIP_MAP_PRESENTATION.endColor,
   "--trip-marker-outline": TRIP_MAP_PRESENTATION.outlineColor,
+  "--trip-marker-event": TRIP_MAP_PRESENTATION.eventColor,
+  "--trip-marker-event-size": `${TRIP_MAP_PRESENTATION.eventRadius * 2}px`,
+  "--trip-marker-event-halo-size": `${TRIP_MAP_PRESENTATION.eventHaloRadius * 2}px`,
 } as CSSProperties & Record<string, string>;
 
 type Props = Readonly<{
@@ -133,6 +136,9 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
   const mapRef = useRef<MapLibreMap | null>(null);
   const modelRef = useRef(model);
   const eventFocusRef = useRef(eventFocus);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const initialEventFocusRef = useRef(initialEventFocus);
+  const didEventScrollRef = useRef(false);
   const timeline = useMemo(() => analysis ? buildTripAnalysisTimeline(analysis) : [], [analysis]);
   const eventPosition = eventFocus?.kind === "AVAILABLE" ? eventFocus.event.confirmationPosition : null;
 
@@ -225,6 +231,16 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
   useEffect(() => () => {
     analysisController.current?.abort();
     trackController.current?.abort();
+  }, []);
+
+  useEffect(() => {
+    if (didEventScrollRef.current) return;
+    const initial = initialEventFocusRef.current;
+    if (initial?.kind !== "AVAILABLE") return;
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+    didEventScrollRef.current = true;
+    workspace.scrollIntoView({ block: "start" });
   }, []);
 
   const select = useCallback(async (next: TripAnalysisSelection, preserveEventFocus: boolean) => {
@@ -436,6 +452,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
   </div>;
 
   const availableEvent = eventFocus?.kind === "AVAILABLE" ? eventFocus.event : null;
+  const showEventLegend = availableEvent?.confirmationPosition != null;
   const eventHistoryUnavailable = eventFocus?.kind === "AVAILABLE" && (eventFocus.trip.kind !== "MATCH" || interaction.trackError);
   const showWorkspace = eventFocus?.kind === "AVAILABLE" || Boolean(analysis && !noObservations);
 
@@ -470,7 +487,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
       </section> : null}
       {noEvents ? <Alert className="vehicle-trips__neutral-result" type="info" showIcon title={t("trips.noEvents")} /> : null}
 
-      {showWorkspace ? <section className="vehicle-trips__workspace">
+      {showWorkspace ? <section ref={workspaceRef} id="vehicle-trips-workspace" className="vehicle-trips__workspace">
         <section className="vehicle-trips__timeline-pane" aria-label={t("trips.timeline.label")}>
           <header className="vehicle-trips__workspace-header"><TripSectionTitle icon={<CalendarOutlined />} title={t("trips.timeline.title")} /></header>
           <div className="vehicle-trips__timeline-content">
@@ -482,7 +499,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
         <section className="vehicle-trips__map-pane" aria-label={t("trips.map.label")}>
           <header className="vehicle-trips__workspace-header">
             <TripSectionTitle icon={<EnvironmentOutlined />} title={t("trips.map.title")} />
-            <Popover trigger="click" placement="bottomRight" content={<TripMapLegend />}>
+            <Popover trigger="click" placement="bottomRight" content={<TripMapLegend showEvent={showEventLegend} />}>
               <Button size="large" type="default" icon={<InfoCircleOutlined aria-hidden />}>{t("map.legend.label")}</Button>
             </Popover>
           </header>
@@ -527,11 +544,11 @@ function TripSummaryMetric({ icon, title, value }: Readonly<{ icon: ReactNode; t
   </article>;
 }
 
-function TripLegendSwatch({ kind }: Readonly<{ kind: "route" | "observation" | "warning" | "start" | "end" | "stop" }>) {
+function TripLegendSwatch({ kind }: Readonly<{ kind: "route" | "observation" | "warning" | "start" | "end" | "stop" | "event" }>) {
   return <i className={`vehicle-trips__legend-sample vehicle-trips__legend-sample--${kind}`} aria-hidden />;
 }
 
-function TripMapLegend() {
+function TripMapLegend({ showEvent }: Readonly<{ showEvent?: boolean }>) {
   const { t } = useI18n();
   const { token } = theme.useToken();
   return <div className="map-legend vehicle-trips__legend" style={TRIP_MAP_MARKER_CSS_VARS} role="region" aria-label={t("map.legend.label")}>
@@ -542,6 +559,7 @@ function TripMapLegend() {
     <Divider className="map-legend__divider" style={{ margin: 0 }} />
     <div className="map-legend__items">
       {TRIP_MAP_LEGEND_ITEMS.map((item) => <span key={item.kind}><TripLegendSwatch kind={item.kind} />{t(item.messageKey)}</span>)}
+      {showEvent ? <span><TripLegendSwatch kind="event" />{t("trips.legend.speedingConfirmation")}</span> : null}
     </div>
     <Space className="map-legend__notes" orientation="vertical" size={4}>
       <Text className="map-legend__note" type="secondary">{t("trips.legend.note")}</Text>

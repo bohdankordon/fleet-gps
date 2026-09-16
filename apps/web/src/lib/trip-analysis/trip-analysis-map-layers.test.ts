@@ -92,3 +92,16 @@ test("persisted event coordinates create an independent marker above route layer
   assert.ok(layers.findIndex((layer) => layer.id === TRIP_EVENT_MARKER_LAYER_ID) > layers.findIndex((layer) => layer.id === "trips-map-endpoints"));
   assert.deepEqual((sources.get(TRIP_EVENT_SOURCE_ID)?.data as ReturnType<typeof tripEventGeoJson>).features[0]?.geometry.coordinates, [28.49, 49.24]);
 });
+
+test("speeding confirmation marker stays prominent without dominating the route", () => {
+  const [halo, marker] = tripEventLayers();
+  assert.equal(TRIP_MAP_PRESENTATION.eventColor, FLEET_MAP_PRESENTATION.speeding);
+  assert.equal(TRIP_MAP_PRESENTATION.eventRadius, 8);
+  assert.equal(TRIP_MAP_PRESENTATION.eventHaloRadius, 14);
+  assert.ok(TRIP_MAP_PRESENTATION.eventRadius > FLEET_MAP_PRESENTATION.baseRadius);
+  assert.ok(TRIP_MAP_PRESENTATION.eventHaloRadius < FLEET_MAP_PRESENTATION.hitRadius);
+  assert.deepEqual(marker?.paint?.["circle-radius"], ["interpolate", ["linear"], ["zoom"], 10, 6, 16, TRIP_MAP_PRESENTATION.eventRadius]);
+  assert.equal(marker?.paint?.["circle-stroke-width"], 2);
+  assert.equal(marker?.paint?.["circle-stroke-color"], FLEET_MAP_PRESENTATION.markerOutline);
+  assert.deepEqual(halo?.paint?.["circle-radius"], ["interpolate", ["linear"], ["zoom"], 10, 10, 16, TRIP_MAP_PRESENTATION.eventHaloRadius]);
+});

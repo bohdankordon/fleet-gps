@@ -1136,6 +1136,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "trips.legend.start": { ru: "Начало", uk: "Початок", en: "Start" },
   "trips.legend.end": { ru: "Конец", uk: "Кінець", en: "End" },
   "trips.legend.stop": { ru: "Границы остановки", uk: "Межі зупинки", en: "Stop boundaries" },
+  "trips.legend.speedingConfirmation": { ru: "Подтверждение превышения скорости", uk: "Підтвердження перевищення швидкості", en: "Speeding confirmation" },
   "trips.legend.note": { ru: "Маршрут строится только по сохранённым точкам. Остановки показывают только реальные граничные фиксации.", uk: "Маршрут будується лише за збереженими точками. Зупинки показують лише реальні межові фіксації.", en: "Route reflects stored points only. Stops show actual boundary fixes only." },
 
   "history.title": { ru: "История GPS", uk: "Історія GPS", en: "GPS history" },

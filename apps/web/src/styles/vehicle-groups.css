@@ -26,6 +26,8 @@
 .vehicle-group-identity > .vehicle-group-identity__name { margin-block-start: 0; margin-block-end: 0; }
 .vehicle-group-tag { flex: none; align-self: center; margin-inline-end: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--font-weight-regular); font-style: normal; letter-spacing: normal; text-transform: none; }
 .vehicle-detail-shell__identity .vehicle-group-tag { align-self: center; }
+.vehicle-group-tag--ungrouped { border-style: solid; border-color: var(--color-neutral-border); color: var(--color-neutral-foreground); background: var(--color-neutral-background); }
+.vehicle-group-tag--ungrouped.ant-tag-default { border-color: var(--color-neutral-border); color: var(--color-neutral-foreground); background: var(--color-neutral-background); }
 .vehicle-group-color-field { display: grid; gap: 8px; }
 .vehicle-group-color-field__options { display: flex; flex-wrap: wrap; gap: 8px; }
 .vehicle-group-color-field__option { position: relative; display: inline-flex; border-radius: 50%; cursor: pointer; }
