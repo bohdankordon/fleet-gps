@@ -60,8 +60,8 @@ test("speeding presentation is a translucent red underlay wider than the blue ro
   const speeding = tripSpeedingRouteLayer();
   assert.equal(speeding.paint?.["line-color"], TRIP_MAP_PRESENTATION.eventColor);
   assert.deepEqual(route.paint?.["line-width"], ["interpolate", ["linear"], ["zoom"], 9, 2, 15, 4]);
-  assert.deepEqual(speeding.paint?.["line-width"], ["interpolate", ["linear"], ["zoom"], 9, 5, 15, 8]);
-  assert.equal(speeding.paint?.["line-opacity"], 0.42);
+  assert.deepEqual(speeding.paint?.["line-width"], ["interpolate", ["linear"], ["zoom"], 9, 6, 15, 10]);
+  assert.equal(speeding.paint?.["line-opacity"], 0.47);
   assert.ok((speeding.paint?.["line-opacity"] as number) < 0.5);
   assert.equal(speeding.layout?.["line-cap"], "round");
   assert.equal(speeding.layout?.["line-join"], "round");

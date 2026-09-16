@@ -153,7 +153,7 @@ test("Legend mirrors Main Map's trigger and popup surface and derives rows from 
   assert.match(trips, /\{showSpeedingSegment \? <span><TripLegendSwatch kind="speeding-segment" \/>\{t\("trips\.legend\.speedingSegment"\)\}<\/span> : null\}/);
   assert.match(mapStyles, /\.map-legend \{[\s\S]*width: min\(340px, calc\(100vw - 64px\)\);[\s\S]*gap: 10px;/);
   for (const kind of ["route", "observation", "warning", "start", "end", "stop", "event", "speeding-segment"]) assert.match(styles, new RegExp(`vehicle-trips__legend-sample--${kind}`));
-  assert.match(styles, /vehicle-trips__legend-sample--speeding-segment::before \{[^}]*height: 7px;[^}]*background: var\(--trip-marker-event\);[^}]*opacity: 0\.42;/);
+  assert.match(styles, /vehicle-trips__legend-sample--speeding-segment::before \{[^}]*height: 10px;[^}]*background: var\(--trip-marker-event\);[^}]*opacity: 0\.47;/);
   assert.match(styles, /vehicle-trips__legend-sample--speeding-segment::after \{[^}]*height: 3px;[^}]*background: var\(--trip-marker-route\);/);
   assert.match(trips, /"--trip-marker-event-size": `\$\{TRIP_MAP_PRESENTATION\.eventRadius \* 2\}px`/);
   assert.match(trips, /"--trip-marker-event-halo-size": `\$\{TRIP_MAP_PRESENTATION\.eventHaloRadius \* 2\}px`/);

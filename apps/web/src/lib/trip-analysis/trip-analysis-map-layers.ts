@@ -124,8 +124,8 @@ export function tripSpeedingRouteLayer(): LineLayerSpecification {
     source: TRIP_SPEEDING_ROUTE_SOURCE_ID,
     paint: {
       "line-color": TRIP_MAP_PRESENTATION.eventColor,
-      "line-width": ["interpolate", ["linear"], ["zoom"], 9, 5, 15, 8],
-      "line-opacity": 0.42,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 9, 6, 15, 10],
+      "line-opacity": 0.47,
     },
     layout: { "line-cap": "round", "line-join": "round" },
   };
