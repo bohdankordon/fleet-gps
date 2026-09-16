@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { CircleLayerSpecification, Map as MapLibreMap } from "maplibre-gl";
+import type { CircleLayerSpecification, LineLayerSpecification, Map as MapLibreMap } from "maplibre-gl";
 import { FLEET_MAP_PRESENTATION } from "../fleet-map/fleet-map-presentation";
 import { EMPTY_VEHICLE_TRACK_PRESENTATION } from "../vehicle-track/vehicle-track-presentation";
 import {
@@ -8,6 +8,7 @@ import {
   TRIP_MAP_ENDPOINT_LAYER_ID,
   TRIP_MAP_LAYER_ORDER,
   TRIP_MAP_LEGEND_ITEMS,
+  TRIP_MAP_LINE_LAYER_ID,
   TRIP_MAP_LINE_SOURCE_ID,
   TRIP_MAP_NORMAL_POINT_LAYER_ID,
   TRIP_MAP_POINT_SOURCE_ID,
@@ -20,11 +21,13 @@ import {
   tripEventGeoJson,
   tripEventLayers,
   TRIP_EVENT_SOURCE_ID,
+  TRIP_EVENT_HALO_LAYER_ID,
   TRIP_EVENT_MARKER_LAYER_ID,
   ensureTripSpeedingRouteLayer,
   updateTripSpeedingRouteData,
   TRIP_SPEEDING_ROUTE_SOURCE_ID,
   TRIP_SPEEDING_ROUTE_LAYER_ID,
+  tripSpeedingRouteLayer,
 } from "./trip-analysis-map-layers";
 
 test("Trip Map geometry follows the accepted fleet marker grammar and keeps warnings additive", () => {
@@ -49,7 +52,19 @@ test("Trip Map geometry follows the accepted fleet marker grammar and keeps warn
 
 test("Legend semantics stay synchronized with the complete Trips layer vocabulary", () => {
   assert.deepEqual(TRIP_MAP_LEGEND_ITEMS.map((item) => item.kind), ["route", "observation", "warning", "start", "end", "stop"]);
-  assert.deepEqual(TRIP_MAP_LAYER_ORDER, ["trips-map-line", "trips-speeding-route-line", "trips-map-points-warning-accent", "trips-map-points-normal", "trips-map-endpoints"]);
+  assert.deepEqual(TRIP_MAP_LAYER_ORDER, ["trips-speeding-route-line", "trips-map-line", "trips-map-points-warning-accent", "trips-map-points-normal", "trips-map-endpoints"]);
+});
+
+test("speeding presentation is a translucent red underlay wider than the blue route", () => {
+  const route = tripMapLayers().find((layer) => layer.id === TRIP_MAP_LINE_LAYER_ID) as LineLayerSpecification;
+  const speeding = tripSpeedingRouteLayer();
+  assert.equal(speeding.paint?.["line-color"], TRIP_MAP_PRESENTATION.eventColor);
+  assert.deepEqual(route.paint?.["line-width"], ["interpolate", ["linear"], ["zoom"], 9, 2, 15, 4]);
+  assert.deepEqual(speeding.paint?.["line-width"], ["interpolate", ["linear"], ["zoom"], 9, 5, 15, 8]);
+  assert.equal(speeding.paint?.["line-opacity"], 0.42);
+  assert.ok((speeding.paint?.["line-opacity"] as number) < 0.5);
+  assert.equal(speeding.layout?.["line-cap"], "round");
+  assert.equal(speeding.layout?.["line-join"], "round");
 });
 
 test("Trip Map sources and layers are created once below labels and data updates in place", () => {
@@ -79,7 +94,8 @@ test("Trip Map sources and layers are created once below labels and data updates
   assert.equal(sources.size, 3);
   assert.equal(setDataCalls, 3);
   assert.deepEqual(layers.map((layer) => layer.id), [...TRIP_MAP_LAYER_ORDER, "basemap-labels"]);
-  assert.ok(layers.findIndex((layer) => layer.id === TRIP_SPEEDING_ROUTE_LAYER_ID) > layers.findIndex((layer) => layer.id === "trips-map-line"));
+  assert.ok(layers.findIndex((layer) => layer.id === TRIP_SPEEDING_ROUTE_LAYER_ID) < layers.findIndex((layer) => layer.id === TRIP_MAP_LINE_LAYER_ID));
+  assert.ok(layers.findIndex((layer) => layer.id === TRIP_MAP_LINE_LAYER_ID) < layers.findIndex((layer) => layer.id === TRIP_MAP_WARNING_ACCENT_LAYER_ID));
 });
 
 test("persisted event coordinates create an independent marker above route layers and survive an empty track", () => {
@@ -98,6 +114,8 @@ test("persisted event coordinates create an independent marker above route layer
   ensureTripEventLayer(map, { latitude: 49.23, longitude: 28.48 });
   updateTripEventData(map, { latitude: 49.24, longitude: 28.49 });
   assert.equal(sources.has(TRIP_EVENT_SOURCE_ID), true);
+  assert.ok(layers.findIndex((layer) => layer.id === TRIP_EVENT_HALO_LAYER_ID) > layers.findIndex((layer) => layer.id === "trips-map-endpoints"));
+  assert.ok(layers.findIndex((layer) => layer.id === TRIP_EVENT_MARKER_LAYER_ID) > layers.findIndex((layer) => layer.id === TRIP_EVENT_HALO_LAYER_ID));
   assert.ok(layers.findIndex((layer) => layer.id === TRIP_EVENT_MARKER_LAYER_ID) > layers.findIndex((layer) => layer.id === "trips-map-endpoints"));
   assert.deepEqual((sources.get(TRIP_EVENT_SOURCE_ID)?.data as ReturnType<typeof tripEventGeoJson>).features[0]?.geometry.coordinates, [28.49, 49.24]);
 });

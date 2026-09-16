@@ -16,8 +16,8 @@ export const TRIP_EVENT_MARKER_LAYER_ID = "trips-speeding-event-marker";
 export const TRIP_SPEEDING_ROUTE_SOURCE_ID = "trips-speeding-route";
 export const TRIP_SPEEDING_ROUTE_LAYER_ID = "trips-speeding-route-line";
 export const TRIP_MAP_LAYER_ORDER = Object.freeze([
-  TRIP_MAP_LINE_LAYER_ID,
   TRIP_SPEEDING_ROUTE_LAYER_ID,
+  TRIP_MAP_LINE_LAYER_ID,
   TRIP_MAP_WARNING_ACCENT_LAYER_ID,
   TRIP_MAP_NORMAL_POINT_LAYER_ID,
   TRIP_MAP_ENDPOINT_LAYER_ID,
@@ -116,15 +116,27 @@ export function updateTripMapData(map: MapLibreMap, model: VehicleTrackPresentat
 }
 
 const EMPTY_SPEEDING_ROUTE: SpeedingRouteGeoJson = { type: "FeatureCollection", features: [] };
-export function ensureTripSpeedingRouteLayer(map: MapLibreMap, data: SpeedingRouteGeoJson = EMPTY_SPEEDING_ROUTE): void {
-  if (!map.getSource(TRIP_SPEEDING_ROUTE_SOURCE_ID)) map.addSource(TRIP_SPEEDING_ROUTE_SOURCE_ID, { type: "geojson", data });
-  if (!map.getLayer(TRIP_SPEEDING_ROUTE_LAYER_ID)) map.addLayer({
+
+export function tripSpeedingRouteLayer(): LineLayerSpecification {
+  return {
     id: TRIP_SPEEDING_ROUTE_LAYER_ID,
     type: "line",
     source: TRIP_SPEEDING_ROUTE_SOURCE_ID,
-    paint: { "line-color": TRIP_MAP_PRESENTATION.eventColor, "line-width": ["interpolate", ["linear"], ["zoom"], 9, 3.5, 15, 5.5], "line-opacity": 0.96 },
+    paint: {
+      "line-color": TRIP_MAP_PRESENTATION.eventColor,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 9, 5, 15, 8],
+      "line-opacity": 0.42,
+    },
     layout: { "line-cap": "round", "line-join": "round" },
-  }, map.getLayer(TRIP_MAP_WARNING_ACCENT_LAYER_ID) ? TRIP_MAP_WARNING_ACCENT_LAYER_ID : map.getStyle().layers?.find((layer) => layer.type === "symbol")?.id);
+  };
+}
+
+export function ensureTripSpeedingRouteLayer(map: MapLibreMap, data: SpeedingRouteGeoJson = EMPTY_SPEEDING_ROUTE): void {
+  if (!map.getSource(TRIP_SPEEDING_ROUTE_SOURCE_ID)) map.addSource(TRIP_SPEEDING_ROUTE_SOURCE_ID, { type: "geojson", data });
+  if (!map.getLayer(TRIP_SPEEDING_ROUTE_LAYER_ID)) map.addLayer(
+    tripSpeedingRouteLayer(),
+    map.getLayer(TRIP_MAP_LINE_LAYER_ID) ? TRIP_MAP_LINE_LAYER_ID : map.getStyle().layers?.find((layer) => layer.type === "symbol")?.id,
+  );
 }
 
 export function updateTripSpeedingRouteData(map: MapLibreMap, data: SpeedingRouteGeoJson): void {

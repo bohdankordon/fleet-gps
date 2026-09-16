@@ -88,7 +88,8 @@
 .vehicle-trips__legend-sample::before,
 .vehicle-trips__legend-sample::after { position: absolute; top: 50%; left: 50%; box-sizing: border-box; transform: translate(-50%, -50%); content: ""; }
 .vehicle-trips__legend-sample--route::before { width: 22px; height: 3px; border-radius: 2px; background: var(--trip-marker-route); }
-.vehicle-trips__legend-sample--speeding-segment::before { width: 22px; height: 5px; border-radius: 3px; background: var(--trip-marker-event); }
+.vehicle-trips__legend-sample--speeding-segment::before { width: 22px; height: 7px; border-radius: 4px; background: var(--trip-marker-event); opacity: 0.42; }
+.vehicle-trips__legend-sample--speeding-segment::after { width: 22px; height: 3px; border-radius: 2px; background: var(--trip-marker-route); }
 .vehicle-trips__legend-sample--observation::before,
 .vehicle-trips__legend-sample--warning::before,
 .vehicle-trips__legend-sample--start::before,
