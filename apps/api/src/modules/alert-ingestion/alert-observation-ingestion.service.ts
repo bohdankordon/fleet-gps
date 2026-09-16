@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { normalizeUuid } from "../../common/uuid.validation";
 import { AlertEvaluationService, type AlertEvaluationObservation } from "../alert-evaluation";
 import { AlertSettingsService } from "../alert-settings";
-import { normalizeSpeedingObservation, safeObservedAt, safeVehicleId } from "../speeding-detector";
+import { createSpeedingSettingsFingerprint, normalizeSpeedingObservation, safeObservedAt, safeVehicleId } from "../speeding-detector";
 import type { AlertEvaluationJournalObservation, AlertObservationIngestionResult, DurableAlertObservation } from "./alert-ingestion.types";
 import { AlertObservationPersistenceStateError } from "./alert-ingestion.types";
 import { AlertObservationRepository } from "./alert-observation.repository";
@@ -120,7 +120,9 @@ export class AlertObservationIngestionService {
     if (frontier === undefined) throw new AlertObservationPersistenceStateError("Replay frontier was not initialized");
     const replayEligible = frontier === null || observation.observedAt.getTime() > frontier;
     const evaluation = await this.evaluation.evaluateObservation(replayInput(observation));
-    await this.repository.markProcessed(observation.id, replayEligible);
+    const checkpoint = this.evaluation.speedingCheckpoint(observation.vehicleId);
+    if (checkpoint === null) throw new AlertObservationPersistenceStateError("Speeding checkpoint was not produced for a valid observation");
+    await this.repository.completeObservation(observation.id, replayEligible, checkpoint);
     if (replayEligible) this.replayFrontiers.set(observation.vehicleId, observation.observedAt.getTime());
     return evaluation;
   }
@@ -128,20 +130,27 @@ export class AlertObservationIngestionService {
   private async bootstrapVehicleIfRequired(vehicleId: string): Promise<void> {
     if (this.initializedVehicles.has(vehicleId)) return;
     this.evaluation.resetVehicle(vehicleId);
-    const latestReplayEligible = await this.repository.findLatestReplayEligibleObservation(vehicleId);
-    if (latestReplayEligible === null) {
-      this.replayFrontiers.set(vehicleId, null);
-      this.initializedVehicles.add(vehicleId);
-      return;
-    }
     const settings = await this.alertSettings.getSettings();
-    const cutoff = new Date(latestReplayEligible.observedAt.getTime() - settings.inactivityDurationMinutes * 60_000);
-    const history = await this.repository.findReplayState(vehicleId, cutoff, latestReplayEligible.observedAt, settings.speedingConfirmationUpdates);
-    for (const observation of history) await this.evaluation.primeObservation(replayInput(observation), settings);
-    // Replay intentionally uses current-settings semantics. Historical settings
-    // versions are not persisted in this Stage 6C.2A journal. A future settings
-    // mutation workflow must reset this marker so the vehicle is re-bootstrapped.
-    this.replayFrontiers.set(vehicleId, latestReplayEligible.observedAt.getTime());
+    const [latestReplayEligible, checkpoint] = await Promise.all([
+      this.repository.findLatestReplayEligibleObservation(vehicleId),
+      this.repository.findSpeedingCheckpoint(vehicleId),
+    ]);
+    const latestJournalMs = latestReplayEligible?.observedAt.getTime() ?? null;
+    const checkpointMs = checkpoint === null ? null : Date.parse(checkpoint.lastAcceptedObservedAt);
+    if (checkpoint !== null && (checkpoint.vehicleId !== vehicleId || checkpointMs === null || !Number.isFinite(checkpointMs))) throw new AlertObservationPersistenceStateError("Persisted speeding checkpoint identity is invalid");
+    const trustedFrontierMs = latestJournalMs === null ? checkpointMs : checkpointMs === null ? latestJournalMs : Math.max(latestJournalMs, checkpointMs);
+    const fingerprint = createSpeedingSettingsFingerprint(settings);
+    if (checkpoint !== null && checkpoint.settingsFingerprint === fingerprint && checkpointMs === trustedFrontierMs) {
+      this.evaluation.hydrateSpeeding(checkpoint);
+    } else if (trustedFrontierMs !== null) {
+      this.evaluation.seedSpeedingOrderingFrontier(vehicleId, new Date(trustedFrontierMs), settings);
+    }
+    if (latestReplayEligible !== null) {
+      const cutoff = new Date(latestReplayEligible.observedAt.getTime() - settings.inactivityDurationMinutes * 60_000);
+      const history = await this.repository.findInactivityReplayState(vehicleId, cutoff, latestReplayEligible.observedAt);
+      for (const observation of history) await this.evaluation.primeInactivityObservation(replayInput(observation), settings);
+    }
+    this.replayFrontiers.set(vehicleId, trustedFrontierMs);
     this.initializedVehicles.add(vehicleId);
   }
 

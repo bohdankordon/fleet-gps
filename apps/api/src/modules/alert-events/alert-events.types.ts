@@ -13,6 +13,9 @@ export type OpenSpeedingEventCommand = Readonly<{
   speedThresholdKph: number;
   confirmationLatitude: number;
   confirmationLongitude: number;
+  speedingStreakStartedAt: Date;
+  speedingStreakStartLatitude: number;
+  speedingStreakStartLongitude: number;
 }>;
 
 export type OpenInactivityEventCommand = Readonly<{
@@ -31,6 +34,9 @@ export type UpdateSpeedingEventCommand = Readonly<{
   vehicleId: string;
   observedAt: Date;
   speedKph: number;
+  latitude: number;
+  longitude: number;
+  confirmationObservedAt: Date;
 }>;
 
 export type UpdateInactivityEventCommand = Readonly<{
@@ -41,7 +47,9 @@ export type UpdateInactivityEventCommand = Readonly<{
 }>;
 
 export type UpdateAlertEventCommand = UpdateSpeedingEventCommand | UpdateInactivityEventCommand;
-export type ResolveAlertEventCommand = UpdateAlertEventCommand;
+export type ResolveSpeedingEventCommand = Readonly<{ type: "SPEEDING"; vehicleId: string; observedAt: Date; speedKph: number }>;
+export type ResolveInactivityEventCommand = UpdateInactivityEventCommand;
+export type ResolveAlertEventCommand = ResolveSpeedingEventCommand | ResolveInactivityEventCommand;
 
 export type AlertEventPersistenceAction =
   | Readonly<{ kind: "NONE" }>
@@ -88,6 +96,7 @@ export type AlertEventLifecycleResult =
   | Readonly<{ outcome: "CREATED"; eventId: string }>
   | Readonly<{ outcome: "ALREADY_EXISTS"; eventId: string }>
   | Readonly<{ outcome: "ALREADY_OPEN"; eventId: string; updated: boolean }>
+  | Readonly<{ outcome: "ALREADY_APPLIED"; eventId: string }>
   | Readonly<{ outcome: "UPDATED"; eventId: string }>
   | Readonly<{ outcome: "RESOLVED"; eventId: string }>
   | Readonly<{ outcome: "NOOP"; reason: AlertEventNoopReason }>;

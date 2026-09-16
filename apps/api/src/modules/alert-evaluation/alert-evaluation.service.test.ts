@@ -143,7 +143,7 @@ test("7-8. speeding PENDING and inactivity COLLECTING both process as NONE", asy
 });
 
 test("9-10. both CONFIRMED preserve production OPEN/CREATED outcomes", async () => {
-  const speed = speeding({ status: "CONFIRMED", consecutiveCount: 2, newlyConfirmed: true, confirmationPosition: { latitude: 49.2328, longitude: 28.481 } });
+  const speed = speeding({ status: "CONFIRMED", consecutiveCount: 2, newlyConfirmed: true, confirmationPosition: { latitude: 49.2328, longitude: 28.481 }, confirmationObservedAt: OBSERVED_AT, streakStart: { observedAt: OBSERVED_AT, latitude: 49.2328, longitude: 28.481 }, speedingPosition: { latitude: 49.2328, longitude: 28.481 } });
   const idle = inactivity({ status: "CONFIRMED", reason: "INACTIVITY_CONFIRMED", elapsedMinutes: 60, traveledDistanceMeters: 12, windowPointCount: 4, newlyConfirmed: true });
   const { processor, calls } = productionProcessor();
   const speedDetector = { detect: async () => speed, resetVehicle() {}, clearAll() {} } as unknown as SpeedingDetectorService;
@@ -155,7 +155,7 @@ test("9-10. both CONFIRMED preserve production OPEN/CREATED outcomes", async () 
 });
 
 test("11. both ACTIVE preserve production UPDATE/UPDATED outcomes", async () => {
-  const speed = speeding({ status: "ACTIVE", consecutiveCount: 3 });
+  const speed = speeding({ status: "ACTIVE", consecutiveCount: 3, confirmationObservedAt: OBSERVED_AT, speedingPosition: { latitude: 49.2328, longitude: 28.481 } });
   const idle = inactivity({ status: "ACTIVE", reason: "INACTIVITY_ACTIVE", elapsedMinutes: 60, traveledDistanceMeters: 10, windowPointCount: 4 });
   const { processor, calls } = productionProcessor({ outcome: "UPDATED", eventId: "updated" });
   const service = new AlertEvaluationService(
@@ -340,7 +340,7 @@ test("25. clearAll clears both detector singletons", () => {
 
 test("26. persistence failure leaves advanced detector state and replay may be OUT_OF_ORDER", async () => {
   const stateMachine = new SpeedingDetectorStateMachine();
-  const context = Object.freeze({ ruleEnabled: true, zone: "CITY" as const, thresholdKph: 60, confirmationRequired: 1 });
+  const context = Object.freeze({ ruleEnabled: true, zone: "CITY" as const, thresholdKph: 60, confirmationRequired: 1, settingsFingerprint: "settings-a" });
   const speedDetector = {
     detect: async (input: AlertEvaluationObservation) => stateMachine.detect(input, context),
     resetVehicle: (vehicleId: string) => stateMachine.resetVehicle(vehicleId), clearAll: () => stateMachine.clearAll(),
@@ -362,12 +362,4 @@ test("26. persistence failure leaves advanced detector state and replay may be O
   const replay = await service.evaluateObservation(OBSERVATION);
   assert.equal(replay.speeding.detection.status, "IGNORED"); assert.equal(replay.speeding.detection.reason, "OUT_OF_ORDER");
   assert.equal(inactivityCalls, 2);
-});
-
-test("27. primeObservation uses production detectors with zero processor or lifecycle calls", async () => {
-  const { service, order } = setup();
-  const result = await service.primeObservation(OBSERVATION);
-  assert.deepEqual(order, ["speeding detector", "inactivity detector"]);
-  assert.equal(result.speeding.status, "PENDING"); assert.equal(result.inactivity.status, "COLLECTING");
-  assert.deepEqual(Object.keys(result).sort(), ["inactivity", "observedAt", "speeding", "vehicleId"]);
 });

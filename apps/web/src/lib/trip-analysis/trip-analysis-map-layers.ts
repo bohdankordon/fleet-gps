@@ -2,6 +2,7 @@ import type { CircleLayerSpecification, GeoJSONSource, LineLayerSpecification, M
 import type { FeatureCollection, Point } from "geojson";
 import { FLEET_MAP_PRESENTATION } from "../fleet-map/fleet-map-presentation";
 import type { VehicleTrackPresentationModel } from "../vehicle-track/vehicle-track-presentation";
+import type { SpeedingRouteGeoJson } from "./trip-analysis-speeding-route";
 
 export const TRIP_MAP_LINE_SOURCE_ID = "trips-map-lines";
 export const TRIP_MAP_POINT_SOURCE_ID = "trips-map-points";
@@ -12,7 +13,10 @@ export const TRIP_MAP_ENDPOINT_LAYER_ID = "trips-map-endpoints";
 export const TRIP_EVENT_SOURCE_ID = "trips-speeding-event";
 export const TRIP_EVENT_HALO_LAYER_ID = "trips-speeding-event-halo";
 export const TRIP_EVENT_MARKER_LAYER_ID = "trips-speeding-event-marker";
+export const TRIP_SPEEDING_ROUTE_SOURCE_ID = "trips-speeding-route";
+export const TRIP_SPEEDING_ROUTE_LAYER_ID = "trips-speeding-route-line";
 export const TRIP_MAP_LAYER_ORDER = Object.freeze([
+  TRIP_SPEEDING_ROUTE_LAYER_ID,
   TRIP_MAP_LINE_LAYER_ID,
   TRIP_MAP_WARNING_ACCENT_LAYER_ID,
   TRIP_MAP_NORMAL_POINT_LAYER_ID,
@@ -109,6 +113,34 @@ export function ensureTripMapLayers(map: MapLibreMap, model: VehicleTrackPresent
 export function updateTripMapData(map: MapLibreMap, model: VehicleTrackPresentationModel): void {
   (map.getSource(TRIP_MAP_LINE_SOURCE_ID) as GeoJSONSource | undefined)?.setData(model.lineGeoJson);
   (map.getSource(TRIP_MAP_POINT_SOURCE_ID) as GeoJSONSource | undefined)?.setData(model.pointGeoJson);
+}
+
+const EMPTY_SPEEDING_ROUTE: SpeedingRouteGeoJson = { type: "FeatureCollection", features: [] };
+
+export function tripSpeedingRouteLayer(): LineLayerSpecification {
+  return {
+    id: TRIP_SPEEDING_ROUTE_LAYER_ID,
+    type: "line",
+    source: TRIP_SPEEDING_ROUTE_SOURCE_ID,
+    paint: {
+      "line-color": TRIP_MAP_PRESENTATION.eventColor,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 9, 6, 15, 10],
+      "line-opacity": 0.47,
+    },
+    layout: { "line-cap": "round", "line-join": "round" },
+  };
+}
+
+export function ensureTripSpeedingRouteLayer(map: MapLibreMap, data: SpeedingRouteGeoJson = EMPTY_SPEEDING_ROUTE): void {
+  if (!map.getSource(TRIP_SPEEDING_ROUTE_SOURCE_ID)) map.addSource(TRIP_SPEEDING_ROUTE_SOURCE_ID, { type: "geojson", data });
+  if (!map.getLayer(TRIP_SPEEDING_ROUTE_LAYER_ID)) map.addLayer(
+    tripSpeedingRouteLayer(),
+    map.getLayer(TRIP_MAP_LINE_LAYER_ID) ? TRIP_MAP_LINE_LAYER_ID : map.getStyle().layers?.find((layer) => layer.type === "symbol")?.id,
+  );
+}
+
+export function updateTripSpeedingRouteData(map: MapLibreMap, data: SpeedingRouteGeoJson): void {
+  (map.getSource(TRIP_SPEEDING_ROUTE_SOURCE_ID) as GeoJSONSource | undefined)?.setData(data);
 }
 
 export type TripEventPosition = Readonly<{ latitude: number; longitude: number }> | null;

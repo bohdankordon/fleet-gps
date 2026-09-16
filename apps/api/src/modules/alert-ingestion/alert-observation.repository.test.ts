@@ -9,6 +9,7 @@ const VEHICLE_ID = "00000000-0000-4000-8000-000000000071";
 const AT = new Date("2026-08-08T10:00:00.000Z");
 const observation = Object.freeze({ vehicleId: VEHICLE_ID, observedAt: AT.toISOString(), observedAtMs: AT.getTime(), latitude: 49.2328, longitude: 28.481, speedKph: 72.125 });
 const stored = Object.freeze({ id: "journal-1", vehicleId: VEHICLE_ID, observedAt: AT, latitude: 49.2328, longitude: 28.481, speedKph: 72.125, processedAt: null, replayEligible: null, createdAt: new Date("2026-08-08T10:00:01.000Z") });
+const checkpoint = Object.freeze({ vehicleId: VEHICLE_ID, lastAcceptedObservedAt: AT.toISOString(), settingsFingerprint: "a".repeat(64), context: Object.freeze({ zone: "CITY" as const, thresholdKph: 60, confirmationRequired: 2 }), consecutiveCount: 2, confirmed: true, streakStart: Object.freeze({ observedAt: new Date(AT.getTime() - 1_000).toISOString(), latitude: 49.23, longitude: 28.48 }), confirmationObservedAt: AT.toISOString() });
 
 function uniqueError(target: string[]): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError("safe", { code: "P2002", clientVersion: "7.9.1", meta: { target, modelName: "AlertEvaluationObservation" } });
@@ -62,24 +63,21 @@ test("recognizes adapter-pg identity fields without swallowing other P2002 const
   await assert.rejects(new AlertObservationRepository({ getClient: () => unrelatedClient } as DatabaseService).createOrFindObservation(observation), (error: unknown) => error === unrelated);
 });
 
-test("replay query selects only replay-eligible processed rows for anchor, inactivity recent, and speeding latest N", async () => {
+test("inactivity replay query selects only the anchor and replay-eligible processed window", async () => {
   const calls: unknown[] = [];
   const anchor = { ...stored, id: "anchor", observedAt: new Date("2026-08-08T08:59:00.000Z"), processedAt: new Date(), replayEligible: true };
   const recent = [{ ...stored, id: "recent", observedAt: new Date("2026-08-08T09:30:00.000Z"), processedAt: new Date(), replayEligible: true }];
-  const speeding = [recent[0]!, { ...stored, id: "speeding", observedAt: new Date("2026-08-08T09:45:00.000Z"), processedAt: new Date(), replayEligible: true }];
-  let findManyCalls = 0;
   const client = { alertEvaluationObservation: {
     findFirst: async (input: unknown) => { calls.push(input); return anchor; },
-    findMany: async (input: unknown) => { calls.push(input); findManyCalls += 1; return findManyCalls === 1 ? recent : speeding; },
+    findMany: async (input: unknown) => { calls.push(input); return recent; },
   } } as unknown as PrismaClient;
   const cutoff = new Date("2026-08-08T09:00:00.000Z"); const target = AT;
-  const result = await new AlertObservationRepository({ getClient: () => client } as DatabaseService).findReplayState(VEHICLE_ID, cutoff, target, 10);
-  assert.deepEqual(result.map((row) => row.id), ["anchor", "recent", "speeding"]);
+  const result = await new AlertObservationRepository({ getClient: () => client } as DatabaseService).findInactivityReplayState(VEHICLE_ID, cutoff, target);
+  assert.deepEqual(result.map((row) => row.id), ["anchor", "recent"]);
   assert.deepEqual((calls[0] as { where: unknown }).where, { vehicleId: VEHICLE_ID, processedAt: { not: null }, replayEligible: true, observedAt: { lt: cutoff } });
   assert.deepEqual((calls[1] as { where: unknown }).where, { vehicleId: VEHICLE_ID, processedAt: { not: null }, replayEligible: true, observedAt: { gte: cutoff, lte: target } });
   assert.deepEqual((calls[0] as { orderBy: unknown }).orderBy, { observedAt: "desc" });
-  assert.deepEqual((calls[2] as { where: unknown }).where, { vehicleId: VEHICLE_ID, processedAt: { not: null }, replayEligible: true, observedAt: { lte: target } });
-  assert.equal((calls[2] as { take: number }).take, 10);
+  assert.equal(calls.length, 2);
 });
 
 test("pending-through query uses the journal index shape and strict timestamp order", async () => {
@@ -97,6 +95,35 @@ test("latest replay state filters completed late rows and orders newest replayab
   const result = await new AlertObservationRepository({ getClient: () => client } as DatabaseService).findLatestReplayEligibleObservation(VEHICLE_ID);
   assert.equal(result, stored);
   assert.deepEqual((call as { where: unknown }).where, { vehicleId: VEHICLE_ID, processedAt: { not: null }, replayEligible: true }); assert.deepEqual((call as { orderBy: unknown }).orderBy, { observedAt: "desc" });
+});
+
+test("checkpoint read reconstructs exact pending or confirmed detector identity", async () => {
+  const client = { speedingDetectorCheckpoint: { findUnique: async () => ({ vehicleId: VEHICLE_ID, lastAcceptedObservedAt: AT, settingsFingerprint: "a".repeat(64), contextZone: "CITY", contextThresholdKph: 60, contextConfirmationRequired: 2, consecutiveCount: 2, confirmed: true, streakStartedAt: new Date(AT.getTime() - 1_000), streakStartLatitude: 49.23, streakStartLongitude: 28.48, confirmationObservedAt: AT }) } } as unknown as PrismaClient;
+  assert.deepEqual(await new AlertObservationRepository({ getClient: () => client } as DatabaseService).findSpeedingCheckpoint(VEHICLE_ID), checkpoint);
+});
+
+test("completion writes the monotonic checkpoint and processed marker in one transaction", async () => {
+  let query: Prisma.Sql | null = null; let markerWrites = 0; let transactions = 0;
+  const transaction = {
+    $queryRaw: async (input: Prisma.Sql) => { query = input; return [{ vehicleId: VEHICLE_ID }]; },
+    $executeRaw: async () => { markerWrites += 1; return 1; },
+    alertEvaluationObservation: { findUnique: async () => null },
+  };
+  const client = { $transaction: async (callback: (tx: typeof transaction) => Promise<void>) => { transactions += 1; await callback(transaction); } } as unknown as PrismaClient;
+  await new AlertObservationRepository({ getClient: () => client } as DatabaseService).completeObservation("journal-1", true, checkpoint);
+  assert.equal(transactions, 1); assert.equal(markerWrites, 1); assert.ok(query);
+  const rendered = query as unknown as Prisma.Sql;
+  assert.match(rendered.sql, /ON CONFLICT \("vehicle_id"\) DO UPDATE/);
+  assert.match(rendered.sql, /last_accepted_observed_at" < EXCLUDED/);
+  assert.match(rendered.sql, /IS NOT DISTINCT FROM/);
+});
+
+test("completion rejects a stale or contradictory checkpoint before committing the marker", async () => {
+  let markerWrites = 0;
+  const transaction = { $queryRaw: async () => [], $executeRaw: async () => { markerWrites += 1; return 1; }, alertEvaluationObservation: { findUnique: async () => null } };
+  const client = { $transaction: async (callback: (tx: typeof transaction) => Promise<void>) => callback(transaction) } as unknown as PrismaClient;
+  await assert.rejects(new AlertObservationRepository({ getClient: () => client } as DatabaseService).completeObservation("journal-1", true, checkpoint), AlertObservationPersistenceStateError);
+  assert.equal(markerWrites, 0);
 });
 
 test("markProcessed atomically stores true/false with parameterized clock_timestamp", async () => {

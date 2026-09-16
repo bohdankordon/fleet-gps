@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { AlertEventProcessorService } from "../alert-events";
 import type { AlertRulesSettings } from "../alert-settings";
 import { InactivityDetectorService } from "../inactivity-detector";
-import { SpeedingDetectorService } from "../speeding-detector";
+import { SpeedingDetectorService, type SpeedingDetectorCheckpoint } from "../speeding-detector";
 import type { AlertEvaluationDetectionResult, AlertEvaluationObservation, AlertEvaluationResult } from "./alert-evaluation.types";
 
 /**
@@ -32,26 +32,23 @@ export class AlertEvaluationService {
     });
   }
 
-  /**
-   * Replays an already-processed journal observation through detectors only.
-   * This method must never invoke AlertEvent processors or lifecycle persistence.
-   */
-  public primeObservation(observation: AlertEvaluationObservation, settingsSnapshot?: AlertRulesSettings): Promise<AlertEvaluationDetectionResult> {
-    return this.detectObservation(observation, settingsSnapshot);
+  /** Historical bootstrap for inactivity only; speeding is restored from its durable checkpoint. */
+  public async primeInactivityObservation(observation: AlertEvaluationObservation, settingsSnapshot: AlertRulesSettings): Promise<void> {
+    await this.inactivityDetector.detectWithSettings(observation, settingsSnapshot);
   }
 
-  private async detectObservation(observation: AlertEvaluationObservation, settingsSnapshot?: AlertRulesSettings): Promise<AlertEvaluationDetectionResult> {
-    const speedingDetection = settingsSnapshot === undefined
-      ? await this.speedingDetector.detect(observation)
-      : this.speedingDetector.detectWithSettings(observation, settingsSnapshot);
+  public hydrateSpeeding(checkpoint: SpeedingDetectorCheckpoint): void { this.speedingDetector.hydrate(checkpoint); }
+  public seedSpeedingOrderingFrontier(vehicleId: string, observedAt: Date, settings: AlertRulesSettings): void { this.speedingDetector.seedOrderingFrontier(vehicleId, observedAt, settings); }
+  public speedingCheckpoint(vehicleId: string): SpeedingDetectorCheckpoint | null { return this.speedingDetector.checkpoint(vehicleId); }
+
+  private async detectObservation(observation: AlertEvaluationObservation): Promise<AlertEvaluationDetectionResult> {
+    const speedingDetection = await this.speedingDetector.detect(observation);
     // Speeding validation is authoritative for the complete trust-boundary
     // observation because it validates every shared field, including speedKph.
     // Do not let an invalid full observation advance inactivity timestamp/history.
     const inactivityDetection = speedingDetection.status === "IGNORED" && speedingDetection.reason === "INVALID_OBSERVATION"
       ? this.inactivityDetector.invalidResult(observation)
-      : settingsSnapshot === undefined
-        ? await this.inactivityDetector.detect(observation)
-        : this.inactivityDetector.detectWithSettings(observation, settingsSnapshot);
+      : await this.inactivityDetector.detect(observation);
 
     return Object.freeze({
       vehicleId: speedingDetection.vehicleId,

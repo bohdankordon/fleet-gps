@@ -1,4 +1,4 @@
-import type { AlertEventRecord, AlertEventType, OpenAlertEventCommand, ResolveAlertEventCommand, UpdateAlertEventCommand } from "./alert-events.types";
+import type { AlertEventRecord, AlertEventType, OpenAlertEventCommand, ResolveAlertEventCommand, UpdateAlertEventCommand, UpdateSpeedingEventCommand } from "./alert-events.types";
 
 export type RegisterAlertEventConfirmationInput = Readonly<{
   command: OpenAlertEventCommand;
@@ -21,6 +21,7 @@ export interface AlertEventsRepository {
   findOpenByVehicleAndType(vehicleId: string, type: AlertEventType): Promise<AlertEventRecord | null>;
   updateOpen(input: ConditionalAlertEventMutation<UpdateAlertEventCommand>): Promise<boolean>;
   resolveOpen(input: ConditionalAlertEventMutation<ResolveAlertEventCommand>): Promise<boolean>;
+  verifySpeedingUpdateApplied(event: AlertEventRecord, command: UpdateSpeedingEventCommand): Promise<boolean>;
 }
 
 export type AlertEventUniqueConflict = "RECEIPT_DEDUPE_KEY" | "EVENT_DEDUPE_KEY" | "ACTIVE_KEY";

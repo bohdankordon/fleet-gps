@@ -1,5 +1,5 @@
 import type { AlertEvaluationResult } from "../alert-evaluation";
-import type { NormalizedSpeedingObservation } from "../speeding-detector";
+import type { NormalizedSpeedingObservation, SpeedingDetectorCheckpoint } from "../speeding-detector";
 
 export type AlertObservationJournalOutcome = "CREATED" | "EXISTING" | "ALREADY_PROCESSED" | "INVALID";
 
@@ -44,3 +44,4 @@ export class AlertObservationPersistenceStateError extends Error {
 }
 
 export type DurableAlertObservation = NormalizedSpeedingObservation;
+export type DurableSpeedingDetectorCheckpoint = SpeedingDetectorCheckpoint;

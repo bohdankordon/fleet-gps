@@ -25,7 +25,7 @@ class MemoryAlertEventsRepository implements AlertEventsRepository {
     if (existing !== null) {
       this.receipts.set(input.dedupeKey, existing.id);
       const command: UpdateAlertEventCommand = input.command.type === "SPEEDING"
-        ? { type: "SPEEDING", vehicleId: input.command.vehicleId, observedAt: input.command.observedAt, speedKph: input.command.speedKph }
+        ? { type: "SPEEDING", vehicleId: input.command.vehicleId, observedAt: input.command.observedAt, speedKph: input.command.speedKph, latitude: input.command.confirmationLatitude, longitude: input.command.confirmationLongitude, confirmationObservedAt: input.command.observedAt }
         : { type: "INACTIVITY", vehicleId: input.command.vehicleId, observedAt: input.command.observedAt, traveledDistanceMeters: input.command.traveledDistanceMeters };
       const updated = input.command.observedAt.getTime() > existing.lastObservedAt.getTime() && await this.updateOpen({ event: existing, command });
       return { outcome: "ALREADY_OPEN", event: existing, updated };
@@ -61,6 +61,10 @@ class MemoryAlertEventsRepository implements AlertEventsRepository {
     return true;
   }
 
+  public async verifySpeedingUpdateApplied(event: AlertEventRecord, command: Extract<UpdateAlertEventCommand, { type: "SPEEDING" }>): Promise<boolean> {
+    return event.type === "SPEEDING" && event.lastObservedAt.getTime() === command.observedAt.getTime() && event.lastSpeedKph === command.speedKph;
+  }
+
   private matchingIndex(expected: AlertEventRecord): number {
     return this.events.findIndex((event) => event.id === expected.id && event.status === "OPEN" && event.lastObservedAt.getTime() === expected.lastObservedAt.getTime());
   }
@@ -72,7 +76,11 @@ function setup() {
 }
 
 function speeding(observedAt: Date, speedKph = 70, vehicleId = VEHICLE_A): OpenSpeedingEventCommand {
-  return { type: "SPEEDING", vehicleId, observedAt, zone: "CITY", speedKph, speedThresholdKph: 60, confirmationLatitude: 49.23, confirmationLongitude: 28.48 };
+  return { type: "SPEEDING", vehicleId, observedAt, zone: "CITY", speedKph, speedThresholdKph: 60, confirmationLatitude: 49.23, confirmationLongitude: 28.48, speedingStreakStartedAt: observedAt, speedingStreakStartLatitude: 49.23, speedingStreakStartLongitude: 28.48 };
+}
+
+function active(observedAt: Date, speedKph = 70, confirmationObservedAt = at(0)): Extract<UpdateAlertEventCommand, { type: "SPEEDING" }> {
+  return { type: "SPEEDING", vehicleId: VEHICLE_A, observedAt, speedKph, latitude: 49.23, longitude: 28.48, confirmationObservedAt };
 }
 
 function inactivity(observedAt: Date, traveledDistanceMeters = 20, vehicleId = VEHICLE_A): OpenInactivityEventCommand {
@@ -171,9 +179,9 @@ test("CREATED-only notification semantics exclude ALREADY_OPEN, UPDATED, RESOLVE
   assert.equal((await service.openSpeedingEvent(speeding(at(0), 70))).outcome, "CREATED");
   assert.equal(repository.notifications.size, 1);
   assert.equal((await service.openSpeedingEvent(speeding(at(1), 80))).outcome, "ALREADY_OPEN");
-  assert.equal((await service.updateSpeedingEvent({ type: "SPEEDING", vehicleId: VEHICLE_A, observedAt: at(2), speedKph: 75 })).outcome, "UPDATED");
+  assert.equal((await service.updateSpeedingEvent(active(at(2), 75, at(1)))).outcome, "UPDATED");
   assert.equal((await service.resolveSpeedingEvent({ type: "SPEEDING", vehicleId: VEHICLE_A, observedAt: at(3), speedKph: 40 })).outcome, "RESOLVED");
-  assert.equal((await service.updateSpeedingEvent({ type: "SPEEDING", vehicleId: VEHICLE_A, observedAt: at(4), speedKph: 75 })).outcome, "NOOP");
+  assert.equal((await service.updateSpeedingEvent(active(at(4), 75, at(1)))).outcome, "NOOP");
   assert.equal(repository.notifications.size, 1);
 });
 
@@ -199,8 +207,8 @@ test("vehicles have independent OPEN events", async () => {
 test("speeding ACTIVE keeps max peak and replaces last speed", async () => {
   const { service, repository } = setup();
   await service.openSpeedingEvent(speeding(at(0), 70));
-  assert.equal((await service.updateSpeedingEvent({ type: "SPEEDING", vehicleId: VEHICLE_A, observedAt: at(1), speedKph: 100 })).outcome, "UPDATED");
-  await service.updateSpeedingEvent({ type: "SPEEDING", vehicleId: VEHICLE_A, observedAt: at(2), speedKph: 80 });
+  assert.equal((await service.updateSpeedingEvent(active(at(1), 100))).outcome, "UPDATED");
+  await service.updateSpeedingEvent(active(at(2), 80));
   const event = repository.events[0] as SpeedingAlertEventRecord;
   assert.equal(event.lastSpeedKph, 80); assert.equal(event.peakSpeedKph, 100);
 });
@@ -216,7 +224,7 @@ test("inactivity ACTIVE keeps minimum distance and replaces last distance", asyn
 
 test("ACTIVE and CLEAR without OPEN are idempotent NOOP", async () => {
   const { service } = setup();
-  assert.deepEqual(await service.updateSpeedingEvent({ type: "SPEEDING", vehicleId: VEHICLE_A, observedAt: at(1), speedKph: 70 }), { outcome: "NOOP", reason: "MISSING_OPEN_EVENT" });
+  assert.deepEqual(await service.updateSpeedingEvent(active(at(1))), { outcome: "NOOP", reason: "MISSING_OPEN_EVENT" });
   assert.deepEqual(await service.resolveInactivityEvent({ type: "INACTIVITY", vehicleId: VEHICLE_A, observedAt: at(1), traveledDistanceMeters: 300 }), { outcome: "NOOP", reason: "MISSING_OPEN_EVENT" });
 });
 
@@ -231,7 +239,8 @@ test("CLEAR resolves, timestamps, updates safe metrics, and releases activeKey",
 test("stale and same-timestamp ACTIVE do not mutate", async () => {
   const { service, repository } = setup();
   await service.openSpeedingEvent(speeding(at(2), 70));
-  for (const observedAt of [at(1), at(2)]) assert.deepEqual(await service.updateSpeedingEvent({ type: "SPEEDING", vehicleId: VEHICLE_A, observedAt, speedKph: 100 }), { outcome: "NOOP", reason: "STALE" });
+  assert.deepEqual(await service.updateSpeedingEvent(active(at(1), 100, at(0))), { outcome: "NOOP", reason: "STALE" });
+  assert.deepEqual(await service.updateSpeedingEvent(active(at(2), 100, at(0))), { outcome: "NOOP", reason: "STALE" });
   const event = repository.events[0] as SpeedingAlertEventRecord;
   assert.equal(event.lastSpeedKph, 70); assert.equal(event.peakSpeedKph, 70);
 });

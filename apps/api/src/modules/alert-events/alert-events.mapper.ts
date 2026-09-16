@@ -12,11 +12,11 @@ function date(value: string | null): Date {
 
 export function mapSpeedingDetectionToAlertEventAction(result: SpeedingDetectionResult): AlertEventPersistenceAction {
   if (result.status === "CONFIRMED" && result.newlyConfirmed) {
-    const command = validateOpenAlertEventCommand({ type: "SPEEDING", vehicleId: result.vehicleId, observedAt: date(result.observedAt), zone: result.zone as "CITY" | "OUTSIDE_CITY", speedKph: result.speedKph as number, speedThresholdKph: result.thresholdKph as number, confirmationLatitude: result.confirmationPosition?.latitude as number, confirmationLongitude: result.confirmationPosition?.longitude as number });
+    const command = validateOpenAlertEventCommand({ type: "SPEEDING", vehicleId: result.vehicleId, observedAt: date(result.observedAt), zone: result.zone as "CITY" | "OUTSIDE_CITY", speedKph: result.speedKph as number, speedThresholdKph: result.thresholdKph as number, confirmationLatitude: result.confirmationPosition?.latitude as number, confirmationLongitude: result.confirmationPosition?.longitude as number, speedingStreakStartedAt: date(result.streakStart?.observedAt ?? null), speedingStreakStartLatitude: result.streakStart?.latitude as number, speedingStreakStartLongitude: result.streakStart?.longitude as number });
     return Object.freeze({ kind: "OPEN", command });
   }
   if (result.status === "ACTIVE") {
-    const command = validateUpdateAlertEventCommand({ type: "SPEEDING", vehicleId: result.vehicleId, observedAt: date(result.observedAt), speedKph: result.speedKph as number });
+    const command = validateUpdateAlertEventCommand({ type: "SPEEDING", vehicleId: result.vehicleId, observedAt: date(result.observedAt), speedKph: result.speedKph as number, latitude: result.speedingPosition?.latitude as number, longitude: result.speedingPosition?.longitude as number, confirmationObservedAt: date(result.confirmationObservedAt ?? null) });
     return Object.freeze({ kind: "UPDATE", command });
   }
   if (result.status === "CLEAR") {
