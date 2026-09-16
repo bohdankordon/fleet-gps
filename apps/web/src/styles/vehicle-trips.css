@@ -41,6 +41,7 @@
 .vehicle-trips__unavailable-title { margin: 0; font-size: var(--font-size-label); font-weight: var(--font-weight-semibold); line-height: var(--line-height-label); }
 
 .vehicle-trips__workspace { display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); grid-template-areas: "timeline map"; align-items: start; min-width: 0; border: 1px solid var(--trip-surface-border); border-radius: var(--trip-surface-radius); background: var(--trip-surface-bg); }
+.vehicle-trips__workspace { scroll-margin-top: var(--space-6); }
 .vehicle-trips__workspace-header { display: flex; align-items: center; justify-content: space-between; min-height: calc(var(--control-height-default) + var(--space-4) + 1px); padding: var(--space-2) var(--space-6); border-bottom: 1px solid var(--trip-summary-divider); }
 .vehicle-trips__workspace-header svg { overflow: visible; }
 .vehicle-trips__timeline-pane { grid-area: timeline; min-width: 0; }
@@ -74,6 +75,13 @@
 .vehicle-trips__map-empty { background: color-mix(in srgb, var(--color-surface) 88%, transparent); }
 .vehicle-trips__map-error { color: var(--color-danger); }
 .vehicle-trips__map-notice { margin-top: var(--space-2); }
+.vehicle-trips__event-notice { margin-bottom: var(--space-3); }
+.vehicle-trips__event-evidence { position: absolute; z-index: 4; inset-inline-start: var(--space-3); inset-block-end: var(--space-3); width: min(320px, calc(100% - var(--space-6))); padding: var(--space-3); border: 1px solid var(--trip-surface-border); border-radius: var(--trip-record-radius); background: color-mix(in srgb, var(--trip-surface-bg) 94%, transparent); box-shadow: var(--shadow-md); backdrop-filter: blur(8px); }
+.vehicle-trips__event-evidence > strong { display: block; margin-bottom: var(--space-2); color: var(--trip-color-warning-text); }
+.vehicle-trips__event-evidence dl { display: grid; gap: var(--space-1); margin: 0; }
+.vehicle-trips__event-evidence dl > div { display: flex; justify-content: space-between; gap: var(--space-3); }
+.vehicle-trips__event-evidence dt { color: var(--color-text-secondary); }
+.vehicle-trips__event-evidence dd { margin: 0; font-weight: var(--font-weight-semibold); text-align: end; font-variant-numeric: tabular-nums; }
 .vehicle-trips__stop-disclaimer { display: block; flex: 0 0 auto; line-height: 1.45; }
 
 .vehicle-trips__legend-sample { position: relative; display: inline-block; flex: none; width: 28px; height: 28px; }
@@ -91,6 +99,8 @@
 .vehicle-trips__legend-sample--stop::after { width: 13px; height: 13px; border: 2px solid var(--trip-marker-outline); border-radius: 50%; box-shadow: 0 0 0 1px var(--color-border-default); }
 .vehicle-trips__legend-sample--stop::before { left: 35%; background: var(--trip-marker-start); }
 .vehicle-trips__legend-sample--stop::after { left: 65%; background: var(--trip-marker-end); }
+.vehicle-trips__legend-sample--event::before { width: var(--trip-marker-event-size); height: var(--trip-marker-event-size); border: 2px solid var(--trip-marker-outline); border-radius: 50%; background: var(--trip-marker-event); box-shadow: 0 0 0 1px var(--color-border-default); }
+.vehicle-trips__legend-sample--event::after { width: var(--trip-marker-event-halo-size); height: var(--trip-marker-event-halo-size); border: 2px solid var(--trip-marker-event); border-radius: 50%; opacity: 0.45; }
 
 @media (min-width: 992px) {
   main.taxi-shell__main:has(.vehicle-trips) { padding-bottom: var(--space-12); }

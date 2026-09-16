@@ -15,6 +15,8 @@ import { EventStatusTag } from "./events-presentation";
 export function EventDetail({ event, onClose, now }: Readonly<{ event: AlertEvent; onClose: () => void; now: Date }>) {
   const { locale, t } = useI18n(); const { token } = theme.useToken(); const user = useAuth();
   const actions = alertEventActions(event, user, now);
+  const ordinaryActions = actions.filter((action) => action.key !== "eventTrip");
+  const eventTripAction = actions.find((action) => action.key === "eventTrip") ?? null;
   const metrics = event.type === "SPEEDING" ? [
     [t("events.zone"), alertZoneLabel(event.details.zone, locale)],
     [t("events.threshold"), formatAlertSpeed(event.details.thresholdKph, locale)],
@@ -39,7 +41,8 @@ export function EventDetail({ event, onClose, now }: Readonly<{ event: AlertEven
       {event.status === "RESOLVED" && event.resolvedAt && <div className="vehicle-overview__metric-row"><dt>{t("events.table.resolved")}</dt><dd><time dateTime={event.resolvedAt}>{formatAlertTimestamp(event.resolvedAt, locale)}</time></dd></div>}
     </dl><Typography.Text className="event-detail__help" type="secondary">Europe/Kyiv</Typography.Text></section>
     <section><Typography.Title className="event-detail__section-title vehicle-overview__section-title" level={5} style={{ margin: 0, fontSize: token.fontSizeLG }}>{t("events.evidence")}</Typography.Title><dl className="event-detail__facts vehicle-overview__metric-rows vehicle-overview__event-lifecycle">{metrics.map(([label, value]) => <div className="vehicle-overview__metric-row" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>{event.type === "INACTIVITY" && <Typography.Paragraph className="event-detail__help" type="secondary">{t("events.inactivityHelp")}</Typography.Paragraph>}</section>
-    {actions.length > 0 && <section><Typography.Title className="event-detail__section-title vehicle-overview__section-title" level={5} style={{ margin: 0, fontSize: token.fontSizeLG }}>{t("events.investigate")}</Typography.Title><div className="event-detail__actions">{actions.map((action) => <Button size="large" type="default" key={action.key} href={action.href} icon={action.key === "vehicle" ? <CarOutlined aria-hidden /> : action.key === "track" ? <HistoryOutlined aria-hidden /> : action.key === "trips" ? <NodeIndexOutlined aria-hidden /> : <EnvironmentOutlined aria-hidden />}>{t(`events.action.${action.key}`)}</Button>)}</div>
+    {actions.length > 0 && <section><Typography.Title className="event-detail__section-title vehicle-overview__section-title" level={5} style={{ margin: 0, fontSize: token.fontSizeLG }}>{t("events.investigate")}</Typography.Title><div className="event-detail__actions">{ordinaryActions.map((action) => <Button size="large" type="default" key={action.key} href={action.href} icon={action.key === "vehicle" ? <CarOutlined aria-hidden /> : action.key === "track" ? <HistoryOutlined aria-hidden /> : action.key === "trips" ? <NodeIndexOutlined aria-hidden /> : <EnvironmentOutlined aria-hidden />}>{t(`events.action.${action.key}`)}</Button>)}</div>
+      {eventTripAction ? <div className="event-detail__actions event-detail__actions--event"><Button size="large" type="primary" key={eventTripAction.key} href={eventTripAction.href} icon={<NodeIndexOutlined aria-hidden />}>{t(`events.action.${eventTripAction.key}`)}</Button></div> : null}
       {actions.some((a) => a.key === "track") && <Typography.Paragraph className="event-detail__help" type="secondary">{t("events.windowHelp")}</Typography.Paragraph>}
       {actions.some((a) => a.key === "position") && <Typography.Paragraph className="event-detail__help" type="secondary">{t("events.positionHelp")}</Typography.Paragraph>}
     </section>}

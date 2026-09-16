@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { Alert, Button, DatePicker, Drawer, Grid, Divider, Flex, Tabs, Select, Skeleton, Typography, theme } from "antd";
-import { AlertOutlined, CalendarOutlined, DownOutlined, ReloadOutlined } from "@ant-design/icons";
+import { Alert, Button, DatePicker, Drawer, Grid, Divider, Flex, Tabs, Select, Skeleton, Tooltip, Typography, theme } from "antd";
+import { AlertOutlined, CalendarOutlined, DownOutlined, NodeIndexOutlined, ReloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import type { AlertEventsListResponse, AlertEventsSummaryResponse, AlertEventsVehicleOptions } from "../lib/alert-events/alert-events-contract";
@@ -24,6 +24,8 @@ import { eventSemanticPresentation } from "./event-semantic-presentation";
 import { EventDetail } from "./event-detail";
 import { StableLoadingButton } from "./stable-loading-button";
 import { EventStatusTag, EventTypeIcon, EventsEmpty } from "./events-presentation";
+import { useAuth } from "./auth-provider";
+import { alertEventActions } from "../lib/alert-events/alert-events-investigation";
 
 dayjs.extend(customParseFormat);
 type Props = Readonly<{ initialData: AlertEventsListResponse; initialSummary: AlertEventsSummaryResponse | null; initialFilters: AlertEventsFilters; initialError?: boolean }>;
@@ -31,6 +33,7 @@ async function bffJson(path: string, signal: AbortSignal): Promise<unknown> { co
 
 export function EventsClient({ initialData, initialSummary, initialFilters, initialError = false }: Props) {
   const { locale, t } = useI18n(); const { token } = theme.useToken(); const screens = Grid.useBreakpoint();
+  const user = useAuth();
   const [list, setList] = useState<AlertEventsListState>(() => ({ ...initialAlertEventsListState(initialData, initialFilters), error: initialError ? "first" as const : null }));
   const [summary, setSummary] = useState(initialSummary); const [summaryError, setSummaryError] = useState(initialSummary === null);
   const [vehicles, setVehicles] = useState<AlertEventsVehicleOptions>([]); const [vehiclesLoading, setVehiclesLoading] = useState(true); const [vehiclesError, setVehiclesError] = useState(false);
@@ -114,12 +117,12 @@ export function EventsClient({ initialData, initialSummary, initialFilters, init
       <div className="events-chronology" aria-busy={list.loading || list.moreLoading}>
         <div className="events-chronology__heading vehicle-trips__workspace-header"><Typography.Text className="vehicle-overview__section-title"><CalendarOutlined className="vehicle-overview__section-icon" style={{ color: token.colorPrimary }} aria-hidden /> {t(mode === "active" ? "events.mode.active" : "events.mode.history")}</Typography.Text>{list.loading && list.data.items.length > 0 && <Typography.Text type="secondary" role="status">{t("events.loading")}</Typography.Text>}</div>
         {list.error && <Alert type="error" showIcon title={t(list.error === "more" ? "events.loadMoreError" : "events.loadError")} action={<Button size="small" onClick={retry}>{t("common.retry")}</Button>} />}
-        {list.loading && list.data.items.length === 0 ? <div className="events-loading" role="status" aria-label={t("common.loading")}><Skeleton active paragraph={{ rows: 3 }} /><Skeleton active paragraph={{ rows: 3 }} /></div> : list.data.items.length === 0 ? !list.error && <EventsEmpty description={t(emptyKey)} /> : <ul className="events-list">{list.data.items.map((event) => <li key={event.id} style={{ "--trip-record-accent": eventSemanticPresentation(event, token).accent } as CSSProperties} className={`vehicle-trips__record${selectedId === event.id ? " vehicle-trips__record--selected" : ""}`}><span className="vehicle-trips__record-marker"><span className="vehicle-trips__record-icon">{eventSemanticPresentation(event, token).marker}</span></span><button type="button" className="events-item vehicle-trips__record-button" aria-pressed={selectedId === event.id} onClick={(click) => { selectionTrigger.current = click.currentTarget; setSelectionTime(new Date()); setSelectedId(event.id); }}>
+        {list.loading && list.data.items.length === 0 ? <div className="events-loading" role="status" aria-label={t("common.loading")}><Skeleton active paragraph={{ rows: 3 }} /><Skeleton active paragraph={{ rows: 3 }} /></div> : list.data.items.length === 0 ? !list.error && <EventsEmpty description={t(emptyKey)} /> : <ul className="events-list">{list.data.items.map((event) => { const eventTripAction = event.type === "SPEEDING" ? alertEventActions(event, user, new Date()).find((candidate) => candidate.key === "eventTrip") ?? null : null; return <li key={event.id} style={{ "--trip-record-accent": eventSemanticPresentation(event, token).accent } as CSSProperties} className={`vehicle-trips__record events-list__item${selectedId === event.id ? " vehicle-trips__record--selected" : ""}${eventTripAction ? " events-list__item--with-action" : ""}`}><span className="vehicle-trips__record-marker"><span className="vehicle-trips__record-icon">{eventSemanticPresentation(event, token).marker}</span></span><button type="button" className="events-item vehicle-trips__record-button" aria-pressed={selectedId === event.id} onClick={(click) => { selectionTrigger.current = click.currentTarget; setSelectionTime(new Date()); setSelectedId(event.id); }}>
           <span className="events-item__top"><span className="events-item__vehicle vehicle-group-identity"><span className="vehicle-group-identity__name"><strong>{event.vehicle.name}</strong></span><VehicleGroupTag group={event.vehicle.group} /></span><EventStatusTag status={event.status} /></span>
           <span className="events-item__type">{alertTypeLabel(event.type, locale)}</span>
           <span className="events-item__time"><time dateTime={event.openedAt}>{formatAlertTimestamp(event.openedAt, locale)}</time>{event.type === "SPEEDING" && ` · ${alertZoneLabel(event.details.zone, locale)}`}</span>
           <span className="events-item__evidence"><strong>{event.type === "SPEEDING" ? formatAlertSpeed(event.details.confirmationSpeedKph, locale) : formatAlertDistance(event.details.confirmationDistanceMeters, locale)}</strong><span>{event.type === "SPEEDING" ? t("events.list.speeding", { threshold: formatAlertSpeed(event.details.thresholdKph, locale), peak: formatAlertSpeed(event.details.peakSpeedKph, locale) }) : t("events.list.inactivity", { threshold: formatAlertDistance(event.details.distanceThresholdMeters, locale), window: formatUnit(locale, event.details.durationThresholdMinutes, "minute") })}</span></span>
-        </button></li>)}</ul>}
+        </button>{eventTripAction ? <span className="events-item__trip-action"><Tooltip title={t("events.action.eventTrip")}><Button className="events-item__trip-action-button" type="text" href={eventTripAction.href} icon={<NodeIndexOutlined aria-hidden />} aria-label={t("events.action.eventTrip")} /></Tooltip></span> : null}</li>; })}</ul>}
         {(canLoadMoreAlertEvents(list) || list.moreLoading) && <div className="events-more"><Button size="large" loading={list.moreLoading} onClick={() => void loadMore()}>{t("audit.loadMore")}</Button></div>}
       </div>
       {screens.lg && <aside className="events-context">{selected ? <EventDetail event={selected} now={selectionTime} onClose={closeSelection} /> : <div className="events-context__empty"><EventsEmpty description={t("events.empty.selection")} /></div>}</aside>}

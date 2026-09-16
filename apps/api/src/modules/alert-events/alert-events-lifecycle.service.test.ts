@@ -32,7 +32,7 @@ class MemoryAlertEventsRepository implements AlertEventsRepository {
     }
     const base = { id: `event-${++this.sequence}`, vehicleId: input.command.vehicleId, status: "OPEN" as const, confirmedAt: input.command.observedAt, lastObservedAt: input.command.observedAt, resolvedAt: null, dedupeKey: input.dedupeKey, activeKey: input.activeKey };
     const event: AlertEventRecord = input.command.type === "SPEEDING"
-      ? { ...base, type: "SPEEDING", speedZone: input.command.zone, confirmationSpeedKph: input.command.speedKph, lastSpeedKph: input.command.speedKph, peakSpeedKph: input.command.speedKph, speedThresholdKph: input.command.speedThresholdKph }
+      ? { ...base, type: "SPEEDING", speedZone: input.command.zone, confirmationSpeedKph: input.command.speedKph, confirmationLatitude: input.command.confirmationLatitude, confirmationLongitude: input.command.confirmationLongitude, lastSpeedKph: input.command.speedKph, peakSpeedKph: input.command.speedKph, speedThresholdKph: input.command.speedThresholdKph }
       : { ...base, type: "INACTIVITY", confirmationTraveledDistanceMeters: input.command.traveledDistanceMeters, lastTraveledDistanceMeters: input.command.traveledDistanceMeters, minimumTraveledDistanceMeters: input.command.traveledDistanceMeters, distanceThresholdMeters: input.command.distanceThresholdMeters, durationThresholdMinutes: input.command.durationThresholdMinutes };
     this.events.push(event);
     this.receipts.set(input.dedupeKey, event.id);
@@ -72,7 +72,7 @@ function setup() {
 }
 
 function speeding(observedAt: Date, speedKph = 70, vehicleId = VEHICLE_A): OpenSpeedingEventCommand {
-  return { type: "SPEEDING", vehicleId, observedAt, zone: "CITY", speedKph, speedThresholdKph: 60 };
+  return { type: "SPEEDING", vehicleId, observedAt, zone: "CITY", speedKph, speedThresholdKph: 60, confirmationLatitude: 49.23, confirmationLongitude: 28.48 };
 }
 
 function inactivity(observedAt: Date, traveledDistanceMeters = 20, vehicleId = VEHICLE_A): OpenInactivityEventCommand {

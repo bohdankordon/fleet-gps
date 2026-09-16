@@ -144,3 +144,14 @@ test("vehicle options are locale ordered and project safe fields even when repos
   const repository: AlertEventsQueryRepository = { list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }), getVehicleOptions: async () => [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", group: null, providerId: "secret" }, { vehicleId: EVENT_ID, vehicleName: "DEMO 2", group: null, providerId: "secret" }] as unknown as readonly import("./alert-events-read-models").AlertEventsVehicleOption[] };
   assert.deepEqual(await new AlertEventsQueryService(repository, { now: () => new Date("2026-08-10T12:00:00.000Z") }, unrestrictedScopes).getVehicleOptions(testUserId), [{ vehicleId: EVENT_ID, vehicleName: "DEMO 2", group: null }, { vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", group: null }]);
 });
+
+test("investigation projects only authoritative SPEEDING evidence and preserves null legacy coordinates", async () => {
+  const repository: AlertEventsQueryRepository = {
+    getVehicleOptions: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }),
+    findSpeedingInvestigation: async () => ({ id: EVENT_ID, type: AlertEventType.SPEEDING, vehicleId: VEHICLE_ID, confirmedAt: AT, confirmationLatitude: 49.23, confirmationLongitude: 28.48, confirmationSpeedKph: 72, speedThresholdKph: 60, speedZone: AlertEventSpeedZone.CITY }),
+  };
+  const subject = new AlertEventsQueryService(repository, { now: () => AT }, unrestrictedScopes);
+  assert.deepEqual(await subject.getSpeedingInvestigation(EVENT_ID, testUserId), { eventId: EVENT_ID, type: "SPEEDING", vehicleId: VEHICLE_ID, confirmedAt: AT.toISOString(), confirmationPosition: { latitude: 49.23, longitude: 28.48 }, confirmationSpeedKph: 72, thresholdKph: 60, zone: "CITY" });
+  repository.findSpeedingInvestigation = async () => ({ id: EVENT_ID, type: AlertEventType.SPEEDING, vehicleId: VEHICLE_ID, confirmedAt: AT, confirmationLatitude: null, confirmationLongitude: null, confirmationSpeedKph: 72, speedThresholdKph: 60, speedZone: AlertEventSpeedZone.CITY });
+  assert.equal((await subject.getSpeedingInvestigation(EVENT_ID, testUserId)).confirmationPosition, null);
+});

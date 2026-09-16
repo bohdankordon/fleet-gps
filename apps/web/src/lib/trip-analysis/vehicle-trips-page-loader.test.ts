@@ -12,6 +12,8 @@ const details = {
   vehicle: { name: "Review Vehicle" },
   generatedAt: "2026-08-01T12:00:00.000Z",
 } as never;
+const EVENT_ID = "00000000-0000-4000-8000-000000000099";
+const investigation = { eventId: EVENT_ID, type: "SPEEDING" as const, vehicleId: TRIP_ANALYSIS_VEHICLE_ID, confirmedAt: "2026-08-01T00:00:30.000Z", confirmationPosition: { latitude: 49.001, longitude: 28.001 }, confirmationSpeedKph: 72, thresholdKph: 60, zone: "CITY" as const };
 
 function deps(overrides: Partial<VehicleTripsPageDeps> = {}): VehicleTripsPageDeps {
   return {
@@ -19,6 +21,7 @@ function deps(overrides: Partial<VehicleTripsPageDeps> = {}): VehicleTripsPageDe
     resolveRange: () => ({ ...initialRange, range: { ...range } }),
     fetchDetails: async () => details,
     fetchAnalysis: async () => tripAnalysisFixture(),
+    fetchEventInvestigation: async () => { throw new Error("unexpected event investigation"); },
     now: () => new Date("2026-08-01T12:00:00.000Z"),
     ...overrides,
   };
@@ -35,6 +38,24 @@ test("valid settings and range resolve ready with unchanged client props", async
   assert.equal(state.kind === "ready" ? state.timezone : null, timezone);
   assert.equal(state.kind === "ready" ? state.vehicleName : null, "Review Vehicle");
   assert.equal(state.kind === "ready" ? state.shellGeneratedAt : null, "2026-08-01T12:00:00.000Z");
+  assert.equal(state.kind === "ready" ? state.eventFocus : "unexpected", null);
+});
+
+test("valid event context is vehicle-bound and resolves the exact containing trip", async () => {
+  const state = await loadVehicleTripsPageState(TRIP_ANALYSIS_VEHICLE_ID, { event: EVENT_ID }, deps({ fetchEventInvestigation: async () => investigation }));
+  assert.equal(state.kind, "ready");
+  assert.deepEqual(state.kind === "ready" ? state.eventFocus : null, { kind: "AVAILABLE", event: investigation, trip: { kind: "MATCH", tripKey: "trip-0" } });
+});
+
+test("mismatched, inaccessible, and malformed event IDs never attach evidence to the route vehicle", async () => {
+  const mismatch = await loadVehicleTripsPageState(TRIP_ANALYSIS_VEHICLE_ID, { event: EVENT_ID }, deps({ fetchEventInvestigation: async () => ({ ...investigation, vehicleId: "00000000-0000-4000-8000-000000000002" }) }));
+  assert.deepEqual(mismatch.kind === "ready" ? mismatch.eventFocus : null, { kind: "UNAVAILABLE" });
+  const denied = await loadVehicleTripsPageState(TRIP_ANALYSIS_VEHICLE_ID, { event: EVENT_ID }, deps({ fetchEventInvestigation: async () => { throw new Error("non-disclosing 404"); } }));
+  assert.deepEqual(denied.kind === "ready" ? denied.eventFocus : null, { kind: "UNAVAILABLE" });
+  let calls = 0;
+  const malformed = await loadVehicleTripsPageState(TRIP_ANALYSIS_VEHICLE_ID, { event: "bad" }, deps({ fetchEventInvestigation: async () => { calls += 1; return investigation; } }));
+  assert.equal(malformed.kind === "ready" ? malformed.eventFocus : "unexpected", null);
+  assert.equal(calls, 0);
 });
 
 test("runtime 5xx and network rejection resolve context-unavailable with real identity", async () => {

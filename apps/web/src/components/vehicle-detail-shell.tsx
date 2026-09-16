@@ -26,8 +26,13 @@ function tagColorFor(group: VehicleGroupRef | null | undefined): "blue" | "cyan"
 export function VehicleGroupTag({ group, showUngrouped = false, variant = "compact" }: Readonly<{ group: VehicleGroupRef | null | undefined; showUngrouped?: boolean; variant?: "compact" | "header" }>) {
   const { t } = useI18n();
   const { token } = theme.useToken();
+  const ungroupedStyle = {
+    backgroundColor: token.colorFillSecondary,
+    borderColor: token.colorBorder,
+    color: token.colorTextSecondary,
+  } as const;
   if (variant !== "header") {
-    if (!group) return showUngrouped ? <Tag className="vehicle-group-tag vehicle-group-tag--compact" color="default">{t("group.ungrouped")}</Tag> : null;
+    if (!group) return showUngrouped ? <Tag className="vehicle-group-tag vehicle-group-tag--compact vehicle-group-tag--ungrouped" color="default" style={ungroupedStyle}>{t("group.ungrouped")}</Tag> : null;
     return <Tag className="vehicle-group-tag vehicle-group-tag--compact" color={tagColorFor(group)}>{group.name}</Tag>;
   }
   if (!group && !showUngrouped) return null;
@@ -38,7 +43,8 @@ export function VehicleGroupTag({ group, showUngrouped = false, variant = "compa
     marginInlineEnd: 0,
     borderRadius: token.borderRadiusSM,
   } as const;
-  return <Tag className="vehicle-group-tag vehicle-group-tag--header" color={tagColorFor(group)} style={headerStyle}>{group ? group.name : t("group.ungrouped")}</Tag>;
+  if (!group) return <Tag className="vehicle-group-tag vehicle-group-tag--header vehicle-group-tag--ungrouped" color="default" style={{ ...headerStyle, ...ungroupedStyle }}>{t("group.ungrouped")}</Tag>;
+  return <Tag className="vehicle-group-tag vehicle-group-tag--header" color={tagColorFor(group)} style={headerStyle}>{group.name}</Tag>;
 }
 
 export function VehicleNameWithGroup({ name, group, variant = "compact", showUngrouped = false, nameClassName }: Readonly<{ name: ReactNode; group: VehicleGroupRef | null | undefined; variant?: "compact" | "header"; showUngrouped?: boolean; nameClassName?: string }>) {

@@ -46,7 +46,7 @@ test("quick periods keep the calendar/recent grouping and use supported Ant Desi
   assert.match(styles, /\.vehicle-trips__preset-button \{[^}]*width: 100%;[^}]*box-shadow: none;/);
   assert.match(styles, /\.vehicle-trips__preset-group-title \{[^}]*font-size: var\(--font-size-caption\);[^}]*font-weight: var\(--font-weight-regular\);[^}]*line-height: var\(--line-height-caption\);/);
   assert.doesNotMatch(styles, /preset-tile|preset-button--selected/);
-  assert.match(trips, /const choosePreset =[^]*setFormError\(null\);[^]*loadAnalysis\(next, preset, false, true\)/);
+  assert.match(trips, /const choosePreset =[^]*setFormError\(null\);[^]*loadAnalysis\(next, preset, false, true, false\)/);
 });
 
 test("one RangePicker presents 24-hour values and preserves the authoritative Kyiv parser", () => {
@@ -68,7 +68,7 @@ test("one RangePicker presents 24-hour values and preserves the authoritative Ky
   assert.match(tripRange, /TRIP_ANALYSIS_PICKER_FORMAT = "DD\.MM\.YYYY, HH:mm"/);
   assert.match(trips, /tripAnalysisPickerValueToCivil\(values\[0\]\)/);
   assert.match(trips, /parseVehicleTrackCustomRangeToNow\(draft, new Date\(\)\)/);
-  assert.match(trips, /void loadAnalysis\(parsed\.range, null, openEnded, true\)/);
+  assert.match(trips, /void loadAnalysis\(parsed\.range, null, openEnded, true, false\)/);
   assert.match(trips, /refreshOpenEndedTripAnalysisRange\(range, new Date\(\)\)/);
   assert.match(trips, /appliedOpenEnded[\s\S]*t\("trips\.range\.now"\)/);
   assert.match(customRange, /VEHICLE_TRACK_INPUT_TIMEZONE = "Europe\/Kyiv"/);
@@ -116,6 +116,16 @@ test("desktop Map stickiness uses the real scrolling page and narrow layouts rem
   assert.doesNotMatch(styles, /\.ant-/);
 });
 
+test("an initial available event scrolls to the semantic workspace exactly once", () => {
+  assert.match(trips, /const workspaceRef = useRef<HTMLElement>\(null\)/);
+  assert.match(trips, /const initialEventFocusRef = useRef\(initialEventFocus\)/);
+  assert.match(trips, /const didEventScrollRef = useRef\(false\)/);
+  assert.match(trips, /if \(didEventScrollRef\.current\) return;[^]*initial\?\.kind !== "AVAILABLE"[^]*if \(!workspace\) return;[^]*didEventScrollRef\.current = true;[^]*workspace\.scrollIntoView\(\{ block: "start" \}\);[^]*}, \[\]\);/);
+  assert.match(trips, /<section ref=\{workspaceRef\} id="vehicle-trips-workspace" className="vehicle-trips__workspace">/);
+  assert.match(styles, /\.vehicle-trips__workspace \{ scroll-margin-top: var\(--space-6\); \}/);
+  assert.doesNotMatch(trips, /window\.scrollTo|scrollY|pageYOffset/);
+});
+
 test("Trips Map layers reuse accepted fleet semantics and keep route, warning, and stop truthfulness", () => {
   for (const id of ["TRIP_MAP_LINE_LAYER_ID", "TRIP_MAP_WARNING_ACCENT_LAYER_ID", "TRIP_MAP_NORMAL_POINT_LAYER_ID", "TRIP_MAP_ENDPOINT_LAYER_ID"]) assert.match(tripLayers, new RegExp(id));
   assert.match(tripLayers, /routeColor: "#246c95"/);
@@ -132,14 +142,20 @@ test("Trips Map layers reuse accepted fleet semantics and keep route, warning, a
 });
 
 test("Legend mirrors Main Map's trigger and popup surface and derives rows from one contract", () => {
-  assert.match(trips, /<Popover trigger="click" placement="bottomRight" content=\{<TripMapLegend \/>\}>/);
+  assert.match(trips, /const showEventLegend = availableEvent\?\.confirmationPosition != null/);
+  assert.match(trips, /<Popover trigger="click" placement="bottomRight" content=\{<TripMapLegend showEvent=\{showEventLegend\} \/>\}>/);
   assert.match(trips, /<Button size="large" type="default" icon=\{<InfoCircleOutlined aria-hidden \/>\}>/);
   assert.match(trips, /className="map-legend vehicle-trips__legend"/);
   assert.match(trips, /className="map-legend__header"/);
   assert.match(trips, /className="map-legend__items"/);
   assert.match(trips, /TRIP_MAP_LEGEND_ITEMS\.map/);
+  assert.match(trips, /\{showEvent \? <span><TripLegendSwatch kind="event" \/>\{t\("trips\.legend\.speedingConfirmation"\)\}<\/span> : null\}/);
   assert.match(mapStyles, /\.map-legend \{[\s\S]*width: min\(340px, calc\(100vw - 64px\)\);[\s\S]*gap: 10px;/);
-  for (const kind of ["route", "observation", "warning", "start", "end", "stop"]) assert.match(styles, new RegExp(`vehicle-trips__legend-sample--${kind}`));
+  for (const kind of ["route", "observation", "warning", "start", "end", "stop", "event"]) assert.match(styles, new RegExp(`vehicle-trips__legend-sample--${kind}`));
+  assert.match(trips, /"--trip-marker-event-size": `\$\{TRIP_MAP_PRESENTATION\.eventRadius \* 2\}px`/);
+  assert.match(trips, /"--trip-marker-event-halo-size": `\$\{TRIP_MAP_PRESENTATION\.eventHaloRadius \* 2\}px`/);
+  assert.match(styles, /width: var\(--trip-marker-event-size\)/);
+  assert.match(styles, /width: var\(--trip-marker-event-halo-size\)/);
 });
 
 test("Trips copy is complete in UK, RU, and EN", () => {
@@ -147,7 +163,7 @@ test("Trips copy is complete in UK, RU, and EN", () => {
     "trips.controls.title", "trips.presetGroup.calendar", "trips.presetGroup.recent", "trips.presetChoice.last3",
     "trips.range.label", "trips.range.from", "trips.range.to", "trips.range.now", "trips.range.openEndedHelp", "trips.range.startRequired",
     "trips.map.title", "trips.timeline.trip", "trips.timeline.stop", "trips.timeline.gap", "trips.timeline.continuityLost",
-    "trips.legend.route", "trips.legend.observation", "trips.legend.qualityWarning", "trips.legend.start", "trips.legend.end", "trips.legend.stop", "trips.legend.note",
+    "trips.legend.route", "trips.legend.observation", "trips.legend.qualityWarning", "trips.legend.start", "trips.legend.end", "trips.legend.stop", "trips.legend.speedingConfirmation", "trips.legend.note",
   ] as const;
   for (const key of keys) for (const locale of SUPPORTED_LOCALES) assert.ok(createTranslator(locale)(key).length > 1, `${locale}:${key}`);
   assert.equal(createTranslator("uk")("trips.range.openEndedHelp"), "Без кінцевої дати — до поточного часу.");
@@ -155,6 +171,7 @@ test("Trips copy is complete in UK, RU, and EN", () => {
   assert.equal(createTranslator("en")("trips.range.openEndedHelp"), "No end date — until now.");
   assert.deepEqual(SUPPORTED_LOCALES.map((locale) => createTranslator(locale)("trips.range.from")), ["От", "Від", "From"]);
   assert.deepEqual(SUPPORTED_LOCALES.map((locale) => createTranslator(locale)("trips.range.to")), ["До", "До", "To"]);
+  assert.deepEqual(SUPPORTED_LOCALES.map((locale) => createTranslator(locale)("trips.legend.speedingConfirmation")), ["Подтверждение превышения скорости", "Підтвердження перевищення швидкості", "Speeding confirmation"]);
   assert.doesNotMatch(messages, /"trips\.controls\.time"|"trips\.controls\.clear"/);
   assert.doesNotMatch(messages, /trips\.presetTile/);
   assert.doesNotMatch(trips, /[🚗⏸️🔌📍]/u);

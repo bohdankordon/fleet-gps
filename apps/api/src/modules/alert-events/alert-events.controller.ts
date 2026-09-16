@@ -1,13 +1,26 @@
-import { Controller, Get, HttpException, Query, Req } from "@nestjs/common";
+import { Controller, Get, HttpException, Param, Query, Req } from "@nestjs/common";
+import { normalizeUuid } from "../../common/uuid.validation";
 import type { AuthenticatedRequest } from "../auth/auth.types";
 import { AlertEventsQueryParamsError, parseAlertEventsQueryParams } from "./alert-events-query-params";
-import type { AlertEventsListResponse, AlertEventsSummaryResponse, AlertEventsVehicleOption, OpenAlertMapResponse } from "./alert-events-read-models";
-import { AlertEventsQueryService } from "./alert-events-query.service";
+import type { AlertEventsListResponse, AlertEventsSummaryResponse, AlertEventsVehicleOption, OpenAlertMapResponse, SpeedingEventInvestigationResponse } from "./alert-events-read-models";
+import { AlertEventInvestigationNotFoundError, AlertEventsQueryService } from "./alert-events-query.service";
 import { RequireAnyPermission } from "../auth/auth.decorators";
 
 @Controller("alert-events")
 export class AlertEventsController {
   public constructor(private readonly query: AlertEventsQueryService) {}
+
+  @Get(":eventId/investigation")
+  @RequireAnyPermission("events.view")
+  public async getInvestigation(@Param("eventId") rawEventId: string, @Req() request: AuthenticatedRequest): Promise<SpeedingEventInvestigationResponse> {
+    const eventId = normalizeUuid(rawEventId);
+    if (!eventId) throw new HttpException({ statusCode: 404, error: "Not Found" }, 404);
+    try { return await this.query.getSpeedingInvestigation(eventId, request.auth!.id); }
+    catch (error) {
+      if (error instanceof AlertEventInvestigationNotFoundError) throw new HttpException({ statusCode: 404, error: "Not Found" }, 404);
+      throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500);
+    }
+  }
 
   @Get("vehicles")
   @RequireAnyPermission("events.view")

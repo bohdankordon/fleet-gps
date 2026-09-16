@@ -14,8 +14,20 @@ test("navigation honors each permission independently and preserves ADMIN behavi
   const now = new Date("2026-08-08T14:00:00Z");
   assert.deepEqual(alertEventActions(event, user(["events.view"]), now), []);
   assert.deepEqual(alertEventActions(event, null, now), []);
-  assert.deepEqual(alertEventActions(event, user(["trips.view"]), now).map((a) => a.key), ["track", "trips"]);
+  assert.deepEqual(alertEventActions(event, user(["trips.view"]), now).map((a) => a.key), ["eventTrip", "track", "trips"]);
   assert.deepEqual(alertEventActions(event, user(["map.view"]), now), [{ key: "position", href: `/map?vehicleId=${event.vehicle.id}` }]);
-  assert.deepEqual(alertEventActions(event, user([], "ADMIN"), now).map((a) => a.key), ["vehicle", "track", "trips", "position"]);
+  assert.deepEqual(alertEventActions(event, user([], "ADMIN"), now).map((a) => a.key), ["vehicle", "eventTrip", "track", "trips", "position"]);
   for (const action of alertEventActions(event, user(["trips.view"]), now)) { const url = new URL(action.href, "http://local"); assert.equal(url.searchParams.get("from"), "2026-08-08T11:30:00.000Z"); assert.equal(url.searchParams.get("to"), "2026-08-08T13:30:00.000Z"); }
+});
+
+test("SPEEDING direct focus uses only vehicle, range, and event identity", () => {
+  const action = alertEventActions(event, user(["trips.view"]), new Date("2026-08-08T14:00:00Z")).find((item) => item.key === "eventTrip");
+  assert.ok(action);
+  const url = new URL(action.href, "http://local");
+  assert.equal(url.pathname, `/vehicles/${event.vehicle.id}/trips`);
+  assert.equal(url.searchParams.get("event"), event.id);
+  assert.deepEqual([...url.searchParams.keys()].sort(), ["event", "from", "to"]);
+  for (const forbidden of ["latitude", "longitude", "speed", "threshold", "zone"]) assert.equal(url.search.toLowerCase().includes(forbidden), false);
+  const inactivity = { ...event, type: "INACTIVITY", details: { confirmationDistanceMeters: 1, lastDistanceMeters: 2, minimumDistanceMeters: 1, distanceThresholdMeters: 300, durationThresholdMinutes: 60 } } as import("./alert-events-contract").AlertEvent;
+  assert.equal(alertEventActions(inactivity, user(["trips.view"]), new Date("2026-08-08T14:00:00Z")).some((item) => item.key === "eventTrip"), false);
 });

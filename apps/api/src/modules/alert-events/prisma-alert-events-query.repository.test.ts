@@ -122,3 +122,16 @@ test("vehicle options use only vehicles represented in Events and select identit
   assert.deepEqual(query, { where: { alertEvents: { some: {} } }, select: { id: true, name: true, group: { select: { id: true, name: true, color: true } } }, orderBy: [{ name: "asc" }, { id: "asc" }] });
   assert.deepEqual(result, [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO", group: null }]);
 });
+
+test("investigation direct-ID read is SPEEDING-only and composes Product Vehicle Access in the same query", async () => {
+  let query: unknown;
+  const eventId = "00000000-0000-4000-8000-000000000099";
+  const scope = { kind: "FILTERED" as const, where: { id: { equals: VEHICLE_ID } } };
+  const client = { alertEvent: { findFirst: async (args: unknown) => { query = args; return null; } } } as unknown as PrismaClient;
+  const result = await new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService).findSpeedingInvestigation(eventId, scope);
+  assert.equal(result, null);
+  assert.deepEqual(query, {
+    where: { AND: [{ id: eventId, type: AlertEventType.SPEEDING }, { vehicle: scope.where }] },
+    select: { id: true, type: true, vehicleId: true, confirmedAt: true, confirmationLatitude: true, confirmationLongitude: true, confirmationSpeedKph: true, speedThresholdKph: true, speedZone: true },
+  });
+});

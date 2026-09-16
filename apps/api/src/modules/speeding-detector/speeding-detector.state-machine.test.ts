@@ -15,8 +15,10 @@ test("CITY uses a strict threshold and confirms exactly once", () => {
   assert.equal(pending.status, "PENDING"); assert.equal(pending.consecutiveCount, 1); assert.equal(pending.newlyConfirmed, false);
   const confirmed = detector.detect(observation(3, 61), city());
   assert.equal(confirmed.status, "CONFIRMED"); assert.equal(confirmed.consecutiveCount, 2); assert.equal(confirmed.newlyConfirmed, true);
+  assert.deepEqual(confirmed.confirmationPosition, { latitude: 49.23, longitude: 28.48 });
   const active = detector.detect(observation(4, 62), city());
   assert.equal(active.status, "ACTIVE"); assert.equal(active.consecutiveCount, 3); assert.equal(active.newlyConfirmed, false);
+  assert.equal(active.confirmationPosition, undefined);
 });
 
 test("OUTSIDE_CITY has its independent strict threshold", () => {

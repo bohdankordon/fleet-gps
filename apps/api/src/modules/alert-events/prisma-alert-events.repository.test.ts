@@ -6,7 +6,7 @@ import { PrismaAlertEventsRepository } from "./prisma-alert-events.repository";
 
 const VEHICLE_ID = "00000000-0000-4000-8000-000000000001";
 const AT = new Date("2026-08-08T10:00:00.000Z");
-const input = { command: { type: "SPEEDING" as const, vehicleId: VEHICLE_ID, observedAt: AT, zone: "CITY" as const, speedKph: 70, speedThresholdKph: 60 }, dedupeKey: "d".repeat(64), activeKey: "a".repeat(64) };
+const input = { command: { type: "SPEEDING" as const, vehicleId: VEHICLE_ID, observedAt: AT, zone: "CITY" as const, speedKph: 70, speedThresholdKph: 60, confirmationLatitude: 49.23, confirmationLongitude: 28.48 }, dedupeKey: "d".repeat(64), activeKey: "a".repeat(64) };
 const legacyEnabledConfig = { telegramNotifications: { enabled: true } };
 
 function repository(client: PrismaClient) {
@@ -22,14 +22,14 @@ function adapterKnownError(fields: string[]): Prisma.PrismaClientKnownRequestErr
 }
 
 function storedSpeeding(overrides: Record<string, unknown> = {}) {
-  return { id: "event-1", vehicleId: VEHICLE_ID, type: "SPEEDING", status: "OPEN", confirmedAt: AT, lastObservedAt: AT, resolvedAt: null, dedupeKey: "d".repeat(64), activeKey: "a".repeat(64), speedZone: "CITY", confirmationSpeedKph: 70, lastSpeedKph: 70, peakSpeedKph: 70, speedThresholdKph: 60, confirmationTraveledDistanceMeters: null, lastTraveledDistanceMeters: null, minimumTraveledDistanceMeters: null, distanceThresholdMeters: null, durationThresholdMinutes: null, ...overrides };
+  return { id: "event-1", vehicleId: VEHICLE_ID, type: "SPEEDING", status: "OPEN", confirmedAt: AT, lastObservedAt: AT, resolvedAt: null, dedupeKey: "d".repeat(64), activeKey: "a".repeat(64), speedZone: "CITY", confirmationSpeedKph: 70, confirmationLatitude: 49.23, confirmationLongitude: 28.48, lastSpeedKph: 70, peakSpeedKph: 70, speedThresholdKph: 60, confirmationTraveledDistanceMeters: null, lastTraveledDistanceMeters: null, minimumTraveledDistanceMeters: null, distanceThresholdMeters: null, durationThresholdMinutes: null, ...overrides };
 }
 
 test("first confirmation creates event and receipt in the same transaction callback", async () => {
-  const receiptCreates: unknown[] = []; const notificationCreates: unknown[] = []; const order: string[] = []; let transactions = 0;
+  const eventCreates: unknown[] = []; const receiptCreates: unknown[] = []; const notificationCreates: unknown[] = []; const order: string[] = []; let transactions = 0;
   const transaction = {
     alertEventConfirmation: { findUnique: async () => null, create: async (value: unknown) => { order.push("receipt"); receiptCreates.push(value); return {}; } },
-    alertEvent: { findFirst: async () => null, create: async () => { order.push("event"); return storedSpeeding(); } },
+    alertEvent: { findFirst: async () => null, create: async (value: unknown) => { order.push("event"); eventCreates.push(value); return storedSpeeding(); } },
     alertNotificationOutbox: { create: async (value: unknown) => { order.push("notification"); notificationCreates.push(value); return {}; } },
   };
   const client = { $transaction: async (callback: (tx: typeof transaction) => Promise<unknown>, options: unknown) => { transactions += 1; assert.deepEqual(options, { timeout: 30_000 }); return callback(transaction); } } as unknown as PrismaClient;
@@ -37,6 +37,8 @@ test("first confirmation creates event and receipt in the same transaction callb
   assert.equal(result.outcome, "CREATED"); assert.equal(transactions, 1); assert.equal(receiptCreates.length, 1); assert.equal(notificationCreates.length, 1);
   assert.deepEqual(receiptCreates[0], { data: { dedupeKey: input.dedupeKey, eventId: "event-1", observedAt: AT } });
   assert.deepEqual(notificationCreates[0], { data: { alertEventId: "event-1", kind: "ALERT_CONFIRMED" } });
+  const persisted = (eventCreates[0] as { data: Record<string, unknown> }).data;
+  assert.equal(persisted.confirmedAt, AT); assert.equal(persisted.confirmationSpeedKph, 70); assert.equal(persisted.confirmationLatitude, 49.23); assert.equal(persisted.confirmationLongitude, 28.48);
   assert.deepEqual(order, ["event", "receipt", "notification"]);
 });
 
@@ -140,8 +142,26 @@ test("conditional update includes OPEN status and expected timestamp", async () 
   let call: unknown;
   const client = { alertEvent: { updateMany: async (value: unknown) => { call = value; return { count: 1 }; } } } as unknown as PrismaClient;
   const eventsRepository = repository(client);
-  const event = { id: "event", vehicleId: VEHICLE_ID, type: "SPEEDING" as const, status: "OPEN" as const, confirmedAt: AT, lastObservedAt: AT, resolvedAt: null, dedupeKey: "d".repeat(64), activeKey: "a".repeat(64), speedZone: "CITY" as const, confirmationSpeedKph: 70, lastSpeedKph: 70, peakSpeedKph: 70, speedThresholdKph: 60 };
+  const event = { id: "event", vehicleId: VEHICLE_ID, type: "SPEEDING" as const, status: "OPEN" as const, confirmedAt: AT, lastObservedAt: AT, resolvedAt: null, dedupeKey: "d".repeat(64), activeKey: "a".repeat(64), speedZone: "CITY" as const, confirmationSpeedKph: 70, confirmationLatitude: 49.23, confirmationLongitude: 28.48, lastSpeedKph: 70, peakSpeedKph: 70, speedThresholdKph: 60 };
   assert.equal(await eventsRepository.updateOpen({ event, command: { type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: new Date(AT.getTime() + 1_000), speedKph: 80 } }), true);
   assert.deepEqual((call as { where: unknown }).where, { id: "event", status: "OPEN", lastObservedAt: AT });
   assert.equal((call as { data: { peakSpeedKph: number } }).data.peakSpeedKph, 80);
+  assert.equal("confirmationLatitude" in (call as { data: Record<string, unknown> }).data, false);
+  assert.equal("confirmationLongitude" in (call as { data: Record<string, unknown> }).data, false);
+});
+
+test("resolve preserves the speeding confirmation anchor and only closes the event", async () => {
+  let call: unknown;
+  const client = { alertEvent: { updateMany: async (value: unknown) => { call = value; return { count: 1 }; } } } as unknown as PrismaClient;
+  const eventsRepository = repository(client);
+  const event = { id: "event", vehicleId: VEHICLE_ID, type: "SPEEDING" as const, status: "OPEN" as const, confirmedAt: AT, lastObservedAt: AT, resolvedAt: null, dedupeKey: "d".repeat(64), activeKey: "a".repeat(64), speedZone: "CITY" as const, confirmationSpeedKph: 70, confirmationLatitude: 49.23, confirmationLongitude: 28.48, lastSpeedKph: 70, peakSpeedKph: 70, speedThresholdKph: 60 };
+  const resolvedAt = new Date(AT.getTime() + 60_000);
+  assert.equal(await eventsRepository.resolveOpen({ event, command: { type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: resolvedAt, speedKph: 40 } }), true);
+  const data = (call as { data: Record<string, unknown> }).data;
+  assert.equal(data.status, "RESOLVED");
+  assert.equal(data.resolvedAt, resolvedAt);
+  assert.equal("confirmationLatitude" in data, false);
+  assert.equal("confirmationLongitude" in data, false);
+  assert.equal("confirmationSpeedKph" in data, false);
+  assert.equal("confirmedAt" in data, false);
 });

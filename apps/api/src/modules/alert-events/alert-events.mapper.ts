@@ -12,7 +12,7 @@ function date(value: string | null): Date {
 
 export function mapSpeedingDetectionToAlertEventAction(result: SpeedingDetectionResult): AlertEventPersistenceAction {
   if (result.status === "CONFIRMED" && result.newlyConfirmed) {
-    const command = validateOpenAlertEventCommand({ type: "SPEEDING", vehicleId: result.vehicleId, observedAt: date(result.observedAt), zone: result.zone as "CITY" | "OUTSIDE_CITY", speedKph: result.speedKph as number, speedThresholdKph: result.thresholdKph as number });
+    const command = validateOpenAlertEventCommand({ type: "SPEEDING", vehicleId: result.vehicleId, observedAt: date(result.observedAt), zone: result.zone as "CITY" | "OUTSIDE_CITY", speedKph: result.speedKph as number, speedThresholdKph: result.thresholdKph as number, confirmationLatitude: result.confirmationPosition?.latitude as number, confirmationLongitude: result.confirmationPosition?.longitude as number });
     return Object.freeze({ kind: "OPEN", command });
   }
   if (result.status === "ACTIVE") {
@@ -41,4 +41,3 @@ export function mapInactivityDetectionToAlertEventAction(result: InactivityDetec
   }
   return NONE;
 }
-

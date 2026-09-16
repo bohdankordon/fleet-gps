@@ -32,6 +32,18 @@ export type StoredAlertEventsPage = Readonly<{
   hasMore: boolean;
 }>;
 
+export type StoredSpeedingEventInvestigationRow = Readonly<{
+  id: string;
+  type: AlertEventType;
+  vehicleId: string;
+  confirmedAt: Date;
+  confirmationLatitude: number | null;
+  confirmationLongitude: number | null;
+  confirmationSpeedKph: number | null;
+  speedThresholdKph: number | null;
+  speedZone: AlertEventSpeedZone | null;
+}>;
+
 export type StoredOpenAlertEventsSummary = Readonly<{
   speeding: number;
   inactivity: number;
@@ -57,4 +69,5 @@ export interface AlertEventsQueryRepository {
   list(params: AlertEventsQueryParams, scope: VehicleScope): Promise<StoredAlertEventsPage>;
   getOpenSummary(scope: VehicleScope): Promise<StoredOpenAlertEventsSummary>;
   getOpenMapSnapshot(scope: VehicleScope): Promise<StoredOpenAlertMapSnapshot>;
+  findSpeedingInvestigation?(eventId: string, scope: VehicleScope): Promise<StoredSpeedingEventInvestigationRow | null>;
 }

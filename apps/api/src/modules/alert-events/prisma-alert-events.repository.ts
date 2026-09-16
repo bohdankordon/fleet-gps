@@ -25,6 +25,8 @@ const alertEventSelect = {
   activeKey: true,
   speedZone: true,
   confirmationSpeedKph: true,
+  confirmationLatitude: true,
+  confirmationLongitude: true,
   lastSpeedKph: true,
   peakSpeedKph: true,
   speedThresholdKph: true,
@@ -47,7 +49,7 @@ function toDomain(row: StoredAlertEvent): AlertEventRecord {
   const base = { id: row.id, vehicleId: row.vehicleId, status: row.status, confirmedAt: row.confirmedAt, lastObservedAt: row.lastObservedAt, resolvedAt: row.resolvedAt, dedupeKey: row.dedupeKey, activeKey: row.activeKey } as const;
   if (row.type === AlertEventType.SPEEDING) {
     if (row.speedZone === null) throw new AlertEventPersistenceStateError("Invalid persisted speedZone");
-    return Object.freeze({ ...base, type: "SPEEDING", speedZone: row.speedZone, confirmationSpeedKph: requireNumber(row.confirmationSpeedKph, "confirmationSpeedKph"), lastSpeedKph: requireNumber(row.lastSpeedKph, "lastSpeedKph"), peakSpeedKph: requireNumber(row.peakSpeedKph, "peakSpeedKph"), speedThresholdKph: requireNumber(row.speedThresholdKph, "speedThresholdKph") } satisfies SpeedingAlertEventRecord);
+    return Object.freeze({ ...base, type: "SPEEDING", speedZone: row.speedZone, confirmationSpeedKph: requireNumber(row.confirmationSpeedKph, "confirmationSpeedKph"), confirmationLatitude: row.confirmationLatitude, confirmationLongitude: row.confirmationLongitude, lastSpeedKph: requireNumber(row.lastSpeedKph, "lastSpeedKph"), peakSpeedKph: requireNumber(row.peakSpeedKph, "peakSpeedKph"), speedThresholdKph: requireNumber(row.speedThresholdKph, "speedThresholdKph") } satisfies SpeedingAlertEventRecord);
   }
   return Object.freeze({ ...base, type: "INACTIVITY", confirmationTraveledDistanceMeters: requireNumber(row.confirmationTraveledDistanceMeters, "confirmationTraveledDistanceMeters"), lastTraveledDistanceMeters: requireNumber(row.lastTraveledDistanceMeters, "lastTraveledDistanceMeters"), minimumTraveledDistanceMeters: requireNumber(row.minimumTraveledDistanceMeters, "minimumTraveledDistanceMeters"), distanceThresholdMeters: requireNumber(row.distanceThresholdMeters, "distanceThresholdMeters"), durationThresholdMinutes: requireNumber(row.durationThresholdMinutes, "durationThresholdMinutes") } satisfies InactivityAlertEventRecord);
 }
@@ -159,7 +161,7 @@ export class PrismaAlertEventsRepository implements AlertEventsRepository {
   private async createOpenWithClient(client: PersistenceClient, input: RegisterAlertEventConfirmationInput): Promise<AlertEventRecord> {
     const common = { vehicleId: input.command.vehicleId, type: domainType(input.command.type), status: AlertEventStatus.OPEN, confirmedAt: input.command.observedAt, lastObservedAt: input.command.observedAt, dedupeKey: input.dedupeKey, activeKey: input.activeKey } as const;
     const data: Prisma.AlertEventUncheckedCreateInput = input.command.type === "SPEEDING"
-      ? { ...common, speedZone: input.command.zone === "CITY" ? AlertEventSpeedZone.CITY : AlertEventSpeedZone.OUTSIDE_CITY, confirmationSpeedKph: input.command.speedKph, lastSpeedKph: input.command.speedKph, peakSpeedKph: input.command.speedKph, speedThresholdKph: input.command.speedThresholdKph }
+      ? { ...common, speedZone: input.command.zone === "CITY" ? AlertEventSpeedZone.CITY : AlertEventSpeedZone.OUTSIDE_CITY, confirmationSpeedKph: input.command.speedKph, confirmationLatitude: input.command.confirmationLatitude, confirmationLongitude: input.command.confirmationLongitude, lastSpeedKph: input.command.speedKph, peakSpeedKph: input.command.speedKph, speedThresholdKph: input.command.speedThresholdKph }
       : { ...common, confirmationTraveledDistanceMeters: input.command.traveledDistanceMeters, lastTraveledDistanceMeters: input.command.traveledDistanceMeters, minimumTraveledDistanceMeters: input.command.traveledDistanceMeters, distanceThresholdMeters: input.command.distanceThresholdMeters, durationThresholdMinutes: input.command.durationThresholdMinutes };
     return toDomain(await client.alertEvent.create({ data, select: alertEventSelect }));
   }

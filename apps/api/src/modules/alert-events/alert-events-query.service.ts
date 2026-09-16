@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AlertEventType } from "../../generated/prisma/client";
 import { projectAlertEventTimestamp, projectOpenAlert, projectScopedAlertEvent } from "./alert-event-read.projection";
-import type { AlertEventReadModel, AlertEventsListResponse, AlertEventsSummaryResponse, AlertEventsVehicleOption, OpenAlertMapAlert, OpenAlertMapResponse, OpenAlertMapVehicle } from "./alert-events-read-models";
+import type { AlertEventReadModel, AlertEventsListResponse, AlertEventsSummaryResponse, AlertEventsVehicleOption, OpenAlertMapAlert, OpenAlertMapResponse, OpenAlertMapVehicle, SpeedingEventInvestigationResponse } from "./alert-events-read-models";
 import { encodeAlertEventsCursor, type AlertEventsQueryParams } from "./alert-events-query-params";
 import type { AlertEventsQueryRepository, StoredAlertEventReadRow, StoredOpenAlertMapRow } from "./alert-events-query.repository";
 import { ALERT_EVENTS_QUERY_CLOCK, ALERT_EVENTS_QUERY_REPOSITORY } from "./alert-events.tokens";
@@ -15,6 +15,15 @@ export class AlertEventsQueryStateError extends Error {
     super("Invalid persisted alert event read state.");
     this.name = "AlertEventsQueryStateError";
   }
+}
+
+export class AlertEventInvestigationNotFoundError extends Error {
+  public constructor() { super("Alert event investigation is unavailable."); this.name = "AlertEventInvestigationNotFoundError"; }
+}
+
+function finiteInvestigationMetric(value: number | null): number {
+  if (value === null || !Number.isFinite(value)) throw new AlertEventsQueryStateError();
+  return value;
 }
 
 function toReadModel(row: StoredAlertEventReadRow): AlertEventReadModel {
@@ -57,6 +66,27 @@ export class AlertEventsQueryService {
     const options = await this.repository.getVehicleOptions(await this.scopes.resolve(userId));
     return options.map(({ vehicleId, vehicleName, group }) => ({ vehicleId, vehicleName, group: group ? { id: group.id, name: group.name, color: group.color } : null }))
       .sort((a, b) => a.vehicleName.localeCompare(b.vehicleName, "uk", { numeric: true }) || a.vehicleId.localeCompare(b.vehicleId));
+  }
+
+  public async getSpeedingInvestigation(eventId: string, userId: string): Promise<SpeedingEventInvestigationResponse> {
+    if (!this.repository.findSpeedingInvestigation) throw new AlertEventsQueryStateError();
+    const row = await this.repository.findSpeedingInvestigation(eventId, await this.scopes.resolve(userId));
+    if (row === null) throw new AlertEventInvestigationNotFoundError();
+    const latitude = row.confirmationLatitude;
+    const longitude = row.confirmationLongitude;
+    const pairIsNull = latitude === null && longitude === null;
+    if ((!pairIsNull && (latitude === null || longitude === null || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180))
+      || row.type !== AlertEventType.SPEEDING || (row.speedZone !== "CITY" && row.speedZone !== "OUTSIDE_CITY")) throw new AlertEventsQueryStateError();
+    return Object.freeze({
+      eventId: row.id,
+      type: "SPEEDING",
+      vehicleId: row.vehicleId,
+      confirmedAt: projectAlertEventTimestamp(row.confirmedAt),
+      confirmationPosition: pairIsNull ? null : Object.freeze({ latitude: latitude!, longitude: longitude! }),
+      confirmationSpeedKph: finiteInvestigationMetric(row.confirmationSpeedKph),
+      thresholdKph: finiteInvestigationMetric(row.speedThresholdKph),
+      zone: row.speedZone,
+    });
   }
 
   public async getOpenMap(userId: string): Promise<OpenAlertMapResponse> {

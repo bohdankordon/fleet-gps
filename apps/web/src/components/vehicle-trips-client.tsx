@@ -29,7 +29,8 @@ import {
 } from "@/lib/trip-analysis/trip-analysis-range";
 import { selectedStopBoundaryPresentation, selectedTripTrackRequest } from "@/lib/trip-analysis/trip-analysis-selection";
 import { buildTripAnalysisTimeline, type TripAnalysisSelection, type TripAnalysisTimelineItem } from "@/lib/trip-analysis/trip-analysis-timeline";
-import { ensureTripMapLayers, TRIP_MAP_LEGEND_ITEMS, TRIP_MAP_PRESENTATION, updateTripMapData } from "@/lib/trip-analysis/trip-analysis-map-layers";
+import { ensureTripEventLayer, ensureTripMapLayers, TRIP_MAP_LEGEND_ITEMS, TRIP_MAP_PRESENTATION, updateTripEventData, updateTripMapData, type TripEventPosition } from "@/lib/trip-analysis/trip-analysis-map-layers";
+import { resolveContainingTrip, tripEventFocusCamera, type VehicleTripsEventFocus } from "@/lib/trip-analysis/trip-analysis-event-focus";
 import { vehicleTrackCamera } from "@/lib/vehicle-track/vehicle-track-camera";
 import { parseVehicleTrackCustomRange, parseVehicleTrackCustomRangeToNow, vehicleTrackCustomRangeErrorCopy, vehicleTrackRangeToKyivDraft, type VehicleTrackDraftRange } from "@/lib/vehicle-track/vehicle-track-custom-range";
 import { parseVehicleTrackOverviewResponse } from "@/lib/vehicle-track/vehicle-track-overview-contract";
@@ -39,6 +40,7 @@ import { parseVehicleTrackResponse } from "@/lib/vehicle-track/vehicle-track-con
 import type { VehicleTrackRange } from "@/lib/vehicle-track/vehicle-track-range";
 import { PeriodPopover } from "./period-popover";
 import { useI18n } from "../i18n/client";
+import { alertZoneLabel, formatAlertSpeed, formatAlertTimestamp } from "../lib/alert-events/alert-events-formatters";
 
 dayjs.extend(customParseFormat);
 
@@ -52,6 +54,9 @@ const TRIP_MAP_MARKER_CSS_VARS = {
   "--trip-marker-start": TRIP_MAP_PRESENTATION.startColor,
   "--trip-marker-end": TRIP_MAP_PRESENTATION.endColor,
   "--trip-marker-outline": TRIP_MAP_PRESENTATION.outlineColor,
+  "--trip-marker-event": TRIP_MAP_PRESENTATION.eventColor,
+  "--trip-marker-event-size": `${TRIP_MAP_PRESENTATION.eventRadius * 2}px`,
+  "--trip-marker-event-halo-size": `${TRIP_MAP_PRESENTATION.eventHaloRadius * 2}px`,
 } as CSSProperties & Record<string, string>;
 
 type Props = Readonly<{
@@ -64,13 +69,31 @@ type Props = Readonly<{
   initialPreset: TripAnalysisPreset | null;
   initialOpenEnded: boolean;
   initialError: boolean;
+  initialEventFocus: VehicleTripsEventFocus | null;
   timezone: string;
 }>;
 
-function applyCamera(map: MapLibreMap, model: VehicleTrackPresentationModel): void {
+function applyCamera(map: MapLibreMap, model: VehicleTrackPresentationModel, eventPosition: TripEventPosition): void {
+  if (eventPosition) {
+    const camera = tripEventFocusCamera(eventPosition);
+    map.jumpTo({ center: camera.center as [number, number], zoom: camera.zoom });
+    return;
+  }
   const camera = vehicleTrackCamera(model, null);
   if ("bounds" in camera) map.fitBounds(camera.bounds as [[number, number], [number, number]], { padding: camera.padding, maxZoom: camera.maxZoom, duration: 0 });
   else map.jumpTo({ center: camera.center as [number, number], zoom: camera.zoom });
+}
+
+/** Pure track fetch for one trip selection; state updates happen only in the caller's async continuations. */
+async function fetchTripTrackPresentation(vehicleId: string, next: TripAnalysisSelection, signal: AbortSignal): Promise<VehicleTrackPresentationModel> {
+  const request = selectedTripTrackRequest(next);
+  if (!request) throw new Error("trip track is unavailable");
+  const query = new URLSearchParams(request.range);
+  const endpoint = request.mode === "EXACT" ? "track" : "track/overview";
+  const response = await fetch(`/api/vehicles/${vehicleId}/${endpoint}?${query}`, { cache: "no-store", signal, headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error("trip track is unavailable");
+  const body: unknown = await response.json();
+  return request.mode === "EXACT" ? buildVehicleTrackPresentation(parseVehicleTrackResponse(body)) : buildVehicleTrackOverviewPresentation(parseVehicleTrackOverviewResponse(body));
 }
 
 function TripSectionTitle({ icon, title, className = "" }: Readonly<{ icon: ReactNode; title: string; className?: string }>) {
@@ -86,7 +109,7 @@ function pickerValue(value: string) {
   return parsed?.isValid() ? parsed : null;
 }
 
-export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shellGeneratedAt, initialData, initialRange, initialPreset, initialOpenEnded, initialError, timezone }: Props) {
+export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shellGeneratedAt, initialData, initialRange, initialPreset, initialOpenEnded, initialError, initialEventFocus, timezone }: Props) {
   const { locale, t } = useI18n();
   const { token } = theme.useToken();
   const [analysis, setAnalysis] = useState(initialData);
@@ -94,6 +117,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
   const [loading, setLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState(initialError);
   const [interaction, setInteraction] = useState(initialTripAnalysisInteractionState);
+  const [eventFocus, setEventFocus] = useState(initialEventFocus);
   const selection = interaction.selection;
   const [trackLoading, setTrackLoading] = useState(false);
   const [model, setModel] = useState<VehicleTrackPresentationModel>(EMPTY_VEHICLE_TRACK_PRESENTATION);
@@ -111,7 +135,12 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
   const [mapContainer, setMapContainer] = useState<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const modelRef = useRef(model);
+  const eventFocusRef = useRef(eventFocus);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const initialEventFocusRef = useRef(initialEventFocus);
+  const didEventScrollRef = useRef(false);
   const timeline = useMemo(() => analysis ? buildTripAnalysisTimeline(analysis) : [], [analysis]);
+  const eventPosition = eventFocus?.kind === "AVAILABLE" ? eventFocus.event.confirmationPosition : null;
 
   const pageStyle = {
     "--trip-color-warning-text": token.colorWarningText,
@@ -133,16 +162,29 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
 
   useEffect(() => {
     modelRef.current = model;
+    eventFocusRef.current = eventFocus;
     const map = mapRef.current;
     if (map?.isStyleLoaded()) {
       ensureTripMapLayers(map, model);
       updateTripMapData(map, model);
-      applyCamera(map, model);
+      ensureTripEventLayer(map, eventPosition);
+      updateTripEventData(map, eventPosition);
+      applyCamera(map, model, eventPosition);
       map.resize();
     }
-  }, [model]);
+  }, [eventFocus, eventPosition, model]);
 
-  const loadAnalysis = useCallback(async (nextRange: VehicleTrackRange, nextPreset: TripAnalysisPreset | null, nextOpenEnded: boolean, collapseEditor: boolean) => {
+  const clearEventFocus = useCallback(() => {
+    setEventFocus(null);
+    eventFocusRef.current = null;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("event")) {
+      url.searchParams.delete("event");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+    }
+  }, []);
+
+  const loadAnalysis = useCallback(async (nextRange: VehicleTrackRange, nextPreset: TripAnalysisPreset | null, nextOpenEnded: boolean, collapseEditor: boolean, preserveEventFocus: boolean) => {
     analysisController.current?.abort();
     trackController.current?.abort();
     const controller = new AbortController();
@@ -152,6 +194,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
     setInteraction(clearTripAnalysisInteraction());
     setTrackLoading(false);
     setModel(EMPTY_VEHICLE_TRACK_PRESENTATION);
+    if (!preserveEventFocus) clearEventFocus();
     try {
       const query = new URLSearchParams(nextRange);
       const response = await fetch(`/api/vehicles/${vehicleId}/trip-analysis?${query}`, { cache: "no-store", signal: controller.signal, headers: { Accept: "application/json" } });
@@ -164,8 +207,17 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
       setDraft(nextOpenEnded ? { ...nextDraft, to: "" } : nextDraft);
       setAppliedPreset(nextPreset);
       setAppliedOpenEnded(nextOpenEnded);
+      const currentEventFocus = eventFocusRef.current;
+      if (preserveEventFocus && currentEventFocus?.kind === "AVAILABLE") {
+        const nextFocus = Object.freeze({ ...currentEventFocus, trip: resolveContainingTrip(data, currentEventFocus.event.confirmedAt) });
+        eventFocusRef.current = nextFocus;
+        setEventFocus(nextFocus);
+      }
       if (collapseEditor) setEditorOpen(false);
-      window.history.replaceState(null, "", `/vehicles/${vehicleId}/trips?${tripAnalysisPageQuery(nextRange, nextOpenEnded)}`);
+      const pageQuery = new URLSearchParams(tripAnalysisPageQuery(nextRange, nextOpenEnded));
+      const currentEventId = preserveEventFocus ? new URL(window.location.href).searchParams.get("event") : null;
+      if (currentEventId) pageQuery.set("event", currentEventId);
+      window.history.replaceState(null, "", `/vehicles/${vehicleId}/trips?${pageQuery}`);
     } catch {
       if (!controller.signal.aborted) {
         setAnalysis(null);
@@ -174,15 +226,26 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [vehicleId]);
+  }, [clearEventFocus, vehicleId]);
 
   useEffect(() => () => {
     analysisController.current?.abort();
     trackController.current?.abort();
   }, []);
 
-  const select = useCallback(async (next: TripAnalysisSelection) => {
+  useEffect(() => {
+    if (didEventScrollRef.current) return;
+    const initial = initialEventFocusRef.current;
+    if (initial?.kind !== "AVAILABLE") return;
+    const workspace = workspaceRef.current;
+    if (!workspace) return;
+    didEventScrollRef.current = true;
+    workspace.scrollIntoView({ block: "start" });
+  }, []);
+
+  const select = useCallback(async (next: TripAnalysisSelection, preserveEventFocus: boolean) => {
     trackController.current?.abort();
+    if (!preserveEventFocus) clearEventFocus();
     setInteraction(selectTripAnalysisItem(next));
     if (next.kind === "STOP") {
       const boundaries = selectedStopBoundaryPresentation(next);
@@ -212,7 +275,30 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
     } finally {
       if (!controller.signal.aborted) setTrackLoading(false);
     }
-  }, [vehicleId]);
+  }, [clearEventFocus, vehicleId]);
+
+  useEffect(() => {
+    if (eventFocus?.kind !== "AVAILABLE" || eventFocus.trip.kind !== "MATCH" || loading) return;
+    if (interaction.selection || trackLoading) return;
+    const tripKey = eventFocus.trip.tripKey;
+    const containing = timeline.find((item): item is TripAnalysisSelection => item.key === tripKey && item.kind === "TRIP");
+    if (!containing) return;
+    const controller = new AbortController();
+    trackController.current?.abort();
+    trackController.current = controller;
+    fetchTripTrackPresentation(vehicleId, containing, controller.signal).then(
+      (presentation) => {
+        if (controller.signal.aborted) return;
+        setInteraction(selectTripAnalysisItem(containing));
+        setModel(presentation);
+      },
+      () => {
+        if (controller.signal.aborted) return;
+        setInteraction(failSelectedTrack(selectTripAnalysisItem(containing)));
+      },
+    );
+    return () => controller.abort();
+  }, [eventFocus, interaction.selection, loading, timeline, trackLoading, vehicleId]);
 
   useEffect(() => {
     if (!mapContainer) return;
@@ -225,7 +311,10 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
     const onLoad = () => {
       ensureTripMapLayers(map, modelRef.current);
       updateTripMapData(map, modelRef.current);
-      applyCamera(map, modelRef.current);
+      const initialPosition = eventFocusRef.current?.kind === "AVAILABLE" ? eventFocusRef.current.event.confirmationPosition : null;
+      ensureTripEventLayer(map, initialPosition);
+      updateTripEventData(map, initialPosition);
+      applyCamera(map, modelRef.current, initialPosition);
       map.resize();
     };
     const onError = () => setStyleError(true);
@@ -248,7 +337,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
     const next = createTripAnalysisPresetRange(preset, new Date(), timezone);
     if (next) {
       setFormError(null);
-      void loadAnalysis(next, preset, false, true);
+      void loadAnalysis(next, preset, false, true, false);
     }
   };
   const submit = (event: React.FormEvent) => {
@@ -260,7 +349,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
       return;
     }
     setFormError(null);
-    void loadAnalysis(parsed.range, null, openEnded, true);
+    void loadAnalysis(parsed.range, null, openEnded, true, false);
   };
   const refresh = () => {
     const next = appliedOpenEnded ? refreshOpenEndedTripAnalysisRange(range, new Date()) : range;
@@ -270,7 +359,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
       return;
     }
     setFormError(null);
-    void loadAnalysis(next, appliedPreset, appliedOpenEnded, false);
+    void loadAnalysis(next, appliedPreset, appliedOpenEnded, false, true);
   };
   const noObservations = analysis?.summary.rawObservationCount === 0;
   const noEvents = analysis && analysis.summary.rawObservationCount > 0 && analysis.summary.tripCount === 0 && analysis.summary.stopCount === 0;
@@ -362,6 +451,11 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
     </form>
   </div>;
 
+  const availableEvent = eventFocus?.kind === "AVAILABLE" ? eventFocus.event : null;
+  const showEventLegend = availableEvent?.confirmationPosition != null;
+  const eventHistoryUnavailable = eventFocus?.kind === "AVAILABLE" && (eventFocus.trip.kind !== "MATCH" || interaction.trackError);
+  const showWorkspace = eventFocus?.kind === "AVAILABLE" || Boolean(analysis && !noObservations);
+
   return <VehicleDetailShell vehicleId={vehicleId} vehicleName={vehicleName ?? t("trips.title")} vehicleGroup={vehicleGroup} activeTab="trips" generatedAt={shellGeneratedAt}>
     <div className="vehicle-trips" style={pageStyle}>
       <section className="vehicle-trips__period-bar" aria-label={t("trips.controls.title")}>
@@ -379,6 +473,9 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
       </section>
 
       {analysisError ? <Alert className="vehicle-trips__analysis-error" type="error" showIcon title={t("trips.loadError")} description={t("trips.loadErrorText")} /> : null}
+      {eventFocus?.kind === "UNAVAILABLE" ? <Alert className="vehicle-trips__event-notice" type="warning" showIcon title={t("trips.event.unavailable")} /> : null}
+      {eventHistoryUnavailable ? <Alert className="vehicle-trips__event-notice" type="warning" showIcon title={t("trips.event.historyUnavailable")} /> : null}
+      {availableEvent && !availableEvent.confirmationPosition ? <Alert className="vehicle-trips__event-notice" type="info" showIcon title={t("trips.event.positionUnavailable")} /> : null}
       {analysis ? <section className="vehicle-trips__summary" aria-label={t("trips.summary.label")}>
         <TripSummaryMetric icon={<CarOutlined />} title={t("trips.summary.trips")} value={analysis.summary.tripCount} />
         <TripSummaryMetric icon={<PauseCircleOutlined />} title={t("trips.summary.stops")} value={analysis.summary.stopCount} />
@@ -390,28 +487,29 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
       </section> : null}
       {noEvents ? <Alert className="vehicle-trips__neutral-result" type="info" showIcon title={t("trips.noEvents")} /> : null}
 
-      {analysis && !noObservations ? <section className="vehicle-trips__workspace">
+      {showWorkspace ? <section ref={workspaceRef} id="vehicle-trips-workspace" className="vehicle-trips__workspace">
         <section className="vehicle-trips__timeline-pane" aria-label={t("trips.timeline.label")}>
           <header className="vehicle-trips__workspace-header"><TripSectionTitle icon={<CalendarOutlined />} title={t("trips.timeline.title")} /></header>
           <div className="vehicle-trips__timeline-content">
             {timeline.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("trips.timeline.empty")} /> : <ol className="vehicle-trips__timeline">
-              {timeline.map((item, index) => <TripTimelineRecord key={item.key} item={item} selected={selection?.key === item.key} connected={index < timeline.length - 1} onSelect={select} />)}
+              {timeline.map((item, index) => <TripTimelineRecord key={item.key} item={item} selected={selection?.key === item.key} connected={index < timeline.length - 1} onSelect={(next) => void select(next, eventFocus?.kind === "AVAILABLE" && selection?.key === next.key)} />)}
             </ol>}
           </div>
         </section>
         <section className="vehicle-trips__map-pane" aria-label={t("trips.map.label")}>
           <header className="vehicle-trips__workspace-header">
             <TripSectionTitle icon={<EnvironmentOutlined />} title={t("trips.map.title")} />
-            <Popover trigger="click" placement="bottomRight" content={<TripMapLegend />}>
+            <Popover trigger="click" placement="bottomRight" content={<TripMapLegend showEvent={showEventLegend} />}>
               <Button size="large" type="default" icon={<InfoCircleOutlined aria-hidden />}>{t("map.legend.label")}</Button>
             </Popover>
           </header>
           <div className="vehicle-trips__map-content">
             <div className="map-shell vehicle-trips__map-surface" aria-label={t("trips.map.label")}>
               <div ref={setMapContainer} className="fleet-map-canvas vehicle-trips__map-canvas" />
-              {!selection ? <div className="map-empty vehicle-trips__map-empty">{t("trips.map.select")}</div> : null}
-              {trackLoading ? <div className="map-empty vehicle-trips__map-empty">{t("trips.map.loading")}</div> : null}
-              {interaction.trackError ? <div className="map-empty vehicle-trips__map-empty vehicle-trips__map-error">{t("trips.map.trackError")}</div> : null}
+              {!selection && !eventPosition ? <div className="map-empty vehicle-trips__map-empty">{t("trips.map.select")}</div> : null}
+              {trackLoading && !eventPosition ? <div className="map-empty vehicle-trips__map-empty">{t("trips.map.loading")}</div> : null}
+              {interaction.trackError && !eventPosition ? <div className="map-empty vehicle-trips__map-empty vehicle-trips__map-error">{t("trips.map.trackError")}</div> : null}
+              {availableEvent?.confirmationPosition ? <SpeedingEventEvidence event={availableEvent} /> : null}
             </div>
             {styleError ? <Alert className="vehicle-trips__map-notice" type="error" showIcon title={t("map.basemapError")} /> : null}
             {selection?.kind === "STOP" ? <Text className="vehicle-trips__stop-disclaimer" type="secondary">{t("trips.map.stopDisclaimer")}</Text> : null}
@@ -420,6 +518,19 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
       </section> : null}
     </div>
   </VehicleDetailShell>;
+}
+
+function SpeedingEventEvidence({ event }: Readonly<{ event: Extract<NonNullable<VehicleTripsEventFocus>, { kind: "AVAILABLE" }>["event"] }>) {
+  const { locale, t } = useI18n();
+  return <aside className="vehicle-trips__event-evidence" aria-label={t("trips.event.evidenceLabel")}>
+    <strong>{t("trips.event.confirmation")}</strong>
+    <dl>
+      <div><dt>{t("events.table.opened")}</dt><dd><time dateTime={event.confirmedAt}>{formatAlertTimestamp(event.confirmedAt, locale)}</time></dd></div>
+      <div><dt>{t("events.confirmationSpeed")}</dt><dd>{formatAlertSpeed(event.confirmationSpeedKph, locale)}</dd></div>
+      <div><dt>{t("events.threshold")}</dt><dd>{formatAlertSpeed(event.thresholdKph, locale)}</dd></div>
+      <div><dt>{t("events.zone")}</dt><dd>{alertZoneLabel(event.zone, locale)}</dd></div>
+    </dl>
+  </aside>;
 }
 
 function TripSummaryMetric({ icon, title, value }: Readonly<{ icon: ReactNode; title: string; value: ReactNode }>) {
@@ -433,11 +544,11 @@ function TripSummaryMetric({ icon, title, value }: Readonly<{ icon: ReactNode; t
   </article>;
 }
 
-function TripLegendSwatch({ kind }: Readonly<{ kind: "route" | "observation" | "warning" | "start" | "end" | "stop" }>) {
+function TripLegendSwatch({ kind }: Readonly<{ kind: "route" | "observation" | "warning" | "start" | "end" | "stop" | "event" }>) {
   return <i className={`vehicle-trips__legend-sample vehicle-trips__legend-sample--${kind}`} aria-hidden />;
 }
 
-function TripMapLegend() {
+function TripMapLegend({ showEvent }: Readonly<{ showEvent?: boolean }>) {
   const { t } = useI18n();
   const { token } = theme.useToken();
   return <div className="map-legend vehicle-trips__legend" style={TRIP_MAP_MARKER_CSS_VARS} role="region" aria-label={t("map.legend.label")}>
@@ -448,6 +559,7 @@ function TripMapLegend() {
     <Divider className="map-legend__divider" style={{ margin: 0 }} />
     <div className="map-legend__items">
       {TRIP_MAP_LEGEND_ITEMS.map((item) => <span key={item.kind}><TripLegendSwatch kind={item.kind} />{t(item.messageKey)}</span>)}
+      {showEvent ? <span><TripLegendSwatch kind="event" />{t("trips.legend.speedingConfirmation")}</span> : null}
     </div>
     <Space className="map-legend__notes" orientation="vertical" size={4}>
       <Text className="map-legend__note" type="secondary">{t("trips.legend.note")}</Text>

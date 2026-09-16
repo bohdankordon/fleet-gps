@@ -24,8 +24,16 @@ test("compact and header tags are color-aware with neutral ungrouped", () => {
   assert.equal(renderTag(null), "");
   const ungrouped = renderToStaticMarkup(<ConfigProvider><I18nProvider locale="en"><VehicleGroupTag group={null} showUngrouped /></I18nProvider></ConfigProvider>);
   assert.match(ungrouped, /ant-tag/);
+  assert.match(ungrouped, /vehicle-group-tag--ungrouped/);
+  assert.match(ungrouped, /background-color:[^;]+;border-color:[^;]+;color:/);
   assert.doesNotMatch(ungrouped, /ant-tag-red/);
+  const ungroupedHeader = renderToStaticMarkup(<ConfigProvider><I18nProvider locale="en"><VehicleGroupTag group={null} showUngrouped variant="header" /></I18nProvider></ConfigProvider>);
+  assert.match(ungroupedHeader, /vehicle-group-tag--header vehicle-group-tag--ungrouped/);
   const shell = readFileSync("src/components/vehicle-detail-shell.tsx", "utf8");
+  assert.match(shell, /backgroundColor: token\.colorFillSecondary/);
+  assert.match(shell, /borderColor: token\.colorBorder/);
+  assert.match(shell, /color: token\.colorTextSecondary/);
+  assert.match(shell, /<VehicleGroupTag group=\{vehicleGroup\} showUngrouped variant="header" \/>/);
   assert.match(shell, /VEHICLE_GROUP_TAG_COLORS/);
   assert.doesNotMatch(shell, /color="red"|"RED"/);
 });

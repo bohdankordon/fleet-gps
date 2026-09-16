@@ -37,6 +37,17 @@ export type AlertEventsListResponse = Readonly<{
   nextCursor: string | null;
 }>;
 
+export type SpeedingEventInvestigationResponse = Readonly<{
+  eventId: string;
+  type: "SPEEDING";
+  vehicleId: string;
+  confirmedAt: string;
+  confirmationPosition: Readonly<{ latitude: number; longitude: number }> | null;
+  confirmationSpeedKph: number;
+  thresholdKph: number;
+  zone: "CITY" | "OUTSIDE_CITY";
+}>;
+
 export type AlertEventsSummaryResponse = Readonly<{
   open: Readonly<{
     total: number;
