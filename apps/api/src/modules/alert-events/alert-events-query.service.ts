@@ -26,6 +26,11 @@ function finiteInvestigationMetric(value: number | null): number {
   return value;
 }
 
+function finiteCoordinate(value: number | null, minimum: number, maximum: number): number {
+  if (value === null || !Number.isFinite(value) || value < minimum || value > maximum) throw new AlertEventsQueryStateError();
+  return value;
+}
+
 function toReadModel(row: StoredAlertEventReadRow): AlertEventReadModel {
   const scoped = projectScopedAlertEvent(row);
   return Object.freeze({
@@ -77,6 +82,20 @@ export class AlertEventsQueryService {
     const pairIsNull = latitude === null && longitude === null;
     if ((!pairIsNull && (latitude === null || longitude === null || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180))
       || row.type !== AlertEventType.SPEEDING || (row.speedZone !== "CITY" && row.speedZone !== "OUTSIDE_CITY")) throw new AlertEventsQueryStateError();
+    const speedingSegments = row.confirmations.flatMap((confirmation) => {
+      const values = [confirmation.speedingStreakStartedAt, confirmation.speedingStreakStartLatitude, confirmation.speedingStreakStartLongitude, confirmation.lastSpeedingObservedAt, confirmation.lastSpeedingLatitude, confirmation.lastSpeedingLongitude];
+      if (values.every((value) => value === null)) return [];
+      if (values.some((value) => value === null)) throw new AlertEventsQueryStateError();
+      const startedAt = confirmation.speedingStreakStartedAt!; const lastAt = confirmation.lastSpeedingObservedAt!;
+      if (!(startedAt instanceof Date) || !Number.isFinite(startedAt.getTime()) || !(confirmation.observedAt instanceof Date) || !Number.isFinite(confirmation.observedAt.getTime()) || !(lastAt instanceof Date) || !Number.isFinite(lastAt.getTime()) || startedAt > confirmation.observedAt || confirmation.observedAt > lastAt) throw new AlertEventsQueryStateError();
+      return [Object.freeze({
+        startedAt: projectAlertEventTimestamp(startedAt),
+        confirmedAt: projectAlertEventTimestamp(confirmation.observedAt),
+        startPosition: Object.freeze({ latitude: finiteCoordinate(confirmation.speedingStreakStartLatitude, -90, 90), longitude: finiteCoordinate(confirmation.speedingStreakStartLongitude, -180, 180) }),
+        lastSpeedingObservedAt: projectAlertEventTimestamp(lastAt),
+        lastSpeedingPosition: Object.freeze({ latitude: finiteCoordinate(confirmation.lastSpeedingLatitude, -90, 90), longitude: finiteCoordinate(confirmation.lastSpeedingLongitude, -180, 180) }),
+      })];
+    });
     return Object.freeze({
       eventId: row.id,
       type: "SPEEDING",
@@ -86,6 +105,7 @@ export class AlertEventsQueryService {
       confirmationSpeedKph: finiteInvestigationMetric(row.confirmationSpeedKph),
       thresholdKph: finiteInvestigationMetric(row.speedThresholdKph),
       zone: row.speedZone,
+      speedingSegments: Object.freeze(speedingSegments),
     });
   }
 

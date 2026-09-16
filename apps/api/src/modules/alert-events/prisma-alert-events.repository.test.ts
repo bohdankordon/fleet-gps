@@ -3,10 +3,12 @@ import test from "node:test";
 import { Prisma, type PrismaClient } from "../../generated/prisma/client";
 import type { DatabaseService } from "../database";
 import { PrismaAlertEventsRepository } from "./prisma-alert-events.repository";
+import { createAlertEventDedupeKey } from "./alert-events.keys";
+import { AlertEventPersistenceStateError } from "./alert-events.repository";
 
 const VEHICLE_ID = "00000000-0000-4000-8000-000000000001";
 const AT = new Date("2026-08-08T10:00:00.000Z");
-const input = { command: { type: "SPEEDING" as const, vehicleId: VEHICLE_ID, observedAt: AT, zone: "CITY" as const, speedKph: 70, speedThresholdKph: 60, confirmationLatitude: 49.23, confirmationLongitude: 28.48 }, dedupeKey: "d".repeat(64), activeKey: "a".repeat(64) };
+const input = { command: { type: "SPEEDING" as const, vehicleId: VEHICLE_ID, observedAt: AT, zone: "CITY" as const, speedKph: 70, speedThresholdKph: 60, confirmationLatitude: 49.23, confirmationLongitude: 28.48, speedingStreakStartedAt: new Date(AT.getTime() - 1_000), speedingStreakStartLatitude: 49.22, speedingStreakStartLongitude: 28.47 }, dedupeKey: "d".repeat(64), activeKey: "a".repeat(64) };
 const legacyEnabledConfig = { telegramNotifications: { enabled: true } };
 
 function repository(client: PrismaClient) {
@@ -25,6 +27,10 @@ function storedSpeeding(overrides: Record<string, unknown> = {}) {
   return { id: "event-1", vehicleId: VEHICLE_ID, type: "SPEEDING", status: "OPEN", confirmedAt: AT, lastObservedAt: AT, resolvedAt: null, dedupeKey: "d".repeat(64), activeKey: "a".repeat(64), speedZone: "CITY", confirmationSpeedKph: 70, confirmationLatitude: 49.23, confirmationLongitude: 28.48, lastSpeedKph: 70, peakSpeedKph: 70, speedThresholdKph: 60, confirmationTraveledDistanceMeters: null, lastTraveledDistanceMeters: null, minimumTraveledDistanceMeters: null, distanceThresholdMeters: null, durationThresholdMinutes: null, ...overrides };
 }
 
+function storedReceipt(overrides: Record<string, unknown> = {}) {
+  return { eventId: "event-1", observedAt: AT, speedingStreakStartedAt: input.command.speedingStreakStartedAt, speedingStreakStartLatitude: 49.22, speedingStreakStartLongitude: 28.47, lastSpeedingObservedAt: AT, lastSpeedingLatitude: 49.23, lastSpeedingLongitude: 28.48, ...overrides };
+}
+
 test("first confirmation creates event and receipt in the same transaction callback", async () => {
   const eventCreates: unknown[] = []; const receiptCreates: unknown[] = []; const notificationCreates: unknown[] = []; const order: string[] = []; let transactions = 0;
   const transaction = {
@@ -35,7 +41,7 @@ test("first confirmation creates event and receipt in the same transaction callb
   const client = { $transaction: async (callback: (tx: typeof transaction) => Promise<unknown>, options: unknown) => { transactions += 1; assert.deepEqual(options, { timeout: 30_000 }); return callback(transaction); } } as unknown as PrismaClient;
   const result = await repository(client as unknown as PrismaClient).registerConfirmation(input);
   assert.equal(result.outcome, "CREATED"); assert.equal(transactions, 1); assert.equal(receiptCreates.length, 1); assert.equal(notificationCreates.length, 1);
-  assert.deepEqual(receiptCreates[0], { data: { dedupeKey: input.dedupeKey, eventId: "event-1", observedAt: AT } });
+  assert.deepEqual(receiptCreates[0], { data: { dedupeKey: input.dedupeKey, eventId: "event-1", observedAt: AT, speedingStreakStartedAt: input.command.speedingStreakStartedAt, speedingStreakStartLatitude: 49.22, speedingStreakStartLongitude: 28.47, lastSpeedingObservedAt: AT, lastSpeedingLatitude: 49.23, lastSpeedingLongitude: 28.48 } });
   assert.deepEqual(notificationCreates[0], { data: { alertEventId: "event-1", kind: "ALERT_CONFIRMED" } });
   const persisted = (eventCreates[0] as { data: Record<string, unknown> }).data;
   assert.equal(persisted.confirmedAt, AT); assert.equal(persisted.confirmationSpeedKph, 70); assert.equal(persisted.confirmationLatitude, 49.23); assert.equal(persisted.confirmationLongitude, 28.48);
@@ -105,7 +111,7 @@ test("exact replay becomes ALREADY_EXISTS even when race surfaced as active-key 
   let receiptReads = 0; let openReads = 0;
   const client = {
     $transaction: async () => { throw knownError(["alert_events_active_key_key"]); },
-    alertEventConfirmation: { findUnique: async () => { receiptReads += 1; return { eventId: "event-1" }; } },
+    alertEventConfirmation: { findUnique: async () => { receiptReads += 1; return storedReceipt(); } },
     alertEvent: { findFirst: async () => { openReads += 1; return storedSpeeding(); } },
   } as unknown as PrismaClient;
   const result = await repository(client).registerConfirmation(input);
@@ -113,14 +119,20 @@ test("exact replay becomes ALREADY_EXISTS even when race surfaced as active-key 
 });
 
 test("exact replay becomes ALREADY_EXISTS for a receipt constraint race", async () => {
-  const client = { $transaction: async () => { throw knownError(["alert_event_confirmations_pkey"], "P2002", "AlertEventConfirmation"); }, alertEventConfirmation: { findUnique: async () => ({ eventId: "event-1" }) } } as unknown as PrismaClient;
+  const client = { $transaction: async () => { throw knownError(["alert_event_confirmations_pkey"], "P2002", "AlertEventConfirmation"); }, alertEventConfirmation: { findUnique: async () => storedReceipt() } } as unknown as PrismaClient;
+  assert.deepEqual(await repository(client).registerConfirmation(input), { outcome: "ALREADY_EXISTS", eventId: "event-1" });
+});
+
+test("exact confirmation replay remains idempotent after its mutable segment endpoint advanced", async () => {
+  const extended = storedReceipt({ lastSpeedingObservedAt: new Date(AT.getTime() + 30_000), lastSpeedingLatitude: 49.25, lastSpeedingLongitude: 28.5 });
+  const client = { alertEventConfirmation: { findUnique: async () => extended }, alertEvent: { findFirst: async () => { throw new Error("must not inspect another event"); } } } as unknown as PrismaClient;
   assert.deepEqual(await repository(client).registerConfirmation(input), { outcome: "ALREADY_EXISTS", eventId: "event-1" });
 });
 
 test("Prisma 7 adapter-pg nested unique metadata preserves exact replay semantics", async () => {
   const client = {
     $transaction: async () => { throw adapterKnownError(["active_key"]); },
-    alertEventConfirmation: { findUnique: async () => ({ eventId: "event-1" }) },
+    alertEventConfirmation: { findUnique: async () => storedReceipt() },
   } as unknown as PrismaClient;
   assert.deepEqual(await repository(client).registerConfirmation(input), { outcome: "ALREADY_EXISTS", eventId: "event-1" });
 });
@@ -139,15 +151,36 @@ test("does not swallow unrelated Prisma or ordinary errors", async () => {
 });
 
 test("conditional update includes OPEN status and expected timestamp", async () => {
-  let call: unknown;
-  const client = { alertEvent: { updateMany: async (value: unknown) => { call = value; return { count: 1 }; } } } as unknown as PrismaClient;
+  let call: unknown; let receiptCall: unknown;
+  const client = { alertEvent: { updateMany: async (value: unknown) => { call = value; return { count: 1 }; } }, alertEventConfirmation: { updateMany: async (value: unknown) => { receiptCall = value; return { count: 1 }; } } } as unknown as PrismaClient;
   const eventsRepository = repository(client);
   const event = { id: "event", vehicleId: VEHICLE_ID, type: "SPEEDING" as const, status: "OPEN" as const, confirmedAt: AT, lastObservedAt: AT, resolvedAt: null, dedupeKey: "d".repeat(64), activeKey: "a".repeat(64), speedZone: "CITY" as const, confirmationSpeedKph: 70, confirmationLatitude: 49.23, confirmationLongitude: 28.48, lastSpeedKph: 70, peakSpeedKph: 70, speedThresholdKph: 60 };
-  assert.equal(await eventsRepository.updateOpen({ event, command: { type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: new Date(AT.getTime() + 1_000), speedKph: 80 } }), true);
+  const activeAt = new Date(AT.getTime() + 1_000);
+  assert.equal(await eventsRepository.updateOpen({ event, command: { type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: activeAt, speedKph: 80, latitude: 49.24, longitude: 28.49, confirmationObservedAt: AT } }), true);
   assert.deepEqual((call as { where: unknown }).where, { id: "event", status: "OPEN", lastObservedAt: AT });
   assert.equal((call as { data: { peakSpeedKph: number } }).data.peakSpeedKph, 80);
   assert.equal("confirmationLatitude" in (call as { data: Record<string, unknown> }).data, false);
   assert.equal("confirmationLongitude" in (call as { data: Record<string, unknown> }).data, false);
+  assert.deepEqual((receiptCall as { data: unknown }).data, { lastSpeedingObservedAt: activeAt, lastSpeedingLatitude: 49.24, lastSpeedingLongitude: 28.49 });
+  assert.deepEqual((receiptCall as { where: unknown }).where, { dedupeKey: createAlertEventDedupeKey("SPEEDING", VEHICLE_ID, AT), eventId: "event", observedAt: AT, speedingStreakStartedAt: { not: null }, lastSpeedingObservedAt: { lte: activeAt } });
+});
+
+test("ACTIVE fails atomically when its exact confirmation receipt cannot be extended", async () => {
+  const event = storedSpeeding({ id: "event" }) as unknown as import("./alert-events.types").SpeedingAlertEventRecord;
+  const transaction = { alertEvent: { updateMany: async () => ({ count: 1 }) }, alertEventConfirmation: { updateMany: async () => ({ count: 0 }) } };
+  const client = { $transaction: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction) } as unknown as PrismaClient;
+  await assert.rejects(repository(client).updateOpen({ event, command: { type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: new Date(AT.getTime() + 1_000), speedKph: 80, latitude: 49.24, longitude: 28.49, confirmationObservedAt: AT } }), AlertEventPersistenceStateError);
+});
+
+test("equal-timestamp ACTIVE retry verifies the exact confirmation endpoint and rejects contradiction", async () => {
+  const activeAt = new Date(AT.getTime() + 1_000);
+  const event = storedSpeeding({ id: "event", lastObservedAt: activeAt, lastSpeedKph: 80 }) as unknown as import("./alert-events.types").SpeedingAlertEventRecord;
+  let receipt = storedReceipt({ eventId: "event", lastSpeedingObservedAt: activeAt, lastSpeedingLatitude: 49.24, lastSpeedingLongitude: 28.49 });
+  const client = { alertEventConfirmation: { findUnique: async () => receipt } } as unknown as PrismaClient;
+  const command = { type: "SPEEDING" as const, vehicleId: VEHICLE_ID, observedAt: activeAt, speedKph: 80, latitude: 49.24, longitude: 28.49, confirmationObservedAt: AT };
+  assert.equal(await repository(client).verifySpeedingUpdateApplied(event, command), true);
+  receipt = storedReceipt({ eventId: "event", lastSpeedingObservedAt: activeAt, lastSpeedingLatitude: 49.99, lastSpeedingLongitude: 28.49 });
+  await assert.rejects(repository(client).verifySpeedingUpdateApplied(event, command), AlertEventPersistenceStateError);
 });
 
 test("resolve preserves the speeding confirmation anchor and only closes the event", async () => {

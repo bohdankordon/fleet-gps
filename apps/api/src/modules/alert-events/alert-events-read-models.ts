@@ -46,6 +46,13 @@ export type SpeedingEventInvestigationResponse = Readonly<{
   confirmationSpeedKph: number;
   thresholdKph: number;
   zone: "CITY" | "OUTSIDE_CITY";
+  speedingSegments: readonly Readonly<{
+    startedAt: string;
+    confirmedAt: string;
+    startPosition: Readonly<{ latitude: number; longitude: number }>;
+    lastSpeedingObservedAt: string;
+    lastSpeedingPosition: Readonly<{ latitude: number; longitude: number }>;
+  }>[];
 }>;
 
 export type AlertEventsSummaryResponse = Readonly<{

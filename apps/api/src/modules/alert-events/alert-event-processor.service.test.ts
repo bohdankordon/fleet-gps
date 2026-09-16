@@ -11,7 +11,7 @@ const VEHICLE_ID = "00000000-0000-4000-8000-000000000001";
 const OBSERVED_AT = "2026-08-08T10:00:00.000Z";
 
 function speeding(overrides: Partial<SpeedingDetectionResult> = {}): SpeedingDetectionResult {
-  return { vehicleId: VEHICLE_ID, observedAt: OBSERVED_AT, status: "CONFIRMED", reason: "ABOVE_THRESHOLD", zone: "CITY", speedKph: 72, thresholdKph: 60, consecutiveCount: 2, confirmationRequired: 2, newlyConfirmed: true, confirmationPosition: { latitude: 49.23, longitude: 28.48 }, ...overrides };
+  return { vehicleId: VEHICLE_ID, observedAt: OBSERVED_AT, status: "CONFIRMED", reason: "ABOVE_THRESHOLD", zone: "CITY", speedKph: 72, thresholdKph: 60, consecutiveCount: 2, confirmationRequired: 2, newlyConfirmed: true, confirmationPosition: { latitude: 49.23, longitude: 28.48 }, confirmationObservedAt: OBSERVED_AT, streakStart: { observedAt: "2026-08-08T09:59:59.000Z", latitude: 49.22, longitude: 28.47 }, speedingPosition: { latitude: 49.23, longitude: 28.48 }, ...overrides };
 }
 
 function inactivity(overrides: Partial<InactivityDetectionResult> = {}): InactivityDetectionResult {
@@ -62,7 +62,7 @@ test("3. speeding CONFIRMED with newlyConfirmed=false returns NONE", async () =>
 test("4. speeding newly confirmed routes the mapper OPEN command to lifecycle", async () => {
   const { processor, calls } = setup();
   assert.equal((await processor.processSpeedingResult(speeding())).action, "OPEN");
-  assert.deepEqual(calls, [{ method: "openSpeedingEvent", command: { type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: new Date(OBSERVED_AT), zone: "CITY", speedKph: 72, speedThresholdKph: 60, confirmationLatitude: 49.23, confirmationLongitude: 28.48 } }]);
+  assert.deepEqual(calls, [{ method: "openSpeedingEvent", command: { type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: new Date(OBSERVED_AT), zone: "CITY", speedKph: 72, speedThresholdKph: 60, confirmationLatitude: 49.23, confirmationLongitude: 28.48, speedingStreakStartedAt: new Date("2026-08-08T09:59:59.000Z"), speedingStreakStartLatitude: 49.22, speedingStreakStartLongitude: 28.47 } }]);
 });
 
 test("5. speeding CREATED is returned transparently", async () => {
@@ -178,7 +178,7 @@ test("24. speed and inactivity commands preserve only their safe metrics", async
   const { processor, calls } = setup({ updateSpeedingEvent: { outcome: "UPDATED", eventId: "speed" }, updateInactivityEvent: { outcome: "UPDATED", eventId: "idle" } });
   await processor.processSpeedingResult(speeding({ status: "ACTIVE", newlyConfirmed: false, speedKph: 88 }));
   await processor.processInactivityResult(inactivity({ status: "ACTIVE", newlyConfirmed: false, traveledDistanceMeters: 7 }));
-  assert.deepEqual(calls[0]?.command, { type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: new Date(OBSERVED_AT), speedKph: 88 });
+  assert.deepEqual(calls[0]?.command, { type: "SPEEDING", vehicleId: VEHICLE_ID, observedAt: new Date(OBSERVED_AT), speedKph: 88, latitude: 49.23, longitude: 28.48, confirmationObservedAt: new Date(OBSERVED_AT) });
   assert.deepEqual(calls[1]?.command, { type: "INACTIVITY", vehicleId: VEHICLE_ID, observedAt: new Date(OBSERVED_AT), traveledDistanceMeters: 7 });
 });
 

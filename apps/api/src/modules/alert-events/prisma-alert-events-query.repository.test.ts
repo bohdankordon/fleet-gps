@@ -132,6 +132,9 @@ test("investigation direct-ID read is SPEEDING-only and composes Product Vehicle
   assert.equal(result, null);
   assert.deepEqual(query, {
     where: { AND: [{ id: eventId, type: AlertEventType.SPEEDING }, { vehicle: scope.where }] },
-    select: { id: true, type: true, vehicleId: true, confirmedAt: true, confirmationLatitude: true, confirmationLongitude: true, confirmationSpeedKph: true, speedThresholdKph: true, speedZone: true },
+    select: {
+      id: true, type: true, vehicleId: true, confirmedAt: true, confirmationLatitude: true, confirmationLongitude: true, confirmationSpeedKph: true, speedThresholdKph: true, speedZone: true,
+      confirmations: { orderBy: [{ observedAt: "asc" }, { dedupeKey: "asc" }], select: { dedupeKey: true, observedAt: true, speedingStreakStartedAt: true, speedingStreakStartLatitude: true, speedingStreakStartLongitude: true, lastSpeedingObservedAt: true, lastSpeedingLatitude: true, lastSpeedingLongitude: true } },
+    },
   });
 });

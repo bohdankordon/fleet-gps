@@ -104,7 +104,10 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
   public findSpeedingInvestigation(eventId: string, scope: VehicleScope): Promise<StoredSpeedingEventInvestigationRow | null> {
     return this.database.getClient().alertEvent.findFirst({
       where: applyAlertEventScope(scope, { id: eventId, type: AlertEventType.SPEEDING }),
-      select: { id: true, type: true, vehicleId: true, confirmedAt: true, confirmationLatitude: true, confirmationLongitude: true, confirmationSpeedKph: true, speedThresholdKph: true, speedZone: true },
+      select: {
+        id: true, type: true, vehicleId: true, confirmedAt: true, confirmationLatitude: true, confirmationLongitude: true, confirmationSpeedKph: true, speedThresholdKph: true, speedZone: true,
+        confirmations: { orderBy: [{ observedAt: "asc" }, { dedupeKey: "asc" }], select: { dedupeKey: true, observedAt: true, speedingStreakStartedAt: true, speedingStreakStartLatitude: true, speedingStreakStartLongitude: true, lastSpeedingObservedAt: true, lastSpeedingLatitude: true, lastSpeedingLongitude: true } },
+      },
     });
   }
 }

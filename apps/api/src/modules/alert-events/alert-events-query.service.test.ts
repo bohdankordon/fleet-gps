@@ -148,10 +148,33 @@ test("vehicle options are locale ordered and project safe fields even when repos
 test("investigation projects only authoritative SPEEDING evidence and preserves null legacy coordinates", async () => {
   const repository: AlertEventsQueryRepository = {
     getVehicleOptions: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }),
-    findSpeedingInvestigation: async () => ({ id: EVENT_ID, type: AlertEventType.SPEEDING, vehicleId: VEHICLE_ID, confirmedAt: AT, confirmationLatitude: 49.23, confirmationLongitude: 28.48, confirmationSpeedKph: 72, speedThresholdKph: 60, speedZone: AlertEventSpeedZone.CITY }),
+    findSpeedingInvestigation: async () => ({ id: EVENT_ID, type: AlertEventType.SPEEDING, vehicleId: VEHICLE_ID, confirmedAt: AT, confirmationLatitude: 49.23, confirmationLongitude: 28.48, confirmationSpeedKph: 72, speedThresholdKph: 60, speedZone: AlertEventSpeedZone.CITY, confirmations: [] }),
   };
   const subject = new AlertEventsQueryService(repository, { now: () => AT }, unrestrictedScopes);
-  assert.deepEqual(await subject.getSpeedingInvestigation(EVENT_ID, testUserId), { eventId: EVENT_ID, type: "SPEEDING", vehicleId: VEHICLE_ID, confirmedAt: AT.toISOString(), confirmationPosition: { latitude: 49.23, longitude: 28.48 }, confirmationSpeedKph: 72, thresholdKph: 60, zone: "CITY" });
-  repository.findSpeedingInvestigation = async () => ({ id: EVENT_ID, type: AlertEventType.SPEEDING, vehicleId: VEHICLE_ID, confirmedAt: AT, confirmationLatitude: null, confirmationLongitude: null, confirmationSpeedKph: 72, speedThresholdKph: 60, speedZone: AlertEventSpeedZone.CITY });
+  assert.deepEqual(await subject.getSpeedingInvestigation(EVENT_ID, testUserId), { eventId: EVENT_ID, type: "SPEEDING", vehicleId: VEHICLE_ID, confirmedAt: AT.toISOString(), confirmationPosition: { latitude: 49.23, longitude: 28.48 }, confirmationSpeedKph: 72, thresholdKph: 60, zone: "CITY", speedingSegments: [] });
+  repository.findSpeedingInvestigation = async () => ({ id: EVENT_ID, type: AlertEventType.SPEEDING, vehicleId: VEHICLE_ID, confirmedAt: AT, confirmationLatitude: null, confirmationLongitude: null, confirmationSpeedKph: 72, speedThresholdKph: 60, speedZone: AlertEventSpeedZone.CITY, confirmations: [] });
   assert.equal((await subject.getSpeedingInvestigation(EVENT_ID, testUserId)).confirmationPosition, null);
+});
+
+test("investigation projects multiple complete confirmation segments in repository order", async () => {
+  const confirmation = (minute: number) => ({ dedupeKey: String(minute).padStart(64, "0"), observedAt: new Date(AT.getTime() + minute * 60_000), speedingStreakStartedAt: new Date(AT.getTime() + (minute - 1) * 60_000), speedingStreakStartLatitude: 49.2 + minute / 100, speedingStreakStartLongitude: 28.4 + minute / 100, lastSpeedingObservedAt: new Date(AT.getTime() + (minute + 1) * 60_000), lastSpeedingLatitude: 49.3 + minute / 100, lastSpeedingLongitude: 28.5 + minute / 100 });
+  const repository: AlertEventsQueryRepository = {
+    getVehicleOptions: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }),
+    findSpeedingInvestigation: async () => ({ id: EVENT_ID, type: AlertEventType.SPEEDING, vehicleId: VEHICLE_ID, confirmedAt: AT, confirmationLatitude: 49.23, confirmationLongitude: 28.48, confirmationSpeedKph: 72, speedThresholdKph: 60, speedZone: AlertEventSpeedZone.CITY, confirmations: [confirmation(2), confirmation(5)] }),
+  };
+  const result = await new AlertEventsQueryService(repository, { now: () => AT }, unrestrictedScopes).getSpeedingInvestigation(EVENT_ID, testUserId);
+  assert.equal(result.speedingSegments.length, 2);
+  assert.deepEqual(result.speedingSegments.map((segment) => segment.confirmedAt), [new Date(AT.getTime() + 2 * 60_000).toISOString(), new Date(AT.getTime() + 5 * 60_000).toISOString()]);
+});
+
+test("investigation omits all-null legacy evidence and fails closed on partial persisted evidence", async () => {
+  const legacy = { dedupeKey: "a".repeat(64), observedAt: AT, speedingStreakStartedAt: null, speedingStreakStartLatitude: null, speedingStreakStartLongitude: null, lastSpeedingObservedAt: null, lastSpeedingLatitude: null, lastSpeedingLongitude: null };
+  const repository: AlertEventsQueryRepository = {
+    getVehicleOptions: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }),
+    findSpeedingInvestigation: async () => ({ id: EVENT_ID, type: AlertEventType.SPEEDING, vehicleId: VEHICLE_ID, confirmedAt: AT, confirmationLatitude: 49.23, confirmationLongitude: 28.48, confirmationSpeedKph: 72, speedThresholdKph: 60, speedZone: AlertEventSpeedZone.CITY, confirmations: [legacy] }),
+  };
+  const subject = new AlertEventsQueryService(repository, { now: () => AT }, unrestrictedScopes);
+  assert.deepEqual((await subject.getSpeedingInvestigation(EVENT_ID, testUserId)).speedingSegments, []);
+  repository.findSpeedingInvestigation = async () => ({ id: EVENT_ID, type: AlertEventType.SPEEDING, vehicleId: VEHICLE_ID, confirmedAt: AT, confirmationLatitude: 49.23, confirmationLongitude: 28.48, confirmationSpeedKph: 72, speedThresholdKph: 60, speedZone: AlertEventSpeedZone.CITY, confirmations: [{ ...legacy, speedingStreakStartedAt: AT }] });
+  await assert.rejects(subject.getSpeedingInvestigation(EVENT_ID, testUserId));
 });

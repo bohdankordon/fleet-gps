@@ -6,8 +6,8 @@ import type { AlertRulesSettings, AlertSettingsService } from "../alert-settings
 import type { AlertEventProcessorService, InactivityAlertEventProcessingResult, SpeedingAlertEventProcessingResult } from "../alert-events";
 import type { CityGeofenceService } from "../city-geofence";
 import { InactivityDetectorService, InactivityDetectorStateMachine, type InactivityDetectionResult } from "../inactivity-detector";
-import { SpeedingDetectorService, SpeedingDetectorStateMachine, type SpeedingDetectionResult } from "../speeding-detector";
-import type { AlertEvaluationJournalObservation, CreateOrFindAlertObservationResult, DurableAlertObservation } from "./alert-ingestion.types";
+import { createSpeedingSettingsFingerprint, SpeedingDetectorService, SpeedingDetectorStateMachine, type SpeedingDetectionResult } from "../speeding-detector";
+import type { AlertEvaluationJournalObservation, CreateOrFindAlertObservationResult, DurableAlertObservation, DurableSpeedingDetectorCheckpoint } from "./alert-ingestion.types";
 import { AlertObservationIdentityConflictError } from "./alert-ingestion.types";
 import { AlertObservationIngestionService } from "./alert-observation-ingestion.service";
 import type { AlertObservationRepository } from "./alert-observation.repository";
@@ -37,10 +37,25 @@ class MemoryRepository {
   public createCalls = 0;
   public markCalls = 0;
   public failMarkCount = 0;
+  private readonly checkpoints = new Map<string, DurableSpeedingDetectorCheckpoint>();
 
   public seed(observation: AlertEvaluationObservation, processed: boolean, replayEligible: boolean | null = processed ? true : null): AlertEvaluationJournalObservation {
     const row = this.rowFrom(observation, `journal-${this.rows.length + 1}`, processed ? new Date(BASE_MS + 500) : null, replayEligible);
     this.rows.push(row); return row;
+  }
+
+  public seedCheckpoint(observation: AlertEvaluationObservation, options: Readonly<{ confirmationRequired: number; consecutiveCount: number; confirmed: boolean; streakStart?: AlertEvaluationObservation; confirmationObservedAt?: string | null }>): void {
+    const start = options.streakStart ?? observation;
+    this.checkpoints.set(observation.vehicleId as string, Object.freeze({
+      vehicleId: observation.vehicleId as string,
+      lastAcceptedObservedAt: observation.observedAt as string,
+      settingsFingerprint: createSpeedingSettingsFingerprint(settings(60, options.confirmationRequired)),
+      context: { zone: "CITY" as const, thresholdKph: 60, confirmationRequired: options.confirmationRequired },
+      consecutiveCount: options.consecutiveCount,
+      confirmed: options.confirmed,
+      streakStart: { observedAt: start.observedAt as string, latitude: start.latitude as number, longitude: start.longitude as number },
+      confirmationObservedAt: options.confirmationObservedAt ?? null,
+    }));
   }
 
   public async createOrFindObservation(observation: DurableAlertObservation): Promise<CreateOrFindAlertObservationResult> {
@@ -63,13 +78,16 @@ class MemoryRepository {
     return this.rows.filter((row) => row.vehicleId === vehicleId && row.processedAt !== null && row.replayEligible === true).sort((a, b) => a.observedAt.getTime() - b.observedAt.getTime()).at(-1) ?? null;
   }
 
-  public async findReplayState(vehicleId: string, cutoff: Date, target: Date, speedingHistoryCount: number): Promise<readonly AlertEvaluationJournalObservation[]> {
+  public async findSpeedingCheckpoint(vehicleId: string): Promise<DurableSpeedingDetectorCheckpoint | null> {
+    return this.checkpoints.get(vehicleId) ?? null;
+  }
+
+  public async findInactivityReplayState(vehicleId: string, cutoff: Date, target: Date): Promise<readonly AlertEvaluationJournalObservation[]> {
     const eligible = this.rows.filter((row) => row.vehicleId === vehicleId && row.processedAt !== null && row.replayEligible === true && row.observedAt <= target).sort((a, b) => a.observedAt.getTime() - b.observedAt.getTime());
     const recent = eligible.filter((row) => row.observedAt >= cutoff);
     const anchor = eligible.filter((row) => row.observedAt < cutoff).at(-1);
-    const speeding = eligible.slice(-speedingHistoryCount);
-    const rows = [...new Map([...(anchor === undefined ? [] : [anchor]), ...recent, ...speeding].map((row) => [row.id, row])).values()].sort((a, b) => a.observedAt.getTime() - b.observedAt.getTime());
-    this.replayCalls.push({ vehicleId, cutoff, target, speedingHistoryCount, ids: rows.map((row) => row.id) });
+    const rows = [...(anchor === undefined ? [] : [anchor]), ...recent];
+    this.replayCalls.push({ vehicleId, cutoff, target, speedingHistoryCount: 0, ids: rows.map((row) => row.id) });
     return rows;
   }
 
@@ -84,6 +102,12 @@ class MemoryRepository {
       return;
     }
     this.rows[index] = Object.freeze({ ...existing, processedAt: new Date(), replayEligible });
+  }
+
+  public async completeObservation(id: string, replayEligible: boolean, checkpoint: DurableSpeedingDetectorCheckpoint): Promise<void> {
+    await this.markProcessed(id, replayEligible);
+    const current = this.checkpoints.get(checkpoint.vehicleId);
+    if (current === undefined || Date.parse(checkpoint.lastAcceptedObservedAt) >= Date.parse(current.lastAcceptedObservedAt)) this.checkpoints.set(checkpoint.vehicleId, checkpoint);
   }
 
   private rowFrom(observation: AlertEvaluationObservation | DurableAlertObservation, id: string, processedAt: Date | null, replayEligible: boolean | null): AlertEvaluationJournalObservation {
@@ -106,9 +130,18 @@ function noopProcessor(): AlertEventProcessorService {
 function fakeHarness(options: { repository?: MemoryRepository; evaluate?: (observation: AlertEvaluationObservation) => Promise<AlertEvaluationResult> } = {}) {
   const repository = options.repository ?? new MemoryRepository();
   const calls = { evaluate: [] as AlertEvaluationObservation[], prime: [] as AlertEvaluationObservation[], resets: [] as string[], clears: 0, settings: 0 };
+  let latestCheckpoint: DurableSpeedingDetectorCheckpoint | null = null;
   const evaluation = {
-    evaluateObservation: async (observation: AlertEvaluationObservation) => { calls.evaluate.push(observation); repository.order.push("evaluate"); return options.evaluate ? options.evaluate(observation) : resultFor(observation); },
-    primeObservation: async (observation: AlertEvaluationObservation) => { calls.prime.push(observation); return resultFor(observation); },
+    evaluateObservation: async (observation: AlertEvaluationObservation) => {
+      calls.evaluate.push(observation); repository.order.push("evaluate");
+      const evaluated = options.evaluate ? await options.evaluate(observation) : resultFor(observation);
+      latestCheckpoint = Object.freeze({ vehicleId: observation.vehicleId as string, lastAcceptedObservedAt: observation.observedAt as string, settingsFingerprint: "fake-settings", context: { zone: "CITY" as const, thresholdKph: 60, confirmationRequired: 2 }, consecutiveCount: 1, confirmed: false, streakStart: { observedAt: observation.observedAt as string, latitude: observation.latitude as number, longitude: observation.longitude as number }, confirmationObservedAt: null });
+      return evaluated;
+    },
+    primeInactivityObservation: async (observation: AlertEvaluationObservation) => { calls.prime.push(observation); },
+    hydrateSpeeding: (checkpoint: DurableSpeedingDetectorCheckpoint) => { latestCheckpoint = checkpoint; },
+    seedSpeedingOrderingFrontier: (vehicleId: string, observedAt: Date) => { latestCheckpoint = Object.freeze({ vehicleId, lastAcceptedObservedAt: observedAt.toISOString(), settingsFingerprint: "fake-settings", context: null, consecutiveCount: 0, confirmed: false, streakStart: null, confirmationObservedAt: null }); },
+    speedingCheckpoint: () => latestCheckpoint,
     resetVehicle: (vehicleId: string) => { calls.resets.push(vehicleId); },
     clearAll: () => { calls.clears += 1; },
   } as unknown as AlertEvaluationService;
@@ -217,10 +250,10 @@ test("failure while draining the oldest pending row blocks every newer evaluatio
   assert.deepEqual(evaluated, [BASE_MS + 1_000]); assert.equal(repository.markCalls, 0); assert.equal(repository.rows.every((row) => row.processedAt === null), true);
 });
 
-test("no processed history initializes without settings or prime rows and processes the first target normally", async () => {
+test("no processed history loads settings without replay rows and processes the first target normally", async () => {
   const { service, repository, calls } = fakeHarness();
   const outcome = await service.ingestObservation(input());
-  assert.equal(outcome.evaluation?.speeding.detection.status, "PENDING"); assert.equal(calls.prime.length, 0); assert.equal(calls.settings, 0); assert.equal(repository.replayCalls.length, 0); assert.equal(service.initializedVehicleCount(), 1);
+  assert.equal(outcome.evaluation?.speeding.detection.status, "PENDING"); assert.equal(calls.prime.length, 0); assert.equal(calls.settings, 1); assert.equal(repository.replayCalls.length, 0); assert.equal(service.initializedVehicleCount(), 1);
 });
 
 test("fresh service is lazy, uses current duration cutoff, replays only processed predecessors, and excludes target", async () => {
@@ -230,7 +263,14 @@ test("fresh service is lazy, uses current duration cutoff, replays only processe
   const recent = repository.seed(input(VEHICLE_A, -900_000), true);
   const target = repository.seed(input(VEHICLE_A, 0), false);
   const calls = { primes: [] as string[], snapshots: [] as AlertRulesSettings[], resets: 0, settings: 0 }; const snapshot = settings(45);
-  const evaluation = { evaluateObservation: async (value: AlertEvaluationObservation) => resultFor(value), primeObservation: async (value: AlertEvaluationObservation, used: AlertRulesSettings) => { calls.primes.push(new Date(value.observedAt as string).toISOString()); calls.snapshots.push(used); return resultFor(value); }, resetVehicle: () => { calls.resets += 1; }, clearAll() {} } as unknown as AlertEvaluationService;
+  let latest: AlertEvaluationObservation | null = null;
+  const evaluation = {
+    evaluateObservation: async (value: AlertEvaluationObservation) => { latest = value; return resultFor(value); },
+    primeInactivityObservation: async (value: AlertEvaluationObservation, used: AlertRulesSettings) => { calls.primes.push(new Date(value.observedAt as string).toISOString()); calls.snapshots.push(used); },
+    hydrateSpeeding() {}, seedSpeedingOrderingFrontier() {},
+    speedingCheckpoint: () => latest === null ? null : ({ vehicleId: latest.vehicleId as string, lastAcceptedObservedAt: latest.observedAt as string, settingsFingerprint: "fake", context: null, consecutiveCount: 0, confirmed: false, streakStart: null, confirmationObservedAt: null }),
+    resetVehicle: () => { calls.resets += 1; }, clearAll() {},
+  } as unknown as AlertEvaluationService;
   const service = new AlertObservationIngestionService(repository as unknown as AlertObservationRepository, evaluation, { getSettings: async () => { calls.settings += 1; return snapshot; } } as AlertSettingsService);
   assert.equal(calls.settings, 0); assert.equal(repository.replayCalls.length, 0);
   await service.ingestObservation(input());
@@ -241,7 +281,9 @@ test("fresh service is lazy, uses current duration cutoff, replays only processe
 
 function productionRecoveryHarness(failProcessedMarker: boolean) {
   const repository = new MemoryRepository();
-  repository.seed(input(VEHICLE_A, 0, 72), true);
+  const first = input(VEHICLE_A, 0, 72);
+  repository.seed(first, true);
+  repository.seedCheckpoint(first, { confirmationRequired: 2, consecutiveCount: 1, confirmed: false });
   if (failProcessedMarker) repository.failMarkCount = 1;
   const snapshot = settings();
   const alertSettings = { getSettings: async () => snapshot } as AlertSettingsService;
@@ -288,6 +330,42 @@ test("event success plus processedAt failure replays through receipt dedupe and 
   assert.equal(harness.repository.rows.find((row) => row.observedAt.getTime() === BASE_MS + 60_000)?.replayEligible, true);
 });
 
+test("ACTIVE event update followed by checkpoint failure retries the exact confirmation receipt idempotently", async () => {
+  const repository = new MemoryRepository();
+  const streakStart = input(VEHICLE_A, 0, 72); const confirmation = input(VEHICLE_A, 60_000, 72);
+  repository.seed(streakStart, true); repository.seed(confirmation, true);
+  repository.seedCheckpoint(confirmation, { confirmationRequired: 2, consecutiveCount: 2, confirmed: true, streakStart, confirmationObservedAt: confirmation.observedAt as string });
+  repository.failMarkCount = 1;
+  const snapshot = settings();
+  const alertSettings = { getSettings: async () => snapshot } as AlertSettingsService;
+  const geofence = { classifyPointWithSettings: () => Object.freeze({ classification: "INSIDE", speedLimitZone: "CITY", geofenceConfigured: true }) } as unknown as CityGeofenceService;
+  const endpointByReceipt = new Map<string, string>(); let durableUpdates = 0;
+  const processor = {
+    processSpeedingResult: async (detection: SpeedingDetectionResult): Promise<SpeedingAlertEventProcessingResult> => {
+      if (detection.status !== "ACTIVE") return Object.freeze({ eventType: "SPEEDING", detectorStatus: detection.status, action: "NONE", persistenceOutcome: null, eventId: null, databaseWriteAttempted: false, lifecycleResult: null });
+      assert.equal(detection.confirmationObservedAt, confirmation.observedAt);
+      const receipt = detection.confirmationObservedAt!; const endpoint = detection.observedAt!;
+      const existing = endpointByReceipt.get(receipt);
+      const outcome = existing === endpoint ? "ALREADY_APPLIED" as const : "UPDATED" as const;
+      if (existing !== endpoint) { endpointByReceipt.set(receipt, endpoint); durableUpdates += 1; }
+      const lifecycleResult = Object.freeze({ outcome, eventId: "event-1" });
+      return Object.freeze({ eventType: "SPEEDING", detectorStatus: detection.status, action: "UPDATE", persistenceOutcome: outcome, eventId: "event-1", databaseWriteAttempted: true, lifecycleResult });
+    },
+    processInactivityResult: async (detection: InactivityDetectionResult): Promise<InactivityAlertEventProcessingResult> => Object.freeze({ eventType: "INACTIVITY", detectorStatus: detection.status, action: "NONE", persistenceOutcome: null, eventId: null, databaseWriteAttempted: false, lifecycleResult: null }),
+  } as AlertEventProcessorService;
+  const makeService = () => new AlertObservationIngestionService(repository as unknown as AlertObservationRepository, new AlertEvaluationService(
+    new SpeedingDetectorService(alertSettings, geofence, new SpeedingDetectorStateMachine()),
+    new InactivityDetectorService(alertSettings, new InactivityDetectorStateMachine()),
+    processor,
+  ), alertSettings);
+  const target = input(VEHICLE_A, 120_000, 74);
+  await assert.rejects(makeService().ingestObservation(target), /mark processed failed/);
+  assert.equal(endpointByReceipt.get(confirmation.observedAt as string), target.observedAt); assert.equal(durableUpdates, 1);
+  const retry = await makeService().ingestObservation(target);
+  assert.equal(retry.evaluation?.speeding.detection.status, "ACTIVE"); assert.equal(retry.evaluation?.speeding.processing.persistenceOutcome, "ALREADY_APPLIED");
+  assert.equal(durableUpdates, 1); assert.equal(retry.processed, true);
+});
+
 test("newer speeding observation automatically retries and processes failed CONFIRMED predecessor first", async () => {
   const harness = productionRecoveryHarness(false); const failed = input(VEHICLE_A, 60_000, 72); const newer = input(VEHICLE_A, 120_000, 72);
   await assert.rejects(harness.service.ingestObservation(failed), /event persistence failed/);
@@ -332,9 +410,12 @@ test("newer movement drains failed inactivity CONFIRMED predecessor before CLEAR
   assert.equal(repository.rows.filter((row) => row.observedAt >= new Date(failed.observedAt as string)).every((row) => row.processedAt !== null), true);
 });
 
-test("restart replay unions the latest 10 speeding rows with a one-minute inactivity window and restores ACTIVE", async () => {
+test("restart hydrates the durable confirmed speeding checkpoint and separately replays the inactivity window", async () => {
   const repository = new MemoryRepository(); const snapshot = settings(1, 10);
+  const streakStart = input(VEHICLE_A, 0, 72);
   for (let minute = 0; minute < 10; minute += 1) repository.seed(input(VEHICLE_A, minute * 60_000, 72), true);
+  const confirmation = input(VEHICLE_A, 9 * 60_000, 72);
+  repository.seedCheckpoint(confirmation, { confirmationRequired: 10, consecutiveCount: 10, confirmed: true, streakStart, confirmationObservedAt: confirmation.observedAt as string });
   const alertSettings = { getSettings: async () => snapshot } as AlertSettingsService;
   const geofence = { classifyPointWithSettings: () => Object.freeze({ classification: "INSIDE", speedLimitZone: "CITY", geofenceConfigured: true }) } as unknown as CityGeofenceService;
   const speedingDetector = new SpeedingDetectorService(alertSettings, geofence, new SpeedingDetectorStateMachine());
@@ -345,13 +426,32 @@ test("restart replay unions the latest 10 speeding rows with a one-minute inacti
   } as AlertEventProcessorService;
   const service = new AlertObservationIngestionService(repository as unknown as AlertObservationRepository, new AlertEvaluationService(speedingDetector, inactivityDetector, processor), alertSettings);
   const target = input(VEHICLE_A, 10 * 60_000, 72); const outcome = await service.ingestObservation(target);
-  assert.equal(outcome.evaluation?.speeding.detection.status, "ACTIVE"); assert.equal(repository.replayCalls[0]?.speedingHistoryCount, 10);
-  assert.deepEqual(repository.replayCalls[0]?.ids, repository.rows.slice(0, 10).map((row) => row.id)); assert.equal(new Set(repository.replayCalls[0]?.ids).size, 10);
+  assert.equal(outcome.evaluation?.speeding.detection.status, "ACTIVE"); assert.equal(repository.replayCalls[0]?.speedingHistoryCount, 0);
+  assert.deepEqual(repository.replayCalls[0]?.ids, repository.rows.slice(7, 10).map((row) => row.id));
+});
+
+test("restart with a settings fingerprint mismatch preserves ordering but starts a new pending streak", async () => {
+  const repository = new MemoryRepository(); const oldStart = input(VEHICLE_A, 0, 72); const oldConfirmation = input(VEHICLE_A, 60_000, 72);
+  repository.seed(oldStart, true); repository.seed(oldConfirmation, true);
+  repository.seedCheckpoint(oldConfirmation, { confirmationRequired: 2, consecutiveCount: 2, confirmed: true, streakStart: oldStart, confirmationObservedAt: oldConfirmation.observedAt as string });
+  const snapshot = settings(60, 3); const alertSettings = { getSettings: async () => snapshot } as AlertSettingsService;
+  const geofence = { classifyPointWithSettings: () => Object.freeze({ classification: "INSIDE", speedLimitZone: "CITY", geofenceConfigured: true }) } as unknown as CityGeofenceService;
+  const service = new AlertObservationIngestionService(repository as unknown as AlertObservationRepository, new AlertEvaluationService(
+    new SpeedingDetectorService(alertSettings, geofence, new SpeedingDetectorStateMachine()),
+    new InactivityDetectorService(alertSettings, new InactivityDetectorStateMachine()), noopProcessor(),
+  ), alertSettings);
+  const target = input(VEHICLE_A, 120_000, 72); const outcome = await service.ingestObservation(target);
+  assert.equal(outcome.evaluation?.speeding.detection.status, "PENDING"); assert.equal(outcome.evaluation?.speeding.detection.consecutiveCount, 1);
+  assert.deepEqual((await repository.findSpeedingCheckpoint(VEHICLE_A))?.streakStart, { observedAt: target.observedAt, latitude: target.latitude, longitude: target.longitude });
+  const late = await service.ingestObservation(input(VEHICLE_A, 90_000, 72));
+  assert.equal(late.evaluation?.speeding.detection.reason, "OUT_OF_ORDER");
 });
 
 test("second restart excludes a completed late speeding row and preserves ACTIVE frontier", async () => {
   const repository = new MemoryRepository(); const snapshot = settings();
-  repository.seed(input(VEHICLE_A, 9 * 60_000, 72), true); repository.seed(input(VEHICLE_A, 10 * 60_000, 72), true);
+  const streakStart = input(VEHICLE_A, 9 * 60_000, 72); const confirmation = input(VEHICLE_A, 10 * 60_000, 72);
+  repository.seed(streakStart, true); repository.seed(confirmation, true);
+  repository.seedCheckpoint(confirmation, { confirmationRequired: 2, consecutiveCount: 2, confirmed: true, streakStart, confirmationObservedAt: confirmation.observedAt as string });
   const alertSettings = { getSettings: async () => snapshot } as AlertSettingsService;
   const geofence = { classifyPointWithSettings: () => Object.freeze({ classification: "INSIDE", speedLimitZone: "CITY", geofenceConfigured: true }) } as unknown as CityGeofenceService;
   const firstService = new AlertObservationIngestionService(repository as unknown as AlertObservationRepository, new AlertEvaluationService(

@@ -1086,6 +1086,8 @@ export const MESSAGE_CATALOG = Object.freeze({
   "trips.event.unavailable": { ru: "Контекст события недоступен. Поездки за выбранный период можно просматривать как обычно.", uk: "Контекст події недоступний. Поїздки за вибраний період можна переглядати як завжди.", en: "Event context is unavailable. Trips for the selected period remain available normally." },
   "trips.event.historyUnavailable": { ru: "История поездки или GPS для этого события больше недоступна.", uk: "Історія поїздки або GPS для цієї події більше недоступна.", en: "Trip or GPS history for this event is no longer available." },
   "trips.event.positionUnavailable": { ru: "Точная позиция подтверждения недоступна для этого более раннего события.", uk: "Точна позиція підтвердження недоступна для цієї давнішої події.", en: "The exact confirmation position is unavailable for this older event." },
+  "trips.event.segmentRouteUnavailable": { ru: "Маршрут превышения скорости недоступен в сохранённой истории GPS.", uk: "Маршрут перевищення швидкості недоступний у збереженій історії GPS.", en: "Speeding segment route is unavailable in retained GPS history." },
+  "trips.event.segmentRoutePartial": { ru: "Показана только доступная часть маршрута превышения скорости.", uk: "Показано лише доступну частину маршруту перевищення швидкості.", en: "Only the available portion of the speeding segment is shown." },
   "trips.event.evidenceLabel": { ru: "Данные подтверждения превышения скорости", uk: "Дані підтвердження перевищення швидкості", en: "Speeding confirmation evidence" },
   "trips.event.confirmation": { ru: "Превышение скорости · подтверждение", uk: "Перевищення швидкості · підтвердження", en: "Speeding · confirmation" },
   "trips.contextUnavailable.title": { ru: "Поездки временно недоступны", uk: "Поїздки тимчасово недоступні", en: "Trips are temporarily unavailable" },
@@ -1137,6 +1139,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "trips.legend.end": { ru: "Конец", uk: "Кінець", en: "End" },
   "trips.legend.stop": { ru: "Границы остановки", uk: "Межі зупинки", en: "Stop boundaries" },
   "trips.legend.speedingConfirmation": { ru: "Подтверждение превышения скорости", uk: "Підтвердження перевищення швидкості", en: "Speeding confirmation" },
+  "trips.legend.speedingSegment": { ru: "Превышение скорости", uk: "Перевищення швидкості", en: "Speeding segment" },
   "trips.legend.note": { ru: "Маршрут строится только по сохранённым точкам. Остановки показывают только реальные граничные фиксации.", uk: "Маршрут будується лише за збереженими точками. Зупинки показують лише реальні межові фіксації.", en: "Route reflects stored points only. Stops show actual boundary fixes only." },
 
   "history.title": { ru: "История GPS", uk: "Історія GPS", en: "GPS history" },

@@ -50,7 +50,10 @@ export function validateOpenAlertEventCommand(command: OpenAlertEventCommand): O
     const speedKph = nonNegative(command.speedKph, "speedKph");
     const speedThresholdKph = positive(command.speedThresholdKph, "speedThresholdKph");
     if (speedKph <= speedThresholdKph) throw new AlertEventValidationError("speedKph");
-    return Object.freeze({ type: command.type, vehicleId: vehicleId(command.vehicleId), observedAt: observedAt(command.observedAt), zone: command.zone, speedKph, speedThresholdKph, confirmationLatitude: coordinate(command.confirmationLatitude, "confirmationLatitude", -90, 90), confirmationLongitude: coordinate(command.confirmationLongitude, "confirmationLongitude", -180, 180) });
+    const confirmationAt = observedAt(command.observedAt);
+    const streakStartedAt = observedAt(command.speedingStreakStartedAt);
+    if (streakStartedAt.getTime() > confirmationAt.getTime()) throw new AlertEventValidationError("speedingStreakStartedAt");
+    return Object.freeze({ type: command.type, vehicleId: vehicleId(command.vehicleId), observedAt: confirmationAt, zone: command.zone, speedKph, speedThresholdKph, confirmationLatitude: coordinate(command.confirmationLatitude, "confirmationLatitude", -90, 90), confirmationLongitude: coordinate(command.confirmationLongitude, "confirmationLongitude", -180, 180), speedingStreakStartedAt: streakStartedAt, speedingStreakStartLatitude: coordinate(command.speedingStreakStartLatitude, "speedingStreakStartLatitude", -90, 90), speedingStreakStartLongitude: coordinate(command.speedingStreakStartLongitude, "speedingStreakStartLongitude", -180, 180) });
   }
   if (command.type === "INACTIVITY") {
     rejectKeys(command, ["zone", "speedKph", "speedThresholdKph"]);
@@ -65,7 +68,9 @@ export function validateOpenAlertEventCommand(command: OpenAlertEventCommand): O
 export function validateUpdateAlertEventCommand(command: UpdateAlertEventCommand): UpdateAlertEventCommand {
   if (command.type === "SPEEDING") {
     rejectKeys(command, ["traveledDistanceMeters"]);
-    return Object.freeze({ type: command.type, vehicleId: vehicleId(command.vehicleId), observedAt: observedAt(command.observedAt), speedKph: nonNegative(command.speedKph, "speedKph") });
+    const currentAt = observedAt(command.observedAt); const confirmationAt = observedAt(command.confirmationObservedAt);
+    if (confirmationAt.getTime() > currentAt.getTime()) throw new AlertEventValidationError("confirmationObservedAt");
+    return Object.freeze({ type: command.type, vehicleId: vehicleId(command.vehicleId), observedAt: currentAt, speedKph: nonNegative(command.speedKph, "speedKph"), latitude: coordinate(command.latitude, "latitude", -90, 90), longitude: coordinate(command.longitude, "longitude", -180, 180), confirmationObservedAt: confirmationAt });
   }
   if (command.type === "INACTIVITY") {
     rejectKeys(command, ["speedKph"]);
@@ -75,5 +80,6 @@ export function validateUpdateAlertEventCommand(command: UpdateAlertEventCommand
 }
 
 export function validateResolveAlertEventCommand(command: ResolveAlertEventCommand): ResolveAlertEventCommand {
+  if (command.type === "SPEEDING") return Object.freeze({ type: command.type, vehicleId: vehicleId(command.vehicleId), observedAt: observedAt(command.observedAt), speedKph: nonNegative(command.speedKph, "speedKph") });
   return validateUpdateAlertEventCommand(command);
 }

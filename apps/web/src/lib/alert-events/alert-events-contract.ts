@@ -53,6 +53,15 @@ export const speedingEventInvestigationSchema = z.object({
   confirmationSpeedKph: metric,
   thresholdKph: metric,
   zone: z.enum(["CITY", "OUTSIDE_CITY"]),
+  speedingSegments: z.array(z.object({
+    startedAt: isoTimestamp,
+    confirmedAt: isoTimestamp,
+    startPosition: z.object({ latitude: z.number().finite().min(-90).max(90), longitude: z.number().finite().min(-180).max(180) }).strict(),
+    lastSpeedingObservedAt: isoTimestamp,
+    lastSpeedingPosition: z.object({ latitude: z.number().finite().min(-90).max(90), longitude: z.number().finite().min(-180).max(180) }).strict(),
+  }).strict().superRefine((value, context) => {
+    if (Date.parse(value.startedAt) > Date.parse(value.confirmedAt) || Date.parse(value.confirmedAt) > Date.parse(value.lastSpeedingObservedAt)) context.addIssue({ code: "custom", message: "speeding segment time order" });
+  })),
 }).strict();
 export type SpeedingEventInvestigation = z.infer<typeof speedingEventInvestigationSchema>;
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AlertEventsContractError, parseAlertEventsListResponse, parseAlertEventsSummaryResponse } from "./alert-events-contract";
+import { AlertEventsContractError, parseAlertEventsListResponse, parseAlertEventsSummaryResponse, parseSpeedingEventInvestigation } from "./alert-events-contract";
 import { alertEventsListFixture, alertEventsSummaryFixture } from "./alert-events-fixture";
 
 test("validates empty, SPEEDING, and INACTIVITY Stage 8A public alert-event contracts", () => {
@@ -24,4 +24,17 @@ test("validates zero and mixed summary counts and rejects invalid counts", () =>
 test("lastObservedAt is required and timestamp validated", () => {
   for (const lastObservedAt of [undefined, null, "yesterday"]) assert.throws(() => parseAlertEventsListResponse({ ...alertEventsListFixture, items: [{ ...alertEventsListFixture.items[0], lastObservedAt }] }), AlertEventsContractError);
   assert.equal(parseAlertEventsListResponse(alertEventsListFixture).items[0]?.lastObservedAt, "2026-08-08T12:05:00.000Z");
+});
+
+test("speeding investigation accepts deterministic durable segments and legacy empty evidence", () => {
+  const base = { eventId: "00000000-0000-4000-8000-000000000001", type: "SPEEDING", vehicleId: "00000000-0000-4000-8000-000000000002", confirmedAt: "2026-09-16T10:00:02.000Z", confirmationPosition: { latitude: 49.2, longitude: 28.4 }, confirmationSpeedKph: 72, thresholdKph: 60, zone: "CITY", speedingSegments: [] };
+  assert.deepEqual(parseSpeedingEventInvestigation(base).speedingSegments, []);
+  const speedingSegments = [{ startedAt: "2026-09-16T10:00:00.000Z", startPosition: { latitude: 49.1, longitude: 28.3 }, confirmedAt: "2026-09-16T10:00:02.000Z", lastSpeedingObservedAt: "2026-09-16T10:00:05.000Z", lastSpeedingPosition: { latitude: 49.3, longitude: 28.5 } }];
+  assert.deepEqual(parseSpeedingEventInvestigation({ ...base, speedingSegments }).speedingSegments, speedingSegments);
+});
+
+test("speeding investigation fails closed for malformed or reversed segment evidence", () => {
+  const base = { eventId: "00000000-0000-4000-8000-000000000001", type: "SPEEDING", vehicleId: "00000000-0000-4000-8000-000000000002", confirmedAt: "2026-09-16T10:00:02.000Z", confirmationPosition: null, confirmationSpeedKph: 72, thresholdKph: 60, zone: "CITY", speedingSegments: [] };
+  const valid = { startedAt: "2026-09-16T10:00:00.000Z", startPosition: { latitude: 49.1, longitude: 28.3 }, confirmedAt: "2026-09-16T10:00:02.000Z", lastSpeedingObservedAt: "2026-09-16T10:00:05.000Z", lastSpeedingPosition: { latitude: 49.3, longitude: 28.5 } };
+  for (const malformed of [{ ...valid, startPosition: { latitude: 91, longitude: 28.3 } }, { ...valid, startedAt: "2026-09-16T10:00:03.000Z" }, { ...valid, lastSpeedingObservedAt: "2026-09-16T10:00:01.000Z" }, { ...valid, secret: true }]) assert.throws(() => parseSpeedingEventInvestigation({ ...base, speedingSegments: [malformed] }), AlertEventsContractError);
 });

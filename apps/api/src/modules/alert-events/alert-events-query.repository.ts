@@ -42,6 +42,16 @@ export type StoredSpeedingEventInvestigationRow = Readonly<{
   confirmationSpeedKph: number | null;
   speedThresholdKph: number | null;
   speedZone: AlertEventSpeedZone | null;
+  confirmations: readonly Readonly<{
+    dedupeKey: string;
+    observedAt: Date;
+    speedingStreakStartedAt: Date | null;
+    speedingStreakStartLatitude: number | null;
+    speedingStreakStartLongitude: number | null;
+    lastSpeedingObservedAt: Date | null;
+    lastSpeedingLatitude: number | null;
+    lastSpeedingLongitude: number | null;
+  }>[];
 }>;
 
 export type StoredOpenAlertEventsSummary = Readonly<{

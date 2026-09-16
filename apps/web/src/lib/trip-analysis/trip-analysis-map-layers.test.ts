@@ -21,6 +21,10 @@ import {
   tripEventLayers,
   TRIP_EVENT_SOURCE_ID,
   TRIP_EVENT_MARKER_LAYER_ID,
+  ensureTripSpeedingRouteLayer,
+  updateTripSpeedingRouteData,
+  TRIP_SPEEDING_ROUTE_SOURCE_ID,
+  TRIP_SPEEDING_ROUTE_LAYER_ID,
 } from "./trip-analysis-map-layers";
 
 test("Trip Map geometry follows the accepted fleet marker grammar and keeps warnings additive", () => {
@@ -45,7 +49,7 @@ test("Trip Map geometry follows the accepted fleet marker grammar and keeps warn
 
 test("Legend semantics stay synchronized with the complete Trips layer vocabulary", () => {
   assert.deepEqual(TRIP_MAP_LEGEND_ITEMS.map((item) => item.kind), ["route", "observation", "warning", "start", "end", "stop"]);
-  assert.deepEqual(TRIP_MAP_LAYER_ORDER, ["trips-map-line", "trips-map-points-warning-accent", "trips-map-points-normal", "trips-map-endpoints"]);
+  assert.deepEqual(TRIP_MAP_LAYER_ORDER, ["trips-map-line", "trips-speeding-route-line", "trips-map-points-warning-accent", "trips-map-points-normal", "trips-map-endpoints"]);
 });
 
 test("Trip Map sources and layers are created once below labels and data updates in place", () => {
@@ -65,12 +69,17 @@ test("Trip Map sources and layers are created once below labels and data updates
   } as unknown as MapLibreMap;
   ensureTripMapLayers(map, EMPTY_VEHICLE_TRACK_PRESENTATION);
   ensureTripMapLayers(map, EMPTY_VEHICLE_TRACK_PRESENTATION);
+  ensureTripSpeedingRouteLayer(map);
+  ensureTripSpeedingRouteLayer(map);
   updateTripMapData(map, EMPTY_VEHICLE_TRACK_PRESENTATION);
+  updateTripSpeedingRouteData(map, { type: "FeatureCollection", features: [] });
   assert.equal(sources.has(TRIP_MAP_LINE_SOURCE_ID), true);
   assert.equal(sources.has(TRIP_MAP_POINT_SOURCE_ID), true);
-  assert.equal(sources.size, 2);
-  assert.equal(setDataCalls, 2);
+  assert.equal(sources.has(TRIP_SPEEDING_ROUTE_SOURCE_ID), true);
+  assert.equal(sources.size, 3);
+  assert.equal(setDataCalls, 3);
   assert.deepEqual(layers.map((layer) => layer.id), [...TRIP_MAP_LAYER_ORDER, "basemap-labels"]);
+  assert.ok(layers.findIndex((layer) => layer.id === TRIP_SPEEDING_ROUTE_LAYER_ID) > layers.findIndex((layer) => layer.id === "trips-map-line"));
 });
 
 test("persisted event coordinates create an independent marker above route layers and survive an empty track", () => {

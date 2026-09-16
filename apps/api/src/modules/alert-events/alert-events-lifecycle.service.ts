@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { createAlertEventActiveKey, createAlertEventDedupeKey } from "./alert-events.keys";
 import type { AlertEventsRepository } from "./alert-events.repository";
 import { ALERT_EVENTS_REPOSITORY } from "./alert-events.tokens";
-import type { AlertEventLifecycleResult, AlertEventRecord, OpenInactivityEventCommand, OpenSpeedingEventCommand, ResolveAlertEventCommand, UpdateAlertEventCommand, UpdateInactivityEventCommand, UpdateSpeedingEventCommand } from "./alert-events.types";
+import type { AlertEventLifecycleResult, OpenInactivityEventCommand, OpenSpeedingEventCommand, ResolveAlertEventCommand, ResolveSpeedingEventCommand, UpdateAlertEventCommand, UpdateInactivityEventCommand, UpdateSpeedingEventCommand } from "./alert-events.types";
 import { validateOpenAlertEventCommand, validateResolveAlertEventCommand, validateUpdateAlertEventCommand } from "./alert-events.validation";
 
 const MAX_OPTIMISTIC_ATTEMPTS = 8;
@@ -34,7 +34,7 @@ export class AlertEventsLifecycleService {
     return this.update(validateUpdateAlertEventCommand(command));
   }
 
-  public resolveSpeedingEvent(command: UpdateSpeedingEventCommand): Promise<AlertEventLifecycleResult> {
+  public resolveSpeedingEvent(command: ResolveSpeedingEventCommand): Promise<AlertEventLifecycleResult> {
     return this.resolve(validateResolveAlertEventCommand(command));
   }
 
@@ -54,7 +54,11 @@ export class AlertEventsLifecycleService {
     for (let attempt = 0; attempt < MAX_OPTIMISTIC_ATTEMPTS; attempt += 1) {
       const event = await this.repository.findOpenByVehicleAndType(command.vehicleId, command.type);
       if (event === null) return Object.freeze({ outcome: "NOOP", reason: "MISSING_OPEN_EVENT" });
-      if (command.observedAt.getTime() <= event.lastObservedAt.getTime()) return Object.freeze({ outcome: "NOOP", reason: "STALE" });
+      if (command.observedAt.getTime() < event.lastObservedAt.getTime()) return Object.freeze({ outcome: "NOOP", reason: "STALE" });
+      if (command.observedAt.getTime() === event.lastObservedAt.getTime()) {
+        if (command.type === "SPEEDING" && await this.repository.verifySpeedingUpdateApplied(event, command)) return Object.freeze({ outcome: "ALREADY_APPLIED", eventId: event.id });
+        return Object.freeze({ outcome: "NOOP", reason: "STALE" });
+      }
       if (await this.repository.updateOpen({ event, command })) return Object.freeze({ outcome: "UPDATED", eventId: event.id });
     }
     throw new AlertEventConcurrencyError();

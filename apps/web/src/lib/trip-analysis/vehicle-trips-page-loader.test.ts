@@ -13,7 +13,7 @@ const details = {
   generatedAt: "2026-08-01T12:00:00.000Z",
 } as never;
 const EVENT_ID = "00000000-0000-4000-8000-000000000099";
-const investigation = { eventId: EVENT_ID, type: "SPEEDING" as const, vehicleId: TRIP_ANALYSIS_VEHICLE_ID, confirmedAt: "2026-08-01T00:00:30.000Z", confirmationPosition: { latitude: 49.001, longitude: 28.001 }, confirmationSpeedKph: 72, thresholdKph: 60, zone: "CITY" as const };
+const investigation = { eventId: EVENT_ID, type: "SPEEDING" as const, vehicleId: TRIP_ANALYSIS_VEHICLE_ID, confirmedAt: "2026-08-01T00:00:30.000Z", confirmationPosition: { latitude: 49.001, longitude: 28.001 }, confirmationSpeedKph: 72, thresholdKph: 60, zone: "CITY" as const, speedingSegments: [] };
 
 function deps(overrides: Partial<VehicleTripsPageDeps> = {}): VehicleTripsPageDeps {
   return {

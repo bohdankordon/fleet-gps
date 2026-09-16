@@ -337,6 +337,7 @@ model Vehicle {
   positionHistoryReplayCheckpoints PositionHistoryReplayCheckpoint[]
   alertEvents                      AlertEvent[]
   alertEvaluationObservations      AlertEvaluationObservation[]
+  speedingDetectorCheckpoint       SpeedingDetectorCheckpoint?
   notificationSelections           UserNotificationVehicle[]
   accessGrants                     AuthUserVehicleGrant[]
 
@@ -581,14 +582,39 @@ model AlertNotificationOutbox {
 }
 
 model AlertEventConfirmation {
-  dedupeKey  String     @id @map("dedupe_key") @db.VarChar(64)
-  eventId    String     @map("event_id") @db.Uuid
-  observedAt DateTime   @map("observed_at") @db.Timestamptz(6)
-  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  event      AlertEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  dedupeKey                    String     @id @map("dedupe_key") @db.VarChar(64)
+  eventId                      String     @map("event_id") @db.Uuid
+  observedAt                   DateTime   @map("observed_at") @db.Timestamptz(6)
+  speedingStreakStartedAt      DateTime?  @map("speeding_streak_started_at") @db.Timestamptz(6)
+  speedingStreakStartLatitude  Float?     @map("speeding_streak_start_latitude")
+  speedingStreakStartLongitude Float?     @map("speeding_streak_start_longitude")
+  lastSpeedingObservedAt       DateTime?  @map("last_speeding_observed_at") @db.Timestamptz(6)
+  lastSpeedingLatitude         Float?     @map("last_speeding_latitude")
+  lastSpeedingLongitude        Float?     @map("last_speeding_longitude")
+  createdAt                    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  event                        AlertEvent @relation(fields: [eventId], references: [id], onDelete: Restrict)
 
   @@index([eventId])
   @@map("alert_event_confirmations")
+}
+
+model SpeedingDetectorCheckpoint {
+  vehicleId                     String               @id @map("vehicle_id") @db.Uuid
+  lastAcceptedObservedAt        DateTime             @map("last_accepted_observed_at") @db.Timestamptz(6)
+  settingsFingerprint           String               @map("settings_fingerprint") @db.VarChar(64)
+  contextZone                   AlertEventSpeedZone? @map("context_zone")
+  contextThresholdKph           Float?               @map("context_threshold_kph")
+  contextConfirmationRequired   Int?                 @map("context_confirmation_required")
+  consecutiveCount              Int                  @map("consecutive_count")
+  confirmed                     Boolean              @map("confirmed")
+  streakStartedAt               DateTime?            @map("streak_started_at") @db.Timestamptz(6)
+  streakStartLatitude           Float?               @map("streak_start_latitude")
+  streakStartLongitude          Float?               @map("streak_start_longitude")
+  confirmationObservedAt        DateTime?            @map("confirmation_observed_at") @db.Timestamptz(6)
+  updatedAt                     DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  vehicle                       Vehicle              @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
+  @@map("speeding_detector_checkpoints")
 }
 
 model VehicleCurrentState {
