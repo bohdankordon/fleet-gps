@@ -15,6 +15,17 @@ const POSTGRES_READY_CMD = 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"';
 // Local-loopback HTTPS probe options. DNS is forced to loopback while SNI,
 // certificate hostname validation, and the Host header all use the real
 // production hostname. rejectUnauthorized stays true (never "insecure").
+// Node 24 may invoke a custom lookup with { all: true }; in that mode the
+// callback must receive an address array, otherwise Node throws
+// ERR_INVALID_IP_ADDRESS before connecting.
+function edgeLoopbackLookup(_hostname, options, callback) {
+  if (options?.all === true) {
+    callback(null, [{ address: "127.0.0.1", family: 4 }]);
+    return;
+  }
+  callback(null, "127.0.0.1", 4);
+}
+
 export function localEdgeHttpsOptions(hostname, requestPath, httpsTimeout) {
   return {
     hostname,
@@ -22,7 +33,7 @@ export function localEdgeHttpsOptions(hostname, requestPath, httpsTimeout) {
     path: requestPath,
     method: "GET",
     servername: hostname,
-    lookup: (_hostname, _options, callback) => callback(null, "127.0.0.1", 4),
+    lookup: edgeLoopbackLookup,
     rejectUnauthorized: true,
     timeout: httpsTimeout,
     headers: { host: hostname },
