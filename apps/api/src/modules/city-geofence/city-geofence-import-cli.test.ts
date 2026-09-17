@@ -552,13 +552,16 @@ test("symlink env files are rejected entirely even for in-root targets", async (
 });
 
 test("realpath escape outside root is rejected without loading", async () => {
+  const nodePath = require("node:path") as typeof import("node:path");
+  const outsideRealpath = nodePath.join(nodePath.parse(process.cwd()).root, "SECRET_REALPATH_TARGET.env");
+  assert.equal(nodePath.isAbsolute(outsideRealpath), true);
   const output: string[] = [];
   let loaded = 0;
   const code = await cli.run(["--file", "fixture.json", "--apply", "--env-file", ".env.production"], {
     fs: {
       lstatSync: () => ({ isSymbolicLink: () => false }),
       statSync: () => ({ isFile: () => true, size: 100 }),
-      realpathSync: () => "C:/outside/SECRET_REALPATH_TARGET.env",
+      realpathSync: () => outsideRealpath,
       readFileSync: () => Buffer.from(JSON.stringify(polygon)),
     },
     validatePolygon,
