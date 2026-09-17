@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const cli = require("../../../scripts/city-geofence-import.cjs") as { MAX_FILE_BYTES: number; parseArguments(argv: string[]): unknown; run(argv: string[], dependencies: Record<string, unknown>): Promise<number> };
+const cli = require("../../../scripts/city-geofence-import.cjs") as { MAX_FILE_BYTES: number; parseArguments(argv: string[]): unknown; run(argv: string[], dependencies: Record<string, unknown>): Promise<number>; resolveEnvFilePath(supplied: string, fileSystem?: unknown): string; defaultLoadEnvFile(absolutePath: string): void };
 const polygon = { type: "Polygon", coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]] };
 const validatePolygon = (input: unknown) => {
   if ((input as { type?: unknown })?.type !== "Polygon") throw new Error("raw value");
@@ -483,4 +483,182 @@ test("shutdown failure reports safe shutdown stage", async () => {
   const joined = output.join(" ");
   assert.equal(joined.includes("close marker"), false);
   assert.equal(joined.includes("secret"), false);
+});
+
+test("in-root normal env file resolves with link and realpath checks", () => {
+  const resolved = cli.resolveEnvFilePath(".env.production", {
+    lstatSync: () => ({ isSymbolicLink: () => false }),
+    statSync: () => ({ isFile: () => true, size: 100 }),
+    realpathSync: (target: string) => target,
+  });
+  assert.ok(String(resolved).endsWith(".env.production"));
+});
+
+test("lexical traversal and absolute outside env paths never reach the loader", async () => {
+  for (const envFile of ["../../outside.env", "/tmp/outside.env"]) {
+    const output: string[] = [];
+    let loaded = 0;
+    let initialized = 0;
+    const code = await cli.run(["--file", "fixture.json", "--apply", "--env-file", envFile], {
+      fs: {
+        lstatSync: () => ({ isSymbolicLink: () => false }),
+        statSync: () => ({ isFile: () => true, size: 100 }),
+        realpathSync: (target: string) => target,
+        readFileSync: () => Buffer.from(JSON.stringify(polygon)),
+      },
+      validatePolygon,
+      loadEnvFile: () => { loaded += 1; },
+      createApplicationContext: async () => { initialized += 1; throw new Error("must not initialize"); },
+      CityGeofenceModule: class {},
+      ManagementService: class {},
+      output: (line: string) => output.push(line),
+    });
+    assert.equal(code, 1);
+    assert.equal(loaded, 0);
+    assert.equal(initialized, 0);
+    assert.ok(output.includes("error stage: environment"));
+    assert.ok(output.includes("database write performed: false"));
+    assert.equal(output.join(" ").includes("outside"), false);
+  }
+});
+
+test("symlink env files are rejected entirely even for in-root targets", async () => {
+  for (const realpath of ["/outside/SECRET_SYMLINK_TARGET.env", ".env.production"]) {
+    const output: string[] = [];
+    let loaded = 0;
+    let initialized = 0;
+    const code = await cli.run(["--file", "fixture.json", "--apply", "--env-file", ".env.production"], {
+      fs: {
+        lstatSync: () => ({ isSymbolicLink: () => true }),
+        statSync: () => ({ isFile: () => true, size: 100 }),
+        realpathSync: () => realpath,
+        readFileSync: () => Buffer.from(JSON.stringify(polygon)),
+      },
+      validatePolygon,
+      loadEnvFile: () => { loaded += 1; },
+      createApplicationContext: async () => { initialized += 1; throw new Error("must not initialize"); },
+      CityGeofenceModule: class {},
+      ManagementService: class {},
+      output: (line: string) => output.push(line),
+    });
+    assert.equal(code, 1);
+    assert.equal(loaded, 0);
+    assert.equal(initialized, 0);
+    assert.ok(output.includes("error stage: environment"));
+    assert.ok(output.includes("database write performed: false"));
+    assert.equal(output.join(" ").includes("SECRET_SYMLINK_TARGET"), false);
+    assert.equal(output.join(" ").includes(".env.production"), false);
+  }
+});
+
+test("realpath escape outside root is rejected without loading", async () => {
+  const output: string[] = [];
+  let loaded = 0;
+  const code = await cli.run(["--file", "fixture.json", "--apply", "--env-file", ".env.production"], {
+    fs: {
+      lstatSync: () => ({ isSymbolicLink: () => false }),
+      statSync: () => ({ isFile: () => true, size: 100 }),
+      realpathSync: () => "C:/outside/SECRET_REALPATH_TARGET.env",
+      readFileSync: () => Buffer.from(JSON.stringify(polygon)),
+    },
+    validatePolygon,
+    loadEnvFile: () => { loaded += 1; },
+    output: (line: string) => output.push(line),
+  });
+  assert.equal(code, 1);
+  assert.equal(loaded, 0);
+  assert.ok(output.includes("error stage: environment"));
+  assert.equal(output.join(" ").includes("SECRET_REALPATH_TARGET"), false);
+});
+
+test("dotenv loader error return fails at environment stage without Nest or leak", async () => {
+  const output: string[] = [];
+  let initialized = 0;
+  const code = await cli.run(["--file", "fixture.json", "--apply", "--env-file", ".env.production"], {
+    fs: {
+      lstatSync: () => ({ isSymbolicLink: () => false }),
+      statSync: () => ({ isFile: () => true, size: 100 }),
+      realpathSync: (target: string) => target,
+      readFileSync: () => Buffer.from(JSON.stringify(polygon)),
+    },
+    validatePolygon,
+    loadEnvFile: () => ({ error: new Error("ESECRET dotenv boom") }),
+    createApplicationContext: async () => { initialized += 1; throw new Error("must not initialize"); },
+    CityGeofenceModule: class {},
+    ManagementService: class {},
+    output: (line: string) => output.push(line),
+  });
+  assert.equal(code, 1);
+  assert.equal(initialized, 0);
+  assert.ok(output.includes("error stage: environment"));
+  assert.ok(output.includes("error type: configuration"));
+  assert.ok(output.includes("database write performed: false"));
+  assert.equal(output.join(" ").includes("ESECRET"), false);
+  assert.equal(output.join(" ").includes("dotenv boom"), false);
+});
+
+test("real filesystem symlinks escaping root are rejected", () => {
+  const nodeFs = require("node:fs") as typeof import("node:fs");
+  const nodeOs = require("node:os") as typeof import("node:os");
+  const nodePath = require("node:path") as typeof import("node:path");
+  const root = process.cwd();
+  const stamp = String(process.pid) + "-" + String(Date.now());
+  const outsideFile = nodePath.join(nodeOs.tmpdir(), "taxi-gps-outside-" + stamp + ".env");
+  const inRootTarget = nodePath.join(root, ".tmp-symlink-target-" + stamp + ".env");
+  const outsideLink = nodePath.join(root, ".tmp-symlink-outside-" + stamp + ".env");
+  const inRootLink = nodePath.join(root, ".tmp-symlink-inroot-" + stamp + ".env");
+  const created: string[] = [];
+  try {
+    nodeFs.writeFileSync(outsideFile, "OUTSIDE_MARKER_" + stamp + "=outside-secret-value", "utf8");
+    created.push(outsideFile);
+    nodeFs.writeFileSync(inRootTarget, "INROOT_MARKER=test", "utf8");
+    created.push(inRootTarget);
+    try {
+      nodeFs.symlinkSync(outsideFile, outsideLink, "file");
+      created.push(outsideLink);
+    } catch (linkError) {
+      const linkCode = (linkError as { code?: unknown }).code;
+      if (linkCode === "EPERM" || linkCode === "EACCES" || linkCode === "EROFS" || linkCode === "ENOSYS" || linkCode === "EINVAL") return;
+      throw linkError;
+    }
+    try {
+      nodeFs.symlinkSync(inRootTarget, inRootLink, "file");
+      created.push(inRootLink);
+    } catch (linkError) {
+      const linkCode = (linkError as { code?: unknown }).code;
+      if (linkCode === "EPERM" || linkCode === "EACCES" || linkCode === "EROFS" || linkCode === "ENOSYS" || linkCode === "EINVAL") return;
+      throw linkError;
+    }
+    assert.throws(() => cli.resolveEnvFilePath(nodePath.basename(outsideLink), undefined));
+    assert.throws(() => cli.resolveEnvFilePath(nodePath.basename(inRootLink), undefined));
+  } finally {
+    for (const createdPath of created.reverse()) {
+      try { nodeFs.rmSync(createdPath, { force: true }); } catch { continue; }
+    }
+  }
+});
+
+test("defaultLoadEnvFile throws safe error when dotenv reports failure", () => {
+  const nodeFs = require("node:fs") as typeof import("node:fs");
+  const nodeOs = require("node:os") as typeof import("node:os");
+  const nodePath = require("node:path") as typeof import("node:path");
+  const missing = nodePath.join(process.cwd(), "definitely-missing-" + String(process.pid) + ".env");
+  assert.throws(() => cli.defaultLoadEnvFile(missing), (thrown: unknown) => {
+    const message = (thrown as Error).message;
+    assert.equal(message, "environment load failed");
+    assert.equal(message.includes("missing"), false);
+    return true;
+  });
+  const key = "CITY_GEOFENCE_DOTENV_OK_" + String(process.pid);
+  const probe = nodePath.join(nodeOs.tmpdir(), "taxi-gps-dotenv-ok-" + String(process.pid) + ".env");
+  const previous = process.env[key];
+  try {
+    nodeFs.writeFileSync(probe, key + "=ok-value", "utf8");
+    cli.defaultLoadEnvFile(probe);
+    assert.equal(process.env[key], "ok-value");
+  } finally {
+    try { nodeFs.rmSync(probe, { force: true }); } catch { /* disposable fixture cleanup */ }
+    if (previous === undefined) delete process.env[key];
+    else process.env[key] = previous;
+  }
 });

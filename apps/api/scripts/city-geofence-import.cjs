@@ -82,13 +82,24 @@ function resolveEnvFilePath(supplied, fileSystem) {
   const rootWithSeparator = REPOSITORY_ROOT + path.sep;
   if (resolved === REPOSITORY_ROOT || !resolved.startsWith(rootWithSeparator)) throw new Error("invalid environment input");
   const activeFs = fileSystem !== undefined && fileSystem !== null ? fileSystem : fs;
+  if (activeFs !== null && activeFs !== undefined && typeof activeFs.lstatSync === "function") {
+    const linkMetadata = activeFs.lstatSync(resolved);
+    if (linkMetadata !== null && linkMetadata !== undefined && typeof linkMetadata.isSymbolicLink === "function" && linkMetadata.isSymbolicLink()) throw new Error("invalid environment input");
+  }
   const metadata = activeFs.statSync(resolved);
   if (!metadata.isFile() || metadata.size > MAX_ENV_FILE_BYTES) throw new Error("invalid environment input");
+  if (activeFs !== null && activeFs !== undefined && typeof activeFs.realpathSync === "function") {
+    const canonical = activeFs.realpathSync(resolved);
+    const canonicalResolved = path.resolve(canonical);
+    if (canonicalResolved === REPOSITORY_ROOT || !canonicalResolved.startsWith(rootWithSeparator)) throw new Error("invalid environment input");
+  }
   return resolved;
 }
 
 function defaultLoadEnvFile(absolutePath) {
-  require("dotenv").config({ path: absolutePath, quiet: true, override: false });
+  const dotenv = require("dotenv");
+  const result = dotenv.config({ path: absolutePath, quiet: true, override: false });
+  if (result !== null && result !== undefined && result.error !== null && result.error !== undefined) throw new Error("environment load failed");
 }
 
 function createOutput(state) {
@@ -150,7 +161,8 @@ async function run(argv, dependencies = {}) {
       if (options.envFile !== undefined) {
         const resolvedEnvFile = resolveEnvFilePath(options.envFile, fileSystem);
         const loadEnvFile = dependencies.loadEnvFile ?? defaultLoadEnvFile;
-        loadEnvFile(resolvedEnvFile);
+        const loadResult = loadEnvFile(resolvedEnvFile);
+        if (loadResult !== null && loadResult !== undefined && loadResult.error !== null && loadResult.error !== undefined) throw new Error("environment load failed");
         recordEnvDiff();
       } else {
         const loadRootEnv = dependencies.loadRootEnv ?? require("./load-root-env.cjs").loadRootEnv;
