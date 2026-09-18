@@ -9,6 +9,7 @@ import { PositionHistoryIngestionCursorStaleProgressError, type VehicleHistoryIn
 import type { PositionHistoryIngestionCursorService } from "../position-history-ingestion-cursor";
 import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
 import { PositionHistoryHorizonAlreadyRunningError, type PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
+import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import { POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS, POSITION_HISTORY_CONTINUOUS_MIN_REQUEST_START_GAP_MS, POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_MINUTE, POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS } from "./position-history-continuous-ingestion.constants";
 import type { PositionHistoryContinuousIngestionRepository, PositionHistoryContinuousVehicle } from "./position-history-continuous-ingestion.types";
 import { PositionHistoryContinuousIngestionWorkerService } from "./position-history-continuous-ingestion-worker.service";
@@ -77,8 +78,9 @@ function harness(input: { vehicles?: readonly PositionHistoryContinuousVehicle[]
     if (input.lockAvailable === false) throw new PositionHistoryHorizonAlreadyRunningError();
     return execute();
   } } as PositionHistoryHorizonExecutionLockService;
-  const worker = new PositionHistoryContinuousIngestionWorkerService(repository, cursorService, historicalWindow, lock, { now: () => new Date(clockMs) }, { sleep: async (milliseconds) => { sleeps.push(milliseconds); clockMs += milliseconds; } });
-  return { worker, calls, sleeps, ensuredAt, cursors, observations, advance: (milliseconds: number) => { clockMs += milliseconds; } };
+  const telemetry = new PositionHistoryIngestionTelemetryService({ now: () => new Date(clockMs) });
+  const worker = new PositionHistoryContinuousIngestionWorkerService(repository, cursorService, historicalWindow, lock, { now: () => new Date(clockMs) }, { sleep: async (milliseconds) => { sleeps.push(milliseconds); clockMs += milliseconds; } }, telemetry);
+  return { worker, calls, sleeps, ensuredAt, cursors, observations, telemetry, advance: (milliseconds: number) => { clockMs += milliseconds; } };
 }
 
 test("missing and disabled mapped vehicles receive conservative floor cursors, never latest-derived completeness", async () => {

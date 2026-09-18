@@ -3,6 +3,7 @@ import test from "node:test";
 import { PositionBackfillStatus, PositionHistoryReplayKind, PositionHistoryReplayRunStatus, type PositionHistoryReplayCheckpoint, type PositionHistoryReplayRun } from "../../generated/prisma/client";
 import { PositionHistoryHistoricalWindowOversizedError, type PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
 import { PositionHistoryHorizonAlreadyRunningError, type PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
+import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
 import type { PositionHistoryReplayRepository, PositionHistoryReplayRunStateService } from "../position-history-replay-generation";
 import { PositionHistoryReplayWorkerService } from "./position-history-replay-worker.service";
@@ -57,7 +58,8 @@ function harness(mode: "success" | "empty" | "provider-failure" | "oversized-unt
   const clock = { now: () => new Date(milliseconds) };
   const sleeper = { sleep: async (durationMs: number) => { milliseconds += durationMs; } };
   const heartbeat = { start: () => () => undefined };
-  return { worker: new PositionHistoryReplayWorkerService(repository, state, historical, lock, clock, sleeper, heartbeat), checkpoint: () => checkpoint, run: () => run, providerCalls: () => providerCalls, persistedCandidates: () => persistedCandidates, lock };
+  const telemetry = new PositionHistoryIngestionTelemetryService({ now: () => new Date(milliseconds) });
+  return { worker: new PositionHistoryReplayWorkerService(repository, state, historical, lock, clock, sleeper, heartbeat, telemetry), telemetry, checkpoint: () => checkpoint, run: () => run, providerCalls: () => providerCalls, persistedCandidates: () => persistedCandidates, lock };
 }
 
 test("daily replay executes one six-hour window, persists through replay CAS, then yields", async () => {

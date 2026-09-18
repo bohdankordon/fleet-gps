@@ -1,10 +1,10 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { EquGpsHttpError, EquGpsRateLimitError } from "@taxi-gps/equgps";
 import { PositionHistoryHistoricalWindowOversizedError, PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
 import { recordedPositionHistoryHistoricalWindowFailureAccounting } from "../position-history-historical-window/position-history-historical-window-failure-diagnostics";
 import { PositionHistoryIngestionCursorService, type VehicleHistoryIngestionCursor } from "../position-history-ingestion-cursor";
 import { PositionHistoryAutomaticRequestPacer } from "../position-history-horizon-execution";
-import type { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
+import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
 import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
 import { POSITION_HISTORY_CONTINUOUS_CAUGHT_UP_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_FAILURE_BACKOFF_MS, POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS, POSITION_HISTORY_CONTINUOUS_MAX_OPPORTUNITIES_PER_CYCLE, POSITION_HISTORY_CONTINUOUS_PROVIDER_BLOCKED_CADENCE_MS, POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE, POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS } from "./position-history-continuous-ingestion.constants";
@@ -36,7 +36,7 @@ export class PositionHistoryContinuousIngestionWorkerService {
     private readonly historyLock: PositionHistoryHorizonExecutionLockService,
     @Inject(POSITION_HISTORY_CONTINUOUS_CLOCK) private readonly clock: PositionHistoryContinuousClock,
     @Inject(POSITION_HISTORY_CONTINUOUS_SLEEPER) private readonly sleeper: PositionHistoryContinuousSleeper,
-    @Optional() private readonly telemetry?: PositionHistoryIngestionTelemetryService,
+    private readonly telemetry: PositionHistoryIngestionTelemetryService,
   ) {}
 
   public async processCycle(maxOpportunities = POSITION_HISTORY_CONTINUOUS_REQUESTS_PER_CYCLE, preferredLanes?: readonly PositionHistoryContinuousLane[]): Promise<PositionHistoryContinuousCycleResult> {

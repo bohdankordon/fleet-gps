@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { EquGpsHttpError, EquGpsRateLimitError } from "@taxi-gps/equgps";
 import { PositionHistoryReplayKind, type PositionHistoryReplayRun } from "../../generated/prisma/client";
 import { PositionHistoryHistoricalWindowOversizedError, PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
 import { recordedPositionHistoryHistoricalWindowFailureAccounting } from "../position-history-historical-window/position-history-historical-window-failure-diagnostics";
 import { PositionHistoryAutomaticRequestPacer, POSITION_HISTORY_AUTOMATIC_REQUEST_START_GAP_MS } from "../position-history-horizon-execution";
-import type { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
+import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
 import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
 import { POSITION_HISTORY_REPLAY_REPOSITORY, PositionHistoryReplayRunStateService, type PositionHistoryReplayRepository } from "../position-history-replay-generation";
@@ -36,7 +36,7 @@ export class PositionHistoryReplayWorkerService {
     @Inject(POSITION_HISTORY_CONTINUOUS_CLOCK) private readonly clock: PositionHistoryContinuousClock,
     @Inject(POSITION_HISTORY_CONTINUOUS_SLEEPER) private readonly sleeper: PositionHistoryContinuousSleeper,
     @Inject(POSITION_HISTORY_REPLAY_HEARTBEAT_SCHEDULER) private readonly heartbeatScheduler: PositionHistoryReplayHeartbeatScheduler,
-    @Optional() private readonly telemetry?: PositionHistoryIngestionTelemetryService,
+    private readonly telemetry: PositionHistoryIngestionTelemetryService,
   ) {}
 
   public async inspectPressure(kind: PositionHistoryReplayKind): Promise<PositionHistoryReplayPressure> {

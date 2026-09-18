@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PositionHistoryPopulationRunInitiatorType, PositionHistoryPopulationRunStatus, type PositionHistoryPopulationRun } from "../../generated/prisma/client";
 import { PositionHistoryHorizonAlreadyRunningError, type PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
+import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import { PositionHistoryHorizonPopulationError } from "../position-history-horizon-population/position-history-horizon-population.error";
 import type { PositionHistoryHorizonPopulationService } from "../position-history-horizon-population/position-history-horizon-population.service";
 import type { PositionHistoryPopulationRunStateService } from "./position-history-population-run-state.service";
@@ -40,7 +41,8 @@ function harness(windowBudget: number, committedWindows = 0, behavior: "advance"
   const scheduler = { start: () => { starts += 1; return () => { stops += 1; }; } };
   const clock = { now: () => new Date(currentTime) };
   const sleeper = { sleep: async (durationMs: number) => { currentTime += durationMs; } };
-  return { worker: new PositionHistoryPopulationRunWorkerService(state, lock, population, scheduler, clock, sleeper), budgets, get: () => value, claims: () => claims, timers: () => ({ starts, stops }) };
+  const telemetry = new PositionHistoryIngestionTelemetryService({ now: () => new Date(currentTime) });
+  return { worker: new PositionHistoryPopulationRunWorkerService(state, lock, population, scheduler, clock, sleeper, telemetry), telemetry, budgets, get: () => value, claims: () => claims, timers: () => ({ starts, stops }) };
 }
 
 test("each invocation processes at most one 24-window chunk, yields, and later polls resume", async () => {

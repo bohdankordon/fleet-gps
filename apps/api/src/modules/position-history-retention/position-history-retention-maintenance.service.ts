@@ -1,10 +1,10 @@
-import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import type { ApiConfig } from "../../config/api-config";
 import { API_CONFIG } from "../../config/api-config.tokens";
 import { PositionHistoryRetentionService } from "./position-history-retention.service";
 import { PositionHistoryRetentionExecutionError, type PositionHistoryAutomaticRetentionOutcome } from "./position-history-retention.types";
-import type { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
+import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 
 export const POSITION_HISTORY_RETENTION_CRON = "0 0 6 * * *";
 export const POSITION_HISTORY_RETENTION_TIME_ZONE = "UTC";
@@ -23,7 +23,7 @@ export class PositionHistoryRetentionMaintenanceService {
   public constructor(
     @Inject(API_CONFIG) private readonly config: ApiConfig,
     private readonly retention: PositionHistoryRetentionService,
-    @Optional() private readonly telemetry?: PositionHistoryIngestionTelemetryService,
+    private readonly telemetry: PositionHistoryIngestionTelemetryService,
   ) {}
 
   @Cron(POSITION_HISTORY_RETENTION_CRON, { name: "taxi-gps:position-history-retention", timeZone: POSITION_HISTORY_RETENTION_TIME_ZONE })
