@@ -537,12 +537,11 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
       {noObservations ? <section className="vehicle-trips__empty-surface">
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<Flex vertical align="center" gap={2}><Text>{t("trips.noGpsTitle")}</Text><Text type="secondary">{t("trips.noGpsText")}</Text></Flex>} />
       </section> : null}
-      {gapsOnly ? <Alert className="vehicle-trips__neutral-result" type="info" showIcon title={t("trips.noEvents")} /> : null}
-
       {showWorkspace ? <section ref={workspaceRef} id="vehicle-trips-workspace" className="vehicle-trips__workspace">
         <section className="vehicle-trips__timeline-pane" aria-label={t("trips.timeline.label")}>
           <header className="vehicle-trips__workspace-header"><TripSectionTitle icon={<CalendarOutlined />} title={t("trips.timeline.title")} /></header>
           <div className="vehicle-trips__timeline-content">
+            {gapsOnly ? <p className="vehicle-trips__chronology-note">{t("trips.noEvents")}</p> : null}
             {timeline.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("trips.timeline.empty")} /> : <ol className="vehicle-trips__timeline">
               {timeline.map((item, index) => <TripTimelineRecord key={item.key} item={item} selected={selection?.key === item.key} connected={index < timeline.length - 1} onSelect={(next) => void select(next, eventFocus?.kind === "AVAILABLE" && selection?.key === next.key)} />)}
             </ol>}

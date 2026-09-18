@@ -28,17 +28,18 @@ import { useAuth } from "./auth-provider";
 import { alertEventActions } from "../lib/alert-events/alert-events-investigation";
 
 dayjs.extend(customParseFormat);
-type Props = Readonly<{ initialData: AlertEventsListResponse; initialSummary: AlertEventsSummaryResponse | null; initialFilters: AlertEventsFilters; initialError?: boolean }>;
+type Props = Readonly<{ initialData: AlertEventsListResponse; initialSummary: AlertEventsSummaryResponse | null; initialFilters: AlertEventsFilters; initialActionTime: string; initialError?: boolean }>;
 async function bffJson(path: string, signal: AbortSignal): Promise<unknown> { const response = await fetch(path, { cache: "no-store", signal }); if (!response.ok) throw new Error(); return response.json(); }
 
-export function EventsClient({ initialData, initialSummary, initialFilters, initialError = false }: Props) {
+export function EventsClient({ initialData, initialSummary, initialFilters, initialActionTime, initialError = false }: Props) {
   const { locale, t } = useI18n(); const { token } = theme.useToken(); const screens = Grid.useBreakpoint();
   const user = useAuth();
   const [list, setList] = useState<AlertEventsListState>(() => ({ ...initialAlertEventsListState(initialData, initialFilters), error: initialError ? "first" as const : null }));
   const [summary, setSummary] = useState(initialSummary); const [summaryError, setSummaryError] = useState(initialSummary === null);
   const [filterOptions, setFilterOptions] = useState<AlertEventsFilterOptions>({ vehicles: [], groups: [], hasUngrouped: false }); const [vehiclesLoading, setVehiclesLoading] = useState(true); const [vehiclesError, setVehiclesError] = useState(false);
   const selectionTrigger = useRef<HTMLButtonElement | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null); const [selectionTime, setSelectionTime] = useState(() => new Date());
+  const [selectedId, setSelectedId] = useState<string | null>(null); const [selectionTime, setSelectionTime] = useState(() => new Date(initialActionTime));
+  const [actionTime, setActionTime] = useState(() => new Date(initialActionTime));
   const closeSelection = () => { setSelectedId(null); queueMicrotask(() => selectionTrigger.current?.focus({ preventScroll: true })); };
   const primaryController = useRef<AbortController | null>(null); const moreController = useRef<AbortController | null>(null); const moreInFlight = useRef(false); const generation = useRef(0);
   useEffect(() => {
@@ -47,6 +48,7 @@ export function EventsClient({ initialData, initialSummary, initialFilters, init
     return () => controller.abort();
   }, []);
   const firstRequest = useCallback(async (next: AlertEventsFilters, reason: AlertEventsNavigationReason) => {
+    const requestActionTime = new Date();
     primaryController.current?.abort(); moreController.current?.abort(); moreController.current = null; moreInFlight.current = false;
     const requestGeneration = generation.current + 1; generation.current = requestGeneration; const controller = new AbortController(); primaryController.current = controller;
     if (reason === "user" || reason === "popstate") setSelectedId(null);
@@ -54,7 +56,7 @@ export function EventsClient({ initialData, initialSummary, initialFilters, init
     if (shouldUpdateAlertEventsHistory(reason)) window.history.pushState(null, "", alertEventsHistoryPath(next));
     const query = serializeAlertEventsRequestQuery({ ...next, limit: ALERT_EVENTS_PAGE_SIZE }); const [listResult, summaryResult] = await Promise.allSettled([bffJson(`/api/alert-events?${query}`, controller.signal), bffJson("/api/alert-events/summary", controller.signal)]);
     if (controller.signal.aborted || !isCurrentAlertEventsGeneration(requestGeneration, generation.current)) return;
-    if (listResult.status === "fulfilled") { try { const data = parseAlertEventsListResponse(listResult.value); setSelectedId((id) => data.items.some((event) => event.id === id) ? id : null); setList((current) => succeedAlertEventsFirstPage(current, next, data)); } catch { setList(failAlertEventsFirstPage); } } else setList(failAlertEventsFirstPage);
+    if (listResult.status === "fulfilled") { try { const data = parseAlertEventsListResponse(listResult.value); setSelectedId((id) => data.items.some((event) => event.id === id) ? id : null); setActionTime(requestActionTime); setList((current) => succeedAlertEventsFirstPage(current, next, data)); } catch { setList(failAlertEventsFirstPage); } } else setList(failAlertEventsFirstPage);
     if (summaryResult.status === "fulfilled") { try { setSummary(parseAlertEventsSummaryResponse(summaryResult.value)); setSummaryError(false); } catch { setSummaryError(true); } } else setSummaryError(true);
   }, []);
 
@@ -120,7 +122,7 @@ export function EventsClient({ initialData, initialSummary, initialFilters, init
         <div className="events-chronology__heading vehicle-trips__workspace-header"><Typography.Text className="vehicle-overview__section-title"><CalendarOutlined className="vehicle-overview__section-icon" style={{ color: token.colorPrimary }} aria-hidden /> {t(mode === "active" ? "events.mode.active" : "events.mode.history")}</Typography.Text>{list.loading && list.data.items.length > 0 && <Typography.Text type="secondary" role="status">{t("events.loading")}</Typography.Text>}</div>
         <div className={`events-chronology__body${chronologyIsEmpty ? " events-chronology__body--placeholder" : ""}`}>
           {list.error && <Alert type="error" showIcon title={t(list.error === "more" ? "events.loadMoreError" : "events.loadError")} action={<Button size="small" onClick={retry}>{t("common.retry")}</Button>} />}
-          {list.loading && list.data.items.length === 0 ? <div className="events-loading" role="status" aria-label={t("common.loading")}><Skeleton active paragraph={{ rows: 3 }} /><Skeleton active paragraph={{ rows: 3 }} /></div> : list.data.items.length === 0 ? !list.error && <EventsEmpty description={t(emptyKey)} /> : <ul className="events-list">{list.data.items.map((event) => { const eventTripAction = event.type === "SPEEDING" ? alertEventActions(event, user, new Date()).find((candidate) => candidate.key === "eventTrip") ?? null : null; return <li key={event.id} style={{ "--trip-record-accent": eventSemanticPresentation(event, token).accent } as CSSProperties} className={`vehicle-trips__record events-list__item${selectedId === event.id ? " vehicle-trips__record--selected" : ""}${eventTripAction ? " events-list__item--with-action" : ""}`}><span className="vehicle-trips__record-marker"><span className="vehicle-trips__record-icon">{eventSemanticPresentation(event, token).marker}</span></span><button type="button" className="events-item vehicle-trips__record-button" aria-pressed={selectedId === event.id} onClick={(click) => { selectionTrigger.current = click.currentTarget; setSelectionTime(new Date()); setSelectedId(event.id); }}>
+          {list.loading && list.data.items.length === 0 ? <div className="events-loading" role="status" aria-label={t("common.loading")}><Skeleton active paragraph={{ rows: 3 }} /><Skeleton active paragraph={{ rows: 3 }} /></div> : list.data.items.length === 0 ? !list.error && <EventsEmpty description={t(emptyKey)} /> : <ul className="events-list">{list.data.items.map((event) => { const eventTripAction = event.type === "SPEEDING" ? alertEventActions(event, user, actionTime).find((candidate) => candidate.key === "eventTrip") ?? null : null; return <li key={event.id} style={{ "--trip-record-accent": eventSemanticPresentation(event, token).accent } as CSSProperties} className={`vehicle-trips__record events-list__item${selectedId === event.id ? " vehicle-trips__record--selected" : ""}${eventTripAction ? " events-list__item--with-action" : ""}`}><span className="vehicle-trips__record-marker"><span className="vehicle-trips__record-icon">{eventSemanticPresentation(event, token).marker}</span></span><button type="button" className="events-item vehicle-trips__record-button" aria-pressed={selectedId === event.id} onClick={(click) => { selectionTrigger.current = click.currentTarget; setSelectionTime(new Date()); setSelectedId(event.id); }}>
           <span className="events-item__top"><span className="events-item__vehicle vehicle-group-identity"><span className="vehicle-group-identity__name"><strong>{event.vehicle.name}</strong></span><VehicleGroupTag group={event.vehicle.group} /></span><EventStatusTag status={event.status} /></span>
           <span className="events-item__type">{alertTypeLabel(event.type, locale)}</span>
           <span className="events-item__time"><time dateTime={event.openedAt}>{formatAlertTimestamp(event.openedAt, locale)}</time>{event.type === "SPEEDING" && ` · ${alertZoneLabel(event.details.zone, locale)}`}</span>

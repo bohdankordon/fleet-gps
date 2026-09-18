@@ -67,7 +67,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "error.body": { ru: "Не удалось загрузить эту страницу. Попробуйте ещё раз.", uk: "Не вдалося завантажити цю сторінку. Спробуйте ще раз.", en: "We couldn’t load this page. Try again." },
 
   "language.label": { ru: "Язык приложения", uk: "Мова застосунку", en: "Application language" },
-  "language.automatic": { ru: "Автоматически (язык браузера)", uk: "Автоматично (мова браузера)", en: "Automatic (browser language)" },
+  "language.automatic": { ru: "Автоматически", uk: "Автоматично", en: "Automatic" },
   "language.changeError": { ru: "Не удалось изменить язык.", uk: "Не вдалося змінити мову.", en: "The language could not be changed." },
 
   "navigation.primaryLabel": { ru: "Основная навигация", uk: "Основна навігація", en: "Primary navigation" },

@@ -9,15 +9,18 @@ import { AuthProvider } from "./auth-provider";
 import { I18nProvider } from "../i18n/client";
 import { alertEventsListFixture, alertEventsSummaryFixture } from "../lib/alert-events/alert-events-fixture";
 import type { AlertEvent } from "../lib/alert-events/alert-events-contract";
+import { alertEventActions } from "../lib/alert-events/alert-events-investigation";
 import { MESSAGE_CATALOG } from "../i18n/messages";
 const source = readFileSync("src/components/events-client.tsx", "utf8");
+const pageSource = readFileSync("src/app/events/page.tsx", "utf8");
 const detailSource = readFileSync("src/components/event-detail.tsx", "utf8");
 const styles = readFileSync("src/styles/events.css", "utf8");
 const speeding = alertEventsListFixture.items[0];
 const inactivity: AlertEvent = { ...speeding, type: "INACTIVITY", status: "RESOLVED", resolvedAt: "2026-08-08T13:00:00.000Z", details: { confirmationDistanceMeters: 35, lastDistanceMeters: 340, minimumDistanceMeters: 12, distanceThresholdMeters: 300, durationThresholdMinutes: 60 } };
 const admin = { id: "admin", login: "admin", role: "ADMIN" as const, permissions: [], mustChangePassword: false };
+const initialActionTime = "2026-08-08T12:10:00.000Z";
 const renderDetail = (event: AlertEvent) => renderToStaticMarkup(<I18nProvider locale="en"><AuthProvider user={admin}><EventDetail event={event} now={new Date("2026-08-08T14:00:00Z")} onClose={() => {}} /></AuthProvider></I18nProvider>);
-const renderPage = (filters = {}, items: AlertEvent[] = [speeding], summary: typeof alertEventsSummaryFixture | null = alertEventsSummaryFixture, initialError = false) => renderToStaticMarkup(<I18nProvider locale="en"><EventsClient initialFilters={filters} initialData={{ items, nextCursor: null }} initialSummary={summary} initialError={initialError} /></I18nProvider>);
+const renderPage = (filters = {}, items: AlertEvent[] = [speeding], summary: typeof alertEventsSummaryFixture | null = alertEventsSummaryFixture, initialError = false) => renderToStaticMarkup(<I18nProvider locale="en"><EventsClient initialFilters={filters} initialData={{ items, nextCursor: null }} initialSummary={summary} initialActionTime={initialActionTime} initialError={initialError} /></I18nProvider>);
 
 test("workspace uses Ant Design with a compact heading, global metrics, chronology and no delivery truth", () => {
   for (const state of ["NONE", "PENDING", "SENT", "FAILED"] as const) {
@@ -112,6 +115,23 @@ test("event rows keep status metadata stable while the direct trip action remain
   assert.match(styles, /\.events-list__item \{ position: relative; \}/);
   assert.match(styles, /\.events-item__trip-action \{ position: absolute;/);
   assert.match(styles, /@media \(max-width: 575px\)[^]*\.events-list \.vehicle-trips__record \{ grid-template-columns: 30px minmax\(0, 1fr\); \}/);
+});
+
+test("a recent SPEEDING action uses one server snapshot for identical SSR and hydration hrefs", () => {
+  const renderInitialFrame = () => renderToStaticMarkup(<I18nProvider locale="en"><AuthProvider user={admin}><EventsClient initialFilters={{}} initialData={{ items: [speeding], nextCursor: null }} initialSummary={alertEventsSummaryFixture} initialActionTime={initialActionTime} /></AuthProvider></I18nProvider>);
+  const expected = alertEventActions(speeding, admin, new Date(initialActionTime)).find((action) => action.key === "eventTrip")?.href;
+  const later = alertEventActions(speeding, admin, new Date("2026-08-08T12:10:01.000Z")).find((action) => action.key === "eventTrip")?.href;
+  assert.ok(expected);
+  assert.notEqual(later, expected, "the convenience range is intentionally bounded by its supplied snapshot");
+  const serverHtml = renderInitialFrame();
+  const hydrationHtml = renderInitialFrame();
+  assert.ok(serverHtml.includes(`href="${expected.replaceAll("&", "&amp;")}"`));
+  assert.equal(hydrationHtml, serverHtml);
+  assert.match(pageSource, /const initialActionTime = new Date\(\)\.toISOString\(\)/);
+  assert.match(pageSource, /initialActionTime=\{initialActionTime\}/);
+  assert.match(source, /useState\(\(\) => new Date\(initialActionTime\)\)/);
+  assert.match(source, /setActionTime\(requestActionTime\)/);
+  assert.doesNotMatch(source, /alertEventActions\(event, user, new Date\(\)\)/);
 });
 
 test("event detail keeps ordinary navigation together and event investigation on its own row", () => {

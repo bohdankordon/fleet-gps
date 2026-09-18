@@ -81,6 +81,7 @@ test("all ten major surface groups expose source-controlled copy in ru, uk, and 
 
 test("selector is header-integrated, native, supports Automatic, and remains non-retrying and route-stable", () => {
   const selector = readFileSync("src/components/language-selector.tsx", "utf8");
+  const shellStyles = readFileSync("src/styles/shell.css", "utf8");
   const layout = readFileSync("src/app/layout.tsx", "utf8");
   const navigation = readFileSync("src/components/app-navigation.tsx", "utf8");
   assert.doesNotMatch(layout, /LanguageSelector|language-selector-shell/);
@@ -101,7 +102,19 @@ test("selector is header-integrated, native, supports Automatic, and remains non
   assert.match(selector, /method: "POST"/);
   assert.match(selector, /preferenceMode === "automatic"/);
   assert.match(selector, /event\.key === "Enter" \|\| event\.key === " " \|\| event\.key === "ArrowDown"/);
-  assert.deepEqual(["uk", "ru", "en"].map((locale) => MESSAGES[locale as keyof typeof MESSAGES]["language.automatic"]), ["Автоматично (мова браузера)", "Автоматически (язык браузера)", "Automatic (browser language)"]);
+  assert.deepEqual(["uk", "ru", "en"].map((locale) => MESSAGES[locale as keyof typeof MESSAGES]["language.automatic"]), ["Автоматично", "Автоматически", "Automatic"]);
+  assert.match(selector, /LANGUAGE_CONTROL_WIDTH_LABELS/);
+  assert.match(selector, /SUPPORTED_LOCALES\.map\(\(value\) => createTranslator\(value\)\("language\.automatic"\)\)/);
+  assert.match(selector, /className="taxi-header__locale-stable"/);
+  assert.match(selector, /className="taxi-header__locale-sizing"/);
+  assert.match(selector, /className="taxi-header__locale-content"/);
+  assert.match(selector, /className="taxi-header__locale-sizing-labels"/);
+  assert.doesNotMatch(selector, /taxi-header__locale-label-sizer/);
+  assert.match(shellStyles, /\.taxi-header__locale-stable \{ display: inline-grid;/);
+  assert.match(shellStyles, /\.taxi-header__locale-sizing,\s*\.taxi-header__locale-content \{ grid-area: 1 \/ 1;/);
+  assert.match(shellStyles, /\.taxi-header__locale-sizing \{ visibility: hidden;/);
+  assert.match(shellStyles, /\.taxi-header__locale-content \{ justify-self: center;/);
+  assert.doesNotMatch(shellStyles, /button\.taxi-header__locale-control[^}]*width:/);
   assert.doesNotMatch(selector, /router\.(?:push|replace)|logout|taxi_session|retry|setTimeout|setInterval/i);
 });
 
