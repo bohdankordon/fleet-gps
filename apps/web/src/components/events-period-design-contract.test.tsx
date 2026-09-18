@@ -48,12 +48,14 @@ test("shared shell preserves accepted Vehicle-family props, trigger markup and c
   assert.equal(renderToStaticMarkup(<PeriodPopover open={false} onOpenChange={() => {}} title="Period" content="Editor" className="vehicle-trips__period-popover"><Button size="large">Period</Button></PeriodPopover>), renderToStaticMarkup(<AcceptedShell />));
 });
 
-test("label/control pairs and utility share grid rows without changing Fleet Reset", () => {
+test("filter controls and right-aligned actions own separate responsive regions without changing Fleet Reset", () => {
   const css = readFileSync("src/styles/events.css", "utf8");
-  assert.match(css, /events-filter \{[^}]*grid-row: 1 \/ 3; grid-template-rows: subgrid/);
-  assert.match(css, /events-filter-utility \{[^}]*grid-row: 1 \/ 3; grid-template-rows: subgrid/);
-  assert.match(css, /events-filter--group \{ grid-column: 1 \/ -1; grid-row: 3; \}/);
-  assert.match(css, /events-filter-utility \{ grid-column: 1 \/ -1; grid-row: 4; display: flex/);
+  assert.match(css, /events-toolbar\.fleet-toolbar \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto/);
+  assert.match(css, /events-filter-controls \{[^}]*grid-template-columns: repeat\(3, minmax\(180px, 260px\)\)/);
+  assert.match(css, /events-filter \{[^}]*grid-template-rows: auto var\(--control-height-default\)/);
+  assert.match(css, /events-filter-utility \{[^}]*grid-template-rows: auto var\(--control-height-default\)/);
+  assert.match(css, /events-filter--group \{ grid-column: 1 \/ -1; \}/);
+  assert.match(css, /events-filter-utility \{ display: flex; justify-content: space-between/);
   assert.match(source, /<FleetFilterResetButton disabled=\{filterCount === 0\}/);
 });
 

@@ -62,6 +62,7 @@ async function proxyWithMe(
   path: string,
   me: () => Promise<Response>,
   cookie: string | null = "taxi_session=session-token",
+  acceptLanguage?: string,
 ): Promise<{ response: Response; fetches: number }> {
   const originalFetch = globalThis.fetch;
   const originalApiBaseUrl = process.env.API_INTERNAL_BASE_URL;
@@ -72,7 +73,10 @@ async function proxyWithMe(
     return me();
   }) as typeof fetch;
   try {
-    const init = cookie === null ? undefined : { headers: { Cookie: cookie } };
+    const requestHeaders = new Headers();
+    if (cookie !== null) requestHeaders.set("Cookie", cookie);
+    if (acceptLanguage !== undefined) requestHeaders.set("Accept-Language", acceptLanguage);
+    const init = cookie === null && acceptLanguage === undefined ? undefined : { headers: requestHeaders };
     const response = await proxy(new NextRequest("http://app.test" + path, init));
     return { response, fetches };
   } finally {
@@ -170,10 +174,14 @@ test("protected page 503 follows the request locale", async () => {
   const uk = await proxyWithMe("/admin/settings", down, "taxi_session=t; taxi_locale=uk");
   assert.equal(uk.response.status, 503);
   assert.match(await uk.response.text(), /\u0442\u0438\u043c\u0447\u0430\u0441\u043e\u0432\u043e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0438\u0439/);
-  const ru = await proxyWithMe("/admin/settings", down);
+  const ru = await proxyWithMe("/admin/settings", down, "taxi_session=t", "ru-RU");
   assert.match(await ru.response.text(), /\u0432\u0440\u0435\u043c\u0435\u043d\u043d\u043e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d/);
-  const en = await proxyWithMe("/admin/settings", down, "taxi_session=t; taxi_locale=en");
+  const unsupported = await proxyWithMe("/admin/settings", down, "taxi_session=t", "pl-PL,en-US;q=0.9");
+  assert.match(await unsupported.response.text(), /\u0442\u0438\u043c\u0447\u0430\u0441\u043e\u0432\u043e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0438\u0439/);
+  const en = await proxyWithMe("/admin/settings", down, "taxi_session=t; taxi_locale=en", "pl-PL");
   assert.match(await en.response.text(), /temporarily unavailable/);
+  const explicitRu = await proxyWithMe("/admin/settings", down, "taxi_session=t; taxi_locale=ru", "pl-PL");
+  assert.match(await explicitRu.response.text(), /\u0432\u0440\u0435\u043c\u0435\u043d\u043d\u043e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d/);
 });
 
 test("unavailable auth returns stable JSON 503 for protected BFF routes", async () => {

@@ -5,11 +5,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { formatDateTime } from "../i18n/formatting";
 import { positionHistoryStatusFixture } from "../lib/position-history-status/position-history-status-fixture";
 import { PositionHistoryOverview } from "./position-history-overview";
+import { I18nProvider } from "../i18n/client";
 
 const exact = "2026-08-11T02:00:00.000Z";
 
 function renderOverview(overrides: Partial<Parameters<typeof PositionHistoryOverview>[0]> = {}): string {
-  return renderToStaticMarkup(<PositionHistoryOverview anchor={exact} data={positionHistoryStatusFixture()} statusError={null} active={null} activeUnavailable={false} administrationNavigation={<nav>Administration</nav>} historyNavigation={<nav>History sections</nav>} {...overrides} />);
+  return renderToStaticMarkup(<I18nProvider locale="ru"><PositionHistoryOverview anchor={exact} data={positionHistoryStatusFixture()} statusError={null} active={null} activeUnavailable={false} administrationNavigation={<nav>Administration</nav>} historyNavigation={<nav>History sections</nav>} {...overrides} /></I18nProvider>);
 }
 
 test("Overview keeps processing and stored-observation truth in separate groups", () => {

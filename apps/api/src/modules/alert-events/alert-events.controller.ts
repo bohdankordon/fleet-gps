@@ -2,7 +2,7 @@ import { Controller, Get, HttpException, Param, Query, Req } from "@nestjs/commo
 import { normalizeUuid } from "../../common/uuid.validation";
 import type { AuthenticatedRequest } from "../auth/auth.types";
 import { AlertEventsQueryParamsError, parseAlertEventsQueryParams } from "./alert-events-query-params";
-import type { AlertEventsListResponse, AlertEventsSummaryResponse, AlertEventsVehicleOption, OpenAlertMapResponse, SpeedingEventInvestigationResponse } from "./alert-events-read-models";
+import type { AlertEventsFilterOptionsResponse, AlertEventsListResponse, AlertEventsSummaryResponse, OpenAlertMapResponse, SpeedingEventInvestigationResponse } from "./alert-events-read-models";
 import { AlertEventInvestigationNotFoundError, AlertEventsQueryService } from "./alert-events-query.service";
 import { RequireAnyPermission } from "../auth/auth.decorators";
 
@@ -24,8 +24,8 @@ export class AlertEventsController {
 
   @Get("vehicles")
   @RequireAnyPermission("events.view")
-  public async getVehicleOptions(@Req() request: AuthenticatedRequest): Promise<readonly AlertEventsVehicleOption[]> {
-    try { return await this.query.getVehicleOptions(request.auth!.id); }
+  public async getFilterOptions(@Req() request: AuthenticatedRequest): Promise<AlertEventsFilterOptionsResponse> {
+    try { return await this.query.getFilterOptions(request.auth!.id); }
     catch { throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500); }
   }
 

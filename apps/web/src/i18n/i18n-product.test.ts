@@ -79,8 +79,9 @@ test("all ten major surface groups expose source-controlled copy in ru, uk, and 
   }
 });
 
-test("selector is header-integrated, native, single-POST, non-retrying, and route-stable", () => {
+test("selector is header-integrated, native, supports Automatic, and remains non-retrying and route-stable", () => {
   const selector = readFileSync("src/components/language-selector.tsx", "utf8");
+  const shellStyles = readFileSync("src/styles/shell.css", "utf8");
   const layout = readFileSync("src/app/layout.tsx", "utf8");
   const navigation = readFileSync("src/components/app-navigation.tsx", "utf8");
   assert.doesNotMatch(layout, /LanguageSelector|language-selector-shell/);
@@ -91,12 +92,29 @@ test("selector is header-integrated, native, single-POST, non-retrying, and rout
   assert.match(navigation, /<LanguageSelector \/>/);
   assert.match(navigation, /<AccountMenu login=/);
   for (const expected of ["Русский", "Українська", "English"]) assert.ok(readFileSync("src/i18n/locales.ts", "utf8").includes(expected));
-  assert.match(selector, /<Dropdown[^>]*menu=\{\{ items, selectable: true, selectedKeys: \[locale\]/);
+  assert.match(selector, /<Dropdown[^>]*menu=\{\{ items, selectable: true, selectedKeys: \[selectedKey\]/);
   assert.match(selector, /<Button[^>]+aria-label=\{t\("language\.label"\)\}/);
   assert.match(selector, /GlobalOutlined/);
   assert.match(selector, /disabled=\{pending\}/);
   assert.match(selector, /router\.refresh\(\)/);
   assert.equal((selector.match(/fetch\("\/api\/preferences\/locale"/g) ?? []).length, 1);
+  assert.match(selector, /method: "DELETE"/);
+  assert.match(selector, /method: "POST"/);
+  assert.match(selector, /preferenceMode === "automatic"/);
+  assert.match(selector, /event\.key === "Enter" \|\| event\.key === " " \|\| event\.key === "ArrowDown"/);
+  assert.deepEqual(["uk", "ru", "en"].map((locale) => MESSAGES[locale as keyof typeof MESSAGES]["language.automatic"]), ["Автоматично", "Автоматически", "Automatic"]);
+  assert.match(selector, /LANGUAGE_CONTROL_WIDTH_LABELS/);
+  assert.match(selector, /SUPPORTED_LOCALES\.map\(\(value\) => createTranslator\(value\)\("language\.automatic"\)\)/);
+  assert.match(selector, /className="taxi-header__locale-stable"/);
+  assert.match(selector, /className="taxi-header__locale-sizing"/);
+  assert.match(selector, /className="taxi-header__locale-content"/);
+  assert.match(selector, /className="taxi-header__locale-sizing-labels"/);
+  assert.doesNotMatch(selector, /taxi-header__locale-label-sizer/);
+  assert.match(shellStyles, /\.taxi-header__locale-stable \{ display: inline-grid;/);
+  assert.match(shellStyles, /\.taxi-header__locale-sizing,\s*\.taxi-header__locale-content \{ grid-area: 1 \/ 1;/);
+  assert.match(shellStyles, /\.taxi-header__locale-sizing \{ visibility: hidden;/);
+  assert.match(shellStyles, /\.taxi-header__locale-content \{ justify-self: center;/);
+  assert.doesNotMatch(shellStyles, /button\.taxi-header__locale-control[^}]*width:/);
   assert.doesNotMatch(selector, /router\.(?:push|replace)|logout|taxi_session|retry|setTimeout|setInterval/i);
 });
 

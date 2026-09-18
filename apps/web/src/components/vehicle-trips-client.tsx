@@ -28,6 +28,7 @@ import {
   type TripAnalysisPreset,
 } from "@/lib/trip-analysis/trip-analysis-range";
 import { selectedStopBoundaryPresentation, selectedTripTrackRequest } from "@/lib/trip-analysis/trip-analysis-selection";
+import { classifyTripAnalysisPresentation } from "@/lib/trip-analysis/trip-analysis-presentation-state";
 import { buildTripAnalysisTimeline, type TripAnalysisSelection, type TripAnalysisTimelineItem } from "@/lib/trip-analysis/trip-analysis-timeline";
 import { ensureTripEventLayer, ensureTripMapLayers, ensureTripSpeedingRouteLayer, TRIP_MAP_LEGEND_ITEMS, TRIP_MAP_PRESENTATION, updateTripEventData, updateTripMapData, updateTripSpeedingRouteData, type TripEventPosition } from "@/lib/trip-analysis/trip-analysis-map-layers";
 import { resolveContainingTrip, tripEventFocusCamera, type VehicleTripsEventFocus } from "@/lib/trip-analysis/trip-analysis-event-focus";
@@ -406,8 +407,9 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
     setFormError(null);
     void loadAnalysis(next, appliedPreset, appliedOpenEnded, false, true);
   };
-  const noObservations = analysis?.summary.rawObservationCount === 0;
-  const noEvents = analysis && analysis.summary.rawObservationCount > 0 && analysis.summary.tripCount === 0 && analysis.summary.stopCount === 0;
+  const presentationState = analysis ? classifyTripAnalysisPresentation(analysis.summary) : null;
+  const noObservations = presentationState === "NO_OBSERVATIONS";
+  const gapsOnly = presentationState === "GAPS_ONLY";
   const appliedPresetDefinition = TRIP_ANALYSIS_PRESETS.find((preset) => preset.key === appliedPreset);
   const periodLabel = appliedPresetDefinition ? t(appliedPresetDefinition.messageKey) : t("track.controls.custom");
   const concisePeriod = appliedOpenEnded
@@ -502,7 +504,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
   const eventHistoryUnavailable = eventFocus?.kind === "AVAILABLE" && (eventFocus.trip.kind !== "MATCH" || interaction.trackError);
   const segmentRouteUnavailable = Boolean(availableEvent?.speedingSegments.length) && eventFocus?.kind === "AVAILABLE" && eventFocus.trip.kind === "MATCH" && !trackLoading && Boolean(selection) && !speedingRoute.hasDrawableGeometry;
   const segmentRoutePartial = speedingRoute.hasDrawableGeometry && speedingRoute.partial;
-  const showWorkspace = eventFocus?.kind === "AVAILABLE" || Boolean(analysis && !noObservations);
+  const showWorkspace = eventFocus?.kind === "AVAILABLE" || Boolean(analysis && presentationState !== "NO_OBSERVATIONS");
 
   return <VehicleDetailShell vehicleId={vehicleId} vehicleName={vehicleName ?? t("trips.title")} vehicleGroup={vehicleGroup} activeTab="trips" generatedAt={shellGeneratedAt}>
     <div className="vehicle-trips" style={pageStyle}>
@@ -535,12 +537,11 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
       {noObservations ? <section className="vehicle-trips__empty-surface">
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<Flex vertical align="center" gap={2}><Text>{t("trips.noGpsTitle")}</Text><Text type="secondary">{t("trips.noGpsText")}</Text></Flex>} />
       </section> : null}
-      {noEvents ? <Alert className="vehicle-trips__neutral-result" type="info" showIcon title={t("trips.noEvents")} /> : null}
-
       {showWorkspace ? <section ref={workspaceRef} id="vehicle-trips-workspace" className="vehicle-trips__workspace">
         <section className="vehicle-trips__timeline-pane" aria-label={t("trips.timeline.label")}>
           <header className="vehicle-trips__workspace-header"><TripSectionTitle icon={<CalendarOutlined />} title={t("trips.timeline.title")} /></header>
           <div className="vehicle-trips__timeline-content">
+            {gapsOnly ? <p className="vehicle-trips__chronology-note">{t("trips.noEvents")}</p> : null}
             {timeline.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("trips.timeline.empty")} /> : <ol className="vehicle-trips__timeline">
               {timeline.map((item, index) => <TripTimelineRecord key={item.key} item={item} selected={selection?.key === item.key} connected={index < timeline.length - 1} onSelect={(next) => void select(next, eventFocus?.kind === "AVAILABLE" && selection?.key === next.key)} />)}
             </ol>}

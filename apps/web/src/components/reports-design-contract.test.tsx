@@ -21,6 +21,7 @@ const source = readFileSync("src/components/fleet-activity-report-client.tsx", "
 const results = readFileSync("src/components/report-results.tsx", "utf8");
 const period = readFileSync("src/components/report-period.tsx", "utf8");
 const css = readFileSync("src/styles/reports.css", "utf8");
+const sharedCss = readFileSync("src/styles/components.css", "utf8");
 const render = (node: React.ReactNode, locale: AppLocale = "en") => renderToStaticMarkup(<I18nProvider locale={locale}><AuthProvider user={admin}>{node}</AuthProvider></I18nProvider>);
 
 test("localized compact heading, daily context, global summary and controls use accepted grammar", () => {
@@ -45,6 +46,7 @@ test("desktop table is comparative with aligned metrics and missing GPS dashes",
   const html = render(<ReportResults data={data} rows={data.vehicles} user={admin} desktop sort="distance" onSort={noop} onSelect={noop} />);
   assert.match(html, /<table/); assert.match(html, /reports-table/); assert.match(html, /text-align:right/);
   assert.match(html, /GPS observations: 20/); assert.match(html, /No GPS data/);
+  assert.match(html, /class="reports-evidence neutral-tooltip-trigger"/);
   assert.ok((html.match(/>—<\/td>/g) ?? []).length >= 5);
   assert.match(results, /sticky=\{\{ offsetHeader: 0 \}\}/); assert.match(results, /pagination=\{false\}/);
   assert.match(css, /font-variant-numeric: tabular-nums/);
@@ -185,9 +187,9 @@ test("default and custom headers expose one effective sort direction through Ant
   assert.match(results, /bodySortBg: token.colorBgContainer/);
 });
 
-test("all summary tooltips share a neutral scoped native-button contract with visible focus", () => {
+test("all native Tooltip triggers share neutral hover and active behavior with visible keyboard focus", () => {
   const html = render(<ReportSummary data={data} />);
-  const triggers = [...html.matchAll(/<button class="reports-info-button"[^>]*>/g)];
+  const triggers = [...html.matchAll(/<button class="reports-info-button neutral-tooltip-trigger"[^>]*>/g)];
   assert.equal(triggers.length, 3);
   for (const [button] of triggers) {
     assert.match(button, /type="button"/);
@@ -196,8 +198,10 @@ test("all summary tooltips share a neutral scoped native-button contract with vi
   }
   const context = readFileSync("src/components/report-context.tsx", "utf8");
   assert.ok(context.includes('trigger={["hover", "focus"]}'));
-  assert.match(css, /\.reports-summary \.reports-info-button:hover:not\(:disabled\)[^{]*\{[^}]*background: transparent;[^}]*border: 0;[^}]*box-shadow: none/);
-  assert.match(css, /\.reports-summary \.reports-info-button:focus-visible \{[^}]*outline: 2px solid[^}]*background: transparent/);
+  assert.ok(results.includes('trigger={["hover", "focus"]}'));
+  assert.match(sharedCss, /\.neutral-tooltip-trigger:hover:not\(:disabled\),\s*\.neutral-tooltip-trigger:active:not\(:disabled\) \{[^}]*color: inherit;[^}]*background: transparent;[^}]*box-shadow: none;[^}]*transform: none;/);
+  assert.match(sharedCss, /\.neutral-tooltip-trigger:focus-visible \{ outline: 2px solid var\(--color-focus-ring\); outline-offset: 2px; \}/);
+  assert.doesNotMatch(css, /reports-(?:info-button|evidence):(?:hover|active)/);
   assert.doesNotMatch(css, /ant-tooltip-open/);
   assert.equal((html.match(/<article/g) ?? []).length, 5);
 });

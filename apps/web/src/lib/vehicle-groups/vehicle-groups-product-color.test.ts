@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
  import { parseDashboardVehiclesResponse } from "../dashboard/dashboard-contract";
  import { parseFleetMapResponse } from "../fleet-map/fleet-map-contract";
- import { parseAlertEventsListResponse, parseAlertEventsVehicleOptions } from "../alert-events/alert-events-contract";
+ import { parseAlertEventsFilterOptions, parseAlertEventsListResponse } from "../alert-events/alert-events-contract";
  import { parseVehicleDetailsResponse } from "../vehicle-details/vehicle-details-contract";
  import { parseVehicleTrackResponse } from "../vehicle-track/vehicle-track-contract";
  import { parseVehicleTrackOverviewResponse } from "../vehicle-track/vehicle-track-overview-contract";
@@ -28,7 +28,7 @@ test("fleet map, alert events, and open alert map keep color without leaking", (
   const alert = { id: "00000000-0000-4000-8000-000000000001", vehicle: { id: "00000000-0000-4000-8000-000000000002", name: "Taxi", group: group("CYAN") }, type: "SPEEDING" as const, status: "OPEN" as const, openedAt: "2026-08-08T12:00:00.000Z", lastObservedAt: "2026-08-08T12:05:00.000Z", resolvedAt: null, notificationDeliveryStatus: "PENDING" as const, details: { zone: "CITY" as const, confirmationSpeedKph: 72, lastSpeedKph: 74, peakSpeedKph: 81, thresholdKph: 60 } };
   assert.equal(parseAlertEventsListResponse({ items: [alert], nextCursor: null }).items[0]!.vehicle.group!.color, "CYAN");
   assert.throws(() => parseAlertEventsListResponse({ items: [{ ...alert, vehicle: { ...alert.vehicle, group: group("RED") } }], nextCursor: null } as unknown));
-  assert.deepEqual(parseAlertEventsVehicleOptions([{ vehicleId: "00000000-0000-4000-8000-000000000002", vehicleName: "Taxi", group: group("GOLD") }])[0]!.group!.color, "GOLD");
+  assert.deepEqual(parseAlertEventsFilterOptions({ vehicles: [{ vehicleId: "00000000-0000-4000-8000-000000000002", vehicleName: "Taxi", group: group("GOLD") }], groups: [{ id: GROUP_ID, name: "Taxi" }], hasUngrouped: false }).vehicles[0]!.group!.color, "GOLD");
   const openMap = { generatedAt: "2026-08-10T12:01:00.000Z", summary: { totalOpenAlerts: 1, vehiclesWithOpenAlerts: 1, speeding: 1, inactivity: 0 }, vehicles: [{ vehicle: { id: "00000000-0000-4000-8000-000000000002", name: "Taxi", group: group("ORANGE") }, alerts: [{ type: "SPEEDING" as const, openedAt: "2026-08-10T12:00:00.000Z" }] }] };
   assert.equal(parseOpenAlertMapResponse(openMap).vehicles[0]!.vehicle.group!.color, "ORANGE");
 });

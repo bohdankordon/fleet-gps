@@ -123,6 +123,21 @@ test("vehicle options use only vehicles represented in Events and select identit
   assert.deepEqual(result, [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO", group: null }]);
 });
 
+test("group metadata uses every accessible fleet vehicle without leaking outside Product Vehicle Access", async () => {
+  const queries: unknown[] = [];
+  const group = { id: "00000000-0000-4000-8000-000000000020", name: "Central" };
+  const client = { vehicle: { findMany: async (args: unknown) => { queries.push(args); return [{ group }, { group: null }]; } } } as unknown as PrismaClient;
+  const repository = new PrismaAlertEventsQueryRepository({ getClient: () => client } as DatabaseService);
+  assert.deepEqual(await repository.getGroupMetadataCarriers(UNRESTRICTED_VEHICLE_SCOPE), [{ group }, { group: null }]);
+  const scopedWhere = { OR: [{ groupId: group.id }, { id: VEHICLE_ID }] };
+  assert.deepEqual(await repository.getGroupMetadataCarriers({ kind: "FILTERED", where: scopedWhere }), [{ group }, { group: null }]);
+  assert.deepEqual(queries, [
+    { where: {}, select: { group: { select: { id: true, name: true } } } },
+    { where: { AND: [{}, scopedWhere] }, select: { group: { select: { id: true, name: true } } } },
+  ]);
+  assert.equal(JSON.stringify(queries).includes("alertEvents"), false);
+});
+
 test("investigation direct-ID read is SPEEDING-only and composes Product Vehicle Access in the same query", async () => {
   let query: unknown;
   const eventId = "00000000-0000-4000-8000-000000000099";

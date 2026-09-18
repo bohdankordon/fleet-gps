@@ -3,7 +3,7 @@ import test from "node:test";
 import { createPositionHistoryRetentionExecutionRouteHandler } from "./position-history-retention-execution-route-handler";
 
 const body = { expectedCanonicalAnchor: "2026-08-11T02:00:00.000Z", expectedPolicyCutoff: "2026-05-13T02:00:00.000Z" };
-const result = { canonicalAnchor: body.expectedCanonicalAnchor, policyCutoff: body.expectedPolicyCutoff, deletedCheckpoints: 1, deletedObservations: 2, remainingFullyObsoleteCheckpoints: 0, remainingExecutableObservationCandidates: 0, stoppedByBudget: false, noWork: false };
+const result = { canonicalAnchor: body.expectedCanonicalAnchor, policyCutoff: body.expectedPolicyCutoff, advancedCursorFloors: 1, advancedReplayCheckpoints: 2, completedReplayCheckpoints: 1, deletedCheckpoints: 1, deletedObservations: 2, remainingFullyObsoleteCheckpoints: 0, remainingExecutableObservationCandidates: 0, stoppedByBudget: false, noWork: false };
 function request(headers: Record<string, string> = { Origin: "http://app.test", "Sec-Fetch-Site": "same-origin" }, payload: unknown = body): Request {
   return new Request("http://app.test/api/system/position-history/retention-execute", { method: "POST", headers: { ...headers, "Content-Type": "application/json", Cookie: "preference=dark; taxi_session=secret-token" }, body: JSON.stringify(payload) });
 }

@@ -101,6 +101,28 @@ test("Chronology stays factual and selectable only for trips and stops while GPS
   assert.doesNotMatch(trips, /address|geocod|roadDistance|stopCenter|interpolat|cluster|eventLocation|locationMap/i);
 });
 
+test("Trips empty presentation distinguishes no input, empty chronology, gaps-only, and populated chronology", () => {
+  assert.match(trips, /classifyTripAnalysisPresentation\(analysis\.summary\)/);
+  assert.match(trips, /presentationState === "NO_OBSERVATIONS"/);
+  assert.match(trips, /presentationState === "GAPS_ONLY"/);
+  assert.equal((trips.match(/t\("trips\.timeline\.empty"\)/g) ?? []).length, 1);
+  assert.match(trips, /\{gapsOnly \? <p className="vehicle-trips__chronology-note">\{t\("trips\.noEvents"\)\}<\/p> : null\}/);
+  assert.ok(trips.indexOf('className="vehicle-trips__chronology-note"') > trips.indexOf('className="vehicle-trips__timeline-content"'));
+  assert.ok(trips.indexOf('className="vehicle-trips__chronology-note"') < trips.indexOf('className="vehicle-trips__timeline"'));
+  assert.doesNotMatch(trips, /vehicle-trips__neutral-result/);
+  assert.doesNotMatch(trips, /const noEvents/);
+  assert.match(styles, /\.vehicle-trips__chronology-note \{[^}]*color: var\(--color-text-tertiary\);[^}]*background: var\(--color-surface-hover\);/);
+  assert.match(styles, /\.vehicle-trips__chronology-note \{[^}]*padding: var\(--space-1\) var\(--space-2\);[^}]*border-inline-start: 2px solid var\(--color-border-subtle\);/);
+  assert.doesNotMatch(styles, /\.vehicle-trips__chronology-note \{[^}]*border-radius/);
+  assert.doesNotMatch(styles, /vehicle-trips__neutral-result/);
+  assert.equal(createTranslator("uk")("trips.noEvents"), "За вибраний період підтверджених поїздок і зупинок не виявлено.");
+  assert.equal(createTranslator("ru")("trips.noEvents"), "За выбранный период подтверждённые поездки и остановки не обнаружены.");
+  assert.equal(createTranslator("en")("trips.noEvents"), "No confirmed trips or stops were found during the selected period.");
+  assert.equal(createTranslator("uk")("trips.timeline.empty"), "За вибраний період підтверджених поїздок, зупинок і розривів GPS не виявлено.");
+  assert.equal(createTranslator("ru")("trips.timeline.empty"), "За выбранный период подтверждённых поездок, остановок и разрывов GPS не обнаружено.");
+  assert.equal(createTranslator("en")("trips.timeline.empty"), "No confirmed trips, stops, or GPS gaps were found for the selected period.");
+});
+
 test("desktop Map stickiness uses the real scrolling page and narrow layouts remain Map-first", () => {
   assert.match(styles, /grid-template-columns: minmax\(300px, 360px\) minmax\(0, 1fr\)/);
   assert.match(styles, /grid-template-areas: "timeline map"/);

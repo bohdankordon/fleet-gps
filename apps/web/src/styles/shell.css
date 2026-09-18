@@ -158,9 +158,13 @@
   white-space: nowrap;
 }
 
-.taxi-header button.taxi-header__locale-control {
-  width: 136px;
-}
+.taxi-header__locale-stable { display: inline-grid; align-items: center; justify-items: center; min-width: 0; }
+.taxi-header__locale-sizing,
+.taxi-header__locale-content { grid-area: 1 / 1; display: inline-flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; }
+.taxi-header__locale-sizing { visibility: hidden; pointer-events: none; }
+.taxi-header__locale-sizing-labels { display: grid; min-width: 0; }
+.taxi-header__locale-sizing-labels > span { grid-area: 1 / 1; white-space: nowrap; }
+.taxi-header__locale-content { justify-self: center; }
 
 .taxi-header button.taxi-header__account-control {
   max-width: 176px;

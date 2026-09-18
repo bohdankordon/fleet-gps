@@ -84,6 +84,14 @@ export class PrismaAlertEventsQueryRepository implements AlertEventsQueryReposit
     return vehicles.map((vehicle) => ({ vehicleId: vehicle.id, vehicleName: vehicle.name, group: vehicle.group ? { id: vehicle.group.id, name: vehicle.group.name, color: vehicle.group.color } : null }));
   }
 
+  public async getGroupMetadataCarriers(scope: VehicleScope) {
+    const vehicles = await this.database.getClient().vehicle.findMany({
+      where: applyVehicleScope(scope),
+      select: { group: { select: { id: true, name: true } } },
+    });
+    return vehicles.map((vehicle) => ({ group: vehicle.group ? { id: vehicle.group.id, name: vehicle.group.name } : null }));
+  }
+
   public async getOpenMapSnapshot(scope: VehicleScope): Promise<StoredOpenAlertMapSnapshot> {
     const rows = await this.database.getClient().alertEvent.findMany({
       where: applyAlertEventScope(scope, { status: AlertEventStatus.OPEN }),

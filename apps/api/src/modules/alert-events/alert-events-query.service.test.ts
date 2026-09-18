@@ -26,6 +26,7 @@ function service(rows: readonly StoredAlertEventReadRow[], hasMore = false, summ
   const calls = { lists: 0, summaries: 0, maps: 0 };
   const repository: AlertEventsQueryRepository = {
     getVehicleOptions: async () => [],
+    getGroupMetadataCarriers: async () => [],
     list: async () => { calls.lists += 1; return { rows, hasMore }; },
     getOpenSummary: async () => { calls.summaries += 1; return summary; },
     getOpenMapSnapshot: async () => { calls.maps += 1; return { rows: mapRows, exceededLimit }; },
@@ -130,7 +131,7 @@ test("rejects over-limit, duplicate same-type OPEN state, invalid persisted time
   await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [], true).subject.getOpenMap(testUserId));
   await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [duplicate, duplicate]).subject.getOpenMap(testUserId));
   await assert.rejects(service([], false, { speeding: 0, inactivity: 0 }, [{ ...duplicate, confirmedAt: new Date(Number.NaN) }]).subject.getOpenMap(testUserId));
-  const repository = { getVehicleOptions: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }) };
+  const repository = { getVehicleOptions: async () => [], getGroupMetadataCarriers: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }) };
   await assert.rejects(new AlertEventsQueryService(repository, { now: () => new Date(Number.NaN) }, unrestrictedScopes).getOpenMap(testUserId));
 });
 
@@ -140,14 +141,37 @@ test("lastObservedAt is the stored factual timestamp and malformed persisted val
   assert.equal((await service([row({ lastObservedAt })]).subject.list(params, testUserId)).items[0]?.lastObservedAt, lastObservedAt.toISOString());
   await assert.rejects(service([row({ lastObservedAt: new Date(NaN) })]).subject.list(params, testUserId));
 });
-test("vehicle options are locale ordered and project safe fields even when repository has extras", async () => {
-  const repository: AlertEventsQueryRepository = { list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }), getVehicleOptions: async () => [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", group: null, providerId: "secret" }, { vehicleId: EVENT_ID, vehicleName: "DEMO 2", group: null, providerId: "secret" }] as unknown as readonly import("./alert-events-read-models").AlertEventsVehicleOption[] };
-  assert.deepEqual(await new AlertEventsQueryService(repository, { now: () => new Date("2026-08-10T12:00:00.000Z") }, unrestrictedScopes).getVehicleOptions(testUserId), [{ vehicleId: EVENT_ID, vehicleName: "DEMO 2", group: null }, { vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", group: null }]);
+test("filter options keep event vehicle semantics while deriving deduplicated group metadata from every accessible vehicle", async () => {
+  const alphaId = "00000000-0000-4000-8000-000000000010";
+  const zuluId = "00000000-0000-4000-8000-000000000020";
+  const repository: AlertEventsQueryRepository = {
+    list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }),
+    getVehicleOptions: async () => [{ vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", group: null, providerId: "secret" }, { vehicleId: EVENT_ID, vehicleName: "DEMO 2", group: null, providerId: "secret" }] as unknown as readonly import("./alert-events-read-models").AlertEventsVehicleOption[],
+    getGroupMetadataCarriers: async () => [{ group: { id: zuluId, name: "Zulu" } }, { group: null }, { group: { id: alphaId, name: "Alpha" } }, { group: { id: alphaId, name: "Alpha" } }],
+  };
+  assert.deepEqual(await new AlertEventsQueryService(repository, { now: () => new Date("2026-08-10T12:00:00.000Z") }, unrestrictedScopes).getFilterOptions(testUserId), {
+    vehicles: [{ vehicleId: EVENT_ID, vehicleName: "DEMO 2", group: null }, { vehicleId: VEHICLE_ID, vehicleName: "DEMO 10", group: null }],
+    groups: [{ id: alphaId, name: "Alpha" }, { id: zuluId, name: "Zulu" }],
+    hasUngrouped: true,
+  });
+});
+
+test("filter options expose Ungrouped from accessible fleet metadata even when no vehicle has an event", async () => {
+  const repository: AlertEventsQueryRepository = {
+    list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }),
+    getVehicleOptions: async () => [],
+    getGroupMetadataCarriers: async () => [{ group: null }, { group: null }],
+  };
+  assert.deepEqual(await new AlertEventsQueryService(repository, { now: () => new Date("2026-08-10T12:00:00.000Z") }, unrestrictedScopes).getFilterOptions(testUserId), {
+    vehicles: [],
+    groups: [],
+    hasUngrouped: true,
+  });
 });
 
 test("investigation projects only authoritative SPEEDING evidence and preserves null legacy coordinates", async () => {
   const repository: AlertEventsQueryRepository = {
-    getVehicleOptions: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }),
+    getVehicleOptions: async () => [], getGroupMetadataCarriers: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }),
     findSpeedingInvestigation: async () => ({ id: EVENT_ID, type: AlertEventType.SPEEDING, vehicleId: VEHICLE_ID, confirmedAt: AT, confirmationLatitude: 49.23, confirmationLongitude: 28.48, confirmationSpeedKph: 72, speedThresholdKph: 60, speedZone: AlertEventSpeedZone.CITY, confirmations: [] }),
   };
   const subject = new AlertEventsQueryService(repository, { now: () => AT }, unrestrictedScopes);
@@ -159,7 +183,7 @@ test("investigation projects only authoritative SPEEDING evidence and preserves 
 test("investigation projects multiple complete confirmation segments in repository order", async () => {
   const confirmation = (minute: number) => ({ dedupeKey: String(minute).padStart(64, "0"), observedAt: new Date(AT.getTime() + minute * 60_000), speedingStreakStartedAt: new Date(AT.getTime() + (minute - 1) * 60_000), speedingStreakStartLatitude: 49.2 + minute / 100, speedingStreakStartLongitude: 28.4 + minute / 100, lastSpeedingObservedAt: new Date(AT.getTime() + (minute + 1) * 60_000), lastSpeedingLatitude: 49.3 + minute / 100, lastSpeedingLongitude: 28.5 + minute / 100 });
   const repository: AlertEventsQueryRepository = {
-    getVehicleOptions: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }),
+    getVehicleOptions: async () => [], getGroupMetadataCarriers: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }),
     findSpeedingInvestigation: async () => ({ id: EVENT_ID, type: AlertEventType.SPEEDING, vehicleId: VEHICLE_ID, confirmedAt: AT, confirmationLatitude: 49.23, confirmationLongitude: 28.48, confirmationSpeedKph: 72, speedThresholdKph: 60, speedZone: AlertEventSpeedZone.CITY, confirmations: [confirmation(2), confirmation(5)] }),
   };
   const result = await new AlertEventsQueryService(repository, { now: () => AT }, unrestrictedScopes).getSpeedingInvestigation(EVENT_ID, testUserId);
@@ -170,7 +194,7 @@ test("investigation projects multiple complete confirmation segments in reposito
 test("investigation omits all-null legacy evidence and fails closed on partial persisted evidence", async () => {
   const legacy = { dedupeKey: "a".repeat(64), observedAt: AT, speedingStreakStartedAt: null, speedingStreakStartLatitude: null, speedingStreakStartLongitude: null, lastSpeedingObservedAt: null, lastSpeedingLatitude: null, lastSpeedingLongitude: null };
   const repository: AlertEventsQueryRepository = {
-    getVehicleOptions: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }),
+    getVehicleOptions: async () => [], getGroupMetadataCarriers: async () => [], list: async () => ({ rows: [], hasMore: false }), getOpenSummary: async () => ({ speeding: 0, inactivity: 0 }), getOpenMapSnapshot: async () => ({ rows: [], exceededLimit: false }),
     findSpeedingInvestigation: async () => ({ id: EVENT_ID, type: AlertEventType.SPEEDING, vehicleId: VEHICLE_ID, confirmedAt: AT, confirmationLatitude: 49.23, confirmationLongitude: 28.48, confirmationSpeedKph: 72, speedThresholdKph: 60, speedZone: AlertEventSpeedZone.CITY, confirmations: [legacy] }),
   };
   const subject = new AlertEventsQueryService(repository, { now: () => AT }, unrestrictedScopes);

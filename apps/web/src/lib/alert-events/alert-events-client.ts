@@ -1,6 +1,6 @@
 import "server-only";
 import { parseWebConfig } from "@/lib/web-config";
-import { parseAlertEventsVehicleOptions, type AlertEventsVehicleOptions, AlertEventsContractError, parseAlertEventsListResponse, parseAlertEventsSummaryResponse, parseSpeedingEventInvestigation, type AlertEventsListResponse, type AlertEventsSummaryResponse, type SpeedingEventInvestigation } from "./alert-events-contract";
+import { parseAlertEventsFilterOptions, type AlertEventsFilterOptions, AlertEventsContractError, parseAlertEventsListResponse, parseAlertEventsSummaryResponse, parseSpeedingEventInvestigation, type AlertEventsListResponse, type AlertEventsSummaryResponse, type SpeedingEventInvestigation } from "./alert-events-contract";
 import { AlertEventInvestigationNotFoundError, AlertEventsBackendBadRequestError, AlertEventsBackendUnavailableError } from "./alert-events-errors";
 import { serializeAlertEventsRequestQuery, type AlertEventsFilters, type AlertEventsRequestQuery } from "./alert-events-query";
 import { authenticatedApiFetch } from "@/lib/auth/auth-cookie";
@@ -35,5 +35,5 @@ export async function fetchAlertEvents(query: AlertEventsRequestQuery, fetcher: 
 export async function fetchAlertEventsSummary(fetcher: typeof fetch = authenticatedApiFetch): Promise<AlertEventsSummaryResponse> { return parseAlertEventsSummaryResponse(await backendJson("/api/alert-events/summary", fetcher)); }
 export function firstAlertEventsQuery(filters: AlertEventsFilters): AlertEventsRequestQuery { return Object.freeze({ ...filters, limit: 25 }); }
 
-export async function fetchAlertEventsVehicleOptions(fetcher: typeof fetch = authenticatedApiFetch): Promise<AlertEventsVehicleOptions> { return parseAlertEventsVehicleOptions(await backendJson("/api/alert-events/vehicles", fetcher)); }
+export async function fetchAlertEventsFilterOptions(fetcher: typeof fetch = authenticatedApiFetch): Promise<AlertEventsFilterOptions> { return parseAlertEventsFilterOptions(await backendJson("/api/alert-events/vehicles", fetcher)); }
 export async function fetchSpeedingEventInvestigation(eventId: string, fetcher: typeof fetch = authenticatedApiFetch): Promise<SpeedingEventInvestigation> { return parseSpeedingEventInvestigation(await investigationJson(eventId, fetcher)); }

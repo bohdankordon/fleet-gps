@@ -35,6 +35,9 @@
 .ui-button--destructive:active:not(:disabled):not([aria-disabled="true"]) { background: var(--color-action-danger-pressed); }
 .ui-button:disabled, .ui-button[aria-disabled="true"] { color: var(--color-text-disabled); background: var(--color-surface-subtle); cursor: not-allowed; }
 .ui-link-button[aria-disabled="true"] { pointer-events: none; }
+.neutral-tooltip-trigger:hover:not(:disabled),
+.neutral-tooltip-trigger:active:not(:disabled) { color: inherit; background: transparent; box-shadow: none; transform: none; }
+.neutral-tooltip-trigger:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; }
 .ui-button__icon { display: inline-flex; flex: 0 0 auto; }
 .ui-button__icon > svg { width: var(--icon-size-default); height: var(--icon-size-default); }
 .ui-button--compact .ui-button__icon > svg { width: var(--icon-size-compact); height: var(--icon-size-compact); }

@@ -9,6 +9,10 @@ export const positionHistoryRetentionPlanSchema = z.object({
   policyDays: z.number().int().positive(),
   canonicalAnchor: timestamp,
   policyCutoff: timestamp,
+  policyReconciliation: z.object({
+    cursorFloorCandidates: count,
+    replayCheckpointCandidates: count,
+  }).strict(),
   observations: z.object({
     total: count,
     olderThanPolicyCutoff: count,
@@ -61,13 +65,25 @@ export const positionHistoryRetentionExecutionRequestSchema = z.object({
 export const positionHistoryRetentionExecutionResultSchema = z.object({
   canonicalAnchor: timestamp,
   policyCutoff: timestamp,
+  advancedCursorFloors: count,
+  advancedReplayCheckpoints: count,
+  completedReplayCheckpoints: count,
   deletedCheckpoints: count,
   deletedObservations: count,
   remainingFullyObsoleteCheckpoints: count,
   remainingExecutableObservationCandidates: count,
   stoppedByBudget: z.boolean(),
   noWork: z.boolean(),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.completedReplayCheckpoints > value.advancedReplayCheckpoints) context.addIssue({ code: "custom", message: "completed replay checkpoints" });
+  const noWork = value.advancedCursorFloors === 0
+    && value.advancedReplayCheckpoints === 0
+    && value.deletedCheckpoints === 0
+    && value.deletedObservations === 0
+    && value.remainingFullyObsoleteCheckpoints === 0
+    && value.remainingExecutableObservationCandidates === 0;
+  if (value.noWork !== noWork) context.addIssue({ code: "custom", message: "no work" });
+});
 
 export type PositionHistoryRetentionExecutionRequest = z.infer<typeof positionHistoryRetentionExecutionRequestSchema>;
 export type PositionHistoryRetentionExecutionResult = z.infer<typeof positionHistoryRetentionExecutionResultSchema>;

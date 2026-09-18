@@ -1,4 +1,4 @@
-import type { VehicleGroupRef } from "../vehicle-access/vehicle-access.types";
+import type { VehicleGroupOption, VehicleGroupRef } from "../vehicle-access/vehicle-access.types";
 
 export type AlertNotificationDeliveryStatus = "NONE" | "PENDING" | "SENT" | "FAILED";
 
@@ -67,6 +67,12 @@ export type AlertEventsVehicleOption = Readonly<{
   vehicleId: string;
   vehicleName: string;
   group: VehicleGroupRef | null;
+}>;
+
+export type AlertEventsFilterOptionsResponse = Readonly<{
+  vehicles: readonly AlertEventsVehicleOption[];
+  groups: readonly VehicleGroupOption[];
+  hasUngrouped: boolean;
 }>;
 
 export type OpenAlertMapAlert = Readonly<{

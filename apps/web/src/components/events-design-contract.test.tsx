@@ -9,15 +9,18 @@ import { AuthProvider } from "./auth-provider";
 import { I18nProvider } from "../i18n/client";
 import { alertEventsListFixture, alertEventsSummaryFixture } from "../lib/alert-events/alert-events-fixture";
 import type { AlertEvent } from "../lib/alert-events/alert-events-contract";
+import { alertEventActions } from "../lib/alert-events/alert-events-investigation";
 import { MESSAGE_CATALOG } from "../i18n/messages";
 const source = readFileSync("src/components/events-client.tsx", "utf8");
+const pageSource = readFileSync("src/app/events/page.tsx", "utf8");
 const detailSource = readFileSync("src/components/event-detail.tsx", "utf8");
 const styles = readFileSync("src/styles/events.css", "utf8");
 const speeding = alertEventsListFixture.items[0];
 const inactivity: AlertEvent = { ...speeding, type: "INACTIVITY", status: "RESOLVED", resolvedAt: "2026-08-08T13:00:00.000Z", details: { confirmationDistanceMeters: 35, lastDistanceMeters: 340, minimumDistanceMeters: 12, distanceThresholdMeters: 300, durationThresholdMinutes: 60 } };
 const admin = { id: "admin", login: "admin", role: "ADMIN" as const, permissions: [], mustChangePassword: false };
+const initialActionTime = "2026-08-08T12:10:00.000Z";
 const renderDetail = (event: AlertEvent) => renderToStaticMarkup(<I18nProvider locale="en"><AuthProvider user={admin}><EventDetail event={event} now={new Date("2026-08-08T14:00:00Z")} onClose={() => {}} /></AuthProvider></I18nProvider>);
-const renderPage = (filters = {}, items: AlertEvent[] = [speeding], summary: typeof alertEventsSummaryFixture | null = alertEventsSummaryFixture, initialError = false) => renderToStaticMarkup(<I18nProvider locale="en"><EventsClient initialFilters={filters} initialData={{ items, nextCursor: null }} initialSummary={summary} initialError={initialError} /></I18nProvider>);
+const renderPage = (filters = {}, items: AlertEvent[] = [speeding], summary: typeof alertEventsSummaryFixture | null = alertEventsSummaryFixture, initialError = false) => renderToStaticMarkup(<I18nProvider locale="en"><EventsClient initialFilters={filters} initialData={{ items, nextCursor: null }} initialSummary={summary} initialActionTime={initialActionTime} initialError={initialError} /></I18nProvider>);
 
 test("workspace uses Ant Design with a compact heading, global metrics, chronology and no delivery truth", () => {
   for (const state of ["NONE", "PENDING", "SENT", "FAILED"] as const) {
@@ -57,6 +60,18 @@ test("empty and failure states distinguish active, history, filters and independ
   assert.match(renderPage({ type: "SPEEDING" }, []), /No events match the selected filters/);
   const failure = renderPage({}, [speeding], null); assert.match(failure, /summary could not be loaded/); assert.match(failure, /Такси 7/);
   const listFailure = renderPage({}, [], alertEventsSummaryFixture, true); assert.match(listFailure, /Events could not be loaded/); assert.doesNotMatch(listFailure, /No active events now/);
+});
+test("desktop placeholders share one owned header and body geometry while narrower layouts remove artificial height", () => {
+  assert.match(source, /events-chronology__body--placeholder/);
+  assert.match(source, /events-context__placeholder-header/);
+  assert.match(source, /events-context__placeholder-body/);
+  assert.match(styles, /--events-pane-header-height: calc\(var\(--control-height-default\) \+ var\(--space-4\) \+ 1px\)/);
+  assert.match(styles, /--events-pane-body-min-height: 22rem/);
+  assert.match(styles, /\.events-chronology \{[^}]*grid-template-rows: var\(--events-pane-header-height\) minmax\(var\(--events-pane-body-min-height\), 1fr\)/);
+  assert.match(styles, /\.events-context__empty \{[^}]*grid-template-rows: var\(--events-pane-header-height\) minmax\(var\(--events-pane-body-min-height\), 1fr\)/);
+  assert.match(styles, /@media \(max-width: 991px\)[^]*--events-pane-body-min-height: 0px;[^}]*min-height: 0/);
+  assert.match(styles, /@media \(max-width: 575px\)[^]*--events-pane-header-height: 0px/);
+  assert.doesNotMatch(styles, /min-height: (400|420)px/);
 });
 test("desktop and mobile share a single detail component; drawer, selection, keyboard and history wiring", () => {
   assert.equal((source.match(/<EventDetail /g) ?? []).length, 2);
@@ -102,6 +117,23 @@ test("event rows keep status metadata stable while the direct trip action remain
   assert.match(styles, /@media \(max-width: 575px\)[^]*\.events-list \.vehicle-trips__record \{ grid-template-columns: 30px minmax\(0, 1fr\); \}/);
 });
 
+test("a recent SPEEDING action uses one server snapshot for identical SSR and hydration hrefs", () => {
+  const renderInitialFrame = () => renderToStaticMarkup(<I18nProvider locale="en"><AuthProvider user={admin}><EventsClient initialFilters={{}} initialData={{ items: [speeding], nextCursor: null }} initialSummary={alertEventsSummaryFixture} initialActionTime={initialActionTime} /></AuthProvider></I18nProvider>);
+  const expected = alertEventActions(speeding, admin, new Date(initialActionTime)).find((action) => action.key === "eventTrip")?.href;
+  const later = alertEventActions(speeding, admin, new Date("2026-08-08T12:10:01.000Z")).find((action) => action.key === "eventTrip")?.href;
+  assert.ok(expected);
+  assert.notEqual(later, expected, "the convenience range is intentionally bounded by its supplied snapshot");
+  const serverHtml = renderInitialFrame();
+  const hydrationHtml = renderInitialFrame();
+  assert.ok(serverHtml.includes(`href="${expected.replaceAll("&", "&amp;")}"`));
+  assert.equal(hydrationHtml, serverHtml);
+  assert.match(pageSource, /const initialActionTime = new Date\(\)\.toISOString\(\)/);
+  assert.match(pageSource, /initialActionTime=\{initialActionTime\}/);
+  assert.match(source, /useState\(\(\) => new Date\(initialActionTime\)\)/);
+  assert.match(source, /setActionTime\(requestActionTime\)/);
+  assert.doesNotMatch(source, /alertEventActions\(event, user, new Date\(\)\)/);
+});
+
 test("event detail keeps ordinary navigation together and event investigation on its own row", () => {
   assert.match(detailSource, /const ordinaryActions = actions\.filter\(\(action\) => action\.key !== "eventTrip"\)/);
   assert.match(detailSource, /const eventTripAction = actions\.find\(\(action\) => action\.key === "eventTrip"\)/);
@@ -114,9 +146,10 @@ test("filter utility has label and control rows with the exact accepted Fleet Re
   assert.match(source, /<div className="events-filter-utility"><Typography.Text className="events-filter-count"/);
   assert.match(source, /count: filterCount/);
   assert.match(source, /<FleetFilterResetButton disabled=\{filterCount === 0\}/);
-  assert.match(styles, /events-filter-count \{ grid-row: 1/);
-  assert.match(styles, /events-filter-utility > .fleet-filter-reset \{ grid-row: 2/);
-  assert.match(styles, /events-filter-utility \{ grid-column: 1 \/ -1; grid-row: 4; display: flex; justify-content: space-between/);
+  assert.match(source, /<div className="events-filter-controls">/);
+  assert.match(styles, /events-toolbar\.fleet-toolbar \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto/);
+  assert.match(styles, /events-filter-utility \{[^}]*margin-inline-start: auto/);
+  assert.match(styles, /@media \(max-width: 575px\)[^]*events-filter-utility \{ display: flex; justify-content: space-between/);
   const reset = readFileSync("src/components/fleet-filter-reset-button.tsx", "utf8");
   const fleet = readFileSync("src/components/dashboard-client.tsx", "utf8");
   const themeContract = /<ConfigProvider theme=([\s\S]*?)><Button/;
@@ -138,7 +171,9 @@ test("filter utility has label and control rows with the exact accepted Fleet Re
   assert.doesNotMatch(ungrouped, /class="[^"<>]*fleet-filter-reset[^"<>]*"[^>]*disabled/);
 });
 test("group filter stays comparable to sibling filters and stacks deterministically on narrow screens", () => {
-  assert.ok(styles.includes("grid-template-columns: minmax(180px, 260px) minmax(180px, 260px) minmax(180px, 260px) minmax(0, 1fr)"));
+  assert.ok(styles.includes("grid-template-columns: repeat(3, minmax(180px, 260px))"));
   assert.ok(styles.includes(".events-filter--group"));
   assert.ok(source.includes('className="events-filter events-filter--group"'));
+  assert.match(source, /filterOptions\.groups\.length > 0 \|\| filterOptions\.hasUngrouped/);
+  assert.doesNotMatch(source, /productGroupOptionsFromVehicles/);
 });

@@ -65,8 +65,8 @@ test("locale and shell controls use Ant Design icons instead of typed icon-like 
   assert.match(selector, /GlobalOutlined/);
   assert.match(selector, /DownOutlined/);
   assert.match(selector, /<Dropdown/);
-  assert.match(selector, /selectedKeys: \[locale\]/);
-  assert.match(selector, /NATIVE_LOCALE_NAMES\[locale\]/);
+  assert.match(selector, /selectedKeys: \[selectedKey\]/);
+  assert.match(selector, /preferenceMode === "automatic" \? t\("language\.automatic"\) : NATIVE_LOCALE_NAMES\[locale\]/);
   for (const source of [navigation, selector]) assert.doesNotMatch(source, /[→←✓⚙🌐⋮]/u);
 });
 

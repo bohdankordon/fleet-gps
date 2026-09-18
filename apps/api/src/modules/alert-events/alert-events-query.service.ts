@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AlertEventType } from "../../generated/prisma/client";
 import { projectAlertEventTimestamp, projectOpenAlert, projectScopedAlertEvent } from "./alert-event-read.projection";
-import type { AlertEventReadModel, AlertEventsListResponse, AlertEventsSummaryResponse, AlertEventsVehicleOption, OpenAlertMapAlert, OpenAlertMapResponse, OpenAlertMapVehicle, SpeedingEventInvestigationResponse } from "./alert-events-read-models";
+import type { AlertEventReadModel, AlertEventsFilterOptionsResponse, AlertEventsListResponse, AlertEventsSummaryResponse, OpenAlertMapAlert, OpenAlertMapResponse, OpenAlertMapVehicle, SpeedingEventInvestigationResponse } from "./alert-events-read-models";
 import { encodeAlertEventsCursor, type AlertEventsQueryParams } from "./alert-events-query-params";
 import type { AlertEventsQueryRepository, StoredAlertEventReadRow, StoredOpenAlertMapRow } from "./alert-events-query.repository";
 import { ALERT_EVENTS_QUERY_CLOCK, ALERT_EVENTS_QUERY_REPOSITORY } from "./alert-events.tokens";
@@ -67,10 +67,22 @@ export class AlertEventsQueryService {
     return Object.freeze({ open: Object.freeze({ total: summary.speeding + summary.inactivity, speeding: summary.speeding, inactivity: summary.inactivity }) });
   }
 
-  public async getVehicleOptions(userId: string): Promise<readonly AlertEventsVehicleOption[]> {
-    const options = await this.repository.getVehicleOptions(await this.scopes.resolve(userId));
-    return options.map(({ vehicleId, vehicleName, group }) => ({ vehicleId, vehicleName, group: group ? { id: group.id, name: group.name, color: group.color } : null }))
+  public async getFilterOptions(userId: string): Promise<AlertEventsFilterOptionsResponse> {
+    const scope = await this.scopes.resolve(userId);
+    const [vehicleOptions, groupCarriers] = await Promise.all([
+      this.repository.getVehicleOptions(scope),
+      this.repository.getGroupMetadataCarriers(scope),
+    ]);
+    const vehicles = vehicleOptions
+      .map(({ vehicleId, vehicleName, group }) => Object.freeze({ vehicleId, vehicleName, group: group ? Object.freeze({ id: group.id, name: group.name, color: group.color }) : null }))
       .sort((a, b) => a.vehicleName.localeCompare(b.vehicleName, "uk", { numeric: true }) || a.vehicleId.localeCompare(b.vehicleId));
+    const groupsById = new Map(groupCarriers.flatMap(({ group }) => group === null ? [] : [[group.id, Object.freeze({ id: group.id, name: group.name })]]));
+    const groups = [...groupsById.values()].sort((a, b) => a.name.localeCompare(b.name, "uk", { numeric: true }) || a.id.localeCompare(b.id));
+    return Object.freeze({
+      vehicles: Object.freeze(vehicles),
+      groups: Object.freeze(groups),
+      hasUngrouped: groupCarriers.some(({ group }) => group === null),
+    });
   }
 
   public async getSpeedingInvestigation(eventId: string, userId: string): Promise<SpeedingEventInvestigationResponse> {
