@@ -5,6 +5,7 @@ import type { ApiConfig } from "../../config/api-config";
 import { POSITION_HISTORY_MAINTENANCE_CRON } from "../position-history-population-runs/position-history-maintenance.service";
 import { POSITION_HISTORY_POPULATION_RUN_POLL_INTERVAL_MS } from "../position-history-population-runs/position-history-population-run-poller.service";
 import { PositionHistoryRetentionMaintenanceService, POSITION_HISTORY_RETENTION_CRON, POSITION_HISTORY_RETENTION_TIME_ZONE } from "./position-history-retention-maintenance.service";
+import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import type { PositionHistoryRetentionService } from "./position-history-retention.service";
 import { PositionHistoryRetentionExecutionError, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPlan } from "./position-history-retention.types";
 
@@ -35,7 +36,8 @@ function fixture(options: Readonly<{ enabled?: boolean; precheck?: PositionHisto
     executeAutomaticRetention: async () => { executions += 1; if (options.failure) throw options.failure; return options.result ?? execution(); },
   } as PositionHistoryRetentionService;
   const config = { positionHistoryRetention: { enabled: options.enabled ?? true } } as ApiConfig;
-  return { service: new PositionHistoryRetentionMaintenanceService(config, retention), prechecks: () => prechecks, executions: () => executions };
+  const telemetry = new PositionHistoryIngestionTelemetryService({ now: () => new Date("2026-09-14T12:00:00Z") });
+  return { service: new PositionHistoryRetentionMaintenanceService(config, retention, telemetry), telemetry, prechecks: () => prechecks, executions: () => executions };
 }
 
 test("disabled automatic retention is a strict no-op before planner, lock, or destructive core", async () => {

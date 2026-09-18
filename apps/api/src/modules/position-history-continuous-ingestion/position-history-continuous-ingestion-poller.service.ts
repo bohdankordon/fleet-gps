@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, Optional, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
+import { Inject, Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
 import type { ApiConfig } from "../../config/api-config";
 import { API_CONFIG } from "../../config/api-config.tokens";
 import { POSITION_HISTORY_CONTINUOUS_POLL_INTERVAL_MS } from "./position-history-continuous-ingestion.constants";
@@ -6,7 +6,7 @@ import { PositionHistoryContinuousIngestionStatusService } from "./position-hist
 import { POSITION_HISTORY_CONTINUOUS_TIMER } from "./position-history-continuous-ingestion.tokens";
 import type { PositionHistoryContinuousStatus, PositionHistoryContinuousTimer } from "./position-history-continuous-ingestion.types";
 import { PositionHistoryWorkloadCoordinatorService } from "./position-history-workload-coordinator.service";
-import type { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
+import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 
 export const POSITION_HISTORY_CONTINUOUS_STARTUP_TIMER = "taxi-gps:position-history-continuous:startup";
 export const POSITION_HISTORY_CONTINUOUS_POLL_TIMER = "taxi-gps:position-history-continuous:poll";
@@ -23,7 +23,7 @@ export class PositionHistoryContinuousIngestionPollerService implements OnApplic
     private readonly worker: PositionHistoryWorkloadCoordinatorService,
     private readonly status: PositionHistoryContinuousIngestionStatusService,
     @Inject(POSITION_HISTORY_CONTINUOUS_TIMER) private readonly timer: PositionHistoryContinuousTimer,
-    @Optional() private readonly telemetry?: PositionHistoryIngestionTelemetryService,
+    private readonly telemetry: PositionHistoryIngestionTelemetryService,
   ) {}
 
   public onApplicationBootstrap(): void {

@@ -4,6 +4,7 @@ import type { ApiConfig } from "../../config/api-config";
 import { POSITION_HISTORY_CONTINUOUS_POLL_INTERVAL_MS } from "./position-history-continuous-ingestion.constants";
 import { POSITION_HISTORY_CONTINUOUS_POLL_TIMER, POSITION_HISTORY_CONTINUOUS_STARTUP_TIMER, PositionHistoryContinuousIngestionPollerService } from "./position-history-continuous-ingestion-poller.service";
 import { PositionHistoryContinuousIngestionStatusService } from "./position-history-continuous-ingestion-status.service";
+import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import type { PositionHistoryContinuousCycleResult, PositionHistoryContinuousTimer } from "./position-history-continuous-ingestion.types";
 import type { PositionHistoryWorkloadCoordinatorService } from "./position-history-workload-coordinator.service";
 
@@ -19,8 +20,9 @@ function harness(enabled: boolean, processCycle: () => Promise<PositionHistoryCo
     deleteInterval: (name) => { intervals.delete(name); },
   };
   const status = new PositionHistoryContinuousIngestionStatusService();
-  const poller = new PositionHistoryContinuousIngestionPollerService({ positionHistoryContinuousIngestion: { enabled } } as ApiConfig, { processCycle } as PositionHistoryWorkloadCoordinatorService, status, timer);
-  return { poller, timeouts, intervals, status };
+  const telemetry = new PositionHistoryIngestionTelemetryService({ now: () => new Date("2026-09-14T12:00:00Z") });
+  const poller = new PositionHistoryContinuousIngestionPollerService({ positionHistoryContinuousIngestion: { enabled } } as ApiConfig, { processCycle } as PositionHistoryWorkloadCoordinatorService, status, timer, telemetry);
+  return { poller, timeouts, intervals, status, telemetry };
 }
 
 test("disabled flag schedules no startup or interval work and makes zero worker calls", async () => {
