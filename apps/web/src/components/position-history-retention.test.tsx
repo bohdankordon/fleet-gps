@@ -6,13 +6,15 @@ import { positionHistoryRetentionFixture } from "../lib/position-history-retenti
 import { PositionHistoryRetention } from "./position-history-retention";
 import { createTranslator } from "../i18n/core";
 import { formatDateTime } from "../i18n/formatting";
+import { I18nProvider } from "../i18n/client";
 
 const t = createTranslator("ru");
 
 const stripped = (html: string) => html.replace(/<[^>]+>/g, "");
+const render = (node: React.ReactNode) => renderToStaticMarkup(<I18nProvider locale="ru">{node}</I18nProvider>);
 
 test("renders snapshot, delete/protect comparison, and methodology without KPI cards", () => {
-  const html = renderToStaticMarkup(<PositionHistoryRetention data={positionHistoryRetentionFixture()} />);
+  const html = render(<PositionHistoryRetention data={positionHistoryRetentionFixture()} />);
   for (const expected of [t("history.retention.title"), t("history.retention.snapshotTitle"), "90 дней", formatDateTime("ru", "2026-08-11T02:00:00.000Z")!, formatDateTime("ru", "2026-05-13T02:00:00.000Z")!, t("history.retention.deleteTitle"), t("history.retention.protectedTitle"), t("history.retention.methodTitle"), t("history.retention.obsolete"), t("history.retention.candidates"), t("history.retention.olderObs"), t("history.retention.vehicles"), t("history.retention.oldest"), t("history.retention.newest"), t("history.retention.newerObs"), t("history.retention.overlap"), t("history.retention.protected"), t("history.retention.audit"), t("history.retention.boundaryRule"), t("history.retention.candidateRule"), t("history.retention.manualLimits")] ) assert.ok(html.includes(expected), expected);
   const text = stripped(html);
   assert.match(text, /старше границы\s*3\s*\(ожидающие 1/);
@@ -27,15 +29,15 @@ test("renders snapshot, delete/protect comparison, and methodology without KPI c
 });
 
 test("boundary warning is absent when there is no overlap", () => {
-  const html = renderToStaticMarkup(<PositionHistoryRetention data={positionHistoryRetentionFixture(0)} />);
+  const html = render(<PositionHistoryRetention data={positionHistoryRetentionFixture(0)} />);
   assert.equal(html.includes(t("history.retention.overlapWarning")), false);
   assert.ok(html.includes(t("history.retention.audit")));
 });
 
 test("USER never sees destructive controls while ADMIN sees only the explicit fixed-budget action when work exists", () => {
-  const userHtml = renderToStaticMarkup(<PositionHistoryRetention data={positionHistoryRetentionFixture()} isAdmin={false} />);
+  const userHtml = render(<PositionHistoryRetention data={positionHistoryRetentionFixture()} isAdmin={false} />);
   assert.equal(userHtml.includes(t("history.retention.clean")), false);
-  const adminHtml = renderToStaticMarkup(<PositionHistoryRetention data={positionHistoryRetentionFixture()} isAdmin />);
+  const adminHtml = render(<PositionHistoryRetention data={positionHistoryRetentionFixture()} isAdmin />);
   for (const expected of [t("history.retention.clean"), t("history.retention.manualLimits")]) assert.ok(adminHtml.includes(expected), expected);
   for (const forbidden of ["retentionDays", "365 дней", "checkpointBudget", "observationBudget", "<input"]) assert.equal(adminHtml.includes(forbidden), false, forbidden);
 });
@@ -43,7 +45,7 @@ test("USER never sees destructive controls while ADMIN sees only the explicit fi
 test("no-work state stays calm with snapshot and protection but no destructive action", () => {
   const fixture = positionHistoryRetentionFixture(0);
   const noWork = { ...fixture, observations: { ...fixture.observations, executableObservationCandidates: 0 }, checkpoints: { ...fixture.checkpoints, fullyObsolete: 0 } };
-  const html = renderToStaticMarkup(<PositionHistoryRetention data={noWork} isAdmin />);
+  const html = render(<PositionHistoryRetention data={noWork} isAdmin />);
   assert.ok(html.includes(t("history.retention.noWork")));
   assert.ok(html.includes(t("history.retention.snapshotTitle")));
   assert.ok(html.includes(t("history.retention.protectedTitle")));
@@ -51,7 +53,7 @@ test("no-work state stays calm with snapshot and protection but no destructive a
 });
 
 test("unavailable plan offers retry without any delete action or false no-work", () => {
-  const html = renderToStaticMarkup(<PositionHistoryRetention data={null} unavailable isAdmin />);
+  const html = render(<PositionHistoryRetention data={null} unavailable isAdmin />);
   assert.ok(html.includes(t("history.retention.unavailable")));
   assert.ok(html.includes(t("common.retry")));
   assert.equal(html.includes(t("history.retention.clean")), false);

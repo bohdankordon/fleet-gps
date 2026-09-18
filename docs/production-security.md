@@ -99,4 +99,4 @@ A bounded high-signal scan of current source and reachable Git history found no 
 
 ## Frozen architecture facts
 
-The Prisma schema and all 17 migrations remain unchanged. History budgets remain Stage 17C `6/12/24`, Stage 18B `500/1000/5000`, Stage 18C at `03:00 UTC` with an explicitly configured SYSTEM budget of `1..5000` (initial production value `2000`), Stage 19C at `06:00 UTC`, and retention limits `5000` checkpoints / `25000` observations. Localization remains exactly `ru`, `uk`, `en`, default `ru`, unprefixed URLs, `taxi_locale` cookie preference, and Europe/Kyiv display authority.
+The Prisma schema and all 17 migrations remain unchanged. History budgets remain Stage 17C `6/12/24`, Stage 18B `500/1000/5000`, Stage 18C at `03:00 UTC` with an explicitly configured SYSTEM budget of `1..5000` (initial production value `2000`), Stage 19C at `06:00 UTC`, and retention limits `5000` checkpoints / `25000` observations. Localization remains exactly `ru`, `uk`, `en`, with explicit `taxi_locale` preference over the primary browser language and Ukrainian fallback, unprefixed URLs, and Europe/Kyiv display authority.

@@ -67,6 +67,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "error.body": { ru: "Не удалось загрузить эту страницу. Попробуйте ещё раз.", uk: "Не вдалося завантажити цю сторінку. Спробуйте ще раз.", en: "We couldn’t load this page. Try again." },
 
   "language.label": { ru: "Язык приложения", uk: "Мова застосунку", en: "Application language" },
+  "language.automatic": { ru: "Автоматически (язык браузера)", uk: "Автоматично (мова браузера)", en: "Automatic (browser language)" },
   "language.changeError": { ru: "Не удалось изменить язык.", uk: "Не вдалося змінити мову.", en: "The language could not be changed." },
 
   "navigation.primaryLabel": { ru: "Основная навигация", uk: "Основна навігація", en: "Primary navigation" },
@@ -1102,7 +1103,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "trips.noEvents": { ru: "За выбранный период подтверждённые поездки и остановки не обнаружены.", uk: "За вибраний період підтверджених поїздок і зупинок не виявлено.", en: "No confirmed trips or stops were found during the selected period." },
   "trips.timeline.label": { ru: "Хронология активности", uk: "Хронологія активності", en: "Activity timeline" },
   "trips.timeline.title": { ru: "Хронология", uk: "Хронологія", en: "Timeline" },
-  "trips.timeline.empty": { ru: "Подтверждённых событий и разрывов нет.", uk: "Підтверджених подій і розривів немає.", en: "No confirmed events or gaps." },
+  "trips.timeline.empty": { ru: "За выбранный период подтверждённых поездок, остановок и разрывов GPS не обнаружено.", uk: "За вибраний період підтверджених поїздок, зупинок і розривів GPS не виявлено.", en: "No confirmed trips, stops, or GPS gaps were found for the selected period." },
   "trips.timeline.gap": { ru: "Разрыв GPS:", uk: "Розрив GPS:", en: "GPS gap:" },
   "trips.timeline.gapUnknown": { ru: "Неизвестно, что происходило в этот интервал.", uk: "Невідомо, що відбувалося в цей інтервал.", en: "What happened during this interval is unknown." },
   "trips.timeline.trip": { ru: "Поездка", uk: "Поїздка", en: "Trip" },

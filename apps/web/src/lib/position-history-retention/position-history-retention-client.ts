@@ -1,7 +1,8 @@
 import "server-only";
 import { authenticatedApiFetch } from "../auth/auth-cookie";
 import { parseWebConfig } from "../web-config";
-import { positionHistoryRetentionPlanSchema, type PositionHistoryRetentionPlan } from "./position-history-retention-contract";
+import type { PositionHistoryRetentionPlan } from "./position-history-retention-contract";
+import { loadPositionHistoryRetentionPlan } from "./position-history-retention-loader";
 
 function endpoint(): string { return `${parseWebConfig(process.env).apiInternalBaseUrl}/api/system/position-history/retention-plan`; }
 
@@ -10,7 +11,5 @@ export function fetchPositionHistoryRetentionPlanResponse(): Promise<Response> {
 }
 
 export async function fetchPositionHistoryRetentionPlan(fetcher: typeof fetch = authenticatedApiFetch): Promise<PositionHistoryRetentionPlan> {
-  const response = await fetcher(endpoint(), { cache: "no-store", headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error("retention plan unavailable");
-  return positionHistoryRetentionPlanSchema.parse(await response.json());
+  return loadPositionHistoryRetentionPlan(endpoint(), fetcher);
 }

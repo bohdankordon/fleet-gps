@@ -71,6 +71,13 @@ test("stale cookie with /me 401 resolves unauthenticated without clearing the se
   assert.deepEqual(resolution, { kind: "unauthenticated" });
 });
 
+test("stable root-layout auth resolution tolerates repeated authenticated and unauthenticated transitions", async () => {
+  const tokens = [undefined, "session-one", undefined, "session-two"] as const;
+  const resolutions = await Promise.all(tokens.map((token) => resolveAuthFromToken(token, async () => Response.json(safeUser))));
+  assert.deepEqual(resolutions.map((resolution) => resolution.kind), ["unauthenticated", "authenticated", "unauthenticated", "authenticated"]);
+  assert.deepEqual(resolutions.filter((resolution) => resolution.kind === "authenticated").map((resolution) => resolution.user), [safeUser, safeUser]);
+});
+
 test("fetch rejection resolves unavailable", async () => {
   const resolution = await resolveAuthFromToken(
     "session-token",

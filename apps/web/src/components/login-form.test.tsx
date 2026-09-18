@@ -9,6 +9,7 @@ import type { LoginFormError } from "../lib/auth/login-form-core";
 import { landingFor } from "../lib/auth/auth-contract";
 import { createTranslator } from "../i18n/core";
 import { MESSAGE_CATALOG } from "../i18n/messages";
+import { I18nProvider } from "../i18n/client";
 
 function render(error: LoginFormError | null = null, busy = false): string {
   function Harness() {
@@ -26,7 +27,7 @@ function render(error: LoginFormError | null = null, busy = false): string {
       />
     );
   }
-  return renderToStaticMarkup(<Harness />);
+  return renderToStaticMarkup(<I18nProvider locale="ru"><Harness /></I18nProvider>);
 }
 
 const viewSource = readFileSync("src/components/login-form-view.tsx", "utf8");

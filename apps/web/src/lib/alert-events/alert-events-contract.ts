@@ -70,6 +70,14 @@ export function parseAlertEventsListResponse(value: unknown): AlertEventsListRes
 export function parseAlertEventsSummaryResponse(value: unknown): AlertEventsSummaryResponse { const parsed = alertEventsSummaryResponseSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }
 export function parseSpeedingEventInvestigation(value: unknown): SpeedingEventInvestigation { const parsed = speedingEventInvestigationSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }
 
-export const alertEventsVehicleOptionsSchema = z.array(z.object({ vehicleId: z.string().uuid(), vehicleName: z.string(), group: z.object({ id: z.string().uuid(), name: z.string(), color: vehicleGroupColor }).strict().nullable() }).strict());
-export type AlertEventsVehicleOptions = z.infer<typeof alertEventsVehicleOptionsSchema>;
-export function parseAlertEventsVehicleOptions(value: unknown): AlertEventsVehicleOptions { const parsed = alertEventsVehicleOptionsSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }
+const alertEventsVehicleOptionSchema = z.object({ vehicleId: z.string().uuid(), vehicleName: z.string(), group: z.object({ id: z.string().uuid(), name: z.string(), color: vehicleGroupColor }).strict().nullable() }).strict();
+const alertEventsGroupOptionSchema = z.object({ id: z.string().uuid(), name: z.string() }).strict();
+export const alertEventsFilterOptionsSchema = z.object({
+  vehicles: z.array(alertEventsVehicleOptionSchema),
+  groups: z.array(alertEventsGroupOptionSchema),
+  hasUngrouped: z.boolean(),
+}).strict().superRefine((value, context) => {
+  if (new Set(value.groups.map(({ id }) => id)).size !== value.groups.length) context.addIssue({ code: "custom", path: ["groups"], message: "duplicate group" });
+});
+export type AlertEventsFilterOptions = z.infer<typeof alertEventsFilterOptionsSchema>;
+export function parseAlertEventsFilterOptions(value: unknown): AlertEventsFilterOptions { const parsed = alertEventsFilterOptionsSchema.safeParse(value); if (!parsed.success) throw new AlertEventsContractError(); return parsed.data; }

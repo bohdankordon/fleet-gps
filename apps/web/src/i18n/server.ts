@@ -1,13 +1,18 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createTranslator } from "./core";
-import { LOCALE_COOKIE_NAME, resolveLocale } from "./locales";
+import { LOCALE_COOKIE_NAME, resolveLocalePreference } from "./locales";
+
+export async function getServerLocaleResolution() {
+  const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
+  return resolveLocalePreference(cookieStore.get(LOCALE_COOKIE_NAME)?.value, headerStore.get("accept-language"));
+}
 
 export async function getServerLocale() {
-  return resolveLocale((await cookies()).get(LOCALE_COOKIE_NAME)?.value);
+  return (await getServerLocaleResolution()).locale;
 }
 
 export async function getServerI18n() {
-  const locale = await getServerLocale();
-  return Object.freeze({ locale, t: createTranslator(locale) });
+  const resolution = await getServerLocaleResolution();
+  return Object.freeze({ ...resolution, t: createTranslator(resolution.locale) });
 }

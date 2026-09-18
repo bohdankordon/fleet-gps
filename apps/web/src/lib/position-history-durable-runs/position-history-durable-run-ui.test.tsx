@@ -21,15 +21,15 @@ test("populate UI has exact defaults, confirmation-only create, long-running dis
 });
 
 test("PENDING, SUCCEEDED under budget, and FAILED retain factual product wording", () => {
-  const pending = durableRunPresentation({ ...terminal("SUCCEEDED", 0), status: "PENDING", startedAt: null, finishedAt: null });
+  const pending = durableRunPresentation({ ...terminal("SUCCEEDED", 0), status: "PENDING", startedAt: null, finishedAt: null }, "ru");
   assert.deepEqual(pending, { title: "Ожидает запуска", progress: "0 / 1000", partialWork: false });
-  assert.deepEqual(durableRunPresentation(terminal("SUCCEEDED", 50)), { title: "Завершено", progress: "50 / 1000", partialWork: false });
-  assert.deepEqual(durableRunPresentation(terminal("FAILED", 24)), { title: "Остановлено с ошибкой", progress: "24 / 1000", partialWork: true });
+  assert.deepEqual(durableRunPresentation(terminal("SUCCEEDED", 50), "ru"), { title: "Завершено", progress: "50 / 1000", partialWork: false });
+  assert.deepEqual(durableRunPresentation(terminal("FAILED", 24), "ru"), { title: "Остановлено с ошибкой", progress: "24 / 1000", partialWork: true });
 });
 
 test("active and recent summaries distinguish safe USER and SYSTEM initiators without attribution internals", () => {
-  assert.equal(durableRunInitiatorLabel("USER"), "Оператор");
-  assert.equal(durableRunInitiatorLabel("SYSTEM"), "Автоматически");
+  assert.equal(durableRunInitiatorLabel("USER", "ru"), "Оператор");
+  assert.equal(durableRunInitiatorLabel("SYSTEM", "ru"), "Автоматически");
   const source = readFileSync("src/components/position-history-population-workspace.tsx", "utf8");
   assert.match(source, /durableRunInitiatorLabel/);
   for (const forbidden of ["requestedByUserId", "leaseOwner", "scheduler instance", "server hostname", "pause", "resume", "retry-same-run"]) assert.equal(source.toLowerCase().includes(forbidden.toLowerCase()), false, forbidden);

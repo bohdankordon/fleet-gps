@@ -29,7 +29,7 @@ test("enforces non-empty absolute elapsed ranges through custom inputs", () => {
   assert.equal(parseVehicleTrackCustomRange({ from: "2026-08-01T08:00", to: "2026-08-08T08:01" }).error, "TOO_LONG");
   assert.equal(parseVehicleTrackCustomRange({ from: "2026-08-10T08:00", to: "2026-08-10T08:00" }).error, "ORDER");
   assert.equal(parseVehicleTrackCustomRange({ from: "2026-08-10T09:00", to: "2026-08-10T08:00" }).error, "ORDER");
-  assert.equal(vehicleTrackCustomRangeErrorCopy("TOO_LONG"), "Максимальный период — 7 дней.");
+  assert.equal(vehicleTrackCustomRangeErrorCopy("TOO_LONG", "ru"), "Максимальный период — 7 дней.");
 });
 
 test("an empty custom end resolves to the supplied current instant without weakening Kyiv validation", () => {

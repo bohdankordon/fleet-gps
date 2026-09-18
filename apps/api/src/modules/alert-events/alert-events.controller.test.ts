@@ -29,12 +29,13 @@ test("controller returns deterministic safe 400 and 500 payloads", async () => {
 });
 
 
-test("vehicle options require events.view and fail with a safe response", async () => {
-  assert.deepEqual(Reflect.getMetadata("auth:permissions", AlertEventsController.prototype.getVehicleOptions), ["events.view"]);
-  const controller = new AlertEventsController({ getVehicleOptions: async () => [{ vehicleId: "00000000-0000-4000-8000-000000000001", vehicleName: "DEMO" }] } as unknown as AlertEventsQueryService);
-  assert.equal((await controller.getVehicleOptions(testAuth))[0]?.vehicleName, "DEMO");
-  const failed = new AlertEventsController({ getVehicleOptions: async () => { throw new Error("secret"); } } as unknown as AlertEventsQueryService);
-  await assert.rejects(failed.getVehicleOptions(testAuth), (error: unknown) => error instanceof HttpException && error.getStatus() === 500 && !JSON.stringify(error.getResponse()).includes("secret"));
+test("filter options require events.view and fail with a safe response", async () => {
+  assert.deepEqual(Reflect.getMetadata("auth:permissions", AlertEventsController.prototype.getFilterOptions), ["events.view"]);
+  const payload = { vehicles: [{ vehicleId: "00000000-0000-4000-8000-000000000001", vehicleName: "DEMO", group: null }], groups: [], hasUngrouped: true };
+  const controller = new AlertEventsController({ getFilterOptions: async () => payload } as unknown as AlertEventsQueryService);
+  assert.deepEqual(await controller.getFilterOptions(testAuth), payload);
+  const failed = new AlertEventsController({ getFilterOptions: async () => { throw new Error("secret"); } } as unknown as AlertEventsQueryService);
+  await assert.rejects(failed.getFilterOptions(testAuth), (error: unknown) => error instanceof HttpException && error.getStatus() === 500 && !JSON.stringify(error.getResponse()).includes("secret"));
 });
 
 test("investigation requires events.view and uses one non-disclosing 404 for invalid, missing, or inaccessible IDs", async () => {

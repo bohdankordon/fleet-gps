@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AUTH_COOKIE_NAME, hasPermission, type AuthPermission } from "./lib/auth/auth-contract";
 import { classifyMeResponse, type AuthResolution } from "./lib/auth/auth-resolution";
 import { escapeHtml, unavailableCopy } from "./lib/auth/auth-unavailable-copy";
-import { resolveLocaleFromCookieHeader, type AppLocale } from "./i18n/locales";
+import { LOCALE_COOKIE_NAME, resolveLocalePreference, type AppLocale } from "./i18n/locales";
 import { parseWebConfig } from "./lib/web-config";
 
 const ADMIN_ONLY_ROUTE_PREFIXES = [
@@ -94,7 +94,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (resolution.kind === "unauthenticated") return api ? NextResponse.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 }) : NextResponse.redirect(new URL("/login", request.url));
   if (resolution.kind === "unavailable") {
     if (api) return jsonServiceUnavailable();
-    return pageServiceUnavailable(request, resolveLocaleFromCookieHeader(request.headers.get("cookie")));
+    return pageServiceUnavailable(request, resolveLocalePreference(request.cookies.get(LOCALE_COOKIE_NAME)?.value, request.headers.get("accept-language")).locale);
   }
   const user = resolution.user;
   if (!accountOnly && user.mustChangePassword) return api ? NextResponse.json({ statusCode: 403, error: "Forbidden" }, { status: 403 }) : NextResponse.redirect(new URL("/account/change-password", request.url));

@@ -5,22 +5,29 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createTranslator, messagePlaceholders } from "./core";
 import { I18nProvider, useI18n } from "./client";
 import { formatDateTime, formatNumber, formatUnit } from "./formatting";
-import { DEFAULT_LOCALE, DISPLAY_LOCALES, DISPLAY_TIMEZONE, NATIVE_LOCALE_NAMES, resolveLocale, resolveLocaleFromCookieHeader, SUPPORTED_LOCALES, type AppLocale } from "./locales";
+import { DEFAULT_LOCALE, DISPLAY_LOCALES, DISPLAY_TIMEZONE, NATIVE_LOCALE_NAMES, resolveLocale, resolveLocalePreference, resolvePrimaryBrowserLocale, SUPPORTED_LOCALES, type AppLocale } from "./locales";
 import { MESSAGES } from "./messages";
 
-test("locale catalog is exactly ru, uk, en with deterministic Russian fallback and no language detection", () => {
+test("automatic locale resolution uses only the primary browser language and Ukrainian fallback", () => {
   assert.deepEqual([...SUPPORTED_LOCALES], ["ru", "uk", "en"]);
-  assert.equal(DEFAULT_LOCALE, "ru");
-  assert.equal(resolveLocale(undefined), "ru");
-  assert.equal(resolveLocale("invalid"), "ru");
-  for (const locale of SUPPORTED_LOCALES) {
-    assert.equal(resolveLocale(locale), locale);
-    assert.equal(resolveLocaleFromCookieHeader(`other=x; taxi_locale=${locale}; session=y`), locale);
+  assert.equal(DEFAULT_LOCALE, "uk");
+  assert.equal(resolveLocale(undefined), "uk");
+  assert.equal(resolveLocale("invalid"), "uk");
+  const matrix: ReadonlyArray<readonly [string | null | undefined, AppLocale]> = [
+    ["uk", "uk"], ["uk-UA", "uk"], ["ru", "ru"], ["ru-RU", "ru"], ["en", "en"], ["en-US", "en"], ["en-GB", "en"],
+    ["pl-PL", "uk"], ["de-DE", "uk"], ["es-ES", "uk"], ["fr-CA", "uk"], ["", "uk"], [null, "uk"], [undefined, "uk"], ["not_a_locale", "uk"], ["*", "uk"],
+    ["pl-PL,en-US;q=0.9", "uk"], ["en-US,ru-RU;q=0.9", "en"], ["ru-RU;broken", "uk"],
+  ];
+  for (const [header, expected] of matrix) {
+    assert.equal(resolvePrimaryBrowserLocale(header), expected, String(header));
+    assert.deepEqual(resolveLocalePreference(undefined, header), { locale: expected, preferenceMode: "automatic" });
+    assert.deepEqual(resolveLocalePreference("invalid", header), { locale: expected, preferenceMode: "automatic" });
+    for (const explicit of SUPPORTED_LOCALES) assert.deepEqual(resolveLocalePreference(explicit, header), { locale: explicit, preferenceMode: "explicit" });
   }
-  assert.equal(resolveLocaleFromCookieHeader(null), "ru");
-  assert.equal(resolveLocaleFromCookieHeader("taxi_locale=pl"), "ru");
-  const source = `${readFileSync("src/i18n/locales.ts", "utf8")}\n${readFileSync("src/i18n/server.ts", "utf8")}`;
-  assert.doesNotMatch(source, /accept-language|navigator\.language|preferredLanguages/i);
+  const server = readFileSync("src/i18n/server.ts", "utf8");
+  assert.match(server, /headers\(\)/);
+  assert.match(server, /headerStore\.get\("accept-language"\)/);
+  assert.doesNotMatch(server, /navigator\.language|preferredLanguages/i);
 });
 
 test("all dictionaries have identical keys and interpolation placeholder names", () => {
@@ -40,19 +47,23 @@ test("all dictionaries have identical keys and interpolation placeholder names",
 });
 
 function Probe() {
-  const { locale, t } = useI18n();
-  return <p data-locale={locale}>{t("auth.login.title")}</p>;
+  const { locale, preferenceMode, t } = useI18n();
+  return <p data-locale={locale} data-preference-mode={preferenceMode}>{t("auth.login.title")}</p>;
 }
 
 test("the client provider renders the same explicit locale and text supplied by the server", () => {
   for (const locale of SUPPORTED_LOCALES) {
     const html = renderToStaticMarkup(<I18nProvider locale={locale}><Probe /></I18nProvider>);
     assert.ok(html.includes(`data-locale="${locale}"`));
+    assert.ok(html.includes('data-preference-mode="explicit"'));
     assert.ok(html.includes(createTranslator(locale)("auth.login.title")));
   }
+  const automatic = renderToStaticMarkup(<I18nProvider locale="en" preferenceMode="automatic"><Probe /></I18nProvider>);
+  assert.match(automatic, /data-locale="en" data-preference-mode="automatic"/);
   const layout = readFileSync("src/app/layout.tsx", "utf8");
   assert.match(layout, /<html lang=\{locale\}>/);
-  assert.match(layout, /<I18nProvider locale=\{locale\}>/);
+  assert.match(layout, /<AntDesignProvider locale=\{locale\}><I18nProvider locale=\{locale\} preferenceMode=\{preferenceMode\}>/);
+  assert.equal((layout.match(/\{ locale, preferenceMode, t \}/g) ?? []).length, 1);
 });
 
 test("one absolute instant retains Europe/Kyiv semantics for every display locale", () => {
@@ -84,4 +95,3 @@ test("native language names are invariant and the product has no localized route
   assert.match(selector, /NATIVE_LOCALE_NAMES\[value\]/);
   for (const locale of SUPPORTED_LOCALES) assert.doesNotMatch(selector, new RegExp(`router\\.(?:push|replace)\\([^)]+/${locale}`));
 });
-

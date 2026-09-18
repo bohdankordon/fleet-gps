@@ -79,7 +79,7 @@ test("all ten major surface groups expose source-controlled copy in ru, uk, and 
   }
 });
 
-test("selector is header-integrated, native, single-POST, non-retrying, and route-stable", () => {
+test("selector is header-integrated, native, supports Automatic, and remains non-retrying and route-stable", () => {
   const selector = readFileSync("src/components/language-selector.tsx", "utf8");
   const layout = readFileSync("src/app/layout.tsx", "utf8");
   const navigation = readFileSync("src/components/app-navigation.tsx", "utf8");
@@ -91,12 +91,17 @@ test("selector is header-integrated, native, single-POST, non-retrying, and rout
   assert.match(navigation, /<LanguageSelector \/>/);
   assert.match(navigation, /<AccountMenu login=/);
   for (const expected of ["Русский", "Українська", "English"]) assert.ok(readFileSync("src/i18n/locales.ts", "utf8").includes(expected));
-  assert.match(selector, /<Dropdown[^>]*menu=\{\{ items, selectable: true, selectedKeys: \[locale\]/);
+  assert.match(selector, /<Dropdown[^>]*menu=\{\{ items, selectable: true, selectedKeys: \[selectedKey\]/);
   assert.match(selector, /<Button[^>]+aria-label=\{t\("language\.label"\)\}/);
   assert.match(selector, /GlobalOutlined/);
   assert.match(selector, /disabled=\{pending\}/);
   assert.match(selector, /router\.refresh\(\)/);
   assert.equal((selector.match(/fetch\("\/api\/preferences\/locale"/g) ?? []).length, 1);
+  assert.match(selector, /method: "DELETE"/);
+  assert.match(selector, /method: "POST"/);
+  assert.match(selector, /preferenceMode === "automatic"/);
+  assert.match(selector, /event\.key === "Enter" \|\| event\.key === " " \|\| event\.key === "ArrowDown"/);
+  assert.deepEqual(["uk", "ru", "en"].map((locale) => MESSAGES[locale as keyof typeof MESSAGES]["language.automatic"]), ["Автоматично (мова браузера)", "Автоматически (язык браузера)", "Automatic (browser language)"]);
   assert.doesNotMatch(selector, /router\.(?:push|replace)|logout|taxi_session|retry|setTimeout|setInterval/i);
 });
 

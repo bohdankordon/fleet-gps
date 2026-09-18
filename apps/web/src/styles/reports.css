@@ -20,8 +20,6 @@
 .reports-summary .vehicle-trips__summary-title { font-size: 14px; display: flex; align-items: center; gap: 4px; }
 .reports-summary .vehicle-trips__summary-value { font-size: 14px; line-height: 22px; font-variant-numeric: tabular-nums; }
 .reports-info-button { display: inline-flex; align-items: center; border: 0; border-radius: 4px; background: transparent; color: inherit; padding: 2px; min-height: 0; box-shadow: none; cursor: help; }
-.reports-summary .reports-info-button:hover:not(:disabled), .reports-summary .reports-info-button:active:not(:disabled) { background: transparent; border: 0; box-shadow: none; color: inherit; transform: none; }
-.reports-summary .reports-info-button:focus-visible { outline: 2px solid var(--reports-primary, var(--color-focus-ring)); outline-offset: 2px; background: transparent; }
 .reports-policy { font-size: 14px; }
 .reports-policy__title { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.5; }
 .reports-policy__intro { margin: 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.5; }

@@ -126,6 +126,7 @@ test("B1 events list, summary, options and map are all scoped", async () => {
     list: async (params: unknown, scope: VehicleScope) => { seen.list?.push(scope); return { rows: [], hasMore: false }; },
     getOpenSummary: async (scope: VehicleScope) => { seen.summary?.push(scope); return { speeding: 0, inactivity: 0 }; },
     getVehicleOptions: async (scope: VehicleScope) => { seen.options?.push(scope); return []; },
+    getGroupMetadataCarriers: async (scope: VehicleScope) => { seen.options?.push(scope); return []; },
     getOpenMapSnapshot: async (scope: VehicleScope) => { seen.map?.push(scope); return { rows: [], exceededLimit: false }; },
   };
   const scopes = { resolve: async () => filtered } as unknown as VehicleScopeService;
@@ -133,9 +134,10 @@ test("B1 events list, summary, options and map are all scoped", async () => {
   const params = { status: undefined, type: undefined, vehicleId: undefined, limit: 10, cursor: undefined };
   assert.deepEqual((await service.list(params as never, selectedUserId)).items, []);
   assert.deepEqual((await service.getSummary(selectedUserId)).open, { total: 0, speeding: 0, inactivity: 0 });
-  assert.deepEqual(await service.getVehicleOptions(selectedUserId), []);
+  assert.deepEqual(await service.getFilterOptions(selectedUserId), { vehicles: [], groups: [], hasUngrouped: false });
   assert.equal((await service.getOpenMap(selectedUserId)).summary.vehiclesWithOpenAlerts, 0);
-  for (const key of ["list", "summary", "options", "map"] as const) assert.deepEqual(seen[key]?.[0], filtered);
+  for (const key of ["list", "summary", "map"] as const) assert.deepEqual(seen[key]?.[0], filtered);
+  assert.deepEqual(seen.options, [filtered, filtered]);
 });
 
 test("B1 reports operate only on the authorized fleet and its observations", async () => {

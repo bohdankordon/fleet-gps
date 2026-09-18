@@ -58,6 +58,18 @@ test("empty and failure states distinguish active, history, filters and independ
   const failure = renderPage({}, [speeding], null); assert.match(failure, /summary could not be loaded/); assert.match(failure, /Такси 7/);
   const listFailure = renderPage({}, [], alertEventsSummaryFixture, true); assert.match(listFailure, /Events could not be loaded/); assert.doesNotMatch(listFailure, /No active events now/);
 });
+test("desktop placeholders share one owned header and body geometry while narrower layouts remove artificial height", () => {
+  assert.match(source, /events-chronology__body--placeholder/);
+  assert.match(source, /events-context__placeholder-header/);
+  assert.match(source, /events-context__placeholder-body/);
+  assert.match(styles, /--events-pane-header-height: calc\(var\(--control-height-default\) \+ var\(--space-4\) \+ 1px\)/);
+  assert.match(styles, /--events-pane-body-min-height: 22rem/);
+  assert.match(styles, /\.events-chronology \{[^}]*grid-template-rows: var\(--events-pane-header-height\) minmax\(var\(--events-pane-body-min-height\), 1fr\)/);
+  assert.match(styles, /\.events-context__empty \{[^}]*grid-template-rows: var\(--events-pane-header-height\) minmax\(var\(--events-pane-body-min-height\), 1fr\)/);
+  assert.match(styles, /@media \(max-width: 991px\)[^]*--events-pane-body-min-height: 0px;[^}]*min-height: 0/);
+  assert.match(styles, /@media \(max-width: 575px\)[^]*--events-pane-header-height: 0px/);
+  assert.doesNotMatch(styles, /min-height: (400|420)px/);
+});
 test("desktop and mobile share a single detail component; drawer, selection, keyboard and history wiring", () => {
   assert.equal((source.match(/<EventDetail /g) ?? []).length, 2);
   assert.match(source, /screens.lg && <aside/); assert.match(source, /!screens.lg && <Drawer/);
@@ -114,9 +126,10 @@ test("filter utility has label and control rows with the exact accepted Fleet Re
   assert.match(source, /<div className="events-filter-utility"><Typography.Text className="events-filter-count"/);
   assert.match(source, /count: filterCount/);
   assert.match(source, /<FleetFilterResetButton disabled=\{filterCount === 0\}/);
-  assert.match(styles, /events-filter-count \{ grid-row: 1/);
-  assert.match(styles, /events-filter-utility > .fleet-filter-reset \{ grid-row: 2/);
-  assert.match(styles, /events-filter-utility \{ grid-column: 1 \/ -1; grid-row: 4; display: flex; justify-content: space-between/);
+  assert.match(source, /<div className="events-filter-controls">/);
+  assert.match(styles, /events-toolbar\.fleet-toolbar \{[^}]*grid-template-columns: minmax\(0, 1fr\) auto/);
+  assert.match(styles, /events-filter-utility \{[^}]*margin-inline-start: auto/);
+  assert.match(styles, /@media \(max-width: 575px\)[^]*events-filter-utility \{ display: flex; justify-content: space-between/);
   const reset = readFileSync("src/components/fleet-filter-reset-button.tsx", "utf8");
   const fleet = readFileSync("src/components/dashboard-client.tsx", "utf8");
   const themeContract = /<ConfigProvider theme=([\s\S]*?)><Button/;
@@ -138,7 +151,9 @@ test("filter utility has label and control rows with the exact accepted Fleet Re
   assert.doesNotMatch(ungrouped, /class="[^"<>]*fleet-filter-reset[^"<>]*"[^>]*disabled/);
 });
 test("group filter stays comparable to sibling filters and stacks deterministically on narrow screens", () => {
-  assert.ok(styles.includes("grid-template-columns: minmax(180px, 260px) minmax(180px, 260px) minmax(180px, 260px) minmax(0, 1fr)"));
+  assert.ok(styles.includes("grid-template-columns: repeat(3, minmax(180px, 260px))"));
   assert.ok(styles.includes(".events-filter--group"));
   assert.ok(source.includes('className="events-filter events-filter--group"'));
+  assert.match(source, /filterOptions\.groups\.length > 0 \|\| filterOptions\.hasUngrouped/);
+  assert.doesNotMatch(source, /productGroupOptionsFromVehicles/);
 });

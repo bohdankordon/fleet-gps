@@ -91,7 +91,7 @@ the API is `/api/account/notifications/preferences`.
 | Telegram `inactivityEnabled` | boolean; `true` | Account alert-type preference | Revision protected; no global settings audit |
 | Telegram `vehicleScope` | `ALL | SELECTED`; `ALL` | Account vehicle authorization scope | Revision protected; no global settings audit |
 | Selected vehicle IDs | UUID list; empty unless `SELECTED` | Account-specific vehicle filter | Transactional with preference revision; no global settings audit |
-| Locale cookie `taxi_locale` | `ru | uk | en`; `ru` | Presentation language; one-year cookie | Same-origin cookie write; no DB revision/audit |
+| Locale preference `taxi_locale` | `ru | uk | en`; otherwise primary browser language, then `uk` | Explicit presentation language; one-year cookie; Automatic expires it | Same-origin cookie write/delete; no DB revision/audit |
 
 No current product behavior provides per-user alert thresholds, quiet hours,
 digest cadence, or personal business-rule overrides. No such setting should be
