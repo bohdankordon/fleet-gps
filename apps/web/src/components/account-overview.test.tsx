@@ -96,7 +96,7 @@ test("Telegram states use discrete Ant Tags with textual meaning", () => {
   const connected = render(admin, available("CONNECTED"));
   assert.match(connected, /ant-tag-success[^>]*>Connected</);
   const pending = render(admin, available("LINK_PENDING"));
-  assert.match(pending, /ant-tag-processing[^>]*>Confirmation pending</);
+  assert.match(pending, /ant-tag-processing[^>]*>Awaiting confirmation</);
   const notConnected = render(admin, available("NOT_CONNECTED"));
   assert.match(notConnected, /ant-tag[^>]*>Not connected</);
   assert.doesNotMatch(notConnected.slice(notConnected.indexOf('id="account-telegram-heading"'), notConnected.indexOf('id="account-notifications-heading"')), /ant-tag-success|ant-tag-warning|ant-tag-processing|ant-tag-error/);
@@ -145,7 +145,7 @@ test("shared navigation is labelled, uses the accepted menu grammar with active 
   assert.match(html, /account-navigation__mobile/);
   assert.match(html, /ant-select/);
   assert.match(html, /Section/);
-  assert.match(html, /Confirmation pending/);
+  assert.match(html, /Awaiting confirmation/);
 });
 
 test("Overview server boundary uses the session-only authenticated fetch and no legacy auth-card composition", () => {

@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Tag } from "antd";
-import { AlertDialog } from "./ui/dialog";
+import { Alert, Button, Modal, Tag, Typography } from "antd";
 import { useI18n } from "../i18n/client";
 import type { AppLocale } from "../i18n/locales";
 import type { Translator } from "../i18n/core";
@@ -58,6 +57,10 @@ export function AccountTelegramWorkspace({ initial, locale, initialLink = null }
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const generation = useRef(0);
   const inflight = useRef(false);
+  // Synchronous repeat-submission guard for create-link: visual Button state
+  // updates asynchronously, so a ref acquired before the first await is the
+  // only thing that can stop an impatient second click in the same tick.
+  const linkGuard = useRef(false);
   const busy = operation !== null;
   // A stale response must never overwrite newer state; unmount retires all.
   useEffect(() => () => {
@@ -136,7 +139,9 @@ export function AccountTelegramWorkspace({ initial, locale, initialLink = null }
   }, [link !== null, serverPendingLive]);
 
   async function createLink(): Promise<void> {
+    if (linkGuard.current) return;
     if (busy) return;
+    linkGuard.current = true;
     setOperation("link");
     setOperationErrorKey(null);
     setNoticeKey(null);
@@ -153,10 +158,17 @@ export function AccountTelegramWorkspace({ initial, locale, initialLink = null }
         setOperationErrorKey("telegram.error.generic");
         return;
       }
-      // The confirmed connection truth is never overwritten by a link
-      // creation: a replacement attempt leaves CONNECTED/BROKEN intact.
-      // Only a previously unknown truth may adopt the server response.
-      if (confirmed === null) setConfirmed({ status: "LINK_PENDING", pendingExpiresAt: ticket.expiresAt });
+      // Immediate presentation from the returned ticket: a NOT_CONNECTED
+      // truth adopts LINK_PENDING at once instead of waiting for the next
+      // status poll. A replacement attempt leaves CONNECTED/BROKEN intact;
+      // the replacement section below renders the new ticket right away.
+      // The poll remains the reconciliation path for durable server truth.
+      setConfirmed((previous) => {
+        if (previous !== null && previous.status === "NOT_CONNECTED") {
+          return { status: "LINK_PENDING", pendingExpiresAt: ticket.expiresAt };
+        }
+        return previous;
+      });
       setLink(ticket);
       setNowMs(Date.now());
     } catch {
@@ -166,6 +178,7 @@ export function AccountTelegramWorkspace({ initial, locale, initialLink = null }
         if (view) applyPolledView(view);
       });
     } finally {
+      linkGuard.current = false;
       if (generation.current === run) setOperation(null);
     }
   }
@@ -241,46 +254,52 @@ export function AccountTelegramWorkspace({ initial, locale, initialLink = null }
     {status === "NOT_CONNECTED" ? (
       <div className="account-telegram__actions">
         <Button type="primary" onClick={() => { void createLink(); }} loading={operation === "link"} disabled={busy}>
-          {t("telegram.connect")}
+          {operation === "link" ? t("telegram.connecting") : t("telegram.connect")}
         </Button>
       </div>
     ) : null}
-    {status === "LINK_PENDING" ? <PendingBlock locale={locale} t={t} link={link} linkExpired={linkExpired} busy={busy} refreshing={operation === "refresh"} onGenerate={() => { void createLink(); }} onRefresh={() => { void manualRefresh(); }} /> : null}
+    {status === "LINK_PENDING" ? <PendingBlock locale={locale} t={t} link={link} linkExpired={linkExpired} busy={busy} generating={operation === "link"} refreshing={operation === "refresh"} onGenerate={() => { void createLink(); }} onRefresh={() => { void manualRefresh(); }} /> : null}
     {status === "CONNECTED" || status === "BROKEN" ? (
       <div className="account-telegram__actions">
         <Button onClick={() => { void createLink(); }} loading={operation === "link"} disabled={busy}>
-          {status === "CONNECTED" ? t("account.telegram.replaceAction") : t("telegram.reconnect")}
+          {status === "CONNECTED" ? t("account.telegram.connectOther") : t("telegram.reconnect")}
         </Button>
-        <AlertDialog
-          open={confirmDisconnect}
-          onOpenChange={setConfirmDisconnect}
-          trigger={<Button danger disabled={busy}>{t("telegram.disconnect")}</Button>}
-          title={t("telegram.disconnectConfirmTitle")}
-          description={<><p>{t("telegram.disconnectConfirmBody")}</p><p>{t("account.telegram.disconnectPrefsNote")}</p></>}
-          cancelLabel={t("common.cancel")}
-          confirmLabel={t("telegram.disconnect")}
-          destructive
-          loading={operation === "disconnect"}
-          onConfirm={() => { void confirmDisconnectNow(); }}
-        />
+        <Button danger disabled={busy} onClick={() => setConfirmDisconnect(true)}>
+          {t("telegram.disconnect")}
+        </Button>
       </div>
     ) : null}
+    <Modal
+      open={confirmDisconnect}
+      title={t("telegram.disconnectConfirmTitle")}
+      okText={t("telegram.disconnect")}
+      cancelText={t("common.cancel")}
+      okButtonProps={{ danger: true }}
+      confirmLoading={operation === "disconnect"}
+      onOk={() => { void confirmDisconnectNow(); }}
+      onCancel={() => { if (operation === "disconnect") return; setConfirmDisconnect(false); }}
+      destroyOnHidden
+    >
+      <Typography.Paragraph>{t("telegram.disconnectConfirmBody")}</Typography.Paragraph>
+      <Typography.Paragraph style={{ marginBottom: 0 }}>{t("account.telegram.disconnectPrefsNote")}</Typography.Paragraph>
+    </Modal>
     {showReplacement ? (
       <section className="account-telegram__replacement" aria-label={t("account.telegram.replacementTitle")}>
         <h3 className="account-telegram__subtitle">{t("account.telegram.replacementTitle")}</h3>
         <p className="account-telegram__supporting">{t("account.telegram.replacementKept")}</p>
-        <PendingBlock locale={locale} t={t} link={replacementRelevant ? link : null} linkExpired={false} busy={busy} refreshing={operation === "refresh"} onGenerate={() => { void createLink(); }} onRefresh={() => { void manualRefresh(); }} />
+        <PendingBlock locale={locale} t={t} link={replacementRelevant ? link : null} linkExpired={false} busy={busy} generating={operation === "link"} refreshing={operation === "refresh"} onGenerate={() => { void createLink(); }} onRefresh={() => { void manualRefresh(); }} />
       </section>
     ) : null}
   </>;
 }
 
-function PendingBlock({ locale, t, link, linkExpired, busy, refreshing, onGenerate, onRefresh }: Readonly<{
+function PendingBlock({ locale, t, link, linkExpired, busy, generating, refreshing, onGenerate, onRefresh }: Readonly<{
   locale: AppLocale;
   t: Translator;
   link: { telegramUrl: string; expiresAt: string } | null;
   linkExpired: boolean;
   busy: boolean;
+  generating: boolean;
   refreshing: boolean;
   onGenerate: () => void;
   onRefresh: () => void;
@@ -290,17 +309,16 @@ function PendingBlock({ locale, t, link, linkExpired, busy, refreshing, onGenera
     return <>
       <h3 className="account-telegram__subtitle">{t("account.telegram.confirmationTitle")}</h3>
       <p className="account-telegram__supporting">
-        {t("telegram.expires", { expiresAt: stamped ?? "" })} <time dateTime={link.expiresAt}>{stamped ?? ""}</time>
+        {t("account.telegram.pendingBody")} {t("account.telegram.pendingExpiryPrefix")} <time dateTime={link.expiresAt}>{stamped ?? ""}</time>.
       </p>
-      <p className="account-telegram__supporting">{t("telegram.linkReady")}</p>
       <div className="account-telegram__actions">
         <Button type="primary" href={link.telegramUrl} target="_blank" rel="noopener noreferrer" disabled={busy}>
           {t("telegram.open")}
         </Button>
-        <Button onClick={onGenerate} disabled={busy} loading={busy}>
+        <Button onClick={onGenerate} disabled={busy} loading={generating}>
           {t("telegram.regenerate")}
         </Button>
-        <Button size="small" type="link" onClick={onRefresh} disabled={busy} loading={refreshing}>
+        <Button onClick={onRefresh} disabled={busy} loading={refreshing}>
           {t("account.telegram.refreshAction")}
         </Button>
       </div>
@@ -311,7 +329,7 @@ function PendingBlock({ locale, t, link, linkExpired, busy, refreshing, onGenera
       <p className="account-telegram__state"><Tag>{t("account.telegram.expiredLabel")}</Tag></p>
       <p className="account-telegram__supporting">{t("account.telegram.expiredHelp")}</p>
       <div className="account-telegram__actions">
-        <Button type="primary" onClick={onGenerate} disabled={busy} loading={busy}>
+        <Button type="primary" onClick={onGenerate} disabled={busy} loading={generating}>
           {t("account.telegram.generateAction")}
         </Button>
       </div>
@@ -321,10 +339,10 @@ function PendingBlock({ locale, t, link, linkExpired, busy, refreshing, onGenera
     <h3 className="account-telegram__subtitle">{t("account.telegram.confirmationTitle")}</h3>
     <Alert type="info" showIcon title={t("telegram.pendingReload")} />
     <div className="account-telegram__actions">
-      <Button type="primary" onClick={onGenerate} disabled={busy} loading={busy}>
+      <Button type="primary" onClick={onGenerate} disabled={busy} loading={generating}>
         {t("account.telegram.generateAction")}
       </Button>
-      <Button size="small" type="link" onClick={onRefresh} disabled={busy} loading={refreshing}>
+      <Button onClick={onRefresh} disabled={busy} loading={refreshing}>
         {t("account.telegram.refreshAction")}
       </Button>
     </div>

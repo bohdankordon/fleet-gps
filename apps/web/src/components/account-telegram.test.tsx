@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { AccountTelegram } from "./account-telegram";
 import { AccountTelegramOperationError, AccountTelegramWorkspace } from "./account-telegram-workspace";
 import { I18nProvider } from "../i18n/client";
+import { formatDateTime } from "../i18n/formatting";
 import type { TelegramWorkspaceInitial } from "./account-telegram-workspace";
 
 const LINK = {
@@ -59,15 +60,17 @@ test("NOT_CONNECTED stays neutral with a single Connect action", () => {
 
 test("LINK_PENDING with a live URL opens Telegram without printing the token", () => {
   const html = renderWorkspace(available("LINK_PENDING", LINK.expiresAt), LINK);
-  assert.match(html, /ant-tag-processing[^>]*>Confirmation pending</);
-  // A small confirmation sub-section replaces the repeated waiting sentence.
-  assert.match(html, />Connection confirmation</);
+  assert.match(html, /ant-tag-processing[^>]*>Awaiting confirmation</);
+  // A concise confirmation sub-section replaces the repeated waiting sentence.
+  assert.match(html, />Confirm the connection in Telegram</);
   assert.doesNotMatch(html, /Waiting for Telegram confirmation\./);
   assert.match(html, /<time dateTime="2030-01-01T00:00:00\.000Z">/);
-  assert.match(html, /Your link is ready\. Open Telegram to confirm the connection\./);
+  assert.match(html, /Open Telegram and press Start in the bot\./);
+  assert.match(html, /The link is valid until/);
   assert.match(html, />Open Telegram</);
   assert.match(html, /href="https:\/\/t\.me\//);
   assert.match(html, />Generate a new link</);
+  assert.match(html, />Refresh status</);
   // The token-bearing URL is an action target only, never visible text.
   assert.doesNotMatch(html, />https:\/\//);
   assert.doesNotMatch(html, /start=[A-Za-z0-9_-]{43}</);
@@ -96,7 +99,7 @@ test("CONNECTED offers replacement and restrained disconnect", () => {
   // No duplicate "Connected" prose right after the Tag.
   assert.doesNotMatch(on, /Telegram is connected\./);
   assert.match(on, /Notifications:.*On/);
-  assert.match(on, />Replace connection</);
+  assert.match(on, />Connect another Telegram</);
   assert.match(on, />Disconnect Telegram</);
   assert.doesNotMatch(on, /Replacement connection/);
   const off = renderWorkspace(available("CONNECTED", null, false));
@@ -111,7 +114,7 @@ test("CONNECTED with a replacement pending keeps the connection authoritative", 
   assert.match(html, /<time dateTime="2030-01-01T00:00:00\.000Z">/);
   assert.match(html, />Open Telegram</);
   // The whole screen never degrades into LINK_PENDING.
-  assert.doesNotMatch(html, />Confirmation pending</);
+  assert.doesNotMatch(html, />Awaiting confirmation</);
   assert.doesNotMatch(html, /ant-tag-processing/);
 });
 
@@ -124,6 +127,7 @@ test("BROKEN stays distinct, actionable, and never not-connected", () => {
   assert.match(html, />Disconnect Telegram</);
   assert.doesNotMatch(html, />Not connected</);
   assert.doesNotMatch(html, />Connect Telegram</);
+  assert.doesNotMatch(html, />Connect another Telegram</);
 });
 
 test("BROKEN with a replacement pending keeps BROKEN authoritative", () => {
@@ -156,9 +160,9 @@ test("operation error Alert owns one assertive live region without changing its 
 
 test("telegram copy is localized in UK, RU, and EN", () => {
   const expected = {
-    uk: { subtitle: "Підключіть свій обліковий запис Fleet GPS", help: "отримувати особисті сповіщення Fleet GPS", connect: ">Підключити Telegram<", expired: "Прострочено", replace: ">Замінити підключення<", confirm: "Підтвердження підключення", broken: "не може використовувати збережене підключення" },
-    ru: { subtitle: "Подключите свой аккаунт Fleet GPS", help: "получать личные уведомления Fleet GPS", connect: ">Подключить Telegram<", expired: "Просрочена", replace: ">Заменить подключение<", confirm: "Подтверждение подключения", broken: "не может использовать сохранённое подключение" },
-    en: { subtitle: "Connect your Fleet GPS account", help: "receive personal Fleet GPS notifications", connect: ">Connect Telegram<", expired: ">Expired<", replace: ">Replace connection<", confirm: "Connection confirmation", broken: "cannot use the saved connection" },
+    uk: { subtitle: "Підключіть свій обліковий запис Fleet GPS", help: "отримувати особисті сповіщення Fleet GPS", connect: ">Підключити Telegram<", expired: "Прострочено", replace: ">Підключити інший Telegram<", confirm: "Підтвердьте підключення в Telegram", broken: "не може використовувати збережене підключення" },
+    ru: { subtitle: "Подключите свой аккаунт Fleet GPS", help: "получать личные уведомления Fleet GPS", connect: ">Подключить Telegram<", expired: "Просрочена", replace: ">Подключить другой Telegram<", confirm: "Подтвердите подключение в Telegram", broken: "не может использовать сохранённое подключение" },
+    en: { subtitle: "Connect your Fleet GPS account", help: "receive personal Fleet GPS notifications", connect: ">Connect Telegram<", expired: ">Expired<", replace: ">Connect another Telegram<", confirm: "Confirm the connection in Telegram", broken: "cannot use the saved connection" },
   } as const;
   for (const locale of ["uk", "ru", "en"] as const) {
     const copy = expected[locale];
@@ -194,11 +198,79 @@ test("interaction guards and secret hygiene hold in the live component", () => {
   assert.match(source, /inflight\.current/);
   assert.match(source, /generation\.current !== run/);
   assert.match(source, /if \(busy\) return/);
-  assert.match(source, /<AlertDialog/);
+  assert.match(source, /<Modal/);
+  assert.doesNotMatch(source, /AlertDialog/);
   assert.match(source, /view\.status !== "NOT_CONNECTED"/);
   assert.match(source, /document\.visibilityState/);
   // Token-bearing URLs live in component state only.
   assert.doesNotMatch(source, /localStorage|sessionStorage|console\.|URLSearchParams/);
+});
+
+test("create-link has a distinct busy copy and a synchronous repeat-submission guard", () => {
+  const source = readFileSync("src/components/account-telegram-workspace.tsx", "utf8");
+  assert.match(source, /const linkGuard = useRef\(false\)/);
+  assert.match(source, /if \(linkGuard\.current\) return;/);
+  // The guard is acquired synchronously before the first await of the POST.
+  const guardAt = source.indexOf("linkGuard.current = true");
+  const postAt = source.indexOf("/api/account/notifications/telegram/link");
+  assert.ok(guardAt >= 0 && postAt > guardAt, "guard acquired before the link POST");
+  assert.ok(source.indexOf("await fetch", guardAt) > guardAt, "guard acquired before awaiting");
+  // The guard always releases, even on failure.
+  assert.match(source, /linkGuard\.current = false/);
+  // The disconnected action visibly reports the in-flight creation.
+  assert.match(source, /operation === "link" \? t\("telegram\.connecting"\)/);
+  const messages = readFileSync("src/i18n/messages.ts", "utf8");
+  assert.match(messages, /"telegram\.connecting"/);
+  assert.match(messages, /Створюємо посилання…/);
+  assert.match(messages, /Создаём ссылку…/);
+  assert.match(messages, /Creating link…/);
+});
+
+test("successful create-link adopts pending immediately from the returned ticket", () => {
+  const source = readFileSync("src/components/account-telegram-workspace.tsx", "utf8");
+  // Optimistic adoption keyed only on the successful response ticket.
+  assert.match(source, /previous\.status === "NOT_CONNECTED"/);
+  assert.match(source, /return \{ status: "LINK_PENDING", pendingExpiresAt: ticket\.expiresAt \}/);
+  // CONNECTED/BROKEN replacement truth is preserved, not overwritten.
+  assert.match(source, /return previous;/);
+  // Polling remains the reconciliation path for durable server truth.
+  assert.match(source, /TELEGRAM_STATUS_POLL_MS/);
+});
+
+test("pending expiry timestamp appears exactly once with semantic time", () => {
+  const html = renderWorkspace(available("LINK_PENDING", LINK.expiresAt), LINK, "en");
+  const stamped = formatDateTime("en", LINK.expiresAt) ?? "";
+  assert.ok(stamped.length > 0, "expected a formatted expiry");
+  assert.equal(html.split(stamped).length - 1, 1);
+  assert.equal(html.match(/<time /g)?.length ?? 0, 1);
+  assert.match(html, /<time dateTime="2030-01-01T00:00:00\.000Z">/);
+});
+
+test("refresh action is a normal button, not link-styled", () => {
+  const html = renderWorkspace(available("LINK_PENDING", LINK.expiresAt), LINK, "en");
+  assert.match(html, />Refresh status</);
+  assert.doesNotMatch(html, /ant-btn-link/);
+  const source = readFileSync("src/components/account-telegram-workspace.tsx", "utf8");
+  assert.doesNotMatch(source, /type="link"/);
+});
+
+test("telegram disconnect confirmation is an Ant danger modal with valid content", () => {
+  const source = readFileSync("src/components/account-telegram-workspace.tsx", "utf8");
+  assert.match(source, /from "antd"[\s\S]*Modal/);
+  assert.match(source, /<Modal[\s\S]*?open=\{confirmDisconnect\}/);
+  assert.match(source, /title=\{t\("telegram\.disconnectConfirmTitle"\)\}/);
+  assert.match(source, /okText=\{t\("telegram\.disconnect"\)\}/);
+  assert.match(source, /cancelText=\{t\("common\.cancel"\)\}/);
+  assert.match(source, /okButtonProps=\{\{ danger: true \}\}/);
+  assert.match(source, /confirmLoading=\{operation === "disconnect"\}/);
+  assert.match(source, /destroyOnHidden/);
+  // Valid HTML: Ant paragraphs as siblings, never nested <p> markup.
+  assert.match(source, /<Typography\.Paragraph>\{t\("telegram\.disconnectConfirmBody"\)\}<\/Typography\.Paragraph>/);
+  assert.match(source, /<Typography\.Paragraph style=\{\{ marginBottom: 0 \}\}>\{t\("account\.telegram\.disconnectPrefsNote"\)\}<\/Typography\.Paragraph>/);
+  assert.doesNotMatch(source, /description=\{<><p>/);
+  assert.doesNotMatch(source, /DialogDescription/);
+  // Duplicate confirms are prevented while the request is busy.
+  assert.match(source, /onCancel=\{\(\) => \{ if \(operation === "disconnect"\) return;/);
 });
 
 test("telegram surface keeps the Account rhythm and mobile touch targets", () => {
