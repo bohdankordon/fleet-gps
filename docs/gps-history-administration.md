@@ -1,12 +1,27 @@
 # GPS history administration and protected population (Stages 17C–18B)
 
-`/admin/history?to=<absolute-iso>` retains the Stage 16A administrative status view and adds one explicit, protected, bounded Stage 17C population action. The global **Администрирование** navigation item opens this single page; there is no settings hierarchy or unrelated provider configuration.
+GPS history administration has three destinations. `/admin/history` is the current lossless-history operational overview and reads only the supported ingestion-status read model. `/admin/history/population` is the manual/recovery population tooling page and keeps one explicit, protected, bounded population action at one chosen historical anchor. `/admin/history/retention` is retention-specific administration. The global **Администрирование** navigation item opens the appropriate history destination for the account; there is no settings hierarchy or unrelated provider configuration.
 
-## Explicit control point
+## Current operational overview (`/admin/history`)
 
-`to` is required by the public backend endpoint `GET /api/system/position-history/horizon-status` and by the same-origin Next BFF route with the same path. It must be a strict absolute ISO timestamp containing `Z` or a numeric offset. The browser never calls Nest or the provider directly. Both Next fetches and BFF responses use `no-store`.
+The overview answers the operational questions about the currently running lossless-history system and takes no checkpoint parameter. It is server-rendered, authenticated, permission-checked, `no-store`, and read-only, and it renders only what `GET /api/system/position-history/ingestion-status` reports:
 
-When `/admin/history` has no `to`, the Next server resolves one absolute current instant and redirects to the canonical URL containing that visible value before it renders a report. It is presented as **План на контрольную точку**, not as universal or continuously rolling completion. A malformed or repeated value remains a visible validation state and causes no backend status request.
+- **Continuous ingestion**: `continuousIngestionEnabled`, `automaticRetentionEnabled`, `pollerStarted`, `cycleInFlight`, the last cycle start and completion, and the process start.
+- **Cursor coverage**: mapped vehicles, cursors present, missing cursors, median and worst lag, the oldest confirmed boundary, and the current safe boundary.
+- **Recent tail**: the last success plus process-local successes and failures.
+- **Daily 7-day and rolling 90-day replay**: state, progress, checkpoint totals, completed and remaining checkpoints, generation anchor and range, `isCurrent`, incomplete and overdue generations, and `hasReplayDebt` with the oldest overdue generation. Detected debt is reported as detected debt; it is not by itself an incident.
+- **Retention**: enabled, running, last attempt, last completion, last outcome, safe skip category, next scheduled execution, the current retention-policy floor, cursors behind and at or beyond that floor, and floor alignment.
+- **Diagnostics** (secondary, collapsible): provider request rate, retries, rate limits, 5xx, network, timeout, contract, storage, provider-blocked and unknown failures, lock contention, and provider-blocked streams.
+
+Process-local counters are labelled as belonging to the current API process and are explicitly not lifetime totals. A failed ingestion-status read still renders the page shell, the Administration and History navigation, and an inline unavailable state with a retry action; it never substitutes zeros for unknown facts.
+
+Continuous ingestion configuration, completeness cursors, replay generations, retention execution, and durable population runs are the authoritative operational model on this page. Manual backfill checkpoints are deliberately absent from it, and zero manual checkpoints are never presented as zero processed history.
+
+## Explicit control point (`/admin/history/population`)
+
+`to` is required by the manual planning read model `GET /api/system/position-history/horizon-plan` and by the same-origin Next BFF route with the same path. It must be a strict absolute ISO timestamp containing `Z` or a numeric offset. The browser never calls Nest or the provider directly. Both Next fetches and BFF responses use `no-store`.
+
+When `/admin/history/population` has no `to`, the Next server resolves one absolute current instant and redirects to the canonical URL containing that visible value before it renders the plan. It is presented as **План на контрольную точку**, not as universal or continuously rolling completion. A malformed or repeated value remains a visible validation state and causes no backend plan request.
 
 The timestamp is the exact Stage 14 horizon anchor. Changing it regenerates the exact `(rangeFrom, rangeTo)` slices, so it can also change exact `(vehicleId, rangeFrom, rangeTo)` checkpoint matches. Changing the form value and loading the new canonical URL only recalculates status. A later confirmed population request uses exactly the already-loaded URL value; it never substitutes browser time, server time, or a newly generated anchor.
 
@@ -14,28 +29,27 @@ The timestamp is the exact Stage 14 horizon anchor. Changing it regenerates the 
 
 The active product policy remains the code-level `POSITION_HISTORY_HORIZON_POLICY`: **90 absolute days**. It is not stored in the database, environment, or `ApplicationSettings`, and 365 days is not presented as active. The partitioner remains duration-driven and supports a later separately approved horizon expansion without redesign.
 
-The endpoint calls the existing Stage 14B `PositionHistoryHorizonService`. That preserves its policy, oldest-to-newest partition contract, exact checkpoint matching, provider-disabled dimension, set-based repository query, and shared remaining-hour-window arithmetic. The Stage 14B CLI output remains oldest to newest. The admin table reverses only its presentation to newest to oldest.
+The horizon-plan read model calls the existing Stage 14B `PositionHistoryHorizonService`. That preserves its policy, oldest-to-newest partition contract, exact checkpoint matching, provider-disabled dimension, set-based repository query, and shared remaining-hour-window arithmetic. The Stage 14B CLI output remains oldest to newest. The manual population table reverses only its presentation to newest to oldest.
 
-The read path performs two bounded set-based database queries:
+The manual planning read path performs one bounded set-based database query:
 
-1. the existing Stage 14B query for all exact slice/vehicle checkpoint facts;
-2. one inclusive Stage 14A-style aggregate over `VehiclePositionObservation` for the selected horizon.
+1. the existing Stage 14B query for all exact slice/vehicle checkpoint facts.
 
-It fetches no individual observation rows and performs no per-vehicle query.
+Its cost is bounded by the fleet size and the horizon slice count. It fetches no individual observation rows, performs no per-vehicle query, and reads no stored observation rows at all, so the manual planning page cannot degrade with historical observation volume. The current operational overview uses the separate ingestion-status read model, which likewise never aggregates `VehiclePositionObservation`.
 
 ## Meaning of the figures
 
 **Заполнение истории** reports processed exact backfill target/vehicle pairs and estimated remaining hourly planning windows. `COMPLETED` means the accepted exact backfill target was processed. `RUNNING`, `PENDING`, and `NONE` are incomplete; a running cursor affects remaining hourly windows but does not create a fractional completion percentage.
 
-This is not GPS coverage, observation density, vehicle movement, or data-completeness scoring. The separate **GPS-наблюдения** section reports only persisted row count, vehicles with and without at least one observation, and the first/last observation timestamps. A completed target may have zero observations, and an incomplete target may already contain observations; neither fact implies the other.
+This is not GPS coverage, observation density, vehicle movement, or overall lossless-history completeness. Manual checkpoint counts describe only the manual/durable population workflow: a fleet with zero completed manual checkpoints may already be fully covered by continuous ingestion cursors and replay generations, and a completed manual target may still contain zero observations. Current completeness is read from the ingestion-status cursors, replay generations, and retention alignment on `/admin/history`.
 
 Provider-disabled is the persisted technical provider state, not a business fleet status. Disabled vehicles stay in whole-fleet target and checkpoint totals. Provider-eligible incomplete targets are shown separately to describe currently eligible planned work.
 
 ## Read status and safe public boundary
 
-The public DTO contains aggregate policy, horizon, fleet, backfill, observation, and per-slice counts only. It contains no external/provider device identifiers, vehicle UUID lists, coordinates, fingerprints, credentials, raw provider errors, or individual checkpoint cursors.
+The public DTO contains aggregate policy, horizon, fleet, manual backfill, and per-slice counts only. It contains no stored-observation aggregates, no external/provider device identifiers, vehicle UUID lists, coordinates, fingerprints, credentials, raw provider errors, or individual checkpoint cursors.
 
-The status GET remains read-only: it makes no provider or Telegram calls, writes nothing, and invokes neither the Stage 14C executor nor a scheduler. Its public DTO remains aggregate-only.
+Both status GETs remain read-only: they make no provider or Telegram calls, write nothing, and invoke neither the Stage 14C executor nor a scheduler. Their public DTOs remain aggregate-only.
 
 ## Protected bounded population
 

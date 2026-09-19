@@ -49,7 +49,7 @@ test("GPS History formats user-visible ranges while retaining exact instants for
   assert.match(shared, /PeriodPopover/);
   assert.match(shared, /placeholder="DD\.MM\.YYYY"/);
   assert.match(shared, /placeholder="HH:mm"/);
-  assert.match(overview, /PositionHistoryCheckpointControl/);
+  assert.doesNotMatch(overview, /PositionHistoryCheckpointControl/);
   assert.match(history, /PositionHistoryCheckpointControl/);
   assert.doesNotMatch(retention, /PositionHistoryCheckpointControl/);
   assert.doesNotMatch(retention, /to: anchor/);

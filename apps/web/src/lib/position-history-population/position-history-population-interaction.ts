@@ -17,6 +17,5 @@ export async function executeAndRefreshPositionHistory(request: PositionHistoryP
       if (parsed.success) outcome = { kind: "SUCCESS", result: parsed.data };
     }
   } catch {}
-  try { await fetcher(`/api/system/position-history/horizon-status?${new URLSearchParams({ to: request.to })}`, { cache: "no-store" }); } catch {}
   return outcome;
 }

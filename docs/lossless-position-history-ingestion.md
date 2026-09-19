@@ -179,7 +179,7 @@ An authorized operator with `historyAdmin.view` can obtain the supported lossles
 GET /api/system/position-history/ingestion-status
 ```
 
-The route lives on the existing ADMIN-only `system/position-history` controller and requires the same `historyAdmin.view` authority as the horizon-status surface. Unauthenticated and authorized-without-permission callers are rejected; no new public or unauthenticated health surface was added. Reading status makes zero provider requests, performs zero DB mutations, creates no cursor, creates no replay generation, claims no lease, acquires no mutation advisory lock, and triggers no scheduler.
+The route lives on the existing ADMIN-only `system/position-history` controller and requires the same `historyAdmin.view` authority as the manual horizon-plan surface. Unauthenticated and authorized-without-permission callers are rejected; no new public or unauthenticated health surface was added. Reading status makes zero provider requests, performs zero DB mutations, creates no cursor, creates no replay generation, claims no lease, acquires no mutation advisory lock, and triggers no scheduler. The status read is aggregate-only over cursors, replay runs/checkpoints, population runs, and process-local counters; it never scans or aggregates `VehiclePositionObservation`, so its cost does not grow with stored history volume. `/admin/history` renders this read model as the current lossless-history operational overview.
 
 Both the supported Next.js production-edge response and the internal Nest response carry an explicit `Cache-Control: no-store` header (covered by HTTP tests); the BFF route additionally opts out of static rendering and cached fetching. Supported production-edge access is `GET /api/system/position-history/ingestion-status` through Next.js, which forwards the operator session to Nest through the established authenticated BFF mechanism and preserves `historyAdmin.view` authorization end to end; container login is not the supported operator method and the Nest service is not exposed directly through the edge.
 
@@ -210,7 +210,7 @@ PR 6C closes the four remaining assessment #2 blockers without touching ingestio
 
 ### Supported production-edge route
 
-Production topology exposes Caddy to Next.js only, so the Nest route is not directly reachable. The supported operator path mirrors the existing authenticated BFF pattern (same shape as the horizon-status and durable-run BFF routes):
+Production topology exposes Caddy to Next.js only, so the Nest route is not directly reachable. The supported operator path mirrors the existing authenticated BFF pattern (same shape as the horizon-plan and durable-run BFF routes):
 
     GET /api/system/position-history/ingestion-status
 

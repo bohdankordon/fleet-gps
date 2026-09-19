@@ -25,6 +25,7 @@
     "open-alert-map:smoke": "npm run standalone:build && node scripts/open-alert-map-ui-smoke.cjs",
     "vehicle-track:smoke": "npm run standalone:build && node scripts/vehicle-track-ui-smoke.cjs",
     "scheduler:observe": "node scripts/scheduler-runtime-observer.cjs",
+    "history:preview": "node scripts/history-admin-preview.cjs",
     "scheduler:observe:test": "node --test scripts/scheduler-runtime-observer.test.cjs"
   },
   "dependencies": {

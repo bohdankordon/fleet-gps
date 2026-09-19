@@ -7,8 +7,8 @@ import { AuthRole } from "../../generated/prisma/enums";
 import { AuthService } from "../auth/auth.service";
 import { AuthenticationGuard } from "../auth/authentication.guard";
 import { PermissionGuard } from "../auth/permission.guard";
+import { PositionHistoryHorizonService } from "../position-history-horizon/position-history-horizon.service";
 import { PositionHistoryStatusController } from "./position-history-status.controller";
-import { PositionHistoryStatusService } from "./position-history-status.service";
 import { PositionHistoryIngestionStatusService } from "./position-history-ingestion-status.service";
 
 const operatorToken = "o".repeat(43);
@@ -36,7 +36,7 @@ async function appWith(): Promise<INestApplication> {
     controllers: [PositionHistoryStatusController],
     providers: [
       Reflector,
-      { provide: PositionHistoryStatusService, useValue: { inspect: async (): Promise<never> => { throw new Error("horizon status must not be called"); } } },
+      { provide: PositionHistoryHorizonService, useValue: { run: async (to: Date): Promise<unknown> => horizonPlan(to) } },
       { provide: PositionHistoryIngestionStatusService, useValue: { inspect: async (): Promise<unknown> => safeResponse } },
       { provide: AuthService, useValue: { authenticate: async (value: string): Promise<unknown> => (value === operatorToken ? operator : value === viewerToken ? viewer : null) } },
       AuthenticationGuard,
@@ -53,6 +53,22 @@ async function appWith(): Promise<INestApplication> {
 
 function url(app: INestApplication): string {
   return "http://127.0.0.1:" + (app.getHttpServer().address() as { port: number }).port + "/api/system/position-history/ingestion-status";
+}
+
+function horizonPlan(to: Date): unknown {
+  return {
+    horizon: { policyDays: 90, from: new Date(to.getTime() - 90 * 24 * 3_600_000), to },
+    targets: { total: 2, fullSevenDay: 1, remainderDurationMs: 4 * 3_600_000 },
+    fleet: { total: 4, providerEligible: 3, providerDisabled: 1 },
+    targetVehiclePairs: { total: 8, completed: 2, incomplete: 6, providerEligibleIncomplete: 5 },
+    estimatedRemainingHourlyWindows: 12,
+    slices: [{ index: 0, from: new Date(to.getTime() - 90 * 24 * 3_600_000), to, durationMs: 168 * 3_600_000, vehiclesTotal: 4, completed: 2, running: 0, pending: 1, noExactCheckpoint: 1, providerDisabledVehicles: 1, remainingFleetVehicles: 2, providerEligibleRemaining: 2, estimatedRemainingHourlyWindows: 6 }],
+  };
+}
+
+function planUrl(app: INestApplication): string {
+  const address = app.getHttpServer().address() as { port: number };
+  return "http://127.0.0.1:" + address.port + "/api/system/position-history/horizon-plan?" + new URLSearchParams({ to: "2026-08-11T05:00:00.000+03:00" });
 }
 
 test("ingestion status rejects unauthenticated operators", { timeout: 15000 }, async () => {
@@ -86,5 +102,26 @@ test("ingestion status accepts authorized operators with historyAdmin.view and i
     assert.ok((res.headers.get("cache-control") ?? "").includes("no-store"));
     assert.equal(body.retention.lastOutcome, "NOT_OBSERVED_THIS_PROCESS");
     assert.equal(body.replay.daily.hasReplayDebt, false);
+  } finally { await app.close(); }
+});
+
+test("horizon plan requires the operator authority and returns planning facts without stored observations", { timeout: 15000 }, async () => {
+  const app = await appWith();
+  try {
+    assert.notEqual((await fetch(planUrl(app))).status, 200);
+    assert.notEqual((await fetch(planUrl(app), { headers: { cookie: "taxi_session=" + viewerToken } })).status, 200);
+    const res = await fetch(planUrl(app), { headers: { cookie: "taxi_session=" + operatorToken } });
+    assert.equal(res.status, 200);
+    const body = await res.json() as { policyDays: number; from: string; to: string; slices: { total: number }; fleet: { total: number }; backfill: { targetVehiclePairs: number } };
+    assert.equal(body.policyDays, 90);
+    assert.equal(body.from, "2026-05-13T02:00:00.000Z");
+    assert.equal(body.to, "2026-08-11T02:00:00.000Z");
+    assert.equal(body.slices.total, 2);
+    assert.equal(body.fleet.total, 4);
+    assert.equal(body.backfill.targetVehiclePairs, 8);
+    assert.equal(JSON.stringify(body).includes("observations"), false);
+    assert.equal(JSON.stringify(body).includes("rowCount"), false);
+    const badTo = await fetch("http://127.0.0.1:" + (app.getHttpServer().address() as { port: number }).port + "/api/system/position-history/horizon-plan?to=2026-08-11T02:00", { headers: { cookie: "taxi_session=" + operatorToken } });
+    assert.equal(badTo.status, 400);
   } finally { await app.close(); }
 });

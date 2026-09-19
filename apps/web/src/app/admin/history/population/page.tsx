@@ -3,9 +3,9 @@ import { AdminNavigationTabs } from "@/components/admin-navigation-tabs";
 import { PositionHistoryNavigation } from "@/components/position-history-navigation";
 import { PositionHistoryPopulationWorkspace } from "@/components/position-history-population-workspace";
 import { hasPermission, requireAuthUser } from "@/lib/auth/auth-user";
+import { resolvePositionHistoryAnchor } from "@/lib/position-history-anchor";
 import { fetchActiveDurableRun, fetchRecentDurableRuns } from "@/lib/position-history-durable-runs/position-history-durable-run-client";
-import { resolvePositionHistoryAnchor } from "@/lib/position-history-status/position-history-status-anchor";
-import { fetchPositionHistoryStatus } from "@/lib/position-history-status/position-history-status-client";
+import { fetchPositionHistoryHorizonPlan } from "@/lib/position-history-horizon-plan/position-history-horizon-plan-client";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,16 +15,16 @@ export default async function PositionHistoryPopulationPage({ searchParams }: Re
   if (user.mustChangePassword) redirect("/account/change-password");
   if (!hasPermission(user, "historyAdmin.view")) redirect("/forbidden");
   if (resolved.absent) redirect(`/admin/history/population?${new URLSearchParams({ to: new Date().toISOString() })}`);
-  const [statusResult, activeResult, recentResult] = await Promise.allSettled([
-    resolved.anchor ? fetchPositionHistoryStatus(resolved.anchor) : Promise.resolve(null),
+  const [planResult, activeResult, recentResult] = await Promise.allSettled([
+    resolved.anchor ? fetchPositionHistoryHorizonPlan(resolved.anchor) : Promise.resolve(null),
     fetchActiveDurableRun(),
     fetchRecentDurableRuns(),
   ]);
   return <PositionHistoryPopulationWorkspace
     key={resolved.anchor ?? "invalid"}
     anchor={resolved.anchor}
-    data={statusResult.status === "fulfilled" ? statusResult.value : null}
-    statusError={resolved.anchor === null ? "INVALID_ANCHOR" : statusResult.status === "rejected" ? "UNAVAILABLE" : null}
+    plan={planResult.status === "fulfilled" ? planResult.value : null}
+    planError={resolved.anchor === null ? "INVALID_ANCHOR" : planResult.status === "rejected" ? "UNAVAILABLE" : null}
     canPopulate={hasPermission(user, "historyAdmin.populate")}
     initialActive={activeResult.status === "fulfilled" ? activeResult.value : null}
     initialRecent={recentResult.status === "fulfilled" ? recentResult.value : []}
