@@ -247,6 +247,11 @@
   background: #d9363e;
 }
 
+/* Telegram Account page-level disconnect stays an Ant-native outlined danger
+   action (red text/border with restrained Ant hover/focus/active feedback).
+   No custom fill rules here by intent; the filled destructive treatment lives
+   only on the disconnect-confirmation Modal confirm button. */
+
 /* Security surface: one focused card carrying the password working form.
    Context, divider, and form share one centered working column below. */
 .account-security-card {
@@ -394,6 +399,17 @@
   font-size: var(--font-size-label);
   font-weight: var(--font-weight-semibold);
   line-height: var(--line-height-label);
+}
+
+/* Pending heading breathing room: in LINK_PENDING the subtitle follows the
+   status tag directly, while in CONNECTED the tag is followed by supporting
+   text carrying margin-top. Reuse that same token so the pending tag/heading
+   pair shares the established tag-to-content rhythm. Scoped to direct
+   children of the Telegram body, so replacement headings (inside
+   .account-telegram__replacement), other Telegram states, and all other
+   Account surfaces are unaffected. */
+.account-telegram__body > .account-telegram__subtitle {
+  margin-top: var(--space-1);
 }
 
 /* Notifications preferences surface: one factual workspace with separated

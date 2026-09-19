@@ -60,7 +60,7 @@ test("prerequisite context stays factual for every connection state", () => {
   assert.match(broken, /Telegram delivery cannot use the saved connection\./);
   assert.doesNotMatch(broken, />Not connected</);
   const pending = render({ connection: { status: "LINK_PENDING", pendingExpiresAt: "2030-01-01T00:00:00.000Z" } });
-  assert.match(pending, /ant-tag-processing[^>]*>Confirmation pending</);
+  assert.match(pending, /ant-tag-processing[^>]*>Awaiting confirmation</);
   assert.match(pending, /Telegram confirmation is still pending\. Delivery starts after it completes\./);
   // No connection workflows live on this screen.
   for (const html of [connected, idle, broken, pending]) {
@@ -203,7 +203,7 @@ test("group finder uses the shared labeled pattern and never changes the saved s
 
 test("LINK_PENDING prerequisite and unavailable shell stay truthful", () => {
   const pending = render({ connection: { status: "LINK_PENDING", pendingExpiresAt: "2030-01-01T00:00:00.000Z" } });
-  assert.match(pending, /ant-tag-processing[^>]*>Confirmation pending</);
+  assert.match(pending, /ant-tag-processing[^>]*>Awaiting confirmation</);
   assert.match(pending, /Telegram confirmation is still pending\. Delivery starts after it completes\./);
   const shell = readFileSync("src/components/account-notifications.tsx", "utf8");
   assert.match(shell, /availability === "unavailable"/);
