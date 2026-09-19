@@ -5,16 +5,17 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Checkbox, Collapse, Descriptions, Empty, Grid, Radio, Segmented, Space, Table, Tag, Typography, type TableColumnsType } from "antd";
 import { useI18n } from "../i18n/client";
-import { formatDateTime, formatNumber, formatUnit } from "../i18n/formatting";
+import { formatDateTime, formatNumber } from "../i18n/formatting";
 import { readActiveDurableRun, readRecentDurableRuns, submitDurableRun } from "../lib/position-history-durable-runs/position-history-durable-run-browser";
 import { durableRunBudgets, type DurableRunBudget, type SafeDurableRun } from "../lib/position-history-durable-runs/position-history-durable-run-contract";
 import { shouldShowDurableCreateControls, startDurableRunPolling } from "../lib/position-history-durable-runs/position-history-durable-run-polling";
 import type { PositionHistoryPopulationResult } from "../lib/position-history-population/position-history-population-contract";
 import { executeAndRefreshPositionHistory } from "../lib/position-history-population/position-history-population-interaction";
-import type { PositionHistoryStatusResponse } from "../lib/position-history-status/position-history-status-contract";
+import type { PositionHistoryHorizonPlanResponse } from "../lib/position-history-horizon-plan/position-history-horizon-plan-contract";
 import { CompactPageHeading } from "./compact-page-heading";
 import { PositionHistoryCheckpointControl } from "./position-history-checkpoint-control";
 import { durableRunInitiatorLabel, durableRunPresentation } from "./position-history-durable-runs";
+import { PositionHistoryPopulationPlan } from "./position-history-population-plan";
 import { AlertDialog } from "./ui";
 
 type PopulationMode = "SHORT" | "DURABLE";
@@ -22,8 +23,8 @@ type ShortBudget = 6 | 12 | 24;
 
 type Props = Readonly<{
   anchor: string | null;
-  data: PositionHistoryStatusResponse | null;
-  statusError: "INVALID_ANCHOR" | "UNAVAILABLE" | null;
+  plan: PositionHistoryHorizonPlanResponse | null;
+  planError: "INVALID_ANCHOR" | "UNAVAILABLE" | null;
   canPopulate: boolean;
   initialActive: SafeDurableRun | null;
   initialRecent: readonly SafeDurableRun[];
@@ -135,7 +136,7 @@ export function LastShortResult({ result }: Readonly<{ result: PositionHistoryPo
   </section>;
 }
 
-export function PositionHistoryPopulationWorkspace({ anchor, data, statusError, canPopulate, initialActive, initialRecent, initialActiveUnavailable, initialRecentUnavailable, administrationNavigation, historyNavigation }: Props) {
+export function PositionHistoryPopulationWorkspace({ anchor, plan, planError, canPopulate, initialActive, initialRecent, initialActiveUnavailable, initialRecentUnavailable, administrationNavigation, historyNavigation }: Props) {
   const router = useRouter();
   const screens = Grid.useBreakpoint();
   const { locale, t } = useI18n();
@@ -252,14 +253,16 @@ export function PositionHistoryPopulationWorkspace({ anchor, data, statusError, 
     <section className="history-population-context" aria-labelledby="history-population-context-title">
       <div className="history-population-context__copy">
         <Typography.Title level={2} id="history-population-context-title">{t("history.overview.checkpoint.title")}</Typography.Title>
-        <p><strong>{t("history.population.checkpoint", { anchor: displayedAnchor })}</strong>{data && <> · {t("history.population.horizonSummary", { days: formatUnit(locale, data.policyDays, "day"), ranges: formatNumber(locale, data.slices.total) })}</>}</p>
+        <p><strong>{t("history.population.checkpoint", { anchor: displayedAnchor })}</strong></p>
         <Typography.Text type="secondary">{t("history.population.planningOnly")}</Typography.Text>
       </div>
       <PositionHistoryCheckpointControl anchor={anchor} formAction="/admin/history/population" headingId="history-population-context-title" />
     </section>
 
-    {statusError === "INVALID_ANCHOR" && <Alert type="error" showIcon title={t("history.anchor.invalidTitle")} description={t("history.anchor.invalidText")} />}
-    {statusError === "UNAVAILABLE" && <Alert type="warning" showIcon title={t("history.unavailableTitle")} description={t("history.unavailableText")} action={<Button onClick={() => window.location.reload()}>{t("common.retry")}</Button>} />}
+    {planError === "INVALID_ANCHOR" && <Alert type="error" showIcon title={t("history.anchor.invalidTitle")} description={t("history.anchor.invalidText")} />}
+    {planError === "UNAVAILABLE" && <Alert type="warning" showIcon title={t("history.planUnavailableTitle")} description={t("history.planUnavailableText")} action={<Button onClick={() => window.location.reload()}>{t("common.retry")}</Button>} />}
+
+    {plan && <PositionHistoryPopulationPlan plan={plan} />}
 
     {active && <ActiveRun run={active} unavailable={activeUnavailable} />}
     {!active && activeUnavailable && <Alert className="history-population-active-unavailable" type="warning" showIcon title={t("history.population.activeUnavailableTitle")} description={t("history.population.activeUnavailableText")} action={<Button onClick={() => window.location.reload()}>{t("common.retry")}</Button>} />}

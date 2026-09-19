@@ -1,21 +1,21 @@
 import { Controller, Get, HttpException, Optional, Query, Res } from "@nestjs/common";
+import { PositionHistoryHorizonService } from "../position-history-horizon/position-history-horizon.service";
 import { parseAbsoluteTimestamp } from "../vehicle-track/vehicle-track-query-params";
-import { toPositionHistoryHorizonStatusResponse } from "./position-history-status.read-model";
-import { PositionHistoryStatusService } from "./position-history-status.service";
-import type { PositionHistoryHorizonStatusResponse } from "./position-history-status.types";
+import { toPositionHistoryHorizonPlanResponse } from "./position-history-horizon-plan.read-model";
+import type { PositionHistoryHorizonPlanResponse } from "./position-history-horizon-plan.types";
 import { RequireAnyPermission } from "../auth/auth.decorators";
 import { PositionHistoryIngestionStatusService, type PositionHistoryIngestionStatusResponse } from "./position-history-ingestion-status.service";
 
 @Controller("system/position-history")
 @RequireAnyPermission("historyAdmin.view")
 export class PositionHistoryStatusController {
-  public constructor(private readonly status: PositionHistoryStatusService, @Optional() private readonly ingestion?: PositionHistoryIngestionStatusService) {}
+  public constructor(private readonly horizon: PositionHistoryHorizonService, @Optional() private readonly ingestion?: PositionHistoryIngestionStatusService) {}
 
-  @Get("horizon-status")
-  public async getStatus(@Query("to") rawTo: unknown): Promise<PositionHistoryHorizonStatusResponse> {
+  @Get("horizon-plan")
+  public async getHorizonPlan(@Query("to") rawTo: unknown): Promise<PositionHistoryHorizonPlanResponse> {
     const to = parseAbsoluteTimestamp(rawTo);
     if (!to) throw new HttpException({ statusCode: 400, error: "Bad Request" }, 400);
-    try { return toPositionHistoryHorizonStatusResponse(await this.status.inspect(to)); }
+    try { return toPositionHistoryHorizonPlanResponse(await this.horizon.run(to)); }
     catch { throw new HttpException({ statusCode: 500, error: "Internal Server Error" }, 500); }
   }
   @Get("ingestion-status")

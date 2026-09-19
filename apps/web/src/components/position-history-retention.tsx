@@ -14,7 +14,7 @@ const failureKeys = { STALE_PLAN: "history.retention.error.stale", ACTIVE_DURABL
 
 function TimeValue({ value }: Readonly<{ value: string | null }>) {
   const { locale, t } = useI18n();
-  if (value === null) return <>{t("history.observations.none")}</>;
+  if (value === null) return <>{t("common.notAvailable")}</>;
   return <time dateTime={value}>{formatDateTime(locale, value) ?? t("common.notAvailable")}</time>;
 }
 

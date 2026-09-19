@@ -1,9 +1,14 @@
-import type { PositionHistoryHorizonStatusResponse, PositionHistoryStatusResult } from "./position-history-status.types";
+import type { PositionHistoryHorizonPlanResult } from "../position-history-horizon/position-history-horizon.types";
+import type { PositionHistoryHorizonPlanResponse } from "./position-history-horizon-plan.types";
 
 const HOUR_MS = 60 * 60 * 1_000;
 
-export function toPositionHistoryHorizonStatusResponse(result: PositionHistoryStatusResult): PositionHistoryHorizonStatusResponse {
-  const { plan, observations } = result;
+/**
+ * Manual population planning read model. It reuses the Stage 14B horizon planner and exposes only
+ * planning facts. It never reads `VehiclePositionObservation`, so its cost is bounded by the fleet
+ * and the horizon slice count rather than by stored observation volume.
+ */
+export function toPositionHistoryHorizonPlanResponse(plan: PositionHistoryHorizonPlanResult): PositionHistoryHorizonPlanResponse {
   return Object.freeze({
     policyDays: plan.horizon.policyDays,
     from: plan.horizon.from.toISOString(),
@@ -20,13 +25,6 @@ export function toPositionHistoryHorizonStatusResponse(result: PositionHistorySt
       incompletePairs: plan.targetVehiclePairs.incomplete,
       providerEligibleIncompletePairs: plan.targetVehiclePairs.providerEligibleIncomplete,
       estimatedRemainingHourlyWindows: plan.estimatedRemainingHourlyWindows,
-    }),
-    observations: Object.freeze({
-      rowCount: observations.rowCount,
-      vehiclesWithObservations: observations.vehiclesWithObservations,
-      vehiclesWithoutObservations: plan.fleet.total - observations.vehiclesWithObservations,
-      firstObservationAt: observations.firstObservationAt?.toISOString() ?? null,
-      lastObservationAt: observations.lastObservationAt?.toISOString() ?? null,
     }),
     sliceStatuses: Object.freeze(plan.slices.map((slice) => Object.freeze({
       from: slice.from.toISOString(),

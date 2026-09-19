@@ -26,6 +26,14 @@ const adminOnlyBffs = [
   "/api/system/position-history/retention-execute",
 ] as const;
 
+const historyAdminBffs = [
+  "/api/system/position-history/ingestion-status",
+  "/api/system/position-history/horizon-plan",
+  "/api/system/position-history/population-runs/active",
+  "/api/system/position-history/population-runs/recent",
+  "/api/system/position-history/retention-plan",
+] as const;
+
 function request(path: string, authenticated = false): NextRequest {
   return new NextRequest(`http://app.test${path}`, authenticated ? { headers: { Cookie: "taxi_session=session-token" } } : undefined);
 }
@@ -109,6 +117,11 @@ test("permission-owned History routes remain available to an authorized USER whi
   assertAllowed(await proxyAs("/admin/history", historyUser));
   assertAllowed(await proxyAs("/admin/history/population", historyUser));
   assertRedirect(await proxyAs("/admin/history/retention", historyUser), "/forbidden");
+  for (const path of historyAdminBffs) {
+    assertAllowed(await proxyAs(path, historyUser));
+    assertAllowed(await proxyAs(path, admin));
+    assert.equal((await proxyAs(path, user)).status, 403);
+  }
 });
 
 test("Administration BFFs use the same unauthenticated, USER, ADMIN, and forced-password precedence", async () => {

@@ -23,7 +23,7 @@ function requiredPermission(path: string): readonly AuthPermission[] | null {
   if (path === "/api/alert-events/map") return ["map.view", "events.view"];
   if (path === "/api/city-geofence/map") return ["map.view", "trips.view"];
   if (path === "/reports" || path === "/api/reports/fleet-activity") return ["reports.view"];
-  if (path === "/admin/history" || path === "/admin/history/population" || path === "/api/system/position-history/horizon-status" || path === "/api/system/position-history/population-runs/active" || path === "/api/system/position-history/population-runs/recent" || path === "/api/system/position-history/retention-plan") return ["historyAdmin.view"];
+  if (path === "/admin/history" || path === "/admin/history/population" || path === "/api/system/position-history/ingestion-status" || path === "/api/system/position-history/horizon-plan" || path === "/api/system/position-history/population-runs/active" || path === "/api/system/position-history/population-runs/recent" || path === "/api/system/position-history/retention-plan") return ["historyAdmin.view"];
   if (path === "/api/system/position-history/horizon-populate") return ["historyAdmin.populate"];
   if (path === "/api/system/position-history/population-runs") return ["historyAdmin.populate"];
   if (/^\/vehicles\/[^/]+$/.test(path) || /^\/api\/vehicles\/[^/]+\/details$/.test(path)) return ["vehicles.view"];

@@ -2,81 +2,125 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { formatDateTime } from "../i18n/formatting";
-import { positionHistoryStatusFixture } from "../lib/position-history-status/position-history-status-fixture";
-import { PositionHistoryOverview } from "./position-history-overview";
 import { I18nProvider } from "../i18n/client";
+import { createTranslator } from "../i18n/core";
+import { SUPPORTED_LOCALES } from "../i18n/locales";
+import { positionHistoryIngestionStatusFixture, positionHistoryIngestionStatusStateFixture } from "../lib/position-history-ingestion-status/position-history-ingestion-status-fixture";
+import { PositionHistoryOverview } from "./position-history-overview";
 
-const exact = "2026-08-11T02:00:00.000Z";
+type Props = Parameters<typeof PositionHistoryOverview>[0];
 
-function renderOverview(overrides: Partial<Parameters<typeof PositionHistoryOverview>[0]> = {}): string {
-  return renderToStaticMarkup(<I18nProvider locale="ru"><PositionHistoryOverview anchor={exact} data={positionHistoryStatusFixture()} statusError={null} active={null} activeUnavailable={false} administrationNavigation={<nav>Administration</nav>} historyNavigation={<nav>History sections</nav>} {...overrides} /></I18nProvider>);
+function renderOverview(overrides: Partial<Props> = {}, locale: "ru" | "uk" | "en" = "ru"): string {
+  return renderToStaticMarkup(<I18nProvider locale={locale}><PositionHistoryOverview data={positionHistoryIngestionStatusStateFixture("CURRENT")} statusError={null} administrationNavigation={<nav>Administration</nav>} historyNavigation={<nav>History sections</nav>} {...overrides} /></I18nProvider>);
 }
 
-test("Overview keeps processing and stored-observation truth in separate groups", () => {
+test("current overview answers ingestion, cursor, recent-tail, replay, and retention questions factually", () => {
   const html = renderOverview();
-  for (const expected of ["Обработка целей", "2 / 6", "Сохранённые наблюдения", "42", "Состояние обработки по диапазонам", "Provider-disabled", "Оценка оставшихся часовых окон"]) assert.ok(html.includes(expected), expected);
-  assert.ok(html.indexOf("Обработка целей") < html.indexOf("Сохранённые наблюдения"));
-  assert.match(html, /history-slices__table/);
-  assert.match(html, /history-slices__records/);
-  assert.match(html, /<time dateTime="2026-08-11T02:00:00.000Z"/);
-  for (const forbidden of ["Запустить дозаполнение", "Недавние запуски", "План хранения", "GPS completeness", "GPS coverage"]) assert.equal(html.includes(forbidden), false, forbidden);
+  for (const expected of ["Непрерывное заполнение", "Непрерывная обработка", "Опрос запущен", "Покрытие курсоров", "Машин привязано к провайдеру", "58", "Медианное отставание", "Свежий хвост", "Обработано чекпоинтов", "58 / 58", "754 / 754", "Ежедневный повтор 7 дней", "Скользящий повтор 90 дней", "Хранение истории", "Граница согласована", "Следующий запуск"]) assert.ok(html.includes(expected), expected);
+  assert.ok(html.indexOf("Покрытие курсоров") < html.indexOf("Повторные проходы"));
+  assert.match(html, /history-fact-descriptions/);
+  assert.match(html, /history-replay__grid/);
+  for (const forbidden of ["Запустить дозаполнение", "План хранения", "GPS completeness", "GPS coverage", "Строк наблюдений"]) assert.equal(html.includes(forbidden), false, forbidden);
 });
 
-test("successful zero observations is factual, while active-run failure remains independently unavailable", () => {
-  const zero = positionHistoryStatusFixture();
-  const html = renderOverview({ data: { ...zero, observations: { rowCount: 0, vehiclesWithObservations: 0, vehiclesWithoutObservations: 3, firstObservationAt: null, lastObservationAt: null } }, activeUnavailable: true });
-  assert.ok(html.includes("В выбранном горизонте нет сохранённых наблюдений"));
-  assert.ok(html.includes("Состояние фонового запуска недоступно"));
-  assert.ok(html.includes("Состояние обработки по диапазонам"), "status truth remains visible");
+test("daily and rolling replay render current and overdue generations truthfully", () => {
+  const current = renderOverview();
+  assert.equal((current.match(/Текущее поколение завершено/g) ?? []).length, 2);
+  assert.equal(current.includes("Обнаружен долг повтора"), false);
+  const debt = renderOverview({ data: positionHistoryIngestionStatusStateFixture("DEBT") });
+  assert.equal((debt.match(/Обнаружен долг повтора/g) ?? []).length, 2);
+  assert.ok(debt.includes("Просроченных поколений: 2"));
+  assert.ok(debt.includes("Просроченных поколений: 1"));
+  assert.ok(debt.includes("Пропущено"));
+  assert.ok(debt.includes("История занята другой операцией"));
+  assert.equal(debt.includes("Текущее поколение завершено"), false);
 });
 
-test("confirmed no active run renders no strip and status failure fabricates no metrics", () => {
-  const confirmedNone = renderOverview();
-  assert.equal(confirmedNone.includes("Состояние фонового запуска недоступно"), false);
-  assert.equal(confirmedNone.includes("Фоновое заполнение влияет"), false);
-  const failed = renderOverview({ data: null, statusError: "UNAVAILABLE" });
-  assert.ok(failed.includes("Не удалось загрузить статус"));
-  assert.equal(failed.includes("2 / 6"), false);
-  assert.equal(failed.includes("Состояние обработки по диапазонам"), false);
+test("unavailable status is never rendered as a factual zero", () => {
+  const html = renderOverview({ data: null, statusError: "UNAVAILABLE" });
+  assert.ok(html.includes("Текущее состояние истории недоступно"));
+  assert.ok(html.includes("Показатели не заменяются нулями"));
+  assert.ok(html.includes("Administration") && html.includes("History sections"), "page shell and navigation survive");
+  assert.equal(html.includes("history-fact-groups"), false);
+  assert.equal(html.includes("Покрытие курсоров"), false);
+  assert.equal(html.includes("Обнаружен долг повтора"), false);
 });
 
-test("Overview route owns only relevant reads and responsive CSS replaces the table with records", () => {
+test("process-local telemetry is labelled as process-local and never as durable lifetime truth", () => {
+  const html = renderOverview();
+  assert.ok(html.includes("Диагностика"));
+  assert.ok(html.includes("Счётчики текущего процесса API"));
+  assert.ok(html.includes("Успехов с запуска процесса"));
+  const source = readFileSync("src/components/position-history-overview.tsx", "utf8");
+  for (const expected of ["history.diagnostics.scopeText", "history.diagnostics.lockContention", "history.diagnostics.blockedStreams", "history.diagnostics.requestRate"]) assert.ok(source.includes(expected), expected);
+  assert.match(source, /history\.overview\.definitions\.process/);
+  assert.match(source, /history\.diagnostics\.scopeText/);
+  assert.doesNotMatch(source, /за всё время работы/);
+  assert.ok(createTranslator("ru")("history.diagnostics.scopeText").includes("не накопленные итоги"));
+  assert.ok(createTranslator("ru")("history.overview.definitions.debt").includes("не обязательно сбой"));
+});
+
+test("an active durable population run is an aggregate strip that links without claiming progress", () => {
+  const html = renderOverview({ data: positionHistoryIngestionStatusStateFixture("REPLAYING") });
+  assert.ok(html.includes("Сейчас выполняется ручное дозаполнение истории"));
+  assert.ok(html.includes("Показано только агрегированное состояние"));
+  assert.match(html, /href="\/admin\/history\/population"/);
+  const source = readFileSync("src/components/position-history-overview.tsx", "utf8");
+  assert.match(source, /data\.coordination\.durablePopulationActive/);
+  assert.doesNotMatch(source, /fetchActiveDurableRun|SafeDurableRun|committedWindows/);
+});
+
+test("the overview route reads current ingestion status and needs no generated now-anchor redirect", () => {
   const page = readFileSync("src/app/admin/history/page.tsx", "utf8");
   const overview = readFileSync("src/components/position-history-overview.tsx", "utf8");
-  const styles = readFileSync("src/styles/admin-history-overview.css", "utf8");
-  assert.match(page, /fetchPositionHistoryStatus/);
-  assert.match(page, /fetchActiveDurableRun/);
-  assert.doesNotMatch(page, /fetchRecentDurableRuns|fetchPositionHistoryRetentionPlan/);
-  assert.doesNotMatch(overview, /PositionHistoryPopulation|PositionHistoryDurableRuns|PositionHistoryRetention/);
-  assert.match(styles, /@media \(max-width:991px\)[\s\S]*\.history-slices__table \{ display:none; \}[\s\S]*\.history-slices__records \{ display:block; \}/);
-  assert.doesNotMatch(styles, /overflow-x\s*:\s*(auto|scroll)/);
+  assert.match(page, /fetchPositionHistoryIngestionStatus/);
+  assert.doesNotMatch(page, /fetchPositionHistoryStatus|horizon-status|fetchActiveDurableRun|fetchRecentDurableRuns|fetchPositionHistoryRetentionPlan/);
+  assert.doesNotMatch(page, /redirect\(|searchParams|resolved\.absent|toISOString/);
+  assert.match(page, /export const revalidate = 0/);
+  assert.doesNotMatch(overview, /PositionHistoryCheckpointControl|resolvePositionHistoryAnchor|positionHistoryAnchorHref|formAction=/);
+  assert.doesNotMatch(overview, /observations\.rowCount|vehiclesWithObservations|sliceStatuses/);
 });
 
-test("checkpoint uses the accepted popover grammar with explicit Kyiv civil fields and actions", () => {
-  const shared = readFileSync("src/components/position-history-checkpoint-control.tsx", "utf8");
-  const overview = readFileSync("src/components/position-history-overview.tsx", "utf8");
-  const population = readFileSync("src/components/position-history-population-workspace.tsx", "utf8");
-  for (const expected of ["PeriodPopover", "history-checkpoint-trigger", "history-checkpoint-editor", "history-checkpoint-date", "history-checkpoint-time", 'placeholder="DD.MM.YYYY"', 'placeholder="HH:mm"', "common.cancel", "history.overview.checkpoint.apply", "kyivLocalToAbsolute", "positionHistoryCheckpointCivil", "positionHistoryCheckpointDraft", 'action={formAction}', 'name="to"']) assert.ok(shared.includes(expected), expected);
-  assert.equal((shared.match(/<Input/g) ?? []).length, 2);
-  assert.doesNotMatch(shared, /datetime-local|DatePicker|RangePicker|TimePicker|showTime|AM|PM/);
-  for (const page of [overview, population]) { assert.match(page, /PositionHistoryCheckpointControl/); assert.doesNotMatch(page, /datetime-local|DatePicker|RangePicker|TimePicker|showTime|anchorDraft|anchorQueryInput/); }
-  assert.match(overview, /formAction="\/admin\/history"/);
-  assert.match(population, /formAction="\/admin\/history\/population"/);
-  assert.match(population, /<PositionHistoryCheckpointControl anchor=\{anchor\}/);
-  assert.doesNotMatch(overview, /datetime-local|DatePicker|RangePicker|TimePicker|showTime|AM|PM/);
-  assert.doesNotMatch(population, /datetime-local|DatePicker|RangePicker|TimePicker|showTime|AM|PM/);
-  for (const locale of ["uk", "ru", "en"] as const) {
-    const formatted = formatDateTime(locale, exact) ?? "";
-    assert.match(formatted, /05:00/);
-    assert.doesNotMatch(formatted, /AM|PM/i);
+test("every new overview message key exists in uk, ru, and en", () => {
+  const keys = [
+    "history.overview.description", "history.overview.asOf", "history.overview.boundary", "history.overview.population.active", "history.overview.population.activeText",
+    "history.ingestion.title", "history.ingestion.help", "history.ingestion.continuous", "history.ingestion.retention", "history.ingestion.poller", "history.ingestion.cycle", "history.ingestion.cycleStart", "history.ingestion.cycleEnd", "history.ingestion.processStart", "history.ingestion.unavailableTitle", "history.ingestion.unavailableText",
+    "history.cursor.title", "history.cursor.help", "history.cursor.mapped", "history.cursor.present", "history.cursor.missing", "history.cursor.medianLag", "history.cursor.worstLag", "history.cursor.oldest", "history.cursor.boundary",
+    "history.recentTail.title", "history.recentTail.help", "history.recentTail.lastSuccess", "history.recentTail.successes", "history.recentTail.failures",
+    "history.replay.title", "history.replay.help", "history.replay.daily", "history.replay.rolling", "history.replay.state.notCreated", "history.replay.state.pending", "history.replay.state.running", "history.replay.state.completed", "history.replay.completed", "history.replay.remaining", "history.replay.generation", "history.replay.range", "history.replay.current", "history.replay.incomplete", "history.replay.overdue", "history.replay.debt", "history.replay.oldestOverdue", "history.replay.debtTitle", "history.replay.debtText", "history.replay.currentTitle", "history.replay.currentText",
+    "history.retentionState.help", "history.retentionState.enabled", "history.retentionState.running", "history.retentionState.lastAttempt", "history.retentionState.lastCompleted", "history.retentionState.outcome", "history.retentionState.outcome.notObserved", "history.retentionState.outcome.success", "history.retentionState.outcome.skipped", "history.retentionState.outcome.failed", "history.retentionState.skipCategory", "history.retentionState.skip.lockUnavailable", "history.retentionState.skip.activePopulation", "history.retentionState.nextExecution", "history.retentionState.floor", "history.retentionState.behind", "history.retentionState.atOrBeyond", "history.retentionState.aligned",
+    "history.diagnostics.title", "history.diagnostics.scope", "history.diagnostics.scopeText", "history.diagnostics.requestRate", "history.diagnostics.requestStarts", "history.diagnostics.retries", "history.diagnostics.rateLimits", "history.diagnostics.provider5xx", "history.diagnostics.network", "history.diagnostics.timeouts", "history.diagnostics.contract", "history.diagnostics.storage", "history.diagnostics.providerBlocked", "history.diagnostics.unknown", "history.diagnostics.lockContention", "history.diagnostics.blockedStreams",
+    "history.overview.definitions.title", "history.overview.definitions.durable", "history.overview.definitions.process", "history.overview.definitions.boundary", "history.overview.definitions.debt",
+  ] as const;
+  for (const locale of SUPPORTED_LOCALES) {
+    const t = createTranslator(locale);
+    for (const key of keys) {
+      const message = t(key);
+      assert.ok(message.length > 1, locale + ":" + key);
+      assert.notEqual(message, key, locale + ":" + key);
+    }
+    assert.equal(t("history.replay.daily").includes("DAILY"), false);
+    assert.equal(t("history.replay.rolling").includes("ROLLING"), false);
   }
 });
 
-test("factual groups use bordered descriptions and numeric values cannot split", () => {
+test("overview keeps responsive facts without a desktop-only wide table", () => {
   const overview = readFileSync("src/components/position-history-overview.tsx", "utf8");
   const styles = readFileSync("src/styles/admin-history-overview.css", "utf8");
-  assert.equal((overview.match(/<Descriptions className="history-fact-descriptions" bordered/g) ?? []).length, 2);
-  assert.match(styles, /\.history-fact-value,.history-numeric \{[^}]*white-space:nowrap/);
-  assert.match(styles, /\.history-state-list strong \{[^}]*white-space:nowrap/);
+  assert.doesNotMatch(overview, /<table>/);
+  assert.doesNotMatch(styles, /overflow-x\s*:\s*(auto|scroll)/);
+  assert.match(styles, /@media \(max-width:991px\)[\s\S]*\.history-replay__grid \{ grid-template-columns:minmax\(0,1fr\); \}/);
+  assert.match(styles, /\.history-fact-value,\.history-numeric \{[^}]*white-space:nowrap/);
+});
+
+test("ingestion status fixture states stay contract-valid and keep the empty baseline independent", () => {
+  const empty = positionHistoryIngestionStatusFixture();
+  assert.equal(empty.replay.daily.hasReplayDebt, false);
+  assert.equal(empty.cursor.mappedVehicles, 0);
+  for (const state of ["CURRENT", "REPLAYING", "DEBT"] as const) {
+    const fixture = positionHistoryIngestionStatusStateFixture(state);
+    assert.equal(fixture.cursor.cursorCount + fixture.cursor.missingCursorCount, fixture.cursor.mappedVehicles, state);
+    assert.equal(fixture.replay.daily.checkpointsCompleted + fixture.replay.daily.checkpointsRemaining, fixture.replay.daily.checkpointsTotal, state);
+    assert.equal(fixture.replay.daily.hasReplayDebt, fixture.replay.daily.overdueIncompleteGenerations > 0, state);
+  }
 });

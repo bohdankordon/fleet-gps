@@ -89,7 +89,7 @@ lacking authority receive 403, as above.
 | `/vehicles/:id`, vehicle details API | `vehicles.view`; Product Vehicle Access scoped |
 | vehicle track/Trips pages, exact/overview track APIs, trip-analysis API | `trips.view`; Product Vehicle Access scoped |
 | `/reports`, fleet activity report API | `reports.view`; Product Vehicle Access scoped |
-| `/admin/history`, position history horizon-status API | `historyAdmin.view` |
+| `/admin/history`, `/admin/history/population`, position history ingestion-status and horizon-plan APIs | `historyAdmin.view` |
 | `GET /api/system/position-history/population-runs/active`, `/recent` | `historyAdmin.view` |
 | `POST /api/system/position-history/horizon-populate` | `historyAdmin.populate` |
 | `POST /api/system/position-history/population-runs` | `historyAdmin.populate` |

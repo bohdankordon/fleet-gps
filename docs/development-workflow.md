@@ -20,6 +20,20 @@ Every normal change targets `main` through a concise pull request. Required GitH
 
 User-facing or visual work requires human visual acceptance before merge. Backend and tooling work requires tests and review appropriate to its risk and scope. A pull request should explain what changed, why it changed, and how it was validated.
 
+## Local visual review
+
+User-facing work needs a safe way to inspect the changed screens without provider, database, or production contact. The ADMIN history surfaces provide one:
+
+```text
+npm run web:standalone:build
+npm run web:history-preview -- --state=current
+npm run web:history-preview -- --state=replaying
+npm run web:history-preview -- --state=debt
+npm run web:history-preview -- --state=unavailable
+```
+
+The preview starts a fixture-only stub of the internal API plus the built standalone Next application, self-checks the rendered pages, and prints the local URL to open. It reads no provider, opens no database connection, and requires no production credential; `--check-only` runs the self-check and exits. Keep production and acceptance environments untouched during review.
+
 ## Merge policy
 
 Use **Squash and merge** only. The pull request title becomes the resulting commit on `main`, so it should describe that outcome. Use this title grammar:

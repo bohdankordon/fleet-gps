@@ -9,7 +9,7 @@ function withAnchor(path: string, anchor: string | null): string {
 
 export function positionHistoryNavigationFor(anchor: string | null, isAdmin: boolean, locale: AppLocale): readonly PositionHistoryNavigationItem[] {
   const items: PositionHistoryNavigationItem[] = [
-    { href: withAnchor("/admin/history", anchor), label: translate(locale, "history.navigation.overview") },
+    { href: "/admin/history", label: translate(locale, "history.navigation.overview") },
     { href: withAnchor("/admin/history/population", anchor), label: translate(locale, "history.navigation.population") },
   ];
   if (isAdmin) items.push({ href: "/admin/history/retention", label: translate(locale, "history.navigation.retention") });

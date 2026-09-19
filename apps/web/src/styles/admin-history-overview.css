@@ -4,6 +4,22 @@
 .history-active-run .ant-alert-message > span { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .history-active-run__facts { display:flex; flex-wrap:wrap; gap:4px 18px; }
 .history-active-run__facts > span { min-width:0; overflow-wrap:anywhere; }
+.history-status-unavailable { margin-bottom:16px; }
+.history-replay { display:grid; gap:12px; margin-bottom:24px; }
+.history-replay__heading { display:grid; gap:4px; }
+.history-replay__heading h2 { margin:0 !important; font-size:1.08rem !important; }
+.history-replay__grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.history-replay__card { display:grid; align-content:start; gap:10px; min-width:0; padding:14px 16px; border:1px solid var(--color-line); border-radius:var(--radius-lg); background:var(--color-surface); }
+.history-replay__card-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
+.history-replay__card-heading h3 { margin:0 !important; font-size:1rem !important; }
+.history-replay__progress { display:flex; align-items:center; gap:10px; margin:0; }
+.history-meter { flex:1; min-width:0; height:6px; overflow:hidden; border-radius:999px; background:var(--color-surface-muted); }
+.history-meter > span { display:block; height:100%; border-radius:999px; background:var(--color-action-primary); }
+.history-replay__card .ant-alert { margin-top:2px; }
+.history-range-inline { display:flex; flex-wrap:wrap; gap:4px 6px; justify-content:flex-end; }
+.history-population-plan { display:grid; gap:12px; margin-bottom:16px; padding-block:14px; border-block:1px solid var(--color-line); }
+.history-population-plan h2 { margin:0 !important; font-size:1.08rem !important; }
+.history-fact-groups--plan { grid-template-columns:minmax(0,1fr); margin-bottom:16px; }
 
 .history-navigation { margin:0 0 20px; min-width:0; }
 .history-navigation .ant-menu { min-width:0; background:transparent; }
@@ -112,6 +128,8 @@
   .history-slices__records dd { margin:0; font-weight:650; text-align:right; }
   .history-population-context { grid-template-columns:minmax(0,1fr); align-items:start; }
   .history-population-result-details { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .history-replay__grid { grid-template-columns:minmax(0,1fr); }
+  .history-replay__card { padding:14px 12px; }
 }
 
 @media (max-width:1349px) {

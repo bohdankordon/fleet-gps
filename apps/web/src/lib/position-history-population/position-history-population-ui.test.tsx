@@ -4,6 +4,7 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ActiveRun, LastShortResult, RecentRuns } from "../../components/position-history-population-workspace";
 import { I18nProvider } from "../../i18n/client";
+import { formatDateTime } from "../../i18n/formatting";
 import type { SafeDurableRun } from "../position-history-durable-runs/position-history-durable-run-contract";
 
 const exact = "2026-08-11T02:00:00.000Z";
@@ -24,6 +25,39 @@ test("population route is a dedicated workspace and does not recreate Overview o
   assert.match(page, /PositionHistoryPopulationWorkspace/);
   assert.doesNotMatch(page, /PositionHistoryStatusView|PositionHistoryOverview|PositionHistoryRetention/);
   for (const forbidden of ["history.overview.processing.title", "history.overview.observations.title", "history.overview.slices.title", "history.retention."]) assert.equal(workspace.includes(forbidden), false, forbidden);
+});
+
+test("population planning uses the lightweight horizon plan and never the stored-observation aggregate", () => {
+  const page = readFileSync("src/app/admin/history/population/page.tsx", "utf8");
+  const workspace = readFileSync("src/components/position-history-population-workspace.tsx", "utf8");
+  const plan = readFileSync("src/components/position-history-population-plan.tsx", "utf8");
+  assert.match(page, /fetchPositionHistoryHorizonPlan\(resolved\.anchor\)/);
+  assert.match(page, /resolvePositionHistoryAnchor/);
+  assert.match(page, /if \(resolved\.absent\) redirect/);
+  assert.doesNotMatch(page, /fetchPositionHistoryStatus|horizon-status|observations/);
+  assert.match(workspace, /PositionHistoryPopulationPlan plan=\{plan\}/);
+  assert.doesNotMatch(plan, /observations\.rowCount|vehiclesWithObservations|firstObservationAt|lastObservationAt|rowCount/);
+  assert.match(plan, /plan\.backfill\.completedPairs/);
+  assert.match(plan, /history-population-plan/);
+});
+
+test("checkpoint uses the accepted popover grammar with explicit Kyiv civil fields and actions", () => {
+  const shared = readFileSync("src/components/position-history-checkpoint-control.tsx", "utf8");
+  const population = readFileSync("src/components/position-history-population-workspace.tsx", "utf8");
+  const overview = readFileSync("src/components/position-history-overview.tsx", "utf8");
+  for (const expected of ["PeriodPopover", "history-checkpoint-trigger", "history-checkpoint-editor", "history-checkpoint-date", "history-checkpoint-time", 'placeholder="DD.MM.YYYY"', 'placeholder="HH:mm"', "common.cancel", "history.overview.checkpoint.apply", "kyivLocalToAbsolute", "positionHistoryCheckpointCivil", "positionHistoryCheckpointDraft", "action={formAction}", 'name="to"']) assert.ok(shared.includes(expected), expected);
+  assert.equal((shared.match(/<Input/g) ?? []).length, 2);
+  assert.doesNotMatch(shared, /datetime-local|DatePicker|RangePicker|TimePicker|showTime|AM|PM/);
+  assert.match(population, /PositionHistoryCheckpointControl/);
+  assert.match(population, /formAction="\/admin\/history\/population"/);
+  assert.match(population, /<PositionHistoryCheckpointControl anchor=\{anchor\}/);
+  for (const page of [population, overview]) assert.doesNotMatch(page, /datetime-local|DatePicker|RangePicker|TimePicker|showTime|AM|PM/);
+  assert.doesNotMatch(overview, /PositionHistoryCheckpointControl/);
+  for (const locale of ["uk", "ru", "en"] as const) {
+    const formatted = formatDateTime(locale, exact) ?? "";
+    assert.match(formatted, /05:00/);
+    assert.doesNotMatch(formatted, /AM|PM/i);
+  }
 });
 
 test("active, recent, permission and responsive composition remain truthful", () => {
