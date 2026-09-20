@@ -18,7 +18,7 @@ test("renders snapshot, delete/protect comparison, and methodology without KPI c
   for (const expected of [t("history.retention.title"), t("history.retention.snapshotTitle"), "90 дней", formatDateTime("ru", "2026-08-11T02:00:00.000Z")!, formatDateTime("ru", "2026-05-13T02:00:00.000Z")!, t("history.retention.deleteTitle"), t("history.retention.protectedTitle"), t("history.retention.methodTitle"), t("history.retention.obsolete"), t("history.retention.observationWork"), t("history.retention.cursorFloorCandidates"), t("history.retention.replayFloorCandidates"), t("history.retention.oldest"), t("history.retention.newest"), t("history.retention.checkpointTotal"), t("history.retention.overlap"), t("history.retention.protected"), t("history.retention.audit"), t("history.retention.boundaryRule"), t("history.retention.candidateRule"), t("history.retention.manualLimits")] ) assert.ok(html.includes(expected), expected);
   const text = stripped(html);
   assert.match(text, /старше границы\s*3\s*\(ожидающие 1/);
-  assert.match(text, /чекпоинтов\s*10(?!\d)/);
+  assert.match(text, /контрольных точек\s*10(?!\d)/);
   assert.ok(html.includes("<time"));
   assert.doesNotMatch(text, /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
   assert.ok(html.includes(t("history.retention.overlapWarning")));
@@ -26,6 +26,13 @@ test("renders snapshot, delete/protect comparison, and methodology without KPI c
   assert.equal((html.match(/<button/g) ?? []).length, 0);
   assert.equal((html.match(/<input/g) ?? []).length, 0);
   for (const forbidden of ["Удалить", "Очистить", "Запустить retention", "Подтвердить удаление", "enable-retention", "retentionDays", "365 дней"]) assert.equal(html.includes(forbidden), false, forbidden);
+});
+
+test("Ukrainian normal state uses operator-facing control-point terminology", () => {
+  const html = renderToStaticMarkup(<I18nProvider locale="uk"><PositionHistoryRetention data={positionHistoryRetentionFixture()} /></I18nProvider>);
+  const text = stripped(html);
+  for (const expected of ["Контрольні точки повторних проходів нижче межі", "Усього контрольних точок", "Діапазони контрольних точок включають обидві межі", "покриті контрольними точками", "5 000 застарілих контрольних точок"]) assert.ok(text.includes(expected), expected);
+  assert.doesNotMatch(text, /checkpoint|Stage 14/i);
 });
 
 test("boundary warning is absent when there is no overlap", () => {
