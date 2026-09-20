@@ -7,7 +7,7 @@ import type { PositionHistoryRetentionFacts, PositionHistoryRetentionRepository 
 
 const facts: PositionHistoryRetentionFacts = {
   policyReconciliation: { cursorFloorCandidates: 2, replayCheckpointCandidates: 3 },
-  observations: { total: 12, olderThanPolicyCutoff: 5, atOrAfterPolicyCutoff: 7, oldestObservedAt: new Date("2026-04-01T00:00:00Z"), newestObservedAt: new Date("2026-08-13T00:00:00Z"), vehiclesWithObservationsOlderThanCutoff: 3, executableObservationCandidates: 2 },
+  observations: { oldestObservedAt: new Date("2026-04-01T00:00:00Z"), newestObservedAt: new Date("2026-08-13T00:00:00Z"), hasExecutableWork: true },
   checkpoints: {
     total: 9, fullyObsolete: 3, boundaryOverlap: 2, protected: 4,
     fullyObsoleteByStatus: { pending: 1, running: 1, completed: 1 },
@@ -30,10 +30,8 @@ test("reuses the shared history policy for the retention cutoff", async () => {
   assert.deepEqual(plan.policyReconciliation, { cursorFloorCandidates: 2, replayCheckpointCandidates: 3 });
   assert.deepEqual(cutoffs, [plan.policyCutoff]);
   assert.equal(Date.parse(plan.canonicalAnchor) - Date.parse(plan.policyCutoff), POSITION_HISTORY_POLICY_DAYS * POSITION_HISTORY_ABSOLUTE_DAY_MS);
-  assert.equal(plan.safety.hasBoundaryOverlap, true);
-  assert.equal(plan.safety.boundaryOverlapCheckpointCount, 2);
-  assert.equal(plan.safety.policyEligibleObservationCount, 5);
-  assert.equal(plan.safety.destructiveExecutionApproved, false);
+  assert.equal(plan.observations.hasExecutableWork, true);
+  assert.equal("safety" in plan, false);
 });
 
 test("policy is independent of local timezone, DST, and the history page anchor", async () => {
@@ -58,12 +56,22 @@ test("policy is independent of local timezone, DST, and the history page anchor"
 test("empty facts retain nullable extrema and do not manufacture overlap safety", async () => {
   const empty: PositionHistoryRetentionFacts = {
     policyReconciliation: { cursorFloorCandidates: 0, replayCheckpointCandidates: 0 },
-    observations: { total: 0, olderThanPolicyCutoff: 0, atOrAfterPolicyCutoff: 0, oldestObservedAt: null, newestObservedAt: null, vehiclesWithObservationsOlderThanCutoff: 0, executableObservationCandidates: 0 },
+    observations: { oldestObservedAt: null, newestObservedAt: null, hasExecutableWork: false },
     checkpoints: { total: 0, fullyObsolete: 0, boundaryOverlap: 0, protected: 0, fullyObsoleteByStatus: { pending: 0, running: 0, completed: 0 }, boundaryOverlapByStatus: { pending: 0, running: 0, completed: 0 }, protectedByStatus: { pending: 0, running: 0, completed: 0 }, endingExactlyAtCutoff: 0, startingExactlyAtCutoff: 0, strictlyCrossingCutoff: 0 },
   };
   const plan = await new PositionHistoryRetentionService({ inspect: async () => empty } as unknown as PositionHistoryRetentionRepository, { now: () => new Date("2026-08-13T00:00:00Z") }, lock as never, audit as never).getRetentionPlan();
   assert.equal(plan.observations.oldestObservedAt, null);
   assert.equal(plan.observations.newestObservedAt, null);
-  assert.equal(plan.safety.hasBoundaryOverlap, false);
-  assert.equal(plan.safety.destructiveExecutionApproved, false);
+  assert.equal(plan.observations.hasExecutableWork, false);
+});
+
+test("automatic precheck uses the same policy floor without building the operator plan", async () => {
+  const calls: string[] = [];
+  const repository = {
+    inspect: async () => { calls.push("inspect"); return facts; },
+    inspectPrecheck: async (value: Date) => { calls.push(`precheck:${value.toISOString()}`); return { cursorFloorCandidates: 0, replayCheckpointCandidates: 0, hasFullyObsoleteCheckpoints: false, hasExecutableObservationWork: false }; },
+  } as unknown as PositionHistoryRetentionRepository;
+  const service = new PositionHistoryRetentionService(repository, { now: () => new Date("2026-08-13T00:00:00Z") }, lock as never, audit as never);
+  assert.equal((await service.getRetentionPrecheck()).hasExecutableObservationWork, false);
+  assert.deepEqual(calls, ["precheck:2026-05-13T02:00:00.000Z"]);
 });

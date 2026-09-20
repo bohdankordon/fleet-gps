@@ -49,11 +49,11 @@ export class PositionHistoryRetentionMaintenanceService {
   public async evaluate(): Promise<PositionHistoryAutomaticRetentionOutcome> {
     if (this.config.positionHistoryRetention?.enabled !== true) return Object.freeze({ outcome: "DISABLED", result: null });
 
-    const precheck = await this.retention.getRetentionPlan();
-    if (precheck.policyReconciliation.cursorFloorCandidates === 0
-      && precheck.policyReconciliation.replayCheckpointCandidates === 0
-      && precheck.checkpoints.fullyObsolete === 0
-      && precheck.observations.executableObservationCandidates === 0) {
+    const precheck = await this.retention.getRetentionPrecheck();
+    if (precheck.cursorFloorCandidates === 0
+      && precheck.replayCheckpointCandidates === 0
+      && !precheck.hasFullyObsoleteCheckpoints
+      && !precheck.hasExecutableObservationWork) {
       return Object.freeze({ outcome: "NO_WORK", result: null });
     }
 

@@ -55,21 +55,21 @@ test("Stage 19C internal automatic service uses one real shared-core pass on dis
   const before = await exactSnapshot();
   let report;
   try {
-    assert.equal((await prisma.$queryRaw`SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`).length, 11);
+    assert.equal((await prisma.$queryRaw`SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`).length, 23);
     assert.equal(await prisma.positionHistoryPopulationRun.count({ where: { status: { in: ["PENDING", "RUNNING"] } } }), 0);
 
     const repository = new PrismaPositionHistoryRetentionRepository(database);
-    const retention = new PositionHistoryRetentionService(repository, { now: () => new Date() }, lockService());
+    const retention = new PositionHistoryRetentionService(repository, { now: () => new Date() }, lockService(), { appendWithDatabase: async () => ({ id: "fixture-audit" }) });
     let automaticCalls = 0;
     const countedRetention = {
-      getRetentionPlan: () => retention.getRetentionPlan(),
+      getRetentionPrecheck: () => retention.getRetentionPrecheck(),
       executeAutomaticRetention: () => { automaticCalls += 1; return retention.executeAutomaticRetention(); },
     };
     const automatic = new PositionHistoryRetentionMaintenanceService({ positionHistoryRetention: { enabled: true } }, countedRetention);
 
     const businessPlan = await retention.getRetentionPlan();
     assert.equal(businessPlan.checkpoints.fullyObsolete, 0, "pre-existing business checkpoint candidates prohibit destructive validation");
-    assert.equal(businessPlan.observations.executableObservationCandidates, 0, "pre-existing business observation candidates prohibit destructive validation");
+    assert.equal(businessPlan.observations.hasExecutableWork, false, "pre-existing business observation work prohibits destructive validation");
     assert.deepEqual(await automatic.evaluate(), { outcome: "NO_WORK", result: null });
     assert.equal(automaticCalls, 0);
 
@@ -96,7 +96,7 @@ test("Stage 19C internal automatic service uses one real shared-core pass on dis
     const fixturePlan = await retention.getRetentionPlan();
     assert.equal(fixturePlan.checkpoints.fullyObsolete, 1);
     assert.equal(fixturePlan.checkpoints.boundaryOverlap, 1);
-    assert.equal(fixturePlan.observations.executableObservationCandidates, 2);
+    assert.equal(fixturePlan.observations.hasExecutableWork, true);
 
     const holder = new Client({ connectionString: process.env.DATABASE_URL });
     await holder.connect();
@@ -122,8 +122,8 @@ test("Stage 19C internal automatic service uses one real shared-core pass on dis
     assert.equal(automaticCalls, callsBeforeExecution + 1);
     assert.equal(executed.result.deletedCheckpoints, 1);
     assert.equal(executed.result.deletedObservations, 2);
-    assert.equal(executed.result.remainingFullyObsoleteCheckpoints, 0);
-    assert.equal(executed.result.remainingExecutableObservationCandidates, 0);
+    assert.equal(executed.result.moreCheckpointWork, false);
+    assert.equal(executed.result.moreObservationWork, false);
     assert.equal(executed.result.stoppedByBudget, false);
     assert.equal(await prisma.vehiclePositionBackfillCheckpoint.count({ where: { id: checkpoint.obsolete } }), 0);
     assert.equal(await prisma.vehiclePositionBackfillCheckpoint.count({ where: { id: { in: [checkpoint.boundary, checkpoint.protected] } } }), 2);

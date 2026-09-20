@@ -210,11 +210,7 @@ function replayFakes(historicalWindow: unknown): { repository: unknown; state: u
 
 function retentionFake(): unknown {
   return {
-    getRetentionPlan: async (): Promise<unknown> => ({
-      policyReconciliation: { cursorFloorCandidates: 0, replayCheckpointCandidates: 0 },
-      checkpoints: { fullyObsolete: 0 },
-      observations: { executableObservationCandidates: 0 },
-    }),
+    getRetentionPrecheck: async (): Promise<unknown> => ({ cursorFloorCandidates: 0, replayCheckpointCandidates: 0, hasFullyObsoleteCheckpoints: false, hasExecutableObservationWork: false }),
     executeAutomaticRetention: async (): Promise<never> => {
       throw new Error("no-work precheck must avoid the destructive core");
     },

@@ -14,13 +14,9 @@ export const positionHistoryRetentionPlanSchema = z.object({
     replayCheckpointCandidates: count,
   }).strict(),
   observations: z.object({
-    total: count,
-    olderThanPolicyCutoff: count,
-    atOrAfterPolicyCutoff: count,
     oldestObservedAt: timestamp.nullable(),
     newestObservedAt: timestamp.nullable(),
-    vehiclesWithObservationsOlderThanCutoff: count,
-    executableObservationCandidates: count,
+    hasExecutableWork: z.boolean(),
   }).strict(),
   checkpoints: z.object({
     total: count,
@@ -34,20 +30,10 @@ export const positionHistoryRetentionPlanSchema = z.object({
     startingExactlyAtCutoff: count,
     strictlyCrossingCutoff: count,
   }).strict(),
-  safety: z.object({
-    hasBoundaryOverlap: z.boolean(),
-    boundaryOverlapCheckpointCount: count,
-    policyEligibleObservationCount: count,
-    destructiveExecutionApproved: z.literal(false),
-  }).strict(),
 }).strict().superRefine((value, context) => {
-  if (value.observations.olderThanPolicyCutoff + value.observations.atOrAfterPolicyCutoff !== value.observations.total) context.addIssue({ code: "custom", message: "observation total" });
   if (value.checkpoints.fullyObsolete + value.checkpoints.boundaryOverlap + value.checkpoints.protected !== value.checkpoints.total) context.addIssue({ code: "custom", message: "checkpoint total" });
   if (value.checkpoints.endingExactlyAtCutoff + value.checkpoints.strictlyCrossingCutoff !== value.checkpoints.boundaryOverlap) context.addIssue({ code: "custom", message: "overlap total" });
   if (value.checkpoints.startingExactlyAtCutoff > value.checkpoints.protected) context.addIssue({ code: "custom", message: "protected equality" });
-  if (value.safety.hasBoundaryOverlap !== (value.checkpoints.boundaryOverlap > 0)) context.addIssue({ code: "custom", message: "overlap safety" });
-  if (value.safety.boundaryOverlapCheckpointCount !== value.checkpoints.boundaryOverlap) context.addIssue({ code: "custom", message: "overlap count" });
-  if (value.safety.policyEligibleObservationCount !== value.observations.olderThanPolicyCutoff) context.addIssue({ code: "custom", message: "eligible count" });
   for (const [classification, statuses] of [
     [value.checkpoints.fullyObsolete, value.checkpoints.fullyObsoleteByStatus],
     [value.checkpoints.boundaryOverlap, value.checkpoints.boundaryOverlapByStatus],
@@ -70,8 +56,8 @@ export const positionHistoryRetentionExecutionResultSchema = z.object({
   completedReplayCheckpoints: count,
   deletedCheckpoints: count,
   deletedObservations: count,
-  remainingFullyObsoleteCheckpoints: count,
-  remainingExecutableObservationCandidates: count,
+  moreCheckpointWork: z.boolean(),
+  moreObservationWork: z.boolean().nullable(),
   stoppedByBudget: z.boolean(),
   noWork: z.boolean(),
 }).strict().superRefine((value, context) => {
@@ -79,9 +65,7 @@ export const positionHistoryRetentionExecutionResultSchema = z.object({
   const noWork = value.advancedCursorFloors === 0
     && value.advancedReplayCheckpoints === 0
     && value.deletedCheckpoints === 0
-    && value.deletedObservations === 0
-    && value.remainingFullyObsoleteCheckpoints === 0
-    && value.remainingExecutableObservationCandidates === 0;
+    && value.deletedObservations === 0;
   if (value.noWork !== noWork) context.addIssue({ code: "custom", message: "no work" });
 });
 

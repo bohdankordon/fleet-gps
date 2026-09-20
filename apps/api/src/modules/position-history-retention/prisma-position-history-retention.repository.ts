@@ -1,17 +1,21 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma } from "../../generated/prisma/client";
 import { DatabaseService } from "../database/database.service";
-import type { PositionHistoryPolicyReconciliationResult, PositionHistoryRetentionFacts, PositionHistoryRetentionRepository, PositionHistoryRetentionStatusCounts } from "./position-history-retention.types";
+import type { PositionHistoryPolicyReconciliationResult, PositionHistoryRetentionFacts, PositionHistoryRetentionPrecheck, PositionHistoryRetentionRepository, PositionHistoryRetentionStatusCounts } from "./position-history-retention.types";
 
-type RawRetentionAggregate = Readonly<Record<string, bigint | Date | null>>;
-type RawCount = Readonly<{ count: bigint }>;
+type RawRetentionAggregate = Readonly<Record<string, bigint | Date | boolean | null>>;
 type RawDeleted = Readonly<{ deleted: bigint }>;
 
-function safeCount(value: bigint | Date | null | undefined, field: string): number {
+function safeCount(value: bigint | Date | boolean | null | undefined, field: string): number {
   if (typeof value !== "bigint") throw new Error(`Missing retention aggregate: ${field}`);
   const count = Number(value);
   if (!Number.isSafeInteger(count) || count < 0) throw new Error(`Retention aggregate exceeds safe integer range: ${field}`);
   return count;
+}
+
+function safeBoolean(value: bigint | Date | boolean | null | undefined, field: string): boolean {
+  if (typeof value !== "boolean") throw new Error(`Missing retention boolean: ${field}`);
+  return value;
 }
 
 function statusCounts(row: RawRetentionAggregate, prefix: string): PositionHistoryRetentionStatusCounts {
@@ -30,24 +34,22 @@ export class PrismaPositionHistoryRetentionRepository implements PositionHistory
     const rows = await this.database.getClient().$queryRaw<RawRetentionAggregate[]>(Prisma.sql`
       WITH observation_facts AS (
         SELECT
-          COUNT(*)::bigint AS "observationTotal",
-          COUNT(*) FILTER (WHERE observed_at < ${policyCutoff})::bigint AS "observationOlder",
-          COUNT(*) FILTER (WHERE observed_at >= ${policyCutoff})::bigint AS "observationProtected",
-          MIN(observed_at) AS "oldestObservedAt",
-          MAX(observed_at) AS "newestObservedAt",
-          COUNT(DISTINCT vehicle_id) FILTER (WHERE observed_at < ${policyCutoff})::bigint AS "affectedVehicles"
-          ,COUNT(*) FILTER (
-            WHERE observed_at < ${policyCutoff}
+          (SELECT observed_at FROM vehicle_position_observations ORDER BY observed_at ASC LIMIT 1) AS "oldestObservedAt",
+          (SELECT observed_at FROM vehicle_position_observations ORDER BY observed_at DESC LIMIT 1) AS "newestObservedAt",
+          EXISTS (
+            SELECT 1
+            FROM vehicle_position_observations observation
+            WHERE observation.observed_at < ${policyCutoff}
               AND NOT EXISTS (
                 SELECT 1
                 FROM vehicle_position_backfill_checkpoints surviving
-                WHERE surviving.vehicle_id = vehicle_position_observations.vehicle_id
+                WHERE surviving.vehicle_id = observation.vehicle_id
                   AND surviving.range_to >= ${policyCutoff}
-                  AND surviving.range_from <= vehicle_position_observations.observed_at
-                  AND surviving.range_to >= vehicle_position_observations.observed_at
+                  AND surviving.range_from <= observation.observed_at
+                  AND surviving.range_to >= observation.observed_at
               )
-          )::bigint AS "executableObservationCandidates"
-        FROM vehicle_position_observations
+            LIMIT 1
+          ) AS "hasExecutableObservationWork"
       ),
       checkpoint_facts AS (
         SELECT
@@ -88,13 +90,9 @@ export class PrismaPositionHistoryRetentionRepository implements PositionHistory
         replayCheckpointCandidates: safeCount(row.replayCheckpointCandidates, "replayCheckpointCandidates"),
       }),
       observations: Object.freeze({
-        total: safeCount(row.observationTotal, "observationTotal"),
-        olderThanPolicyCutoff: safeCount(row.observationOlder, "observationOlder"),
-        atOrAfterPolicyCutoff: safeCount(row.observationProtected, "observationProtected"),
         oldestObservedAt: oldest,
         newestObservedAt: newest,
-        vehiclesWithObservationsOlderThanCutoff: safeCount(row.affectedVehicles, "affectedVehicles"),
-        executableObservationCandidates: safeCount(row.executableObservationCandidates, "executableObservationCandidates"),
+        hasExecutableWork: safeBoolean(row.hasExecutableObservationWork, "hasExecutableObservationWork"),
       }),
       checkpoints: Object.freeze({
         total: safeCount(row.checkpointTotal, "checkpointTotal"),
@@ -108,6 +106,41 @@ export class PrismaPositionHistoryRetentionRepository implements PositionHistory
         startingExactlyAtCutoff: safeCount(row.startingExactlyAtCutoff, "startingExactlyAtCutoff"),
         strictlyCrossingCutoff: safeCount(row.strictlyCrossingCutoff, "strictlyCrossingCutoff"),
       }),
+    });
+  }
+
+  public async inspectPrecheck(policyCutoff: Date): Promise<PositionHistoryRetentionPrecheck> {
+    const rows = await this.database.getClient().$queryRaw<Array<Readonly<Record<string, bigint | boolean>>>>(Prisma.sql`
+      SELECT
+        (SELECT COUNT(*) FROM vehicle_history_ingestion_cursors WHERE coverage_from < ${policyCutoff})::bigint AS "cursorFloorCandidates",
+        (SELECT COUNT(*) FROM position_history_replay_checkpoints WHERE status <> 'COMPLETED' AND next_from < ${policyCutoff})::bigint AS "replayCheckpointCandidates",
+        EXISTS (
+          SELECT 1 FROM vehicle_position_backfill_checkpoints
+          WHERE range_to < ${policyCutoff}
+          LIMIT 1
+        ) AS "hasFullyObsoleteCheckpoints",
+        EXISTS (
+          SELECT 1
+          FROM vehicle_position_observations observation
+          WHERE observation.observed_at < ${policyCutoff}
+            AND NOT EXISTS (
+              SELECT 1
+              FROM vehicle_position_backfill_checkpoints surviving
+              WHERE surviving.vehicle_id = observation.vehicle_id
+                AND surviving.range_to >= ${policyCutoff}
+                AND surviving.range_from <= observation.observed_at
+                AND surviving.range_to >= observation.observed_at
+            )
+          LIMIT 1
+        ) AS "hasExecutableObservationWork"
+    `);
+    const row = rows[0];
+    if (!row) throw new Error("Missing position history retention precheck");
+    return Object.freeze({
+      cursorFloorCandidates: safeCount(row.cursorFloorCandidates, "cursorFloorCandidates"),
+      replayCheckpointCandidates: safeCount(row.replayCheckpointCandidates, "replayCheckpointCandidates"),
+      hasFullyObsoleteCheckpoints: safeBoolean(row.hasFullyObsoleteCheckpoints, "hasFullyObsoleteCheckpoints"),
+      hasExecutableObservationWork: safeBoolean(row.hasExecutableObservationWork, "hasExecutableObservationWork"),
     });
   }
 
@@ -146,32 +179,6 @@ export class PrismaPositionHistoryRetentionRepository implements PositionHistory
         completedReplayCheckpoints: safeCount(row?.completedReplayCheckpoints, "completedReplayCheckpoints"),
       });
     });
-  }
-
-  public async countFullyObsoleteCheckpoints(policyCutoff: Date): Promise<number> {
-    const rows = await this.database.getClient().$queryRaw<RawCount[]>(Prisma.sql`
-      SELECT COUNT(*)::bigint AS count
-      FROM vehicle_position_backfill_checkpoints
-      WHERE range_to < ${policyCutoff}
-    `);
-    return safeCount(rows[0]?.count, "fullyObsoleteCheckpoints");
-  }
-
-  public async countExecutableObservationCandidates(policyCutoff: Date): Promise<number> {
-    const rows = await this.database.getClient().$queryRaw<RawCount[]>(Prisma.sql`
-      SELECT COUNT(*)::bigint AS count
-      FROM vehicle_position_observations observation
-      WHERE observation.observed_at < ${policyCutoff}
-        AND NOT EXISTS (
-          SELECT 1
-          FROM vehicle_position_backfill_checkpoints surviving
-          WHERE surviving.vehicle_id = observation.vehicle_id
-            AND surviving.range_to >= ${policyCutoff}
-            AND surviving.range_from <= observation.observed_at
-            AND surviving.range_to >= observation.observed_at
-        )
-    `);
-    return safeCount(rows[0]?.count, "executableObservationCandidates");
   }
 
   public deleteFullyObsoleteCheckpointBatch(policyCutoff: Date, limit: number): Promise<number> {

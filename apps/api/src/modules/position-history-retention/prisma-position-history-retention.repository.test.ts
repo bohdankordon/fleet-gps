@@ -5,7 +5,7 @@ import type { PrismaClient } from "../../generated/prisma/client";
 import type { DatabaseService } from "../database/database.service";
 import { PrismaPositionHistoryRetentionRepository } from "./prisma-position-history-retention.repository";
 
-test("uses one set-based read statement with strict observation and inclusive checkpoint boundaries", async () => {
+test("normal status uses bounded observation probes and inclusive checkpoint classifications", async () => {
   let reads = 0;
   let writes = 0;
   let query = "";
@@ -14,8 +14,7 @@ test("uses one set-based read statement with strict observation and inclusive ch
       reads += 1;
       query = sql.strings?.join("?") ?? "";
       return [{
-        observationTotal: 7n, observationOlder: 2n, observationProtected: 5n,
-        oldestObservedAt: new Date("2026-04-01T00:00:00Z"), newestObservedAt: new Date("2026-08-01T00:00:00Z"), affectedVehicles: 2n, executableObservationCandidates: 1n,
+        oldestObservedAt: new Date("2026-04-01T00:00:00Z"), newestObservedAt: new Date("2026-08-01T00:00:00Z"), hasExecutableObservationWork: true,
         cursorFloorCandidates: 3n, replayCheckpointCandidates: 4n,
         checkpointTotal: 6n, fullyObsolete: 1n, boundaryOverlap: 2n, protected: 3n,
         obsoletePending: 0n, obsoleteRunning: 0n, obsoleteCompleted: 1n,
@@ -34,20 +33,36 @@ test("uses one set-based read statement with strict observation and inclusive ch
   assert.equal(writes, 0);
   assert.match(query, /WITH observation_facts/);
   assert.match(query, /observed_at </);
-  assert.match(query, /observed_at >=/);
-  assert.match(query, /COUNT\(DISTINCT vehicle_id\).*observed_at </s);
+  assert.match(query, /EXISTS[\s\S]*LIMIT 1/);
+  assert.match(query, /ORDER BY observed_at ASC LIMIT 1/);
+  assert.match(query, /ORDER BY observed_at DESC LIMIT 1/);
+  assert.doesNotMatch(query, /COUNT\(DISTINCT/);
+  assert.doesNotMatch(query, /COUNT\(\*\)\s+FROM vehicle_position_observations/);
   assert.match(query, /range_to </);
   assert.match(query, /range_from < .*range_to >=/s);
   assert.match(query, /range_from >=/);
   assert.match(query, /range_to =/);
   assert.doesNotMatch(query, /\b(?:INSERT|UPDATE|DELETE)\b/i);
-  assert.equal(result.observations.olderThanPolicyCutoff, 2);
-  assert.equal(result.observations.atOrAfterPolicyCutoff, 5);
-  assert.equal(result.observations.executableObservationCandidates, 1);
+  assert.equal(result.observations.hasExecutableWork, true);
   assert.deepEqual(result.policyReconciliation, { cursorFloorCandidates: 3, replayCheckpointCandidates: 4 });
   assert.deepEqual(result.checkpoints.boundaryOverlapByStatus, { pending: 1, running: 0, completed: 1 });
   assert.equal(result.checkpoints.endingExactlyAtCutoff, 1);
   assert.equal(result.checkpoints.startingExactlyAtCutoff, 1);
+});
+
+test("automatic precheck is one read with bounded checkpoint and observation existence probes", async () => {
+  let query = "";
+  const client = { $queryRaw: async (sql: { strings?: readonly string[] }) => {
+    query = sql.strings?.join("?") ?? "";
+    return [{ cursorFloorCandidates: 1n, replayCheckpointCandidates: 2n, hasFullyObsoleteCheckpoints: true, hasExecutableObservationWork: false }];
+  } } as unknown as PrismaClient;
+  const repository = new PrismaPositionHistoryRetentionRepository({ getClient: () => client } as DatabaseService);
+  assert.deepEqual(await repository.inspectPrecheck(new Date("2026-05-13T02:00:00Z")), { cursorFloorCandidates: 1, replayCheckpointCandidates: 2, hasFullyObsoleteCheckpoints: true, hasExecutableObservationWork: false });
+  assert.equal((query.match(/EXISTS/g) ?? []).length >= 2, true);
+  assert.match(query, /vehicle_position_observations[\s\S]*observed_at </);
+  assert.match(query, /NOT EXISTS[\s\S]*surviving\.vehicle_id = observation\.vehicle_id/);
+  assert.doesNotMatch(query, /COUNT\(DISTINCT|COUNT\(\*\)\s+FROM vehicle_position_observations/);
+  assert.doesNotMatch(query, /\b(?:INSERT|UPDATE|DELETE)\b/i);
 });
 
 test("policy reconciliation atomically advances cursor floors and policy-retires replay prefixes", async () => {
@@ -81,6 +96,7 @@ test("execution queries are deterministic set-based short transactions with same
   assert.match(source, /surviving\.range_to >= \$\{policyCutoff\}/);
   assert.match(source, /surviving\.range_from <= observation\.observed_at/);
   assert.match(source, /surviving\.range_to >= observation\.observed_at/);
+  assert.equal((source.match(/surviving\.range_from <= observation\.observed_at/g) ?? []).length >= 3, true);
   assert.doesNotMatch(source, /for \(const .*vehicle|deleteMany|findMany/);
 });
 

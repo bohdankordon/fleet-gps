@@ -9,6 +9,13 @@ test("accepts safe typed details for all audit event types", () => {
   assert.equal(parsed.items.every((item) => item.details.status === "AVAILABLE"), true);
 });
 
+test("accepts both current and historical retention audit detail shapes", () => {
+  const response = auditResponseFixture();
+  const retention = response.items.find((item) => item.eventType === "RETENTION_EXECUTED")!;
+  const legacy = { status: "AVAILABLE", canonicalAnchor: "2026-08-11T02:00:00.000Z", policyCutoff: "2026-05-13T02:00:00.000Z", deletedCheckpoints: 1, deletedObservations: 2, remainingFullyObsoleteCheckpoints: 3, remainingExecutableObservationCandidates: 4, stoppedByBudget: true };
+  assert.equal(parseAuditReadResponse({ items: [{ ...retention, details: legacy }], nextCursor: null, hasMore: false }).items[0]?.details.status, "AVAILABLE");
+});
+
 test("accepts the per-row unavailable fallback and enforces page/cursor consistency", () => {
   const response = auditResponseFixture();
   assert.equal(parseAuditReadResponse({ items: [{ ...response.items[0], details: { status: "UNAVAILABLE" } }], nextCursor: "opaque_cursor", hasMore: true }).items[0]?.details.status, "UNAVAILABLE");

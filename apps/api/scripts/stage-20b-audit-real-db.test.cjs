@@ -134,7 +134,7 @@ test("Stage 20B complete audit integration uses only disposable PostgreSQL fixtu
   const baselineRetention = new PositionHistoryRetentionService(baselineRepository, { now: () => new Date() }, lockService(), auditRepository);
   const baselinePlan = await baselineRetention.getRetentionPlan();
   assert.equal(baselinePlan.checkpoints.fullyObsolete, 0, "pre-existing checkpoint candidates prohibit destructive fixture validation");
-  assert.equal(baselinePlan.observations.executableObservationCandidates, 0, "pre-existing observation candidates prohibit destructive fixture validation");
+  assert.equal(baselinePlan.observations.hasExecutableWork, false, "pre-existing observation work prohibits destructive fixture validation");
 
   try {
     const admin = await prisma.authUser.create({ data: await user(`${loginPrefix}-admin`, AuthRole.ADMIN) });
@@ -268,7 +268,7 @@ test("Stage 20B complete audit integration uses only disposable PostgreSQL fixtu
       actorLoginSnapshot: null,
       targetType: AuditTargetType.POSITION_HISTORY_RETENTION,
       targetId: null,
-      details: { canonicalAnchor: result.canonicalAnchor, policyCutoff: result.policyCutoff, deletedCheckpoints: result.deletedCheckpoints, deletedObservations: result.deletedObservations, remainingFullyObsoleteCheckpoints: result.remainingFullyObsoleteCheckpoints, remainingExecutableObservationCandidates: result.remainingExecutableObservationCandidates, stoppedByBudget: result.stoppedByBudget },
+      details: { canonicalAnchor: result.canonicalAnchor, policyCutoff: result.policyCutoff, deletedCheckpoints: result.deletedCheckpoints, deletedObservations: result.deletedObservations, moreCheckpointWork: result.moreCheckpointWork, moreObservationWork: result.moreObservationWork, stoppedByBudget: result.stoppedByBudget },
     });
   } finally {
     await cleanupFixture();

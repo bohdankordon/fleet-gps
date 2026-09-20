@@ -63,6 +63,16 @@ export type RetentionExecutedAuditDetails = Readonly<{
   policyCutoff: string;
   deletedCheckpoints: number;
   deletedObservations: number;
+  moreCheckpointWork: boolean;
+  moreObservationWork: boolean | null;
+  stoppedByBudget: boolean;
+}>;
+
+export type LegacyRetentionExecutedAuditDetails = Readonly<{
+  canonicalAnchor: string;
+  policyCutoff: string;
+  deletedCheckpoints: number;
+  deletedObservations: number;
   remainingFullyObsoleteCheckpoints: number;
   remainingExecutableObservationCandidates: number;
   stoppedByBudget: boolean;
@@ -207,4 +217,4 @@ export type AuditEventSpec =
       details: UserVehicleAccessChangedAuditDetails;
     }>;
 
-export type AuditEventDetails = AuditEventSpec["details"];
+export type AuditEventDetails = AuditEventSpec["details"] | LegacyRetentionExecutedAuditDetails;

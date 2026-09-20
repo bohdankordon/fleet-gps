@@ -26,7 +26,12 @@ const common = { id: uuid, createdAt: timestamp, actor };
 const details = <T extends z.ZodRawShape>(shape: T) => z.union([available(shape), unavailable]);
 const snapshot = { targetLoginSnapshot: z.string().regex(/^[A-Za-z0-9._-]{3,64}$/) };
 const population = { to: timestamp, windowBudget: positiveCount, excludeProviderDisabled: z.boolean() };
-const retention = { canonicalAnchor: timestamp, policyCutoff: timestamp, deletedCheckpoints: count, deletedObservations: count, remainingFullyObsoleteCheckpoints: count, remainingExecutableObservationCandidates: count, stoppedByBudget: z.boolean() };
+const retentionCommon = { canonicalAnchor: timestamp, policyCutoff: timestamp, deletedCheckpoints: count, deletedObservations: count, stoppedByBudget: z.boolean() };
+const retentionDetails = z.union([
+  available({ ...retentionCommon, moreCheckpointWork: z.boolean(), moreObservationWork: z.boolean().nullable() }),
+  available({ ...retentionCommon, remainingFullyObsoleteCheckpoints: count, remainingExecutableObservationCandidates: count }),
+  unavailable,
+]);
 const settingsChange = z.object({ field: z.string().min(1).max(64), previous: z.union([z.string(), z.number().finite(), z.boolean(), z.null()]), next: z.union([z.string(), z.number().finite(), z.boolean(), z.null()]) }).strict();
 // Bounded settings-change payload. Derived from the backend/domain model:
 // ADMIN_SETTINGS_FIELDS has 16 entries and backend settingsDetails() accepts
@@ -43,9 +48,9 @@ const auditItem = z.discriminatedUnion("eventType", [
   z.object({ ...common, eventType: z.literal("OWN_PASSWORD_CHANGED"), target: target("USER", true), details: details({}) }).strict(),
   z.object({ ...common, eventType: z.literal("SHORT_POPULATION_EXECUTED"), target: target("POSITION_HISTORY", false), details: details({ ...population, windowBudget: z.union([z.literal(6), z.literal(12), z.literal(24)]), committedWindows: count }) }).strict(),
   z.object({ ...common, eventType: z.literal("DURABLE_POPULATION_CREATED"), target: target("POSITION_HISTORY_POPULATION_RUN", true), details: details(population) }).strict(),
-  z.object({ ...common, eventType: z.literal("RETENTION_EXECUTED"), target: target("POSITION_HISTORY_RETENTION", false), details: details(retention) }).strict(),
+  z.object({ ...common, eventType: z.literal("RETENTION_EXECUTED"), target: target("POSITION_HISTORY_RETENTION", false), details: retentionDetails }).strict(),
   z.object({ ...common, eventType: z.literal("SYSTEM_POPULATION_CREATED"), target: target("POSITION_HISTORY_POPULATION_RUN", true), details: details(population) }).strict(),
-  z.object({ ...common, eventType: z.literal("AUTOMATIC_RETENTION_EXECUTED"), target: target("POSITION_HISTORY_RETENTION", false), details: details(retention) }).strict(),
+  z.object({ ...common, eventType: z.literal("AUTOMATIC_RETENTION_EXECUTED"), target: target("POSITION_HISTORY_RETENTION", false), details: retentionDetails }).strict(),
   z.object({ ...common, eventType: z.literal("SETTINGS_UPDATED"), target: z.object({ type: z.literal("APPLICATION_SETTINGS"), id: z.literal("1") }).strict(), details: details({ changes: z.array(settingsChange).min(1).max(SETTINGS_AUDIT_CHANGES_MAX).refine((changes) => new Set(changes.map((c) => c.field)).size === changes.length, { message: "duplicate settings field" }) }) }).strict(),
   z.object({ ...common, eventType: z.literal("TELEGRAM_LINKED"), target: target("USER", true), details: details({}) }).strict(),
   z.object({ ...common, eventType: z.literal("TELEGRAM_DISCONNECTED"), target: target("USER", true), details: details({}) }).strict(),

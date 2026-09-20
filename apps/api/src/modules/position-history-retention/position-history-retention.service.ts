@@ -5,7 +5,7 @@ import { POSITION_HISTORY_POLICY_DAYS } from "../position-history-horizon/positi
 import { positionHistoryPolicyFloor } from "../position-history-horizon/position-history-policy-floor";
 import { AuditEventRepository, buildAutomaticRetentionExecutedAuditEvent, buildRetentionExecutedAuditEvent, type AuditUserActor, type RetentionExecutedAuditDetails } from "../audit";
 import { POSITION_HISTORY_RETENTION_CLOCK, POSITION_HISTORY_RETENTION_REPOSITORY } from "./position-history-retention.tokens";
-import { POSITION_HISTORY_RETENTION_CHECKPOINT_BATCH_SIZE, POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET, POSITION_HISTORY_RETENTION_OBSERVATION_BATCH_SIZE, POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET, PositionHistoryRetentionExecutionError, type PositionHistoryPolicyReconciliationResult, type PositionHistoryRetentionClock, type PositionHistoryRetentionExecutionRequest, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPlan, type PositionHistoryRetentionRepository } from "./position-history-retention.types";
+import { POSITION_HISTORY_RETENTION_CHECKPOINT_BATCH_SIZE, POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET, POSITION_HISTORY_RETENTION_OBSERVATION_BATCH_SIZE, POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET, PositionHistoryRetentionExecutionError, type PositionHistoryPolicyReconciliationResult, type PositionHistoryRetentionClock, type PositionHistoryRetentionExecutionRequest, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPlan, type PositionHistoryRetentionPrecheck, type PositionHistoryRetentionRepository } from "./position-history-retention.types";
 
 type RetentionAuditContext = Readonly<{ actorType: "USER"; actor: AuditUserActor }> | Readonly<{ actorType: "SYSTEM" }>;
 
@@ -34,37 +34,35 @@ export class PositionHistoryRetentionService {
         newestObservedAt: facts.observations.newestObservedAt?.toISOString() ?? null,
       }),
       checkpoints: Object.freeze(facts.checkpoints),
-      safety: Object.freeze({
-        hasBoundaryOverlap: facts.checkpoints.boundaryOverlap > 0,
-        boundaryOverlapCheckpointCount: facts.checkpoints.boundaryOverlap,
-        policyEligibleObservationCount: facts.observations.olderThanPolicyCutoff,
-        destructiveExecutionApproved: false,
-      }),
     });
   }
 
+  public async getRetentionPrecheck(now: Date = this.clock.now()): Promise<PositionHistoryRetentionPrecheck> {
+    if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new Error("Invalid retention precheck instant");
+    return this.repository.inspectPrecheck(positionHistoryPolicyFloor(now));
+  }
+
   public async executeRetention(request: PositionHistoryRetentionExecutionRequest, actor?: AuditUserActor): Promise<PositionHistoryRetentionExecutionResult> {
-    return this.executeLocked((plan) => {
-      if (request.expectedCanonicalAnchor.getTime() !== Date.parse(plan.canonicalAnchor)
-        || request.expectedPolicyCutoff.getTime() !== Date.parse(plan.policyCutoff)) {
-        throw new PositionHistoryRetentionExecutionError("STALE_PLAN");
-      }
-    }, actor === undefined ? undefined : { actorType: "USER", actor });
+    return this.executeLocked(request, actor === undefined ? undefined : { actorType: "USER", actor });
   }
 
   public async executeAutomaticRetention(): Promise<PositionHistoryRetentionExecutionResult> {
     return this.executeLocked(undefined, { actorType: "SYSTEM" });
   }
 
-  private async executeLocked(validatePlan?: (plan: PositionHistoryRetentionPlan) => void, auditContext?: RetentionAuditContext): Promise<PositionHistoryRetentionExecutionResult> {
+  private async executeLocked(request?: PositionHistoryRetentionExecutionRequest, auditContext?: RetentionAuditContext): Promise<PositionHistoryRetentionExecutionResult> {
     try {
       return await this.mutationLock.runExclusive(async () => {
+        const now = this.clock.now();
+        const canonicalAnchor = canonicalPositionHistoryMaintenanceAnchor(now);
+        const policyCutoff = positionHistoryPolicyFloor(now);
         if (await this.repository.countActiveDurableRuns() > 0) throw new PositionHistoryRetentionExecutionError("ACTIVE_DURABLE_RUN");
-
-        const plan = await this.getRetentionPlan(this.clock.now());
-        validatePlan?.(plan);
-        const policyReconciliation = await this.repository.reconcilePolicyFloor(new Date(plan.policyCutoff));
-        const result = await this.executeBoundedDestructivePass(plan, policyReconciliation);
+        if (request !== undefined && (request.expectedCanonicalAnchor.getTime() !== canonicalAnchor.getTime()
+          || request.expectedPolicyCutoff.getTime() !== policyCutoff.getTime())) {
+          throw new PositionHistoryRetentionExecutionError("STALE_PLAN");
+        }
+        const policyReconciliation = await this.repository.reconcilePolicyFloor(policyCutoff);
+        const result = await this.executeBoundedDestructivePass(canonicalAnchor, policyCutoff, policyReconciliation);
         if (auditContext !== undefined && result.deletedCheckpoints + result.deletedObservations > 0) {
           const details = retentionAuditDetails(result);
           await this.audit.appendWithDatabase(auditContext.actorType === "USER"
@@ -79,43 +77,48 @@ export class PositionHistoryRetentionService {
     }
   }
 
-  private async executeBoundedDestructivePass(plan: PositionHistoryRetentionPlan, policyReconciliation: PositionHistoryPolicyReconciliationResult): Promise<PositionHistoryRetentionExecutionResult> {
-    const policyCutoff = new Date(plan.policyCutoff);
+  private async executeBoundedDestructivePass(canonicalAnchor: Date, policyCutoff: Date, policyReconciliation: PositionHistoryPolicyReconciliationResult): Promise<PositionHistoryRetentionExecutionResult> {
     let deletedCheckpoints = 0;
-    while (plan.checkpoints.fullyObsolete > 0 && deletedCheckpoints < POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET) {
+    let checkpointPhaseExhausted = false;
+    while (deletedCheckpoints < POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET) {
       const limit = Math.min(POSITION_HISTORY_RETENTION_CHECKPOINT_BATCH_SIZE, POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET - deletedCheckpoints);
       const deleted = await this.repository.deleteFullyObsoleteCheckpointBatch(policyCutoff, limit);
       deletedCheckpoints += deleted;
-      if (deleted < limit) break;
+      if (deleted < limit) {
+        checkpointPhaseExhausted = true;
+        break;
+      }
     }
 
-    const remainingFullyObsoleteCheckpoints = await this.repository.countFullyObsoleteCheckpoints(policyCutoff);
-    if (remainingFullyObsoleteCheckpoints > 0) {
-      return this.result(plan, policyReconciliation, deletedCheckpoints, 0, remainingFullyObsoleteCheckpoints, await this.repository.countExecutableObservationCandidates(policyCutoff), true);
+    if (!checkpointPhaseExhausted) {
+      return this.result(canonicalAnchor, policyCutoff, policyReconciliation, deletedCheckpoints, 0, true, null, true);
     }
 
     let deletedObservations = 0;
-    while (plan.observations.executableObservationCandidates > 0 && deletedObservations < POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET) {
+    let observationPhaseExhausted = false;
+    while (deletedObservations < POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET) {
       const limit = Math.min(POSITION_HISTORY_RETENTION_OBSERVATION_BATCH_SIZE, POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET - deletedObservations);
       const deleted = await this.repository.deleteExecutableObservationBatch(policyCutoff, limit);
       deletedObservations += deleted;
-      if (deleted < limit) break;
+      if (deleted < limit) {
+        observationPhaseExhausted = true;
+        break;
+      }
     }
-    const remainingExecutableObservationCandidates = await this.repository.countExecutableObservationCandidates(policyCutoff);
-    return this.result(plan, policyReconciliation, deletedCheckpoints, deletedObservations, 0, remainingExecutableObservationCandidates, remainingExecutableObservationCandidates > 0);
+    return this.result(canonicalAnchor, policyCutoff, policyReconciliation, deletedCheckpoints, deletedObservations, false, !observationPhaseExhausted, !observationPhaseExhausted);
   }
 
-  private result(plan: PositionHistoryRetentionPlan, policyReconciliation: PositionHistoryPolicyReconciliationResult, deletedCheckpoints: number, deletedObservations: number, remainingFullyObsoleteCheckpoints: number, remainingExecutableObservationCandidates: number, stoppedByBudget: boolean): PositionHistoryRetentionExecutionResult {
+  private result(canonicalAnchor: Date, policyCutoff: Date, policyReconciliation: PositionHistoryPolicyReconciliationResult, deletedCheckpoints: number, deletedObservations: number, moreCheckpointWork: boolean, moreObservationWork: boolean | null, stoppedByBudget: boolean): PositionHistoryRetentionExecutionResult {
     return Object.freeze({
-      canonicalAnchor: plan.canonicalAnchor,
-      policyCutoff: plan.policyCutoff,
+      canonicalAnchor: canonicalAnchor.toISOString(),
+      policyCutoff: policyCutoff.toISOString(),
       ...policyReconciliation,
       deletedCheckpoints,
       deletedObservations,
-      remainingFullyObsoleteCheckpoints,
-      remainingExecutableObservationCandidates,
+      moreCheckpointWork,
+      moreObservationWork,
       stoppedByBudget,
-      noWork: policyReconciliation.advancedCursorFloors === 0 && policyReconciliation.advancedReplayCheckpoints === 0 && deletedCheckpoints === 0 && deletedObservations === 0 && remainingFullyObsoleteCheckpoints === 0 && remainingExecutableObservationCandidates === 0,
+      noWork: policyReconciliation.advancedCursorFloors === 0 && policyReconciliation.advancedReplayCheckpoints === 0 && deletedCheckpoints === 0 && deletedObservations === 0,
     });
   }
 }
@@ -126,8 +129,8 @@ export function retentionAuditDetails(result: PositionHistoryRetentionExecutionR
     policyCutoff: result.policyCutoff,
     deletedCheckpoints: result.deletedCheckpoints,
     deletedObservations: result.deletedObservations,
-    remainingFullyObsoleteCheckpoints: result.remainingFullyObsoleteCheckpoints,
-    remainingExecutableObservationCandidates: result.remainingExecutableObservationCandidates,
+    moreCheckpointWork: result.moreCheckpointWork,
+    moreObservationWork: result.moreObservationWork,
     stoppedByBudget: result.stoppedByBudget,
   });
 }
