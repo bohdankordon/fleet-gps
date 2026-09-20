@@ -7,32 +7,24 @@ import { POSITION_HISTORY_POPULATION_RUN_POLL_INTERVAL_MS } from "../position-hi
 import { PositionHistoryRetentionMaintenanceService, POSITION_HISTORY_RETENTION_CRON, POSITION_HISTORY_RETENTION_TIME_ZONE } from "./position-history-retention-maintenance.service";
 import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import type { PositionHistoryRetentionService } from "./position-history-retention.service";
-import { PositionHistoryRetentionExecutionError, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPlan } from "./position-history-retention.types";
+import { PositionHistoryRetentionExecutionError, type PositionHistoryRetentionExecutionResult, type PositionHistoryRetentionPrecheck } from "./position-history-retention.types";
 
 const anchor = "2026-08-11T02:00:00.000Z";
 const cutoff = "2026-05-13T02:00:00.000Z";
 
-function plan(fullyObsolete = 1, candidates = 2, cursorFloors = 0, replayCheckpoints = 0): PositionHistoryRetentionPlan {
-  return {
-    policyDays: 90,
-    canonicalAnchor: anchor,
-    policyCutoff: cutoff,
-    policyReconciliation: { cursorFloorCandidates: cursorFloors, replayCheckpointCandidates: replayCheckpoints },
-    observations: { total: candidates, olderThanPolicyCutoff: candidates, atOrAfterPolicyCutoff: 0, oldestObservedAt: null, newestObservedAt: null, vehiclesWithObservationsOlderThanCutoff: candidates > 0 ? 1 : 0, executableObservationCandidates: candidates },
-    checkpoints: { total: fullyObsolete, fullyObsolete, boundaryOverlap: 0, protected: 0, fullyObsoleteByStatus: { pending: 0, running: 0, completed: fullyObsolete }, boundaryOverlapByStatus: { pending: 0, running: 0, completed: 0 }, protectedByStatus: { pending: 0, running: 0, completed: 0 }, endingExactlyAtCutoff: 0, startingExactlyAtCutoff: 0, strictlyCrossingCutoff: 0 },
-    safety: { hasBoundaryOverlap: false, boundaryOverlapCheckpointCount: 0, policyEligibleObservationCount: candidates, destructiveExecutionApproved: false },
-  };
+function precheck(checkpoints = true, observations = true, cursorFloors = 0, replayCheckpoints = 0): PositionHistoryRetentionPrecheck {
+  return { cursorFloorCandidates: cursorFloors, replayCheckpointCandidates: replayCheckpoints, hasFullyObsoleteCheckpoints: checkpoints, hasExecutableObservationWork: observations };
 }
 
 function execution(overrides: Partial<PositionHistoryRetentionExecutionResult> = {}): PositionHistoryRetentionExecutionResult {
-  return { canonicalAnchor: anchor, policyCutoff: cutoff, advancedCursorFloors: 0, advancedReplayCheckpoints: 0, completedReplayCheckpoints: 0, deletedCheckpoints: 1, deletedObservations: 2, remainingFullyObsoleteCheckpoints: 0, remainingExecutableObservationCandidates: 0, stoppedByBudget: false, noWork: false, ...overrides };
+  return { canonicalAnchor: anchor, policyCutoff: cutoff, advancedCursorFloors: 0, advancedReplayCheckpoints: 0, completedReplayCheckpoints: 0, deletedCheckpoints: 1, deletedObservations: 2, moreCheckpointWork: false, moreObservationWork: false, stoppedByBudget: false, noWork: false, ...overrides };
 }
 
-function fixture(options: Readonly<{ enabled?: boolean; precheck?: PositionHistoryRetentionPlan; result?: PositionHistoryRetentionExecutionResult; failure?: Error }> = {}) {
+function fixture(options: Readonly<{ enabled?: boolean; precheck?: PositionHistoryRetentionPrecheck; result?: PositionHistoryRetentionExecutionResult; failure?: Error }> = {}) {
   let prechecks = 0;
   let executions = 0;
   const retention = {
-    getRetentionPlan: async () => { prechecks += 1; return options.precheck ?? plan(); },
+    getRetentionPrecheck: async () => { prechecks += 1; return options.precheck ?? precheck(); },
     executeAutomaticRetention: async () => { executions += 1; if (options.failure) throw options.failure; return options.result ?? execution(); },
   } as PositionHistoryRetentionService;
   const config = { positionHistoryRetention: { enabled: options.enabled ?? true } } as ApiConfig;
@@ -57,7 +49,7 @@ test("automatic flag cannot disable or alter the independently callable manual S
 });
 
 test("read-only precheck avoids the mutation lock when there is clearly no work", async () => {
-  const item = fixture({ precheck: plan(0, 0) });
+  const item = fixture({ precheck: precheck(false, false) });
   assert.deepEqual(await item.service.evaluate(), { outcome: "NO_WORK", result: null });
   assert.equal(item.prechecks(), 1);
   assert.equal(item.executions(), 0);
@@ -65,13 +57,13 @@ test("read-only precheck avoids the mutation lock when there is clearly no work"
 
 test("policy-floor candidates trigger locked reconciliation even without deletion candidates", async () => {
   const result = execution({ advancedCursorFloors: 1, advancedReplayCheckpoints: 2, completedReplayCheckpoints: 1, deletedCheckpoints: 0, deletedObservations: 0 });
-  const item = fixture({ precheck: plan(0, 0, 1, 2), result });
+  const item = fixture({ precheck: precheck(false, false, 1, 2), result });
   assert.deepEqual(await item.service.evaluate(), { outcome: "EXECUTED", result });
   assert.equal(item.executions(), 1);
 });
 
 test("one scheduled evaluation invokes the shared bounded core at most once even when budget stops it", async () => {
-  const result = execution({ deletedCheckpoints: 5_000, deletedObservations: 0, remainingFullyObsoleteCheckpoints: 1, remainingExecutableObservationCandidates: 10, stoppedByBudget: true });
+  const result = execution({ deletedCheckpoints: 5_000, deletedObservations: 0, moreCheckpointWork: true, moreObservationWork: null, stoppedByBudget: true });
   const item = fixture({ result });
   assert.deepEqual(await item.service.evaluate(), { outcome: "EXECUTED", result });
   assert.equal(item.prechecks(), 1);
@@ -80,7 +72,7 @@ test("one scheduled evaluation invokes the shared bounded core at most once even
 
 test("fresh locked no-work truth overrides a stale work-positive precheck", async () => {
   const result = execution({ deletedCheckpoints: 0, deletedObservations: 0, noWork: true });
-  const item = fixture({ precheck: plan(9, 9), result });
+  const item = fixture({ precheck: precheck(true, true), result });
   assert.deepEqual(await item.service.evaluate(), { outcome: "NO_WORK", result });
   assert.equal(item.executions(), 1);
 });
@@ -108,6 +100,8 @@ test("schedule is one daily 06:00 UTC cron with no startup catch-up or alternate
   assert.match(source, /@Cron\(POSITION_HISTORY_RETENTION_CRON,[^\n]*timeZone: POSITION_HISTORY_RETENTION_TIME_ZONE/);
   assert.equal((source.match(/@Cron\(/g) ?? []).length, 1);
   assert.equal((source.match(/executeAutomaticRetention\(/g) ?? []).length, 1);
+  assert.equal((source.match(/getRetentionPrecheck\(/g) ?? []).length, 1);
+  assert.doesNotMatch(source, /getRetentionPlan\(/);
   assert.doesNotMatch(source, /onModuleInit|onApplicationBootstrap|setTimeout|setInterval|fetch\(|EquGps/i);
 });
 

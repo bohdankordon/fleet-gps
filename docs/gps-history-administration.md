@@ -2,6 +2,8 @@
 
 GPS history administration has three destinations. `/admin/history` is the current lossless-history operational overview and reads only the supported ingestion-status read model. `/admin/history/population` is the manual/recovery population tooling page and keeps one explicit, protected, bounded population action at one chosen historical anchor. `/admin/history/retention` is retention-specific administration. The global **Администрирование** navigation item opens the appropriate history destination for the account; there is no settings hierarchy or unrelated provider configuration.
 
+`/admin/history/retention` shows the canonical 90-day cutoff, cursor/replay floor alignment, exact checkpoint classifications, indexed oldest/newest observation endpoints, and a bounded boolean signal for eligible old observation work. It intentionally omits exact whole-history observation totals and candidate counts. A manual pass confirms budgets—not a promised row count—and can delete at most 5,000 obsolete checkpoints followed by 25,000 eligible observations. A full final batch reports conservatively that more work may remain; a short batch proves exhaustion for that phase.
+
 ## Current operational overview (`/admin/history`)
 
 The overview answers the operational questions about the currently running lossless-history system and takes no checkpoint parameter. It is server-rendered, authenticated, permission-checked, `no-store`, and read-only, and it renders only what `GET /api/system/position-history/ingestion-status` reports:

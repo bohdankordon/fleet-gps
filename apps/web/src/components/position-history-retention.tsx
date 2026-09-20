@@ -69,7 +69,10 @@ export function PositionHistoryRetention({ data, unavailable = false, isAdmin = 
     finally { setBusy(false); }
   }
 
-  const hasWork = plan !== null && (plan.checkpoints.fullyObsolete > 0 || plan.observations.executableObservationCandidates > 0);
+  const hasWork = plan !== null && (plan.policyReconciliation.cursorFloorCandidates > 0
+    || plan.policyReconciliation.replayCheckpointCandidates > 0
+    || plan.checkpoints.fullyObsolete > 0
+    || plan.observations.hasExecutableWork);
   const setRetentionDialogOpen = (open: boolean) => { setConfirming(open); if (!open) setFailure(null); };
   if (!plan) {
     return <div className="history-retention-workspace">
@@ -98,9 +101,9 @@ export function PositionHistoryRetention({ data, unavailable = false, isAdmin = 
         <Typography.Title level={3} id="history-retention-delete-title">{t("history.retention.deleteTitle")}</Typography.Title>
         <Descriptions className="history-retention-facts" bordered size="small" column={1} colon={false}>
           <Descriptions.Item label={t("history.retention.obsolete")}>{number(plan.checkpoints.fullyObsolete)} <Typography.Text type="secondary">({breakdown(plan.checkpoints.fullyObsoleteByStatus)})</Typography.Text></Descriptions.Item>
-          <Descriptions.Item label={t("history.retention.candidates")}>{number(plan.observations.executableObservationCandidates)}</Descriptions.Item>
-          <Descriptions.Item label={t("history.retention.olderObs")}>{number(plan.observations.olderThanPolicyCutoff)}</Descriptions.Item>
-          <Descriptions.Item label={t("history.retention.vehicles")}>{number(plan.observations.vehiclesWithObservationsOlderThanCutoff)}</Descriptions.Item>
+          <Descriptions.Item label={t("history.retention.observationWork")}>{t(plan.observations.hasExecutableWork ? "common.yes" : "common.no")}</Descriptions.Item>
+          <Descriptions.Item label={t("history.retention.cursorFloorCandidates")}>{number(plan.policyReconciliation.cursorFloorCandidates)}</Descriptions.Item>
+          <Descriptions.Item label={t("history.retention.replayFloorCandidates")}>{number(plan.policyReconciliation.replayCheckpointCandidates)}</Descriptions.Item>
           <Descriptions.Item label={t("history.retention.oldest")}><TimeValue value={plan.observations.oldestObservedAt} /></Descriptions.Item>
           <Descriptions.Item label={t("history.retention.newest")}><TimeValue value={plan.observations.newestObservedAt} /></Descriptions.Item>
         </Descriptions>
@@ -108,7 +111,7 @@ export function PositionHistoryRetention({ data, unavailable = false, isAdmin = 
       <section aria-labelledby="history-retention-protected-title">
         <Typography.Title level={3} id="history-retention-protected-title">{t("history.retention.protectedTitle")}</Typography.Title>
         <Descriptions className="history-retention-facts" bordered size="small" column={1} colon={false}>
-          <Descriptions.Item label={t("history.retention.newerObs")}>{number(plan.observations.atOrAfterPolicyCutoff)}</Descriptions.Item>
+          <Descriptions.Item label={t("history.retention.checkpointTotal")}>{number(plan.checkpoints.total)}</Descriptions.Item>
           <Descriptions.Item label={t("history.retention.overlap")}>{number(plan.checkpoints.boundaryOverlap)} <Typography.Text type="secondary">({breakdown(plan.checkpoints.boundaryOverlapByStatus)})</Typography.Text></Descriptions.Item>
           <Descriptions.Item label={t("history.retention.protected")}>{number(plan.checkpoints.protected)} <Typography.Text type="secondary">({breakdown(plan.checkpoints.protectedByStatus)})</Typography.Text></Descriptions.Item>
         </Descriptions>
@@ -119,7 +122,7 @@ export function PositionHistoryRetention({ data, unavailable = false, isAdmin = 
       <Typography.Title level={3} id="history-retention-method-title">{t("history.retention.methodTitle")}</Typography.Title>
       <Typography.Paragraph type="secondary">{t("history.retention.boundaryRule")}</Typography.Paragraph>
       <Typography.Paragraph type="secondary">{t("history.retention.candidateRule")}</Typography.Paragraph>
-      {plan.safety.hasBoundaryOverlap && <Alert variant="warning" title={t("history.retention.overlapWarning")} />}
+      {plan.checkpoints.boundaryOverlap > 0 && <Alert variant="warning" title={t("history.retention.overlapWarning")} />}
       <Typography.Paragraph type="secondary">{t("history.retention.manualLimits")}</Typography.Paragraph>
     </section>
 
@@ -129,11 +132,14 @@ export function PositionHistoryRetention({ data, unavailable = false, isAdmin = 
       {result && <Alert variant="success" title={t("history.retention.resultTitle")}>
         <p>{t("history.retention.deletedCheckpoints", { count: number(result.deletedCheckpoints) })}</p>
         <p>{t("history.retention.deletedObservations", { count: number(result.deletedObservations) })}</p>
-        <p>{t("history.retention.remainingCheckpoints", { count: number(result.remainingFullyObsoleteCheckpoints) })}</p>
-        <p>{t("history.retention.remainingCandidates", { count: number(result.remainingExecutableObservationCandidates) })}</p>
+        <p>{t("history.retention.advancedCursorFloors", { count: number(result.advancedCursorFloors) })}</p>
+        <p>{t("history.retention.advancedReplayCheckpoints", { count: number(result.advancedReplayCheckpoints), completed: number(result.completedReplayCheckpoints) })}</p>
+        <p>{t("history.retention.moreCheckpointWork", { value: t(result.moreCheckpointWork ? "common.yes" : "common.no") })}</p>
+        <p>{result.moreObservationWork === null ? t("history.retention.observationWorkDeferred") : t("history.retention.moreObservationWork", { value: t(result.moreObservationWork ? "common.yes" : "common.no") })}</p>
+        <p>{t("history.retention.stoppedByBudget", { value: t(result.stoppedByBudget ? "common.yes" : "common.no") })}</p>
         {result.noWork
           ? <p>{t("history.retention.resultNoWork")}</p>
-          : (result.stoppedByBudget || result.remainingFullyObsoleteCheckpoints > 0 || result.remainingExecutableObservationCandidates > 0) && <p>{t("history.retention.moreWork")}</p>}
+          : (result.stoppedByBudget || result.moreCheckpointWork || result.moreObservationWork) && <p>{t("history.retention.moreWork")}</p>}
       </Alert>}
       {failure && <Alert variant="danger" live="assertive" title={t(failureKeys[failure])} action={<Button variant="secondary" size="compact" onClick={() => void refreshPlan()}>{t("common.refresh")}</Button>} />}
       {!hasWork && <Alert variant="info" title={t("history.retention.noWork")} />}
@@ -142,8 +148,8 @@ export function PositionHistoryRetention({ data, unavailable = false, isAdmin = 
           <dl className="ui-dialog__metadata">
             <div><dt>{t("history.retention.canonical")}</dt><dd><time dateTime={plan.canonicalAnchor}>{formatDateTime(locale, plan.canonicalAnchor) ?? t("common.notAvailable")}</time></dd></div>
             <div><dt>{t("history.retention.cutoff")}</dt><dd><time dateTime={plan.policyCutoff}>{formatDateTime(locale, plan.policyCutoff) ?? t("common.notAvailable")}</time></dd></div>
-            <div><dt>{t("history.retention.obsoleteCount")}</dt><dd>{number(plan.checkpoints.fullyObsolete)}</dd></div>
-            <div><dt>{t("history.retention.candidateCount")}</dt><dd>{number(plan.observations.executableObservationCandidates)}</dd></div>
+            <div><dt>{t("history.retention.checkpointBudget")}</dt><dd>{number(5_000)}</dd></div>
+            <div><dt>{t("history.retention.observationBudget")}</dt><dd>{number(25_000)}</dd></div>
           </dl>
         </AlertDialog>
       </div>}

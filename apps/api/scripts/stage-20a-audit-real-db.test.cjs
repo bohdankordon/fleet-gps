@@ -117,7 +117,7 @@ test("Stage 20A real PostgreSQL audit trail foundation with disposable fixtures"
   const baselinePlanner = new PositionHistoryRetentionService(baselineRepository, { now: () => new Date() }, lockService(), auditRepository);
   const businessPlan = await baselinePlanner.getRetentionPlan();
   assert.equal(businessPlan.checkpoints.fullyObsolete, 0, "pre-existing business checkpoint candidates prohibit destructive validation");
-  assert.equal(businessPlan.observations.executableObservationCandidates, 0, "pre-existing business observation candidates prohibit destructive validation");
+  assert.equal(businessPlan.observations.hasExecutableWork, false, "pre-existing business observation work prohibits destructive validation");
 
   try {
     // USER_DISABLED integration.
@@ -182,7 +182,7 @@ test("Stage 20A real PostgreSQL audit trail foundation with disposable fixtures"
     const retentionService = new PositionHistoryRetentionService(retentionRepository, { now: () => new Date() }, lockService(), auditRepository);
     const fixturePlan = await retentionService.getRetentionPlan();
     assert.equal(fixturePlan.checkpoints.fullyObsolete, 1);
-    assert.equal(fixturePlan.observations.executableObservationCandidates, 2);
+    assert.equal(fixturePlan.observations.hasExecutableWork, true);
     const retentionResult = await retentionService.executeRetention(
       { expectedCanonicalAnchor: new Date(fixturePlan.canonicalAnchor), expectedPolicyCutoff: new Date(fixturePlan.policyCutoff) },
       actor(admin.id, admin.login),
@@ -207,8 +207,8 @@ test("Stage 20A real PostgreSQL audit trail foundation with disposable fixtures"
         policyCutoff: retentionResult.policyCutoff,
         deletedCheckpoints: retentionResult.deletedCheckpoints,
         deletedObservations: retentionResult.deletedObservations,
-        remainingFullyObsoleteCheckpoints: retentionResult.remainingFullyObsoleteCheckpoints,
-        remainingExecutableObservationCandidates: retentionResult.remainingExecutableObservationCandidates,
+        moreCheckpointWork: retentionResult.moreCheckpointWork,
+        moreObservationWork: retentionResult.moreObservationWork,
         stoppedByBudget: retentionResult.stoppedByBudget,
       },
     });

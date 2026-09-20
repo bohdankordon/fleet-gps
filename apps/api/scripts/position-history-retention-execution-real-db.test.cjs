@@ -54,14 +54,14 @@ test("Stage 19B real PostgreSQL disposable fixture proves checkpoint-first delet
   const events = [];
   let report;
   try {
-    assert.equal((await prisma.$queryRaw`SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`).length, 11);
+    assert.equal((await prisma.$queryRaw`SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`).length, 23);
     assert.equal(await prisma.positionHistoryPopulationRun.count({ where: { status: { in: ["PENDING", "RUNNING"] } } }), 0);
 
     const realRepository = new PrismaPositionHistoryRetentionRepository(database);
-    const planner = new PositionHistoryRetentionService(realRepository, { now: () => new Date() }, lockService());
+    const planner = new PositionHistoryRetentionService(realRepository, { now: () => new Date() }, lockService(), null);
     const businessPlan = await planner.getRetentionPlan();
     assert.equal(businessPlan.checkpoints.fullyObsolete, 0, "pre-existing business checkpoint candidates prohibit destructive validation");
-    assert.equal(businessPlan.observations.executableObservationCandidates, 0, "pre-existing business observation candidates prohibit destructive validation");
+    assert.equal(businessPlan.observations.hasExecutableWork, false, "pre-existing business observation work prohibits destructive validation");
     const cutoff = new Date(businessPlan.policyCutoff);
 
     let externalDeviceId = 2_000_000_000 + Math.floor(Math.random() * 100_000_000);
@@ -85,31 +85,39 @@ test("Stage 19B real PostgreSQL disposable fixture proves checkpoint-first delet
       { id: observations.exact, vehicleId: fixtureVehicleId, fixFingerprint: fingerprint("exact"), observedAt: cutoff, latitude: 0.1, longitude: 0.1, fetchedAt: cutoff, ingestionSource: "HISTORICAL_BACKFILL" },
       { id: observations.newer, vehicleId: fixtureVehicleId, fixFingerprint: fingerprint("newer"), observedAt: at(cutoff, 1), latitude: 0.1, longitude: 0.1, fetchedAt: cutoff, ingestionSource: "HISTORICAL_BACKFILL" },
     ] });
+    const protectedOldVolume = 250;
+    const newerVolume = 2_000;
+    await prisma.vehiclePositionObservation.createMany({ data: [
+      ...Array.from({ length: protectedOldVolume }, (_, index) => ({ id: crypto.randomUUID(), vehicleId: fixtureVehicleId, fixFingerprint: fingerprint(`protected-old-${index}`), observedAt: new Date(at(cutoff, -12).getTime() + index), latitude: 0.1, longitude: 0.1, fetchedAt: cutoff, ingestionSource: "HISTORICAL_BACKFILL" })),
+      ...Array.from({ length: newerVolume }, (_, index) => ({ id: crypto.randomUUID(), vehicleId: fixtureVehicleId, fixFingerprint: fingerprint(`newer-volume-${index}`), observedAt: new Date(at(cutoff, 2).getTime() + index), latitude: 0.1, longitude: 0.1, fetchedAt: cutoff, ingestionSource: "HISTORICAL_BACKFILL" })),
+    ] });
 
     const fixturePlan = await planner.getRetentionPlan();
     assert.equal(fixturePlan.checkpoints.fullyObsolete, 1);
     assert.equal(fixturePlan.checkpoints.boundaryOverlap, 1);
     assert.equal(fixturePlan.checkpoints.protected, businessPlan.checkpoints.protected + 1);
-    assert.equal(fixturePlan.observations.executableObservationCandidates, 2);
+    assert.equal(fixturePlan.observations.hasExecutableWork, true);
 
     const instrumented = {
       inspect: (value) => realRepository.inspect(value),
+      inspectPrecheck: (value) => realRepository.inspectPrecheck(value),
       countActiveDurableRuns: () => realRepository.countActiveDurableRuns(),
       reconcilePolicyFloor: async (value) => { events.push("policy-reconciliation-start"); const reconciled = await realRepository.reconcilePolicyFloor(value); events.push("policy-reconciliation-committed"); return reconciled; },
       deleteFullyObsoleteCheckpointBatch: async (value, limit) => { events.push("checkpoint-delete-start"); const count = await realRepository.deleteFullyObsoleteCheckpointBatch(value, limit); events.push("checkpoint-delete-committed"); return count; },
-      countFullyObsoleteCheckpoints: async (value) => { events.push("checkpoint-recount"); return realRepository.countFullyObsoleteCheckpoints(value); },
-      deleteExecutableObservationBatch: async (value, limit) => { events.push("observation-delete-start"); assert.ok(events.includes("checkpoint-delete-committed")); assert.ok(events.includes("checkpoint-recount")); const count = await realRepository.deleteExecutableObservationBatch(value, limit); events.push("observation-delete-committed"); return count; },
-      countExecutableObservationCandidates: (value) => realRepository.countExecutableObservationCandidates(value),
+      deleteExecutableObservationBatch: async (value, limit) => { events.push("observation-delete-start"); assert.ok(events.includes("checkpoint-delete-committed")); const count = await realRepository.deleteExecutableObservationBatch(value, limit); events.push("observation-delete-committed"); return count; },
     };
-    const execution = new PositionHistoryRetentionService(instrumented, { now: () => new Date() }, lockService());
+    const execution = new PositionHistoryRetentionService(instrumented, { now: () => new Date() }, lockService(), null);
     const result = await execution.executeRetention({ expectedCanonicalAnchor: new Date(fixturePlan.canonicalAnchor), expectedPolicyCutoff: new Date(fixturePlan.policyCutoff) });
     assert.equal(result.deletedCheckpoints, 1);
     assert.equal(result.deletedObservations, 2);
+    assert.equal(result.moreCheckpointWork, false);
+    assert.equal(result.moreObservationWork, false);
     assert.equal(result.stoppedByBudget, false);
     assert.equal(await prisma.vehiclePositionBackfillCheckpoint.count({ where: { id: obsoleteCheckpoint } }), 0);
     assert.equal(await prisma.vehiclePositionBackfillCheckpoint.count({ where: { id: { in: [boundaryCheckpoint, protectedCheckpoint] } } }), 2);
     assert.equal(await prisma.vehiclePositionObservation.count({ where: { id: { in: [observations.obsolete, observations.uncovered] } } }), 0);
     assert.equal(await prisma.vehiclePositionObservation.count({ where: { id: { in: [observations.boundary, observations.exact, observations.newer] } } }), 3);
+    assert.equal(await prisma.vehiclePositionObservation.count({ where: { vehicleId: fixtureVehicleId } }), protectedOldVolume + newerVolume + 3);
 
     const fixtureStateBeforeConflicts = await exactSnapshot();
     const holder = new Client({ connectionString: process.env.DATABASE_URL });
@@ -125,7 +133,7 @@ test("Stage 19B real PostgreSQL disposable fixture proves checkpoint-first delet
 
     await assert.rejects(execution.executeRetention({ expectedCanonicalAnchor: at(new Date(fixturePlan.canonicalAnchor), -168), expectedPolicyCutoff: new Date(fixturePlan.policyCutoff) }), (error) => error instanceof PositionHistoryRetentionExecutionError && error.code === "STALE_PLAN");
     assert.deepEqual(await exactSnapshot(), fixtureStateBeforeConflicts);
-    report = { businessPlan, fixturePlan, result, events, lockConflict: "LOCK_UNAVAILABLE", staleConflict: "STALE_PLAN" };
+    report = { businessPlan, fixturePlan, result, protectedOldVolume, newerVolume, events, lockConflict: "LOCK_UNAVAILABLE", staleConflict: "STALE_PLAN" };
   } finally {
     await cleanupFixture();
     const after = await exactSnapshot();
@@ -138,10 +146,10 @@ test("current pre-existing business truth permits one real locked no-work execut
   await cleanupFixture();
   const before = await exactSnapshot();
   const repository = new PrismaPositionHistoryRetentionRepository(database);
-  const service = new PositionHistoryRetentionService(repository, { now: () => new Date() }, lockService());
+  const service = new PositionHistoryRetentionService(repository, { now: () => new Date() }, lockService(), null);
   const plan = await service.getRetentionPlan();
   assert.equal(plan.checkpoints.fullyObsolete, 0);
-  assert.equal(plan.observations.executableObservationCandidates, 0);
+  assert.equal(plan.observations.hasExecutableWork, false);
   const result = await service.executeRetention({ expectedCanonicalAnchor: new Date(plan.canonicalAnchor), expectedPolicyCutoff: new Date(plan.policyCutoff) });
   assert.equal(result.noWork, true);
   assert.equal(result.deletedCheckpoints, 0);

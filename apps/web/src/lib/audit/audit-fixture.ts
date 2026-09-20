@@ -4,7 +4,7 @@ import { parseAuditReadResponse, type AuditReadItem, type AuditReadResponse } fr
 const AT = "2026-08-11T02:00:00.000Z";
 const TARGET = "00000000-0000-4000-8000-000000000002";
 const RUN = "00000000-0000-4000-8000-000000000003";
-const retention = { status: "AVAILABLE", canonicalAnchor: AT, policyCutoff: "2026-05-13T02:00:00.000Z", deletedCheckpoints: 1, deletedObservations: 2, remainingFullyObsoleteCheckpoints: 3, remainingExecutableObservationCandidates: 4, stoppedByBudget: true };
+const retention = { status: "AVAILABLE", canonicalAnchor: AT, policyCutoff: "2026-05-13T02:00:00.000Z", deletedCheckpoints: 1, deletedObservations: 2, moreCheckpointWork: true, moreObservationWork: true, stoppedByBudget: true };
 const common = { createdAt: AT, actor: { type: "USER", login: "operator" } };
 const id = (index: number) => `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
 

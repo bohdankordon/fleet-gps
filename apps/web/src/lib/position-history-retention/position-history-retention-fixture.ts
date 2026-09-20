@@ -6,7 +6,7 @@ export function positionHistoryRetentionFixture(overlap = 2): PositionHistoryRet
     canonicalAnchor: "2026-08-11T02:00:00.000Z",
     policyCutoff: "2026-05-13T02:00:00.000Z",
     policyReconciliation: { cursorFloorCandidates: 2, replayCheckpointCandidates: 3 },
-    observations: { total: 100, olderThanPolicyCutoff: 20, atOrAfterPolicyCutoff: 80, oldestObservedAt: "2026-04-01T00:00:00.000Z", newestObservedAt: "2026-08-13T00:00:00.000Z", vehiclesWithObservationsOlderThanCutoff: 4, executableObservationCandidates: 7 },
+    observations: { oldestObservedAt: "2026-04-01T00:00:00.000Z", newestObservedAt: "2026-08-13T00:00:00.000Z", hasExecutableWork: true },
     checkpoints: {
       total: 8 + overlap,
       fullyObsolete: 3,
@@ -19,6 +19,5 @@ export function positionHistoryRetentionFixture(overlap = 2): PositionHistoryRet
       startingExactlyAtCutoff: 1,
       strictlyCrossingCutoff: overlap > 0 ? overlap - 1 : 0,
     },
-    safety: { hasBoundaryOverlap: overlap > 0, boundaryOverlapCheckpointCount: overlap, policyEligibleObservationCount: 20, destructiveExecutionApproved: false },
   };
 }

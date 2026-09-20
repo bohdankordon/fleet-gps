@@ -19,7 +19,7 @@ test("planner remains read-only while execution has no provider, worker, schedul
   const plannerService = service.slice(0, service.indexOf("public async executeRetention"));
   const plannerRepository = repository.slice(0, repository.indexOf("public countActiveDurableRuns"));
   assert.match(service, /position-history-maintenance-anchor/);
-  assert.equal((service.match(/canonicalPositionHistoryMaintenanceAnchor/g) ?? []).length, 2);
+  assert.equal((service.match(/canonicalPositionHistoryMaintenanceAnchor/g) ?? []).length, 3);
   assert.doesNotMatch(combined, /EquGps|Worker|Cron|Interval|1706170004|retention job/i);
   assert.doesNotMatch(module, /PositionHistoryHorizonPopulationModule|PositionHistoryPopulationRunModule/);
   assert.doesNotMatch(plannerService, /delete|executeRetention/i);

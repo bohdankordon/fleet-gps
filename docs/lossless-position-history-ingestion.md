@@ -145,10 +145,12 @@ The active local completeness guarantee is exactly the cursor interval `[coverag
 
 1. advance every older cursor floor with `coverageFrom = max(coverageFrom, cutoff)` and `confirmedThrough = max(confirmedThrough, coverageFrom)`;
 2. policy-retire incomplete replay prefixes below the same cutoff;
-3. run the unchanged finite-checkpoint-first, bounded observation deletion algorithm; and
+3. run the finite-checkpoint-first, batch-driven observation deletion algorithm without exact observation pre-counts or post-counts; and
 4. release the shared lock.
 
 The cursor/replay transition commits before deletion starts. If it fails, deletion does not begin. If a later deletion batch fails, the narrower guarantee is conservative and old rows may remain until retry. Neither boundary moves backward, and `confirmedThrough` moves because of retention only when it must catch the newly advanced guarantee floor. This is a policy-domain change—not provider retrieval, recovery, or finality evidence. The same rule applies to provider-disabled vehicles; their local guarantee floor advances even though they may remain blocked and behind `safeNow`. Retention does not create missing cursors.
+
+Normal retention status is bounded with respect to the observation table: it uses index-endpoint timestamps and a cutoff-restricted existence probe rather than exact global totals, distinct-vehicle counts, or executable-candidate counts. Manual and automatic execution derive fresh policy under the shared lock and are driven by actual batch results. A short batch proves a phase exhausted; ending a 5,000-checkpoint or 25,000-observation budget on a full batch reports only that more work may remain. Observation work is reported as deferred when the checkpoint budget prevents that phase from running. Automatic retention uses one cheap precheck and one locked execution when work is detected.
 
 For replay, retention advances an incomplete checkpoint to `min(max(nextFrom, cutoff), rangeTo)` without provider observations. A partially expired checkpoint continues later from its in-policy remainder. A fully expired checkpoint becomes satisfied, and the normal lease-fenced replay lifecycle completes its run once every checkpoint is satisfied. The replay worker independently applies the same canonical floor before each quantum, so it can settle obsolete work with zero provider request and can never intentionally re-fetch or reinsert an expired prefix. Replay policy retirement never reads or changes `coverageFrom` or `confirmedThrough`.
 

@@ -9,7 +9,7 @@ test("accepts a server-owned operator retention policy and a consistent aggregat
   assert.equal(positionHistoryRetentionPlanSchema.safeParse({ ...fixture, policyDays: 365 }).success, true);
   for (const invalid of [
     { ...fixture, policyDays: 0 },
-    { ...fixture, observations: { ...fixture.observations, atOrAfterPolicyCutoff: 79 } },
+    { ...fixture, observations: { ...fixture.observations, hasExecutableWork: 1 } },
     { ...fixture, checkpoints: { ...fixture.checkpoints, boundaryOverlap: 3 } },
     { ...fixture, policyReconciliation: { ...fixture.policyReconciliation, cursorFloorCandidates: -1 } },
     { ...fixture, externalDeviceId: 12 },
@@ -25,12 +25,13 @@ test("accepts the complete API execution result and enforces reconciliation inva
     completedReplayCheckpoints: 1,
     deletedCheckpoints: 3,
     deletedObservations: 4,
-    remainingFullyObsoleteCheckpoints: 0,
-    remainingExecutableObservationCandidates: 0,
+    moreCheckpointWork: false,
+    moreObservationWork: false,
     stoppedByBudget: false,
     noWork: false,
   };
   assert.equal(positionHistoryRetentionExecutionResultSchema.safeParse(result).success, true);
+  assert.equal(positionHistoryRetentionExecutionResultSchema.safeParse({ ...result, moreCheckpointWork: true, moreObservationWork: null, stoppedByBudget: true }).success, true);
   assert.equal(positionHistoryRetentionExecutionResultSchema.safeParse({ ...result, completedReplayCheckpoints: 3 }).success, false);
   assert.equal(positionHistoryRetentionExecutionResultSchema.safeParse({ ...result, advancedCursorFloors: -1 }).success, false);
   assert.equal(positionHistoryRetentionExecutionResultSchema.safeParse({ ...result, extra: true }).success, false);

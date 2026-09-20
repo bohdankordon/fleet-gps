@@ -13,9 +13,9 @@ function telemetry() {
 function harness(options: Readonly<{ enabled?: boolean; plan?: unknown; result?: unknown; failure?: unknown }> = {}) {
   const tele = telemetry();
   const retention = {
-    getRetentionPlan: async (): Promise<unknown> => {
+    getRetentionPrecheck: async (): Promise<unknown> => {
       if (options.failure !== undefined && options.failure !== null && (options.failure as { phase?: string }).phase === "plan") throw options.failure;
-      return options.plan ?? { policyReconciliation: { cursorFloorCandidates: 1, replayCheckpointCandidates: 0 }, checkpoints: { fullyObsolete: 0 }, observations: { executableObservationCandidates: 0 } };
+      return options.plan ?? { cursorFloorCandidates: 1, replayCheckpointCandidates: 0, hasFullyObsoleteCheckpoints: false, hasExecutableObservationWork: false };
     },
     executeAutomaticRetention: async (): Promise<unknown> => {
       if (options.failure !== undefined && options.failure !== null && (options.failure as { phase?: string }).phase !== "plan") throw options.failure;
@@ -43,7 +43,7 @@ test("successful automatic execution is recorded as success", async () => {
 });
 
 test("empty automatic cycle is recorded as success without destructive work", async () => {
-  const item = harness({ plan: { policyReconciliation: { cursorFloorCandidates: 0, replayCheckpointCandidates: 0 }, checkpoints: { fullyObsolete: 0 }, observations: { executableObservationCandidates: 0 } } });
+  const item = harness({ plan: { cursorFloorCandidates: 0, replayCheckpointCandidates: 0, hasFullyObsoleteCheckpoints: false, hasExecutableObservationWork: false } });
   assert.equal((await item.service.scheduledEvaluate()).outcome, "NO_WORK");
   assert.equal(item.tele.snapshot().lastRetentionOutcome, "SUCCESS");
 });

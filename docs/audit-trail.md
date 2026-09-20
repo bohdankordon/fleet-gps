@@ -68,13 +68,21 @@ Manual and automatic retention share the same locked checkpoint-first destructiv
 - `policyCutoff`
 - `deletedCheckpoints`
 - `deletedObservations`
-- `remainingFullyObsoleteCheckpoints`
-- `remainingExecutableObservationCandidates`
+- `moreCheckpointWork`
+- `moreObservationWork` (`null` when checkpoint budget exhaustion deferred the
+  observation phase)
 - `stoppedByBudget`
+
+The more-work flags are deliberately conservative: `true` means the configured
+budget ended on a full batch, so another pass is appropriate; it is not an
+exact remaining-row count. Historical retention events that use the former
+`remainingFullyObsoleteCheckpoints` and
+`remainingExecutableObservationCandidates` keys remain readable in the ADMIN
+viewer.
 
 Manual retention selects `RETENTION_EXECUTED` with a USER actor. Automatic retention selects only `AUTOMATIC_RETENTION_EXECUTED` with a SYSTEM actor. An event is appended only after a normal bounded result that deleted at least one checkpoint or observation.
 
-Retention deliberately is not one giant transaction. It preserves the shared lock, checkpoint-first invariant, short committed delete transactions, 5000-checkpoint and 25000-observation limits, and partial crash safety. If the final audit append or process fails after destructive batches committed, deletion is not compensated and the audit event may be absent. Disabled, no-work, lock-unavailable, active-population, and failed-safe scheduler outcomes write no event.
+Retention deliberately is not one giant transaction. It preserves the shared lock, checkpoint-first invariant, short committed delete transactions, 5,000-checkpoint and 25,000-observation limits, and partial crash safety. If the final audit append or process fails after destructive batches committed, deletion is not compensated and the audit event may be absent. Disabled, no-work, lock-unavailable, active-population, and failed-safe scheduler outcomes write no event.
 
 ## Deliberately unaudited noise
 

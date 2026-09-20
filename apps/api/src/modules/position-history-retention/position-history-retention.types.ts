@@ -12,13 +12,9 @@ export type PositionHistoryRetentionFacts = Readonly<{
     replayCheckpointCandidates: number;
   }>;
   observations: Readonly<{
-    total: number;
-    olderThanPolicyCutoff: number;
-    atOrAfterPolicyCutoff: number;
     oldestObservedAt: Date | null;
     newestObservedAt: Date | null;
-    vehiclesWithObservationsOlderThanCutoff: number;
-    executableObservationCandidates: number;
+    hasExecutableWork: boolean;
   }>;
   checkpoints: Readonly<{
     total: number;
@@ -34,14 +30,20 @@ export type PositionHistoryRetentionFacts = Readonly<{
   }>;
 }>;
 
+export type PositionHistoryRetentionPrecheck = Readonly<{
+  cursorFloorCandidates: number;
+  replayCheckpointCandidates: number;
+  hasFullyObsoleteCheckpoints: boolean;
+  hasExecutableObservationWork: boolean;
+}>;
+
 export interface PositionHistoryRetentionRepository {
   inspect(policyCutoff: Date): Promise<PositionHistoryRetentionFacts>;
+  inspectPrecheck(policyCutoff: Date): Promise<PositionHistoryRetentionPrecheck>;
   countActiveDurableRuns(): Promise<number>;
   reconcilePolicyFloor(policyCutoff: Date): Promise<PositionHistoryPolicyReconciliationResult>;
   deleteFullyObsoleteCheckpointBatch(policyCutoff: Date, limit: number): Promise<number>;
-  countFullyObsoleteCheckpoints(policyCutoff: Date): Promise<number>;
   deleteExecutableObservationBatch(policyCutoff: Date, limit: number): Promise<number>;
-  countExecutableObservationCandidates(policyCutoff: Date): Promise<number>;
 }
 
 export type PositionHistoryRetentionClock = Readonly<{ now(): Date }>;
@@ -52,13 +54,9 @@ export type PositionHistoryRetentionPlan = Readonly<{
   policyCutoff: string;
   policyReconciliation: PositionHistoryRetentionFacts["policyReconciliation"];
   observations: Readonly<{
-    total: number;
-    olderThanPolicyCutoff: number;
-    atOrAfterPolicyCutoff: number;
     oldestObservedAt: string | null;
     newestObservedAt: string | null;
-    vehiclesWithObservationsOlderThanCutoff: number;
-    executableObservationCandidates: number;
+    hasExecutableWork: boolean;
   }>;
   checkpoints: Readonly<{
     total: number;
@@ -71,12 +69,6 @@ export type PositionHistoryRetentionPlan = Readonly<{
     endingExactlyAtCutoff: number;
     startingExactlyAtCutoff: number;
     strictlyCrossingCutoff: number;
-  }>;
-  safety: Readonly<{
-    hasBoundaryOverlap: boolean;
-    boundaryOverlapCheckpointCount: number;
-    policyEligibleObservationCount: number;
-    destructiveExecutionApproved: false;
   }>;
 }>;
 
@@ -98,8 +90,8 @@ export type PositionHistoryRetentionExecutionResult = Readonly<{
   completedReplayCheckpoints: number;
   deletedCheckpoints: number;
   deletedObservations: number;
-  remainingFullyObsoleteCheckpoints: number;
-  remainingExecutableObservationCandidates: number;
+  moreCheckpointWork: boolean;
+  moreObservationWork: boolean | null;
   stoppedByBudget: boolean;
   noWork: boolean;
 }>;

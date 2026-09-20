@@ -11,6 +11,7 @@ import type {
   AuditSystemActor,
   AuditUserActor,
   DurablePopulationCreatedAuditDetails,
+  LegacyRetentionExecutedAuditDetails,
   RetentionExecutedAuditDetails,
   ShortPopulationExecutedAuditDetails,
   SettingsUpdatedAuditDetails,
@@ -134,8 +135,8 @@ function retentionDetails(details: RetentionExecutedAuditDetails): RetentionExec
     policyCutoff: requiredTimestamp(details.policyCutoff, "policyCutoff"),
     deletedCheckpoints: requiredSafeInteger(details.deletedCheckpoints, "deletedCheckpoints"),
     deletedObservations: requiredSafeInteger(details.deletedObservations, "deletedObservations"),
-    remainingFullyObsoleteCheckpoints: requiredSafeInteger(details.remainingFullyObsoleteCheckpoints, "remainingFullyObsoleteCheckpoints"),
-    remainingExecutableObservationCandidates: requiredSafeInteger(details.remainingExecutableObservationCandidates, "remainingExecutableObservationCandidates"),
+    moreCheckpointWork: requiredBoolean(details.moreCheckpointWork, "moreCheckpointWork"),
+    moreObservationWork: details.moreObservationWork === null ? null : requiredBoolean(details.moreObservationWork, "moreObservationWork"),
     stoppedByBudget: requiredBoolean(details.stoppedByBudget, "stoppedByBudget"),
   });
 }
@@ -407,8 +408,20 @@ function parseDurableDetails(value: unknown, eventType: string): DurablePopulati
 
 function parseRetentionDetails(value: unknown, eventType: string): RetentionExecutedAuditDetails {
   const details = object(value, "details");
-  exactKeys(details, ["canonicalAnchor", "policyCutoff", "deletedCheckpoints", "deletedObservations", "remainingFullyObsoleteCheckpoints", "remainingExecutableObservationCandidates", "stoppedByBudget"], `${eventType} details`);
+  exactKeys(details, ["canonicalAnchor", "policyCutoff", "deletedCheckpoints", "deletedObservations", "moreCheckpointWork", "moreObservationWork", "stoppedByBudget"], `${eventType} details`);
   return details as RetentionExecutedAuditDetails;
+}
+
+function legacyRetentionDetails(details: LegacyRetentionExecutedAuditDetails): LegacyRetentionExecutedAuditDetails {
+  return Object.freeze({
+    canonicalAnchor: requiredTimestamp(details.canonicalAnchor, "canonicalAnchor"),
+    policyCutoff: requiredTimestamp(details.policyCutoff, "policyCutoff"),
+    deletedCheckpoints: requiredSafeInteger(details.deletedCheckpoints, "deletedCheckpoints"),
+    deletedObservations: requiredSafeInteger(details.deletedObservations, "deletedObservations"),
+    remainingFullyObsoleteCheckpoints: requiredSafeInteger(details.remainingFullyObsoleteCheckpoints, "remainingFullyObsoleteCheckpoints"),
+    remainingExecutableObservationCandidates: requiredSafeInteger(details.remainingExecutableObservationCandidates, "remainingExecutableObservationCandidates"),
+    stoppedByBudget: requiredBoolean(details.stoppedByBudget, "stoppedByBudget"),
+  });
 }
 
 export function parseAuditEventDetails(eventType: unknown, value: unknown): AuditEventDetails {
@@ -455,9 +468,14 @@ export function parseAuditEventDetails(eventType: unknown, value: unknown): Audi
       exactKeys(details, ["to", "windowBudget", "excludeProviderDisabled"], `${eventType} details`);
       return durableDetails(details as DurablePopulationCreatedAuditDetails);
     case AuditEventType.RETENTION_EXECUTED:
-    case AuditEventType.AUTOMATIC_RETENTION_EXECUTED:
-      exactKeys(details, ["canonicalAnchor", "policyCutoff", "deletedCheckpoints", "deletedObservations", "remainingFullyObsoleteCheckpoints", "remainingExecutableObservationCandidates", "stoppedByBudget"], `${eventType} details`);
-      return retentionDetails(details as RetentionExecutedAuditDetails);
+    case AuditEventType.AUTOMATIC_RETENTION_EXECUTED: {
+      if ("moreCheckpointWork" in details || "moreObservationWork" in details) {
+        exactKeys(details, ["canonicalAnchor", "policyCutoff", "deletedCheckpoints", "deletedObservations", "moreCheckpointWork", "moreObservationWork", "stoppedByBudget"], `${eventType} details`);
+        return retentionDetails(details as RetentionExecutedAuditDetails);
+      }
+      exactKeys(details, ["canonicalAnchor", "policyCutoff", "deletedCheckpoints", "deletedObservations", "remainingFullyObsoleteCheckpoints", "remainingExecutableObservationCandidates", "stoppedByBudget"], `${eventType} legacy details`);
+      return legacyRetentionDetails(details as LegacyRetentionExecutedAuditDetails);
+    }
     case AuditEventType.SETTINGS_UPDATED:
       exactKeys(details, ["changes"], "SETTINGS_UPDATED details");
       return settingsDetails(details as SettingsUpdatedAuditDetails);

@@ -11,6 +11,7 @@ const TARGET_ID = "00000000-0000-4000-8000-000000000002";
 const RUN_ID = "00000000-0000-4000-8000-000000000003";
 const AT = new Date("2026-08-11T02:00:00.000Z");
 const retention = { canonicalAnchor: AT.toISOString(), policyCutoff: "2026-05-13T02:00:00.000Z", deletedCheckpoints: 1, deletedObservations: 2, remainingFullyObsoleteCheckpoints: 3, remainingExecutableObservationCandidates: 4, stoppedByBudget: true };
+const currentRetention = { canonicalAnchor: AT.toISOString(), policyCutoff: "2026-05-13T02:00:00.000Z", deletedCheckpoints: 1, deletedObservations: 2, moreCheckpointWork: true, moreObservationWork: false, stoppedByBudget: true };
 
 function stored(eventType: AuditEventType, details: unknown, index = 1): StoredAuditReadRow {
   const system = eventType === AuditEventType.SYSTEM_POPULATION_CREATED || eventType === AuditEventType.AUTOMATIC_RETENTION_EXECUTED;
@@ -42,7 +43,7 @@ const validRows: readonly StoredAuditReadRow[] = [
   stored(AuditEventType.DURABLE_POPULATION_CREATED, { to: AT.toISOString(), windowBudget: 500, excludeProviderDisabled: false }, 8),
   stored(AuditEventType.RETENTION_EXECUTED, retention, 9),
   stored(AuditEventType.SYSTEM_POPULATION_CREATED, { to: AT.toISOString(), windowBudget: 5000, excludeProviderDisabled: true }, 10),
-  stored(AuditEventType.AUTOMATIC_RETENTION_EXECUTED, retention, 11),
+  stored(AuditEventType.AUTOMATIC_RETENTION_EXECUTED, currentRetention, 11),
   stored(AuditEventType.SETTINGS_UPDATED, { changes: [{ field: "timezone", previous: "Europe/Kyiv", next: "UTC" }] }, 12),
   stored(AuditEventType.TELEGRAM_LINKED, {}, 13),
   stored(AuditEventType.TELEGRAM_DISCONNECTED, {}, 14),

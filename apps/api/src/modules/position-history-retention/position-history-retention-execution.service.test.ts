@@ -1,272 +1,196 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { PositionHistoryHorizonAlreadyRunningError } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
 import { buildUserActor } from "../audit";
+import { PositionHistoryHorizonAlreadyRunningError } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
 import { PositionHistoryRetentionService } from "./position-history-retention.service";
-import { PositionHistoryRetentionExecutionError, type PositionHistoryRetentionFacts, type PositionHistoryRetentionRepository } from "./position-history-retention.types";
+import { PositionHistoryRetentionExecutionError, type PositionHistoryRetentionRepository } from "./position-history-retention.types";
 
 const anchor = new Date("2026-08-11T02:00:00.000Z");
 const cutoff = new Date("2026-05-13T02:00:00.000Z");
 const request = { expectedCanonicalAnchor: anchor, expectedPolicyCutoff: cutoff };
 const actor = buildUserActor("00000000-0000-4000-8000-000000000001", "admin");
 
-function facts(fullyObsolete: number, candidates: number): PositionHistoryRetentionFacts {
-  return {
-    policyReconciliation: { cursorFloorCandidates: 0, replayCheckpointCandidates: 0 },
-    observations: { total: candidates, olderThanPolicyCutoff: candidates, atOrAfterPolicyCutoff: 0, oldestObservedAt: null, newestObservedAt: null, vehiclesWithObservationsOlderThanCutoff: candidates > 0 ? 1 : 0, executableObservationCandidates: candidates },
-    checkpoints: { total: fullyObsolete, fullyObsolete, boundaryOverlap: 0, protected: 0, fullyObsoleteByStatus: { pending: fullyObsolete, running: 0, completed: 0 }, boundaryOverlapByStatus: { pending: 0, running: 0, completed: 0 }, protectedByStatus: { pending: 0, running: 0, completed: 0 }, endingExactlyAtCutoff: 0, startingExactlyAtCutoff: 0, strictlyCrossingCutoff: 0 },
-  };
-}
+type Scenario = Readonly<{
+  active?: number;
+  checkpoints?: number;
+  observations?: number;
+  advancedCursorFloors?: number;
+  advancedReplayCheckpoints?: number;
+  completedReplayCheckpoints?: number;
+  reconciliationFailure?: Error;
+  deleteCheckpoints?: (limit: number, remaining: number) => number | Promise<number>;
+  deleteObservations?: (limit: number, remaining: number) => number | Promise<number>;
+}>;
 
-type Scenario = Readonly<{ active?: number; fullyObsolete?: number; candidates?: number; advancedCursorFloors?: number; advancedReplayCheckpoints?: number; completedReplayCheckpoints?: number; reconciliationFailure?: Error; deleteCheckpoints?: (limit: number, remaining: number) => number | Promise<number>; deleteObservations?: (limit: number, remaining: number) => number | Promise<number> }>;
 function fixture(scenario: Scenario = {}, auditOverride?: { appendWithDatabase(event: unknown): Promise<unknown> }) {
   const events: string[] = [];
   const auditEvents: unknown[] = [];
-  let remainingCheckpoints = scenario.fullyObsolete ?? 0;
-  let remainingCandidates = scenario.candidates ?? 0;
+  let checkpoints = scenario.checkpoints ?? 0;
+  let observations = scenario.observations ?? 0;
   const repository: PositionHistoryRetentionRepository = {
-    inspect: async () => { events.push("inspect"); return facts(remainingCheckpoints, remainingCandidates); },
+    inspect: async () => { events.push("inspect"); throw new Error("execution must not inspect the operator plan"); },
+    inspectPrecheck: async () => { events.push("precheck"); throw new Error("execution must not repeat the automatic precheck"); },
     countActiveDurableRuns: async () => { events.push("active"); return scenario.active ?? 0; },
     reconcilePolicyFloor: async () => {
       events.push("reconcile");
       if (scenario.reconciliationFailure) throw scenario.reconciliationFailure;
       return { advancedCursorFloors: scenario.advancedCursorFloors ?? 0, advancedReplayCheckpoints: scenario.advancedReplayCheckpoints ?? 0, completedReplayCheckpoints: scenario.completedReplayCheckpoints ?? 0 };
     },
-    deleteFullyObsoleteCheckpointBatch: async (_policyCutoff, limit) => { events.push(`delete-cp:${limit}`); const deleted = scenario.deleteCheckpoints ? await scenario.deleteCheckpoints(limit, remainingCheckpoints) : Math.min(limit, remainingCheckpoints); remainingCheckpoints -= deleted; return deleted; },
-    countFullyObsoleteCheckpoints: async () => { events.push("count-cp"); return remainingCheckpoints; },
-    deleteExecutableObservationBatch: async (_policyCutoff, limit) => { events.push(`delete-obs:${limit}`); const deleted = scenario.deleteObservations ? await scenario.deleteObservations(limit, remainingCandidates) : Math.min(limit, remainingCandidates); remainingCandidates -= deleted; return deleted; },
-    countExecutableObservationCandidates: async () => { events.push("count-obs"); return remainingCandidates; },
+    deleteFullyObsoleteCheckpointBatch: async (_policyCutoff, limit) => {
+      events.push(`delete-cp:${limit}`);
+      const deleted = scenario.deleteCheckpoints ? await scenario.deleteCheckpoints(limit, checkpoints) : Math.min(limit, checkpoints);
+      checkpoints -= deleted;
+      return deleted;
+    },
+    deleteExecutableObservationBatch: async (_policyCutoff, limit) => {
+      events.push(`delete-obs:${limit}`);
+      const deleted = scenario.deleteObservations ? await scenario.deleteObservations(limit, observations) : Math.min(limit, observations);
+      observations -= deleted;
+      return deleted;
+    },
   };
   const lock = { runExclusive: async <T>(work: () => Promise<T>): Promise<T> => { events.push("lock"); try { return await work(); } finally { events.push("unlock"); } } };
   const audit = auditOverride ?? { appendWithDatabase: async (event: unknown) => { auditEvents.push(event); return { id: "audit" }; } };
   return { service: new PositionHistoryRetentionService(repository, { now: () => new Date("2026-08-13T00:00:00Z") }, lock as never, audit as never), events, auditEvents };
 }
 
-test("fresh no-work execution performs no destructive repository call", async () => {
+test("zero checkpoint and observation work is proved by short batches", async () => {
   const state = fixture();
   const result = await state.service.executeRetention(request);
-  assert.deepEqual(result, { canonicalAnchor: anchor.toISOString(), policyCutoff: cutoff.toISOString(), advancedCursorFloors: 0, advancedReplayCheckpoints: 0, completedReplayCheckpoints: 0, deletedCheckpoints: 0, deletedObservations: 0, remainingFullyObsoleteCheckpoints: 0, remainingExecutableObservationCandidates: 0, stoppedByBudget: false, noWork: true });
-  assert.equal(state.events.some((event) => event.startsWith("delete-")), false);
-  assert.deepEqual(state.events, ["lock", "active", "inspect", "reconcile", "count-cp", "count-obs", "unlock"]);
+  assert.deepEqual(result, { canonicalAnchor: anchor.toISOString(), policyCutoff: cutoff.toISOString(), advancedCursorFloors: 0, advancedReplayCheckpoints: 0, completedReplayCheckpoints: 0, deletedCheckpoints: 0, deletedObservations: 0, moreCheckpointWork: false, moreObservationWork: false, stoppedByBudget: false, noWork: true });
+  assert.deepEqual(state.events, ["lock", "active", "reconcile", "delete-cp:500", "delete-obs:1000", "unlock"]);
 });
 
-test("policy reconciliation commits before checkpoint and observation deletion", async () => {
-  const state = fixture({ fullyObsolete: 1, candidates: 1, advancedCursorFloors: 2, advancedReplayCheckpoints: 3, completedReplayCheckpoints: 1 });
-  const result = await state.service.executeRetention(request);
-  assert.deepEqual({ cursors: result.advancedCursorFloors, replay: result.advancedReplayCheckpoints, completed: result.completedReplayCheckpoints }, { cursors: 2, replay: 3, completed: 1 });
-  assert.ok(state.events.indexOf("reconcile") < state.events.findIndex((event) => event.startsWith("delete-cp")));
-  assert.ok(state.events.indexOf("reconcile") < state.events.findIndex((event) => event.startsWith("delete-obs")));
-});
-
-test("policy reconciliation failure prevents every destructive deletion", async () => {
-  const failure = new Error("policy reconciliation failure");
-  const state = fixture({ fullyObsolete: 1, candidates: 1, reconciliationFailure: failure });
-  await assert.rejects(state.service.executeRetention(request), failure);
-  assert.equal(state.events.some((event) => event.startsWith("delete-")), false);
-  assert.deepEqual(state.events, ["lock", "active", "inspect", "reconcile", "unlock"]);
-});
-
-test("deletion failure after policy reconciliation leaves the conservative floor transition in place", async () => {
-  const state = fixture({ fullyObsolete: 1, advancedCursorFloors: 1, deleteCheckpoints: () => { throw new Error("deletion failure"); } });
-  await assert.rejects(state.service.executeRetention(request), /deletion failure/);
-  assert.ok(state.events.indexOf("reconcile") < state.events.findIndex((event) => event.startsWith("delete-cp")));
-  assert.equal(state.events.includes("unlock"), true);
-});
-
-test("successful manual disposable deletion appends exactly one factual RETENTION_EXECUTED audit", async () => {
-  const state = fixture({ fullyObsolete: 2, candidates: 3 });
-  const result = await state.service.executeRetention(request, actor);
-  assert.equal(state.auditEvents.length, 1);
-  const event = state.auditEvents[0] as { eventType: string; actor: { actorUserId: string; actorLoginSnapshot: string }; targetType: string; targetId: null; details: Record<string, unknown> };
-  assert.equal(event.eventType, "RETENTION_EXECUTED");
-  assert.equal(event.actor.actorUserId, actor.actorUserId);
-  assert.equal(event.actor.actorLoginSnapshot, "admin");
-  assert.equal(event.targetType, "POSITION_HISTORY_RETENTION");
-  assert.equal(event.targetId, null);
-  assert.deepEqual(event.details, {
-    canonicalAnchor: result.canonicalAnchor,
-    policyCutoff: result.policyCutoff,
-    deletedCheckpoints: result.deletedCheckpoints,
-    deletedObservations: result.deletedObservations,
-    remainingFullyObsoleteCheckpoints: result.remainingFullyObsoleteCheckpoints,
-    remainingExecutableObservationCandidates: result.remainingExecutableObservationCandidates,
-    stoppedByBudget: result.stoppedByBudget,
-  });
-});
-
-test("no-work and rejected manual retention paths write zero audit", async () => {
-  const noWork = fixture();
-  await noWork.service.executeRetention(request, actor);
-  assert.equal(noWork.auditEvents.length, 0);
-
-  const active = fixture({ active: 1, fullyObsolete: 1, candidates: 1 });
-  await assert.rejects(active.service.executeRetention(request, actor), PositionHistoryRetentionExecutionError);
-  assert.equal(active.auditEvents.length, 0);
-
-  const stale = fixture({ fullyObsolete: 1, candidates: 1 });
-  await assert.rejects(stale.service.executeRetention({ expectedCanonicalAnchor: new Date(anchor.getTime() - 1), expectedPolicyCutoff: cutoff }, actor), PositionHistoryRetentionExecutionError);
-  assert.equal(stale.auditEvents.length, 0);
-});
-
-test("automatic Stage 19C deletion writes one factual SYSTEM audit and never the manual event", async () => {
-  const state = fixture({ fullyObsolete: 2, candidates: 3 });
-  const result = await state.service.executeAutomaticRetention();
-  assert.equal(result.deletedCheckpoints + result.deletedObservations > 0, true);
-  assert.deepEqual(state.auditEvents, [{
-    eventType: "AUTOMATIC_RETENTION_EXECUTED",
-    actor: { actorType: "SYSTEM", actorUserId: null, actorLoginSnapshot: null },
-    targetType: "POSITION_HISTORY_RETENTION",
-    targetId: null,
-    details: {
-      canonicalAnchor: result.canonicalAnchor,
-      policyCutoff: result.policyCutoff,
-      deletedCheckpoints: result.deletedCheckpoints,
-      deletedObservations: result.deletedObservations,
-      remainingFullyObsoleteCheckpoints: result.remainingFullyObsoleteCheckpoints,
-      remainingExecutableObservationCandidates: result.remainingExecutableObservationCandidates,
-      stoppedByBudget: result.stoppedByBudget,
-    },
-  }]);
-});
-
-test("automatic no-work writes zero audit and final audit failure preserves committed deletion", async () => {
-  const noWork = fixture();
-  await noWork.service.executeAutomaticRetention();
-  assert.equal(noWork.auditEvents.length, 0);
-
-  const failedAudit = fixture({ fullyObsolete: 2, candidates: 3 }, { appendWithDatabase: async () => { throw new Error("automatic audit failure"); } });
-  await assert.rejects(failedAudit.service.executeAutomaticRetention(), /automatic audit failure/);
-  assert.equal(failedAudit.events.filter((event) => event.startsWith("delete-cp")).length, 1);
-  assert.equal(failedAudit.events.filter((event) => event.startsWith("delete-obs")).length, 1);
-});
-
-test("partial destructive failure does not fabricate a success audit", async () => {
-  let calls = 0;
-  const state = fixture({ fullyObsolete: 1_001, candidates: 2, deleteCheckpoints: (limit) => { calls += 1; if (calls === 2) throw new Error("fixture failure"); return limit; } });
-  await assert.rejects(state.service.executeRetention(request, actor), /fixture failure/);
-  assert.equal(state.auditEvents.length, 0);
-});
-
-test("final audit failure does not compensate committed deletion and surfaces the ambiguous failure", async () => {
-  const state = fixture({ fullyObsolete: 2, candidates: 3 }, { appendWithDatabase: async () => { throw new Error("final audit failure"); } });
-  await assert.rejects(state.service.executeRetention(request, actor), /final audit failure/);
-  assert.equal(state.events.filter((event) => event.startsWith("delete-cp")).length, 1);
-  assert.equal(state.events.filter((event) => event.startsWith("delete-obs")).length, 1);
-});
-
-test("automatic execution shares the exact locked checkpoint-first destructive core without browser snapshot fields", async () => {
-  const manual = fixture({ fullyObsolete: 501, candidates: 3 });
-  const automatic = fixture({ fullyObsolete: 501, candidates: 3 });
-  const manualResult = await manual.service.executeRetention(request);
-  const automaticResult = await automatic.service.executeAutomaticRetention();
-  assert.deepEqual(automaticResult, manualResult);
-  assert.deepEqual(automatic.events, manual.events);
-  assert.equal(automatic.events[0], "lock");
-  assert.ok(automatic.events.indexOf("inspect") < automatic.events.findIndex((event) => event.startsWith("delete-cp")));
-});
-
-test("checkpoint truth commits first and final obsolete cleanup opens observation phase", async () => {
-  const state = fixture({ fullyObsolete: 501, candidates: 3 });
+test("checkpoint short batch exhausts the phase and opens observation deletion", async () => {
+  const state = fixture({ checkpoints: 501, observations: 3 });
   const result = await state.service.executeRetention(request);
   assert.equal(result.deletedCheckpoints, 501);
   assert.equal(result.deletedObservations, 3);
-  assert.ok(state.events.indexOf("count-cp") < state.events.findIndex((event) => event.startsWith("delete-obs")));
+  assert.equal(result.moreCheckpointWork, false);
   assert.deepEqual(state.events.filter((event) => event.startsWith("delete-cp")), ["delete-cp:500", "delete-cp:500"]);
+  assert.ok(state.events.indexOf("delete-cp:500") < state.events.indexOf("delete-obs:1000"));
 });
 
-test("5000 checkpoint budget is a hard barrier and leaves observations untouched while obsolete truth remains", async () => {
-  const state = fixture({ fullyObsolete: 5_001, candidates: 20 });
+test("a full 5000 checkpoint budget is conservative and does not enter observations", async () => {
+  const state = fixture({ checkpoints: 5_000, observations: 20 });
   const result = await state.service.executeRetention(request);
   assert.equal(result.deletedCheckpoints, 5_000);
-  assert.equal(result.remainingFullyObsoleteCheckpoints, 1);
   assert.equal(result.deletedObservations, 0);
+  assert.equal(result.moreCheckpointWork, true);
+  assert.equal(result.moreObservationWork, null);
   assert.equal(result.stoppedByBudget, true);
   assert.equal(state.events.filter((event) => event.startsWith("delete-cp")).length, 10);
   assert.equal(state.events.some((event) => event.startsWith("delete-obs")), false);
 });
 
-test("25000 observation budget never becomes 25001 and reports factual remainder", async () => {
-  const state = fixture({ candidates: 25_001 });
-  const result = await state.service.executeRetention(request);
-  assert.equal(result.deletedObservations, 25_000);
-  assert.equal(result.remainingExecutableObservationCandidates, 1);
-  assert.equal(result.stoppedByBudget, true);
-  assert.equal(state.events.filter((event) => event.startsWith("delete-obs")).length, 25);
-});
-
-test("active durable population and stale confirmations fail under the lock with zero delete", async () => {
-  const active = fixture({ active: 1, fullyObsolete: 1, candidates: 1 });
-  await assert.rejects(active.service.executeRetention(request), (error: unknown) => error instanceof PositionHistoryRetentionExecutionError && error.code === "ACTIVE_DURABLE_RUN");
-  assert.equal(active.events.some((event) => event.startsWith("delete-")), false);
-
-  for (const stale of [
-    { expectedCanonicalAnchor: new Date(anchor.getTime() - 1), expectedPolicyCutoff: cutoff },
-    { expectedCanonicalAnchor: anchor, expectedPolicyCutoff: new Date(cutoff.getTime() - 1) },
-  ]) {
-    const state = fixture({ fullyObsolete: 1, candidates: 1 });
-    await assert.rejects(state.service.executeRetention(stale), (error: unknown) => error instanceof PositionHistoryRetentionExecutionError && error.code === "STALE_PLAN");
-    assert.equal(state.events.some((event) => event.startsWith("delete-")), false);
-  }
-});
-
-test("shared lock conflict maps to the retention conflict and executes zero repository work", async () => {
-  const repository = { inspect: async () => { throw new Error("should not run"); } } as unknown as PositionHistoryRetentionRepository;
-  const lock = { runExclusive: async () => { throw new PositionHistoryHorizonAlreadyRunningError(); } };
-  const service = new PositionHistoryRetentionService(repository, { now: () => new Date() }, lock as never, { appendWithDatabase: async () => ({ id: "audit" }) } as never);
-  await assert.rejects(service.executeRetention(request), (error: unknown) => error instanceof PositionHistoryRetentionExecutionError && error.code === "LOCK_UNAVAILABLE");
-  await assert.rejects(service.executeAutomaticRetention(), (error: unknown) => error instanceof PositionHistoryRetentionExecutionError && error.code === "LOCK_UNAVAILABLE");
-});
-
-test("automatic execution preserves the active durable guard and never performs stale-browser validation", async () => {
-  const active = fixture({ active: 1, fullyObsolete: 1, candidates: 1 });
-  await assert.rejects(active.service.executeAutomaticRetention(), (error: unknown) => error instanceof PositionHistoryRetentionExecutionError && error.code === "ACTIVE_DURABLE_RUN");
-  assert.deepEqual(active.events, ["lock", "active", "unlock"]);
-});
-
-test("automatic guard blocks USER and SYSTEM PENDING/RUNNING while terminal-only history does not block", async (context) => {
-  for (const initiator of ["USER", "SYSTEM"] as const) {
-    for (const status of ["PENDING", "RUNNING"] as const) {
-      await context.test(`${initiator} ${status}`, async () => {
-        const state = fixture({ active: 1, fullyObsolete: 1, candidates: 1 });
-        await assert.rejects(state.service.executeAutomaticRetention(), (error: unknown) => error instanceof PositionHistoryRetentionExecutionError && error.code === "ACTIVE_DURABLE_RUN");
-        assert.equal(state.events.some((event) => event.startsWith("delete-")), false);
-      });
-    }
-  }
-  for (const status of ["SUCCEEDED", "FAILED"] as const) {
-    await context.test(`${status} only`, async () => {
-      const state = fixture({ active: 0 });
-      assert.equal((await state.service.executeAutomaticRetention()).noWork, true);
+test("observation short batches prove exhaustion after zero, one, or multiple batches", async (context) => {
+  for (const count of [0, 3, 1_500]) {
+    await context.test(String(count), async () => {
+      const result = await fixture({ observations: count }).service.executeRetention(request);
+      assert.equal(result.deletedObservations, count);
+      assert.equal(result.moreObservationWork, false);
+      assert.equal(result.stoppedByBudget, false);
     });
   }
 });
 
-test("manual and automatic paths contain only one destructive implementation and the same fixed budgets", () => {
+test("a full 25000 observation budget reports conservative more-work without a recount", async () => {
+  const state = fixture({ observations: 25_000 });
+  const result = await state.service.executeRetention(request);
+  assert.equal(result.deletedObservations, 25_000);
+  assert.equal(result.moreObservationWork, true);
+  assert.equal(result.stoppedByBudget, true);
+  assert.equal(state.events.filter((event) => event.startsWith("delete-obs")).length, 25);
+  assert.equal(state.events.some((event) => event.startsWith("count-")), false);
+});
+
+test("reconciliation occurs before deletion and contributes to noWork semantics", async () => {
+  const state = fixture({ advancedCursorFloors: 2, advancedReplayCheckpoints: 3, completedReplayCheckpoints: 1 });
+  const result = await state.service.executeRetention(request);
+  assert.deepEqual({ cursors: result.advancedCursorFloors, replay: result.advancedReplayCheckpoints, completed: result.completedReplayCheckpoints, noWork: result.noWork }, { cursors: 2, replay: 3, completed: 1, noWork: false });
+  assert.ok(state.events.indexOf("reconcile") < state.events.indexOf("delete-cp:500"));
+});
+
+test("reconciliation failure prevents destructive deletion", async () => {
+  const failure = new Error("policy reconciliation failure");
+  const state = fixture({ reconciliationFailure: failure });
+  await assert.rejects(state.service.executeRetention(request), failure);
+  assert.equal(state.events.some((event) => event.startsWith("delete-")), false);
+});
+
+test("manual staleness is checked under the lock before reconciliation or deletion", async () => {
+  for (const stale of [
+    { expectedCanonicalAnchor: new Date(anchor.getTime() - 1), expectedPolicyCutoff: cutoff },
+    { expectedCanonicalAnchor: anchor, expectedPolicyCutoff: new Date(cutoff.getTime() - 1) },
+  ]) {
+    const state = fixture({ checkpoints: 1, observations: 1 });
+    await assert.rejects(state.service.executeRetention(stale), (error: unknown) => error instanceof PositionHistoryRetentionExecutionError && error.code === "STALE_PLAN");
+    assert.deepEqual(state.events, ["lock", "active", "unlock"]);
+  }
+  assert.equal((await fixture().service.executeRetention(request)).policyCutoff, cutoff.toISOString());
+});
+
+test("active durable runs and lock conflicts remain fail-safe", async () => {
+  const active = fixture({ active: 1, checkpoints: 1 });
+  await assert.rejects(active.service.executeAutomaticRetention(), (error: unknown) => error instanceof PositionHistoryRetentionExecutionError && error.code === "ACTIVE_DURABLE_RUN");
+  assert.deepEqual(active.events, ["lock", "active", "unlock"]);
+
+  const lock = { runExclusive: async () => { throw new PositionHistoryHorizonAlreadyRunningError(); } };
+  const repository = {} as PositionHistoryRetentionRepository;
+  const service = new PositionHistoryRetentionService(repository, { now: () => new Date() }, lock as never, { appendWithDatabase: async () => ({ id: "audit" }) } as never);
+  await assert.rejects(service.executeRetention(request), (error: unknown) => error instanceof PositionHistoryRetentionExecutionError && error.code === "LOCK_UNAVAILABLE");
+});
+
+test("manual and automatic deletion share one locked core and never build a preview", async () => {
+  const manual = fixture({ checkpoints: 2, observations: 3 });
+  const automatic = fixture({ checkpoints: 2, observations: 3 });
+  assert.deepEqual(await automatic.service.executeAutomaticRetention(), await manual.service.executeRetention(request));
+  assert.deepEqual(automatic.events, manual.events);
+  assert.equal(automatic.events.includes("inspect"), false);
+  assert.equal(automatic.events.includes("precheck"), false);
   const source = readFileSync("src/modules/position-history-retention/position-history-retention.service.ts", "utf8");
   assert.equal((source.match(/deleteFullyObsoleteCheckpointBatch\(/g) ?? []).length, 1);
   assert.equal((source.match(/deleteExecutableObservationBatch\(/g) ?? []).length, 1);
-  assert.equal((source.match(/executeBoundedDestructivePass\(plan, policyReconciliation\)/g) ?? []).length, 1);
-  assert.match(source, /POSITION_HISTORY_RETENTION_CHECKPOINT_BUDGET/);
-  assert.match(source, /POSITION_HISTORY_RETENTION_OBSERVATION_BUDGET/);
+  assert.equal((source.match(/getRetentionPlan\(/g) ?? []).length, 1);
+  assert.doesNotMatch(source, /countFullyObsoleteCheckpoints|countExecutableObservationCandidates/);
 });
 
-test("checkpoint batch failure never reaches observations and committed partial progress is not compensated", async () => {
-  let calls = 0;
-  const state = fixture({ fullyObsolete: 1_001, candidates: 2, deleteCheckpoints: (limit) => { calls += 1; if (calls === 2) throw new Error("fixture failure"); return limit; } });
-  await assert.rejects(state.service.executeRetention(request), /fixture failure/);
-  assert.equal(state.events.some((event) => event.startsWith("delete-obs")), false);
-  assert.equal(state.events.includes("unlock"), true);
+test("new audit events record actual deletes and conservative work state", async () => {
+  const state = fixture({ checkpoints: 2, observations: 3 });
+  const result = await state.service.executeRetention(request, actor);
+  assert.equal(state.auditEvents.length, 1);
+  const event = state.auditEvents[0] as { eventType: string; details: Record<string, unknown> };
+  assert.equal(event.eventType, "RETENTION_EXECUTED");
+  assert.deepEqual(event.details, {
+    canonicalAnchor: result.canonicalAnchor,
+    policyCutoff: result.policyCutoff,
+    deletedCheckpoints: 2,
+    deletedObservations: 3,
+    moreCheckpointWork: false,
+    moreObservationWork: false,
+    stoppedByBudget: false,
+  });
 });
 
-test("automatic observation partial commits survive failure and a later independent invocation replans current truth", async () => {
+test("true no-work emits no audit, while committed automatic deletion emits one system audit", async () => {
+  const noWork = fixture();
+  await noWork.service.executeRetention(request, actor);
+  assert.equal(noWork.auditEvents.length, 0);
+
+  const automatic = fixture({ observations: 1 });
+  await automatic.service.executeAutomaticRetention();
+  assert.equal((automatic.auditEvents[0] as { eventType: string }).eventType, "AUTOMATIC_RETENTION_EXECUTED");
+});
+
+test("batch and audit failures are not compensated or mislabeled", async () => {
   let calls = 0;
-  const state = fixture({ candidates: 1_500, deleteObservations: (limit, remaining) => { calls += 1; if (calls === 2) throw new Error("fixture observation failure"); return Math.min(limit, remaining); } });
-  await assert.rejects(state.service.executeAutomaticRetention(), /fixture observation failure/);
-  assert.equal(state.events.filter((event) => event.startsWith("delete-obs")).length, 2);
-  assert.equal(state.events.includes("unlock"), true);
-  const result = await state.service.executeAutomaticRetention();
-  assert.equal(result.deletedObservations, 500);
-  assert.equal(result.remainingExecutableObservationCandidates, 0);
-  assert.equal(state.events.filter((event) => event === "lock").length, 2);
+  const partial = fixture({ checkpoints: 1_001, deleteCheckpoints: (limit) => { calls += 1; if (calls === 2) throw new Error("fixture failure"); return limit; } });
+  await assert.rejects(partial.service.executeRetention(request, actor), /fixture failure/);
+  assert.equal(partial.auditEvents.length, 0);
+  assert.equal(partial.events.some((event) => event.startsWith("delete-obs")), false);
+
+  const failedAudit = fixture({ observations: 1 }, { appendWithDatabase: async () => { throw new Error("audit failure"); } });
+  await assert.rejects(failedAudit.service.executeAutomaticRetention(), /audit failure/);
+  assert.equal(failedAudit.events.filter((event) => event.startsWith("delete-obs")).length, 1);
 });

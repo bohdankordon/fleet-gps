@@ -23,6 +23,7 @@ import {
   buildVehicleGroupMembershipChangedAuditEvent,
   buildVehicleGroupRenamedAuditEvent,
   buildVehicleGroupUpdatedAuditEvent,
+  parseAuditEventDetails,
   parseAuditEventSpec,
 } from "./audit-events";
 
@@ -31,7 +32,7 @@ const targetId = "00000000-0000-4000-8000-000000000002";
 const runId = "00000000-0000-4000-8000-000000000003";
 const actor = buildUserActor(actorId, "operator");
 const durable = { to: "2026-08-11T02:00:00.000Z", windowBudget: 500, excludeProviderDisabled: true } as const;
-const retention = { canonicalAnchor: "2026-08-11T02:00:00.000Z", policyCutoff: "2026-05-13T02:00:00.000Z", deletedCheckpoints: 2, deletedObservations: 3, remainingFullyObsoleteCheckpoints: 0, remainingExecutableObservationCandidates: 1, stoppedByBudget: false } as const;
+const retention = { canonicalAnchor: "2026-08-11T02:00:00.000Z", policyCutoff: "2026-05-13T02:00:00.000Z", deletedCheckpoints: 2, deletedObservations: 3, moreCheckpointWork: false, moreObservationWork: true, stoppedByBudget: false } as const;
 
 function specs() {
   return [
@@ -87,11 +88,18 @@ test("new event details have only their approved exact keys", () => {
   assert.deepEqual(byType.get(AuditEventType.OWN_PASSWORD_CHANGED), []);
   assert.deepEqual(byType.get(AuditEventType.SHORT_POPULATION_EXECUTED), ["to", "windowBudget", "excludeProviderDisabled", "committedWindows"]);
   assert.deepEqual(byType.get(AuditEventType.SYSTEM_POPULATION_CREATED), ["to", "windowBudget", "excludeProviderDisabled"]);
-  assert.deepEqual(byType.get(AuditEventType.AUTOMATIC_RETENTION_EXECUTED), ["canonicalAnchor", "policyCutoff", "deletedCheckpoints", "deletedObservations", "remainingFullyObsoleteCheckpoints", "remainingExecutableObservationCandidates", "stoppedByBudget"]);
+  assert.deepEqual(byType.get(AuditEventType.AUTOMATIC_RETENTION_EXECUTED), ["canonicalAnchor", "policyCutoff", "deletedCheckpoints", "deletedObservations", "moreCheckpointWork", "moreObservationWork", "stoppedByBudget"]);
   assert.deepEqual(byType.get(AuditEventType.VEHICLE_GROUP_MEMBERSHIP_CHANGED), ["name", "addedCount", "removedCount"]);
   assert.deepEqual(byType.get(AuditEventType.VEHICLE_GROUP_CREATED), ["name", "color"]);
   assert.deepEqual(byType.get(AuditEventType.VEHICLE_GROUP_UPDATED), ["previousName", "name", "previousColor", "color"]);
   assert.deepEqual(byType.get(AuditEventType.USER_VEHICLE_ACCESS_CHANGED), ["targetLoginSnapshot", "previousMode", "mode", "previousGroupGrantCount", "groupGrantCount", "previousVehicleGrantCount", "vehicleGrantCount", "addedGroupGrantCount", "removedGroupGrantCount", "addedVehicleGrantCount", "removedVehicleGrantCount"]);
+});
+
+test("stored retention details remain backward-compatible while new writes use work-state fields", () => {
+  const legacy = { canonicalAnchor: retention.canonicalAnchor, policyCutoff: retention.policyCutoff, deletedCheckpoints: 1, deletedObservations: 2, remainingFullyObsoleteCheckpoints: 3, remainingExecutableObservationCandidates: 4, stoppedByBudget: true };
+  assert.deepEqual(parseAuditEventDetails(AuditEventType.RETENTION_EXECUTED, legacy), legacy);
+  assert.deepEqual(parseAuditEventDetails(AuditEventType.AUTOMATIC_RETENTION_EXECUTED, retention), retention);
+  assert.throws(() => parseAuditEventSpec({ ...buildRetentionExecutedAuditEvent(actor, retention), details: legacy }), AuditEventValidationError);
 });
 
 test("unknown and representative forbidden content cannot enter any event shape", () => {

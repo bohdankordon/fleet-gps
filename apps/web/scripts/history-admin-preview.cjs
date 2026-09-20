@@ -5,13 +5,15 @@
 // It starts a fixture-only stub of the internal API plus the built standalone Next application.
 // The stub performs no provider request, opens no database connection, and requires no production
 // credential: it serves only the aggregate read models the history pages consume. Use it to inspect
-// /admin/history and /admin/history/population in representative states before merge.
+// /admin/history, /admin/history/population, and /admin/history/retention in representative states before merge.
 //
 //   npm run web:standalone:build
 //   npm run web:history-preview -- --state=current
 //   npm run web:history-preview -- --state=replaying
 //   npm run web:history-preview -- --state=debt
 //   npm run web:history-preview -- --state=unavailable
+//   npm run web:history-preview -- --state=retention-work
+//   npm run web:history-preview -- --state=retention-budget
 
 const http = require("node:http");
 const net = require("node:net");
@@ -20,7 +22,7 @@ const { existsSync } = require("node:fs");
 const { spawn } = require("node:child_process");
 const { discoverStandaloneWebRoot } = require("./prepare-standalone.cjs");
 
-const STATES = ["current", "replaying", "debt", "unavailable"];
+const STATES = ["current", "replaying", "debt", "unavailable", "retention-work", "retention-budget"];
 const SESSION_TOKEN = "preview-session-token";
 const PREVIEW_USER = Object.freeze({ id: "00000000-0000-4000-8000-0000000000aa", login: "preview.admin", role: "ADMIN", permissions: [], mustChangePassword: false });
 
@@ -62,13 +64,26 @@ function stop(child) {
 async function fixtures() {
   const status = await import("../src/lib/position-history-ingestion-status/position-history-ingestion-status-fixture.ts");
   const plan = await import("../src/lib/position-history-horizon-plan/position-history-horizon-plan-fixture.ts");
-  return { status, plan };
+  const retention = await import("../src/lib/position-history-retention/position-history-retention-fixture.ts");
+  return { status, plan, retention };
 }
 
 function ingestionStatus(state, status) {
   if (state === "current") return status.positionHistoryIngestionStatusStateFixture("CURRENT");
   if (state === "replaying") return status.positionHistoryIngestionStatusStateFixture("REPLAYING");
-  return status.positionHistoryIngestionStatusStateFixture("DEBT");
+  if (state === "debt") return status.positionHistoryIngestionStatusStateFixture("DEBT");
+  return status.positionHistoryIngestionStatusStateFixture("CURRENT");
+}
+
+function retentionPlan(state, retention) {
+  const work = retention.positionHistoryRetentionFixture();
+  if (state === "current" || state === "replaying" || state === "debt") return {
+    ...work,
+    policyReconciliation: { cursorFloorCandidates: 0, replayCheckpointCandidates: 0 },
+    observations: { ...work.observations, hasExecutableWork: false },
+    checkpoints: { ...work.checkpoints, fullyObsolete: 0, total: work.checkpoints.boundaryOverlap + work.checkpoints.protected, fullyObsoleteByStatus: { pending: 0, running: 0, completed: 0 } },
+  };
+  return work;
 }
 
 function sendJson(response, status, body, headers = {}) {
@@ -94,6 +109,22 @@ function startStub(port, state, loaded, onRequest) {
     if (url.pathname === "/api/system/position-history/horizon-plan") return sendJson(response, 200, loaded.plan.positionHistoryHorizonPlanFixture());
     if (url.pathname === "/api/system/position-history/population-runs/active") return sendJson(response, 200, { active: null });
     if (url.pathname === "/api/system/position-history/population-runs/recent") return sendJson(response, 200, []);
+    if (request.method === "GET" && url.pathname === "/api/system/position-history/retention-plan") {
+      if (state === "unavailable") return sendJson(response, 503, { statusCode: 503, error: "Service Unavailable" });
+      return sendJson(response, 200, retentionPlan(state, loaded.retention));
+    }
+    if (request.method === "POST" && url.pathname === "/api/system/position-history/retention-execute") {
+      for await (const chunk of request) void chunk;
+      const plan = retentionPlan(state, loaded.retention);
+      const budgetStopped = state === "retention-budget";
+      return sendJson(response, 200, {
+        canonicalAnchor: plan.canonicalAnchor, policyCutoff: plan.policyCutoff,
+        advancedCursorFloors: 2, advancedReplayCheckpoints: 3, completedReplayCheckpoints: 1,
+        deletedCheckpoints: budgetStopped ? 5_000 : 3, deletedObservations: budgetStopped ? 0 : 7,
+        moreCheckpointWork: budgetStopped, moreObservationWork: budgetStopped ? null : false,
+        stoppedByBudget: budgetStopped, noWork: false,
+      });
+    }
     return sendJson(response, 404, { statusCode: 404, error: "Not Found" });
   });
   return new Promise((resolve, reject) => {
@@ -114,6 +145,8 @@ const expectations = Object.freeze({
   replaying: { overview: "Сейчас выполняется ручное дозаполнение истории", population: "План ручного заполнения" },
   debt: { overview: "Обнаружен долг повтора", population: "План ручного заполнения" },
   unavailable: { overview: "Текущее состояние истории недоступно", population: "План ручного заполнения" },
+  "retention-work": { overview: "Непрерывное заполнение", population: "План ручного заполнения" },
+  "retention-budget": { overview: "Непрерывное заполнение", population: "План ручного заполнения" },
 });
 
 async function verify(webOrigin, cookie, state, anchor) {
@@ -123,6 +156,8 @@ async function verify(webOrigin, cookie, state, anchor) {
   const overviewHtml = await overview.text();
   const population = await fetch(webOrigin + "/admin/history/population?" + new URLSearchParams({ to: anchor }), { headers });
   const populationHtml = await population.text();
+  const retention = await fetch(webOrigin + "/admin/history/retention", { headers });
+  const retentionHtml = await retention.text();
   const expected = expectations[state];
   const checked = {
     overviewStatus: overview.status,
@@ -130,6 +165,8 @@ async function verify(webOrigin, cookie, state, anchor) {
     overviewScopedDiagnostics: state === "unavailable" ? !overviewHtml.includes("Счётчики текущего процесса API") : overviewHtml.includes("Счётчики текущего процесса API"),
     populationStatus: population.status,
     populationPlan: populationHtml.includes(expected.population),
+    retentionStatus: retention.status,
+    retentionState: state === "unavailable" ? retentionHtml.includes("Не удалось загрузить план хранения") : retentionHtml.includes("Зберігання історії") || retentionHtml.includes("Хранение истории"),
   };
   const externalRequests = { provider: 0, database: 0 };
   const failed = Object.entries(checked).filter(([key, value]) => key.endsWith("Status") ? value !== 200 : value !== true).map(([key]) => key);
@@ -165,6 +202,8 @@ async function main() {
       "  1. Open " + origin + "/login and sign in with any preview credentials (for example preview.admin / preview-password).",
       "  2. Open " + origin + "/admin/history",
       "  3. Open " + origin + "/admin/history/population",
+      "  4. Open " + origin + "/admin/history/retention",
+      state === "retention-budget" ? "  5. Run the fixture-only cleanup to review the budget-stopped result." : "",
       "  State: " + state + ". No provider request, no database, no production credential is used.",
       "  Press Ctrl+C to stop the preview.",
       "",
