@@ -71,6 +71,12 @@
   outline: none;
 }
 
+/* Restricted onboarding hides product navigation; the utility cluster must
+   stay pinned to the normal right edge instead of collapsing toward the brand. */
+.taxi-header--restricted .taxi-header__tools {
+  margin-inline-start: auto;
+}
+
 .taxi-header__brand-icon {
   display: inline-flex;
   align-items: center;

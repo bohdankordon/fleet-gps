@@ -105,6 +105,7 @@ export const MESSAGE_CATALOG = Object.freeze({
   "auth.logout.submit": { ru: "Выйти", uk: "Вийти", en: "Sign out" },
   "auth.logout.submitting": { ru: "Выход…", uk: "Вихід…", en: "Signing out…" },
   "auth.password.title": { ru: "Изменить пароль", uk: "Змінити пароль", en: "Change password" },
+  "auth.password.createTitle": { ru: "Создать пароль", uk: "Створити пароль", en: "Create password" },
   "auth.password.mustChange": { ru: "Для продолжения работы необходимо изменить пароль.", uk: "Щоб продовжити роботу, необхідно змінити пароль.", en: "You must change your password to continue." },
   "auth.password.current": { ru: "Текущий пароль", uk: "Поточний пароль", en: "Current password" },
   "auth.password.temporary": { ru: "Временный пароль", uk: "Тимчасовий пароль", en: "Temporary password" },

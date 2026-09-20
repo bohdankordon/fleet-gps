@@ -163,7 +163,7 @@ export function AccountSecurityForm({ mandatory }: Readonly<{ mandatory: boolean
         </Form.Item>
         <Form.Item className="account-security__actions">
           <Button type="primary" htmlType="submit" loading={busy} disabled={locked} aria-live="polite">
-            {busy ? t("auth.password.submitting") : t("auth.password.title")}
+            {busy ? t("auth.password.submitting") : t(mandatory ? "auth.password.createTitle" : "auth.password.title")}
           </Button>
         </Form.Item>
       </Form>

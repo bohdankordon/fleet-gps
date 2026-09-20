@@ -80,7 +80,7 @@ function DesktopNavigation({ pathname, navigation, login, shellStyle, restricted
   restricted: boolean;
 }>) {
   const { t } = useI18n();
-  return <Header className="taxi-header" style={shellStyle}>
+  return <Header className={restricted ? "taxi-header taxi-header--restricted" : "taxi-header"} style={shellStyle}>
     <div className="taxi-header__inner">
       <Brand staticMode={restricted} />
       {restricted || navigation.length === 0 ? null : (

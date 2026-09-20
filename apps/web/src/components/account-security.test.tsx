@@ -47,6 +47,9 @@ test("normal Security keeps tabs, sessions, and centered workspace without statu
   assert.match(html, />Sessions</);
   assert.match(html, /Changing the password ends all other sessions\. This browser stays signed in\./);
   assert.doesNotMatch(html, /ant-alert-warning/);
+  // Normal card heading keeps ordinary change language.
+  assert.match(html, />Change password</);
+  assert.doesNotMatch(html, />Create password</);
 });
 
 test("mandatory onboarding hides tabs and uses onboarding copy with warning", () => {
@@ -56,6 +59,8 @@ test("mandatory onboarding hides tabs and uses onboarding copy with warning", ()
   assert.match(html, /Before using Fleet GPS, replace the temporary password with your own\./);
   assert.match(html, /ant-alert-warning/);
   assert.match(html, /Access to Fleet GPS is restricted until you create your own password\./);
+  assert.match(html, />Create password</);
+  assert.doesNotMatch(html, />Change password</);
   assert.doesNotMatch(html, /<nav[^>]+aria-label="Account sections"/);
   assert.doesNotMatch(html, /account-navigation__desktop/);
   assert.doesNotMatch(html, /Back to Account/);
@@ -74,6 +79,8 @@ test("security copy is localized in UK, RU, and EN with single policy helper", (
     uk: {
       title: "Безпека",
       subtitle: "Керуйте паролем свого облікового запису Fleet GPS.",
+      normalHeading: "Змінити пароль",
+      mandatoryHeading: "Створити пароль",
       mandatoryTitle: "Створіть власний пароль",
       mandatorySubtitle: "Перш ніж користуватися Fleet GPS, замініть тимчасовий пароль на власний.",
       mandatoryWarning: "Доступ до Fleet GPS обмежено, доки ви не створите власний пароль.",
@@ -84,6 +91,8 @@ test("security copy is localized in UK, RU, and EN with single policy helper", (
     ru: {
       title: "Безопасность",
       subtitle: "Управляйте паролем своей учётной записи Fleet GPS.",
+      normalHeading: "Изменить пароль",
+      mandatoryHeading: "Создать пароль",
       mandatoryTitle: "Создайте свой пароль",
       mandatorySubtitle: "Прежде чем пользоваться Fleet GPS, замените временный пароль своим.",
       mandatoryWarning: "Доступ к Fleet GPS ограничен, пока вы не создадите свой пароль.",
@@ -94,6 +103,8 @@ test("security copy is localized in UK, RU, and EN with single policy helper", (
     en: {
       title: "Security",
       subtitle: "Manage the password for your Fleet GPS account.",
+      normalHeading: "Change password",
+      mandatoryHeading: "Create password",
       mandatoryTitle: "Create your own password",
       mandatorySubtitle: "Before using Fleet GPS, replace the temporary password with your own.",
       mandatoryWarning: "Access to Fleet GPS is restricted until you create your own password.",
@@ -105,13 +116,15 @@ test("security copy is localized in UK, RU, and EN with single policy helper", (
   for (const locale of ["uk", "ru", "en"] as const) {
     const copy = expected[locale];
     const calm = render(voluntary, locale);
-    for (const text of [copy.title, copy.subtitle, copy.sessions, copy.sessionsNote]) {
+    for (const text of [copy.title, copy.subtitle, copy.normalHeading, copy.sessions, copy.sessionsNote]) {
       assert.ok(calm.includes(text), `${locale}: ${text}`);
     }
+    assert.ok(!calm.includes(`>${copy.mandatoryHeading}<`), `${locale}: no mandatory heading when normal`);
     const forced = render(mandatory, locale);
-    for (const text of [copy.mandatoryTitle, copy.mandatorySubtitle, copy.mandatoryWarning, copy.sessions, copy.sessionsNote]) {
+    for (const text of [copy.mandatoryTitle, copy.mandatorySubtitle, copy.mandatoryWarning, copy.mandatoryHeading, copy.sessions, copy.sessionsNote]) {
       assert.ok(forced.includes(text), `${locale}: ${text}`);
     }
+    assert.ok(MESSAGE_CATALOG["auth.password.createTitle"][locale].includes(copy.mandatoryHeading), `${locale}: create title`);
     assert.ok(MESSAGE_CATALOG["auth.password.help"][locale].includes("12–128"), `${locale}: helper length`);
     assert.ok(MESSAGE_CATALOG["auth.password.temporary"][locale].includes(copy.temporary), `${locale}: temporary`);
     assert.ok(MESSAGE_CATALOG["account.security.mandatoryTitle"][locale].includes(copy.mandatoryTitle), `${locale}: mandatory title`);
@@ -138,6 +151,7 @@ test("security context is sessions-only with sign-out and no back escape", () =>
   assert.match(security, /mandatory \? t\("account\.security\.mandatoryTitle"\)/);
   assert.match(security, /mandatory \? t\("account\.security\.mandatorySubtitle"\)/);
   assert.match(security, /t\("account\.security\.mandatoryWarning"\)/);
+  assert.match(security, /t\(mandatory \? "auth\.password\.createTitle" : "auth\.password\.title"\)/);
   assert.match(security, /\{mandatory \? null : <AccountNavigation/);
   assert.doesNotMatch(security, /requiredAlert/);
   assert.doesNotMatch(security, /requirementsLabel|requirementsValue/);

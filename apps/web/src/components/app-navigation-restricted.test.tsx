@@ -25,6 +25,22 @@ test("desktop restricted mode hides product nav and keeps language, identity, an
   assert.match(desktop, /restricted=\{restricted\}/);
 });
 
+test("restricted desktop header pins utilities right without phantom navigation", () => {
+  const navigation = source();
+  const desktop = navigation.slice(navigation.indexOf("function DesktopNavigation"), navigation.indexOf("function CompactNavigation"));
+  assert.match(desktop, /taxi-header--restricted/);
+  assert.match(desktop, /restricted \? "taxi-header taxi-header--restricted" : "taxi-header"/);
+  assert.doesNotMatch(desktop, /phantom|marginInline|margin-inline-start: \d+px|paddingInline: \d+px/);
+  const css = readFileSync("src/styles/shell.css", "utf8");
+  assert.match(css, /\.taxi-header--restricted \.taxi-header__tools \{[\s\S]*?margin-inline-start: auto;/);
+  assert.doesNotMatch(css, /\.taxi-header--restricted[^}]*\d+px/);
+  // Normal, compact, and login shells keep their own header classes.
+  assert.match(navigation, /taxi-header--login/);
+  assert.match(navigation, /taxi-header--compact/);
+  const compact = navigation.slice(navigation.indexOf("function CompactNavigation"), navigation.indexOf("function Brand"));
+  assert.doesNotMatch(compact, /taxi-header--restricted/);
+});
+
 test("compact restricted mode hides product and administration and keeps utility capabilities", () => {
   const navigation = source();
   const compact = navigation.slice(navigation.indexOf("function CompactNavigation"));

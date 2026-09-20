@@ -23,7 +23,7 @@ export function AccountSecurity({ user, locale, signOutAction, formAction }: Rea
     <div className="account-workspace__body">
       <Card className="account-security-card">
         <div className="account-security__inner">
-          <h2 id="account-security-heading" className="account-security__title">{t("auth.password.title")}</h2>
+          <h2 id="account-security-heading" className="account-security__title">{t(mandatory ? "auth.password.createTitle" : "auth.password.title")}</h2>
           <div className="account-security__context">
             {mandatory
               ? <Alert className="account-security__notice" type="warning" showIcon title={t("account.security.mandatoryWarning")} />

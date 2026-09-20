@@ -42,7 +42,8 @@ test("mandatory form labels the current field as Temporary password", async () =
   assert.doesNotMatch(html, /Current password/);
   assert.match(html, /New password/);
   assert.match(html, /Confirm new password/);
-  assert.match(html, /Change password/);
+  assert.match(html, /Create password/);
+  assert.doesNotMatch(html, /Change password/);
   assert.doesNotMatch(html, /Back to Account/);
 });
 
@@ -52,6 +53,8 @@ test("normal form labels the current field as Current password with no back esca
   assert.doesNotMatch(html, /Temporary password/);
   assert.match(html, /New password/);
   assert.match(html, /Confirm new password/);
+  assert.match(html, /Change password/);
+  assert.doesNotMatch(html, /Create password/);
   assert.doesNotMatch(html, /Back to Account/);
   assert.doesNotMatch(html, /href="\/account"/);
 });
@@ -80,6 +83,20 @@ test("temporary label is localized in UK, RU, and EN", async () => {
   }
   const normalUk = await renderForm(false, "uk");
   assert.ok(normalUk.includes("Поточний пароль"));
+});
+
+test("first-time establishment wording is localized while normal wording is unchanged", async () => {
+  const createExpected = { uk: "Створити пароль", ru: "Создать пароль", en: "Create password" } as const;
+  const changeExpected = { uk: "Змінити пароль", ru: "Изменить пароль", en: "Change password" } as const;
+  for (const locale of ["uk", "ru", "en"] as const) {
+    const forced = await renderForm(true, locale);
+    assert.ok(forced.includes(createExpected[locale]), `${locale}: create`);
+    const calm = await renderForm(false, locale);
+    assert.ok(calm.includes(changeExpected[locale]), `${locale}: change`);
+    assert.ok(!calm.includes(`>${createExpected[locale]}<`), `${locale}: normal keeps change language`);
+  }
+  const source = readFileSync("src/components/account-security-form.tsx", "utf8");
+  assert.match(source, /t\(mandatory \? "auth\.password\.createTitle" : "auth\.password\.title"\)/);
 });
 
 test("success parses AuthUser, lands via contract, replaces, and refreshes the shell", async () => {
