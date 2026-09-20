@@ -11,6 +11,8 @@ const administrationPages = [
   "/admin/users",
   "/admin/users/new",
   "/admin/users/user-id",
+  "/admin/vehicle-groups",
+  "/admin/vehicle-groups/group-id",
   "/admin/settings",
   "/admin/audit",
   "/admin/history",
@@ -21,6 +23,8 @@ const administrationPages = [
 const adminOnlyBffs = [
   "/api/admin/users",
   "/api/admin/users/user-id/disable",
+  "/api/admin/vehicle-groups",
+  "/api/admin/vehicle-groups/group-id",
   "/api/admin/settings",
   "/api/admin/audit",
   "/api/system/position-history/retention-execute",
@@ -56,9 +60,9 @@ async function proxyAs(path: string, authUser: AuthUser): Promise<Response> {
   }
 }
 
-function assertRedirect(response: Response, destination: string): void {
-  assert.equal(response.status, 307);
-  assert.equal(response.headers.get("location"), `http://app.test${destination}`);
+function assertRedirect(response: Response, destination: string, message?: string): void {
+  assert.equal(response.status, 307, message);
+  assert.equal(response.headers.get("location"), `http://app.test${destination}`, message);
 }
 
 function assertAllowed(response: Response): void {
@@ -216,7 +220,7 @@ test("stale cookie 401 stays unauthenticated and never clears the session", asyn
   assert.equal(bff.response.headers.get("set-cookie"), null);
 });
 
-test("account routes need authentication but skip the forced-password redirect", async () => {
+test("account routes need authentication and enforce forced-password onboarding", async () => {
   const anon = await proxyWithMe("/account", async () => Response.json(admin), null);
   assertRedirect(anon.response, "/login");
   const down = await proxyWithMe("/account", async () => {
@@ -224,16 +228,121 @@ test("account routes need authentication but skip the forced-password redirect",
   });
   assert.equal(down.response.status, 503);
   assertAllowed(await proxyAs("/account", user));
+  assertAllowed(await proxyAs("/account/change-password", user));
   assertAllowed(await proxyAs("/account/change-password", { ...user, mustChangePassword: true }));
-  assertAllowed(await proxyAs("/account", { ...user, mustChangePassword: true }));
+  assertAllowed(await proxyAs("/account/change-password", { ...admin, mustChangePassword: true }));
+  for (const path of ["/account", "/account/telegram", "/account/notifications", "/account/no-access"] as const) {
+    assertRedirect(await proxyAs(path, { ...user, mustChangePassword: true }), "/account/change-password");
+    assertRedirect(await proxyAs(path, { ...admin, mustChangePassword: true }), "/account/change-password");
+  }
 });
 
-test("forbidden stays reachable for authenticated users and 503s when unavailable", async () => {
+test("forbidden stays reachable for normal users, redirects when restricted, 503s when unavailable", async () => {
   assertAllowed(await proxyAs("/forbidden", user));
+  assertAllowed(await proxyAs("/forbidden", admin));
+  assertRedirect(await proxyAs("/forbidden", { ...user, mustChangePassword: true }), "/account/change-password");
+  assertRedirect(await proxyAs("/forbidden", { ...admin, mustChangePassword: true }), "/account/change-password");
   const anon = await proxyWithMe("/forbidden", async () => Response.json(admin), null);
   assertRedirect(anon.response, "/login");
   const down = await proxyWithMe("/forbidden", async () => {
     throw new Error("down");
   });
   assert.equal(down.response.status, 503);
+});
+
+test("forced password onboarding redirects every protected product page to change-password", async () => {
+  const forcedPages = [
+    "/",
+    "/map",
+    "/events",
+    "/reports",
+    "/vehicles/vehicle-id",
+    "/vehicles/vehicle-id/track",
+    "/vehicles/vehicle-id/trips",
+    "/admin/users",
+    "/admin/vehicle-groups",
+    "/admin/vehicle-groups/group-id",
+    "/admin/settings",
+    "/admin/audit",
+    "/admin/history",
+    "/account",
+    "/account/telegram",
+    "/account/notifications",
+    "/account/no-access",
+    "/forbidden",
+  ] as const;
+  const privilegedUser: AuthUser = {
+    ...user,
+    permissions: ["fleet.view", "map.view", "events.view", "vehicles.view", "trips.view", "reports.view", "historyAdmin.view"],
+    mustChangePassword: true,
+  };
+  const privilegedAdmin: AuthUser = { ...admin, mustChangePassword: true };
+  for (const path of forcedPages) {
+    assertRedirect(await proxyAs(path, { ...user, mustChangePassword: true }), "/account/change-password", path);
+    assertRedirect(await proxyAs(path, privilegedUser), "/account/change-password", path);
+    assertRedirect(await proxyAs(path, { ...admin, mustChangePassword: true }), "/account/change-password", path);
+    assertRedirect(await proxyAs(path, privilegedAdmin), "/account/change-password", path);
+  }
+  assertAllowed(await proxyAs("/account/change-password", { ...user, mustChangePassword: true }));
+  assertAllowed(await proxyAs("/account/change-password", { ...admin, mustChangePassword: true }));
+});
+
+test("forced-password precedence beats ADMIN and permission routing", async () => {
+  const fleetUser: AuthUser = { ...user, permissions: ["fleet.view"], mustChangePassword: true };
+  assertRedirect(await proxyAs("/", fleetUser), "/account/change-password");
+  const mapUser: AuthUser = { ...user, permissions: ["map.view"], mustChangePassword: true };
+  assertRedirect(await proxyAs("/map", mapUser), "/account/change-password");
+  const historyUser: AuthUser = { ...user, permissions: ["historyAdmin.view"], mustChangePassword: true };
+  assertRedirect(await proxyAs("/admin/history", historyUser), "/account/change-password");
+  // Normal counterparts keep their permission behavior.
+  assertAllowed(await proxyAs("/", { ...user, permissions: ["fleet.view"] }));
+  assertRedirect(await proxyAs("/", user), "/forbidden");
+  assertAllowed(await proxyAs("/map", { ...user, permissions: ["map.view"] }));
+  assertAllowed(await proxyAs("/admin/history", { ...user, permissions: ["historyAdmin.view"] }));
+  assertRedirect(await proxyAs("/admin/history", user), "/forbidden");
+});
+
+test("restricted product and admin BFFs stay coherent 403, never page redirects", async () => {
+  const restrictedPaths = [
+    "/api/dashboard/vehicles",
+    "/api/fleet/map",
+    "/api/alert-events",
+    "/api/reports/fleet-activity",
+    "/api/vehicles/vehicle-id/details",
+    "/api/vehicles/vehicle-id/track",
+    "/api/admin/users",
+    "/api/admin/vehicle-groups",
+    "/api/admin/vehicle-groups/group-id",
+    "/api/admin/settings",
+    "/api/system/position-history/retention-execute",
+  ] as const;
+  for (const path of restrictedPaths) {
+    for (const restricted of [{ ...user, mustChangePassword: true }, { ...admin, mustChangePassword: true }] as const) {
+      const response = await proxyAs(path, restricted);
+      assert.equal(response.status, 403, path);
+      assert.equal(response.headers.get("location"), null, path);
+    }
+  }
+  // Auth exceptions stay outside this proxy authority.
+  assertAllowed(await proxy(request("/api/auth/me")));
+  assertAllowed(await proxy(request("/api/auth/logout")));
+  assertAllowed(await proxy(request("/api/auth/change-password")));
+});
+
+test("vehicle-group administration is ADMIN-only for normal users", async () => {
+  for (const path of ["/admin/vehicle-groups", "/admin/vehicle-groups/group-id"] as const) {
+    assertRedirect(await proxy(request(path)), "/login");
+    assertRedirect(await proxyAs(path, user), "/forbidden");
+    assertAllowed(await proxyAs(path, admin));
+    assertRedirect(await proxyAs(path, { ...user, mustChangePassword: true }), "/account/change-password");
+    assertRedirect(await proxyAs(path, { ...admin, mustChangePassword: true }), "/account/change-password");
+  }
+  for (const path of ["/api/admin/vehicle-groups", "/api/admin/vehicle-groups/group-id"] as const) {
+    assert.equal((await proxy(request(path))).status, 401);
+    assert.equal((await proxyAs(path, user)).status, 403);
+    assertAllowed(await proxyAs(path, admin));
+    assert.equal((await proxyAs(path, { ...user, mustChangePassword: true })).status, 403);
+  }
+  // Sibling paths stay outside ADMIN classification.
+  assertAllowed(await proxy(request("/admin/vehicle-groups-old")));
 });

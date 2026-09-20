@@ -58,6 +58,19 @@
   text-decoration: none;
 }
 
+.taxi-header__brand--static {
+  cursor: default;
+}
+
+.taxi-header__brand--static:hover,
+.taxi-header__brand--static:focus,
+.taxi-header__brand--static:focus-visible {
+  color: var(--shell-text);
+  background: transparent;
+  text-decoration: none;
+  outline: none;
+}
+
 .taxi-header__brand-icon {
   display: inline-flex;
   align-items: center;
