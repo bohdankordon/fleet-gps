@@ -12,11 +12,10 @@ const voluntary: AuthUser = { id: "user-id", login: "operator", role: "USER", pe
 const mandatory: AuthUser = { ...voluntary, mustChangePassword: true };
 const render = (user: AuthUser, locale: "uk" | "ru" | "en" = "en") => renderToStaticMarkup(<ConfigProvider><AccountSecurity user={user} locale={locale} signOutAction={<button type="button">Sign out fixture</button>} formAction={<form data-testid="password-form-fixture" />} /></ConfigProvider>);
 
-test("Security reuses the shared centered Account workspace and navigation", () => {
+test("normal Security keeps tabs, sessions, and centered workspace without status or duplicated policy", () => {
   const html = render(voluntary);
   assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
   assert.equal((html.match(/<h2\b/g) ?? []).length, 2);
-  assert.ok((html.match(/<h3\b/g) ?? []).length >= 3);
   assert.match(html, />Security</);
   assert.match(html, /Manage the password for your Fleet GPS account\./);
   const axisCss = readFileSync("src/styles/account.css", "utf8");
@@ -39,89 +38,134 @@ test("Security reuses the shared centered Account workspace and navigation", () 
   assert.doesNotMatch(html, /auth-page|auth-card|account-card|account-heading|account-actions/);
   const bodyHtml = html.slice(html.indexOf("account-workspace__body"));
   assert.doesNotMatch(bodyHtml, /<input|contenteditable/);
+  // Normal polish: no Status fact, no standalone Password Requirements fact.
+  assert.doesNotMatch(html, />Status</);
+  assert.doesNotMatch(html, /Password change not required/);
+  assert.doesNotMatch(html, />Password requirements</);
+  assert.doesNotMatch(html, /common passwords are not accepted/);
+  // Sessions fact remains the single context fact.
+  assert.match(html, />Sessions</);
+  assert.match(html, /Changing the password ends all other sessions\. This browser stays signed in\./);
+  assert.doesNotMatch(html, /ant-alert-warning/);
+  // Normal card heading keeps ordinary change language.
+  assert.match(html, />Change password</);
+  assert.doesNotMatch(html, />Create password</);
 });
 
-test("mandatory password change is prominent while voluntary change stays quiet", () => {
-  const forced = render(mandatory);
-  assert.match(forced, /ant-alert-warning/);
-  assert.match(forced, /You must change your password before continuing\./);
-  const calm = render(voluntary);
-  assert.doesNotMatch(calm, /ant-alert-warning/);
-  assert.doesNotMatch(calm, /You must change your password before continuing\./);
-  assert.match(calm, /Password change not required/);
+test("mandatory onboarding hides tabs and uses onboarding copy with warning", () => {
+  const html = render(mandatory);
+  assert.equal((html.match(/<h1\b/g) ?? []).length, 1);
+  assert.match(html, /Create your own password/);
+  assert.match(html, /Before using Fleet GPS, replace the temporary password with your own\./);
+  assert.match(html, /ant-alert-warning/);
+  assert.match(html, /Access to Fleet GPS is restricted until you create your own password\./);
+  assert.match(html, />Create password</);
+  assert.doesNotMatch(html, />Change password</);
+  assert.doesNotMatch(html, /<nav[^>]+aria-label="Account sections"/);
+  assert.doesNotMatch(html, /account-navigation__desktop/);
+  assert.doesNotMatch(html, /Back to Account/);
+  assert.doesNotMatch(html, />Status</);
+  assert.doesNotMatch(html, /Password change not required/);
+  assert.doesNotMatch(html, />Password requirements</);
+  assert.match(html, />Sessions</);
+  assert.match(html, /Changing the password ends all other sessions/);
+  assert.match(html, /password-form-fixture/);
+  assert.match(html, /Sign out fixture/);
+  assert.match(html, /account-signout/);
 });
 
-test("security copy is localized in UK, RU, and EN", () => {
+test("security copy is localized in UK, RU, and EN with single policy helper", () => {
   const expected = {
     uk: {
       title: "Безпека",
       subtitle: "Керуйте паролем свого облікового запису Fleet GPS.",
-      status: "Статус",
-      quiet: "Змінювати пароль не потрібно",
+      normalHeading: "Змінити пароль",
+      mandatoryHeading: "Створити пароль",
+      mandatoryTitle: "Створіть власний пароль",
+      mandatorySubtitle: "Перш ніж користуватися Fleet GPS, замініть тимчасовий пароль на власний.",
+      mandatoryWarning: "Доступ до Fleet GPS обмежено, доки ви не створите власний пароль.",
+      temporary: "Тимчасовий пароль",
       sessions: "Сеанси",
       sessionsNote: "Зміна пароля завершить усі інші сеанси.",
-      requirements: "Вимоги до пароля",
-      requirementsValue: "12–128 символів. Дозволені будь-які символи; поширені паролі не приймаються.",
-      forced: "Потрібно змінити пароль, перш ніж продовжити роботу.",
     },
     ru: {
       title: "Безопасность",
       subtitle: "Управляйте паролем своей учётной записи Fleet GPS.",
-      status: "Статус",
-      quiet: "Изменение пароля не требуется",
+      normalHeading: "Изменить пароль",
+      mandatoryHeading: "Создать пароль",
+      mandatoryTitle: "Создайте свой пароль",
+      mandatorySubtitle: "Прежде чем пользоваться Fleet GPS, замените временный пароль своим.",
+      mandatoryWarning: "Доступ к Fleet GPS ограничен, пока вы не создадите свой пароль.",
+      temporary: "Временный пароль",
       sessions: "Сеансы",
       sessionsNote: "Смена пароля завершит все остальные сеансы.",
-      requirements: "Требования к паролю",
-      requirementsValue: "12–128 символов. Допустимы любые символы; распространённые пароли не принимаются.",
-      forced: "Необходимо изменить пароль, прежде чем продолжить работу.",
     },
     en: {
       title: "Security",
       subtitle: "Manage the password for your Fleet GPS account.",
-      status: "Status",
-      quiet: "Password change not required",
+      normalHeading: "Change password",
+      mandatoryHeading: "Create password",
+      mandatoryTitle: "Create your own password",
+      mandatorySubtitle: "Before using Fleet GPS, replace the temporary password with your own.",
+      mandatoryWarning: "Access to Fleet GPS is restricted until you create your own password.",
+      temporary: "Temporary password",
       sessions: "Sessions",
       sessionsNote: "Changing the password ends all other sessions.",
-      requirements: "Password requirements",
-      requirementsValue: "12–128 characters. Any characters are allowed; common passwords are not accepted.",
-      forced: "You must change your password before continuing.",
     },
   } as const;
   for (const locale of ["uk", "ru", "en"] as const) {
     const copy = expected[locale];
     const calm = render(voluntary, locale);
-    for (const text of [copy.title, copy.subtitle, copy.status, copy.quiet, copy.sessions, copy.sessionsNote, copy.requirements, copy.requirementsValue]) {
+    for (const text of [copy.title, copy.subtitle, copy.normalHeading, copy.sessions, copy.sessionsNote]) {
       assert.ok(calm.includes(text), `${locale}: ${text}`);
     }
-    assert.ok(render(mandatory, locale).includes(copy.forced), `${locale}: forced`);
+    assert.ok(!calm.includes(`>${copy.mandatoryHeading}<`), `${locale}: no mandatory heading when normal`);
+    const forced = render(mandatory, locale);
+    for (const text of [copy.mandatoryTitle, copy.mandatorySubtitle, copy.mandatoryWarning, copy.mandatoryHeading, copy.sessions, copy.sessionsNote]) {
+      assert.ok(forced.includes(text), `${locale}: ${text}`);
+    }
+    assert.ok(MESSAGE_CATALOG["auth.password.createTitle"][locale].includes(copy.mandatoryHeading), `${locale}: create title`);
     assert.ok(MESSAGE_CATALOG["auth.password.help"][locale].includes("12–128"), `${locale}: helper length`);
+    assert.ok(MESSAGE_CATALOG["auth.password.temporary"][locale].includes(copy.temporary), `${locale}: temporary`);
+    assert.ok(MESSAGE_CATALOG["account.security.mandatoryTitle"][locale].includes(copy.mandatoryTitle), `${locale}: mandatory title`);
+    assert.ok(MESSAGE_CATALOG["account.security.mandatorySubtitle"][locale].includes(copy.mandatorySubtitle), `${locale}: mandatory subtitle`);
+    assert.ok(MESSAGE_CATALOG["account.security.mandatoryWarning"][locale].includes(copy.mandatoryWarning), `${locale}: mandatory warning`);
     assert.ok(MESSAGE_CATALOG["auth.password.commonOrPredictable"][locale].length > 20, `${locale}: common-password rejection`);
     assert.ok(MESSAGE_CATALOG["auth.password.sameAsCurrent"][locale].length > 20, `${locale}: same-password rejection`);
   }
 });
 
-test("voluntary context is structured with status, sessions, and requirements", () => {
-  const html = render(voluntary);
-  // Status, session consequence, and password requirement read as three
-  // distinct labelled facts; identity prose stays out of this surface.
-  assert.match(html, />Status</);
-  assert.match(html, /ant-tag[^>]*>Password change not required</);
-  assert.doesNotMatch(html.slice(html.indexOf('id="account-security-heading"'), html.indexOf("account-security__divider")), /ant-tag-success|ant-tag-warning|ant-tag-processing|ant-tag-error/);
-  assert.match(html, />Sessions</);
-  assert.match(html, /Changing the password ends all other sessions\. This browser stays signed in\./);
-  assert.match(html, />Password requirements</);
-  assert.match(html, /12–128 characters\. Any characters are allowed; common passwords are not accepted\./);
-  assert.doesNotMatch(html, /igned in as /);
-  assert.match(html, /password-form-fixture/);
+test("security context is sessions-only with sign-out and no back escape", () => {
+  for (const user of [voluntary, mandatory] as const) {
+    const html = render(user);
+    assert.match(html, />Sessions</);
+    assert.doesNotMatch(html, />Status</);
+    assert.doesNotMatch(html, />Password requirements</);
+    assert.doesNotMatch(html, /Back to Account/);
+    assert.match(html, /password-form-fixture/);
+    assert.match(html, /account-signout/);
+    assert.doesNotMatch(html, /igned in as /);
+  }
   const security = readFileSync("src/components/account-security.tsx", "utf8");
-  assert.match(security, /<AccountSecurityForm mandatory=\{user\.mustChangePassword\} \/>/);
+  assert.match(security, /const mandatory = user\.mustChangePassword === true/);
+  assert.match(security, /mandatory \? t\("account\.security\.mandatoryTitle"\)/);
+  assert.match(security, /mandatory \? t\("account\.security\.mandatorySubtitle"\)/);
+  assert.match(security, /t\("account\.security\.mandatoryWarning"\)/);
+  assert.match(security, /t\(mandatory \? "auth\.password\.createTitle" : "auth\.password\.title"\)/);
+  assert.match(security, /\{mandatory \? null : <AccountNavigation/);
+  assert.doesNotMatch(security, /requiredAlert/);
+  assert.doesNotMatch(security, /requirementsLabel|requirementsValue/);
+  assert.doesNotMatch(security, /common\.status/);
+  assert.match(security, /<AccountSecurityForm mandatory=\{mandatory\} \/>/);
   assert.match(security, /<AccountSignOutSection/);
   assert.doesNotMatch(security, /<LogoutButton/);
-  // The Back escape lives in the working form and only for voluntary users.
-  const form = readFileSync("src/components/account-security-form.tsx", "utf8");
-  assert.match(form, /\{!mandatory \? <Button href="\/account"/);
-  assert.match(form, /account\.security\.backToAccount/);
   assert.doesNotMatch(security, /telegram|notifications|no-access/i);
+  const form = readFileSync("src/components/account-security-form.tsx", "utf8");
+  assert.match(form, /t\(mandatory \? "auth\.password\.temporary" : "auth\.password\.current"\)/);
+  assert.match(form, /auth\.password\.help/);
+  assert.equal((form.match(/auth\.password\.help/g) ?? []).length, 1);
+  assert.doesNotMatch(form, /backToAccount/);
+  assert.doesNotMatch(form, /href="\/account"/);
 });
 
 test("password contract is preserved: same endpoint, payload, and error mapping", () => {
@@ -146,7 +190,13 @@ test("password contract is preserved: same endpoint, payload, and error mapping"
   assert.match(form, /generation\.current !== run/);
   assert.match(form, /AbortController/);
   assert.match(form, /scrollToField/);
+  assert.match(form, /parseAuthUser\(await response\.json\(\)\)/);
   assert.match(form, /router\.replace\(landingFor\(user\)\)/);
+  assert.match(form, /router\.refresh\(\)/);
+  // Mandatory presentation uses the Temporary label; Back escape is gone.
+  assert.match(form, /auth\.password\.temporary/);
+  assert.doesNotMatch(form, /backToAccount/);
+  assert.doesNotMatch(form, /href="\/account"/);
   const page = readFileSync("src/app/account/change-password/page.tsx", "utf8");
   assert.match(page, /<AccountSecurity/);
   assert.doesNotMatch(page, /auth-page|auth-card|account-card|account-actions/);

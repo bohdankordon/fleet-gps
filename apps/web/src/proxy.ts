@@ -7,10 +7,12 @@ import { parseWebConfig } from "./lib/web-config";
 
 const ADMIN_ONLY_ROUTE_PREFIXES = [
   "/admin/users",
+  "/admin/vehicle-groups",
   "/admin/settings",
   "/admin/audit",
   "/admin/history/retention",
   "/api/admin/users",
+  "/api/admin/vehicle-groups",
   "/api/admin/settings",
   "/api/admin/audit",
   "/api/system/position-history/retention-execute",
@@ -37,6 +39,12 @@ function requiresAdmin(path: string): boolean {
 
 function isAuthenticatedOnlyRoute(path: string): boolean {
   return path === "/account" || path.startsWith("/account/") || path === "/forbidden";
+}
+
+const FORCED_PASSWORD_PAGE = "/account/change-password";
+
+function isForcedPasswordExemptPage(path: string): boolean {
+  return path === FORCED_PASSWORD_PAGE;
 }
 
 function jsonServiceUnavailable(): NextResponse {
@@ -97,7 +105,15 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return pageServiceUnavailable(request, resolveLocalePreference(request.cookies.get(LOCALE_COOKIE_NAME)?.value, request.headers.get("accept-language")).locale);
   }
   const user = resolution.user;
-  if (!accountOnly && user.mustChangePassword) return api ? NextResponse.json({ statusCode: 403, error: "Forbidden" }, { status: 403 }) : NextResponse.redirect(new URL("/account/change-password", request.url));
+  // Forced-password onboarding precedence: a positively authenticated user with
+  // mustChangePassword may use only the change-password page. Nest remains
+  // authoritative for APIs (coherent 403); Web redirects every other matched
+  // protected product/account page to the single allowed page.
+  if (user.mustChangePassword) {
+    if (api) return NextResponse.json({ statusCode: 403, error: "Forbidden" }, { status: 403 });
+    if (isForcedPasswordExemptPage(path)) return NextResponse.next();
+    return NextResponse.redirect(new URL(FORCED_PASSWORD_PAGE, request.url));
+  }
   if (adminOnly && user.role !== "ADMIN") return api ? NextResponse.json({ statusCode: 403, error: "Forbidden" }, { status: 403 }) : NextResponse.redirect(new URL("/forbidden", request.url));
   if (required && !required.some((permission) => hasPermission(user, permission))) return api ? NextResponse.json({ statusCode: 403, error: "Forbidden" }, { status: 403 }) : NextResponse.redirect(new URL("/forbidden", request.url));
   return NextResponse.next();

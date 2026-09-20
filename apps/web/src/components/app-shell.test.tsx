@@ -35,8 +35,8 @@ test("the shell establishes the light Fleet GPS Ant Design header and responsive
   assert.match(navigation, /EnvironmentFilled/);
   assert.doesNotMatch(navigation, /CarOutlined/);
   assert.match(navigation, /<Link className="taxi-header__brand" href="\/">.*<EnvironmentFilled.*aria-hidden.*<span>Fleet GPS<\/span>.*<\/Link>/);
-  assert.match(navigation, /<Drawer[\s\S]*title=\{<Brand \/>\}/);
-  assert.match(navigation, /taxi-header--compact[\s\S]*<Brand \/>/);
+  assert.match(navigation, /<Drawer[\s\S]*title=\{<Brand/);
+  assert.match(navigation, /taxi-header--compact[\s\S]*<Brand/);
   assert.match(navigation, /<nav className="taxi-header__nav"/);
   assert.match(navigation, /navigation\.map\(\(item\) =>/);
   assert.match(navigation, /className=\{`taxi-header__nav-link/);

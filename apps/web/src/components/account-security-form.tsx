@@ -104,9 +104,23 @@ export function AccountSecurityForm({ mandatory }: Readonly<{ mandatory: boolean
         return;
       }
       if (generation.current !== run) return;
+      if (mandatory) {
+        // Forced onboarding has already completed: entering the normal
+        // application is the success feedback, so navigate immediately
+        // instead of holding the contradictory restricted-state success Alert.
+        router.replace(landingFor(user));
+        router.refresh();
+        return;
+      }
       setSucceeded(true);
       timer.current = setTimeout(() => {
-        if (generation.current === run) router.replace(landingFor(user));
+        if (generation.current === run) {
+          // landingFor() encodes the mustChangePassword contract: a cleared
+          // restriction lands on the normal app, otherwise back to onboarding.
+          // refresh() drops the preserved restricted shell after rotation.
+          router.replace(landingFor(user));
+          router.refresh();
+        }
       }, SUCCESS_NAVIGATION_DELAY_MS);
     } catch {
       if (controller.signal.aborted || generation.current !== run) return;
@@ -137,7 +151,11 @@ export function AccountSecurityForm({ mandatory }: Readonly<{ mandatory: boolean
         onFinish={(values) => { void handleFinish(values); }}
         onFinishFailed={handleFinishFailed}
       >
-        <Form.Item name="currentPassword" label={t("auth.password.current")} rules={[ruleFor("currentPassword")]}>
+        <Form.Item
+          name="currentPassword"
+          label={t(mandatory ? "auth.password.temporary" : "auth.password.current")}
+          rules={[ruleFor("currentPassword")]}
+        >
           <Input.Password autoComplete="current-password" />
         </Form.Item>
         <Form.Item
@@ -153,9 +171,8 @@ export function AccountSecurityForm({ mandatory }: Readonly<{ mandatory: boolean
         </Form.Item>
         <Form.Item className="account-security__actions">
           <Button type="primary" htmlType="submit" loading={busy} disabled={locked} aria-live="polite">
-            {busy ? t("auth.password.submitting") : t("auth.password.title")}
+            {busy ? t("auth.password.submitting") : t(mandatory ? "auth.password.createTitle" : "auth.password.title")}
           </Button>
-          {!mandatory ? <Button href="/account" disabled={locked}>{t("account.security.backToAccount")}</Button> : null}
         </Form.Item>
       </Form>
     )}

@@ -35,10 +35,14 @@ export function AppNavigation() {
   const { token } = theme.useToken();
   const screens = Grid.useBreakpoint();
   const compact = !screens.lg;
-  const allNavigation = navigationFor(user, locale);
+  // Temporary restricted onboarding state: authenticated with a temporary
+  // password. Product, Administration, and Account destinations stay hidden
+  // on both desktop and compact compositions.
+  const restricted = user?.mustChangePassword === true;
+  const allNavigation = restricted ? [] : navigationFor(user, locale);
   const primary = allNavigation.filter((item) => !item.href.startsWith("/admin/"));
-  const administration = adminNavigationFor(user, locale);
-  const administrationParent = allNavigation.find((item) => item.href.startsWith("/admin/"));
+  const administration = restricted ? [] : adminNavigationFor(user, locale);
+  const administrationParent = restricted ? undefined : allNavigation.find((item) => item.href.startsWith("/admin/"));
   const administrationLabel = administrationParent?.label ?? t("common.administration");
   const shellTokens = {
     "--shell-bg": token.colorBgContainer,
@@ -59,40 +63,43 @@ export function AppNavigation() {
     paddingInline: 0,
   } as ShellTokenStyle;
 
-  const shared = { pathname, primary, administration, administrationParent, administrationLabel, shellStyle, shellTokens };
+  const shared = { pathname, primary, administration, administrationParent, administrationLabel, shellStyle, shellTokens, restricted };
 
   if (pathname === "/login") {
     return <Header className="taxi-header taxi-header--login" style={shellStyle}><div className="taxi-header__inner"><Brand /><LanguageSelector /></div></Header>;
   }
-  if (compact) return <CompactNavigation {...shared} />;
-  return <DesktopNavigation pathname={pathname} navigation={allNavigation} login={user?.login ?? null} shellStyle={shellStyle} />;
+  if (compact) return <CompactNavigation {...shared} login={user?.login ?? null} />;
+  return <DesktopNavigation pathname={pathname} navigation={allNavigation} login={user?.login ?? null} shellStyle={shellStyle} restricted={restricted} />;
 }
 
-function DesktopNavigation({ pathname, navigation, login, shellStyle }: Readonly<{
+function DesktopNavigation({ pathname, navigation, login, shellStyle, restricted }: Readonly<{
   pathname: string;
   navigation: readonly NavigationItem[];
   login: string | null;
   shellStyle: ShellTokenStyle;
+  restricted: boolean;
 }>) {
   const { t } = useI18n();
-  return <Header className="taxi-header" style={shellStyle}>
+  return <Header className={restricted ? "taxi-header taxi-header--restricted" : "taxi-header"} style={shellStyle}>
     <div className="taxi-header__inner">
-      <Brand />
-      <nav className="taxi-header__nav" aria-label={t("navigation.primaryLabel")}>
-        {navigation.map((item) => {
-          const active = isActiveAppNavigationPath(item.href, pathname);
-          return <Link className={`taxi-header__nav-link${active ? " taxi-header__nav-link--active" : ""}`} key={item.href} href={item.href} aria-current={active ? "page" : undefined}>{item.label}</Link>;
-        })}
-      </nav>
+      <Brand staticMode={restricted} />
+      {restricted || navigation.length === 0 ? null : (
+        <nav className="taxi-header__nav" aria-label={t("navigation.primaryLabel")}>
+          {navigation.map((item) => {
+            const active = isActiveAppNavigationPath(item.href, pathname);
+            return <Link className={`taxi-header__nav-link${active ? " taxi-header__nav-link--active" : ""}`} key={item.href} href={item.href} aria-current={active ? "page" : undefined}>{item.label}</Link>;
+          })}
+        </nav>
+      )}
       <div className="taxi-header__tools">
         <LanguageSelector />
-        {login ? <AccountMenu login={login} /> : null}
+        {login ? <AccountMenu login={login} restricted={restricted} /> : null}
       </div>
     </div>
   </Header>;
 }
 
-function CompactNavigation({ pathname, primary, administration, administrationParent, administrationLabel, shellStyle, shellTokens }: Readonly<{
+function CompactNavigation({ pathname, primary, administration, administrationParent, administrationLabel, shellStyle, shellTokens, restricted, login }: Readonly<{
   pathname: string;
   primary: readonly NavigationItem[];
   administration: readonly NavigationItem[];
@@ -100,6 +107,8 @@ function CompactNavigation({ pathname, primary, administration, administrationPa
   administrationLabel: string;
   shellStyle: ShellTokenStyle;
   shellTokens: ShellTokenStyle;
+  restricted: boolean;
+  login: string | null;
 }>) {
   const [open, setOpen] = useState(false);
   const user = useAuth();
@@ -109,41 +118,48 @@ function CompactNavigation({ pathname, primary, administration, administrationPa
 
   return <Header className="taxi-header taxi-header--compact" style={shellStyle}>
     <div className="taxi-header__inner">
-      <Brand />
+      <Brand staticMode={restricted} />
       <Button className="taxi-header__mobile-trigger" type="text" size="large" icon={<MenuOutlined aria-hidden />} aria-label={t("navigation.openMenu")} onClick={() => setOpen(true)} />
-      <Drawer className="taxi-navigation-drawer" style={shellTokens} title={<Brand />} placement="right" size={360} open={open} onClose={close} destroyOnHidden>
-        <nav className="taxi-navigation-drawer__nav" aria-label={t("navigation.primaryLabel")}>
-          <Menu mode="inline" selectedKeys={selectedPrimaryKeys(primary, pathname)} items={primary.map((item) => ({ key: item.href, label: <Link href={item.href} onClick={close}>{item.label}</Link> }))} />
-          {administrationParent && administration.length > 0 ? <section className="taxi-navigation-drawer__administration">
-            <Link className="taxi-navigation-drawer__administration-link" href={administrationParent.href} aria-current={pathname.startsWith("/admin/") ? "location" : undefined} onClick={close}>
-              <span>{administrationLabel}</span>
-            </Link>
-            <Menu mode="inline" selectedKeys={selectedAdmin ? [selectedAdmin] : []} items={administration.map((item) => ({ key: item.href, icon: adminIcon(item.href), label: <Link href={item.href} onClick={close}>{item.label}</Link> }))} />
-          </section> : null}
-        </nav>
+      <Drawer className="taxi-navigation-drawer" style={shellTokens} title={<Brand staticMode={restricted} />} placement="right" size={360} open={open} onClose={close} destroyOnHidden>
+        {restricted ? null : (
+          <nav className="taxi-navigation-drawer__nav" aria-label={t("navigation.primaryLabel")}>
+            <Menu mode="inline" selectedKeys={selectedPrimaryKeys(primary, pathname)} items={primary.map((item) => ({ key: item.href, label: <Link href={item.href} onClick={close}>{item.label}</Link> }))} />
+            {administrationParent && administration.length > 0 ? <section className="taxi-navigation-drawer__administration">
+              <Link className="taxi-navigation-drawer__administration-link" href={administrationParent.href} aria-current={pathname.startsWith("/admin/") ? "location" : undefined} onClick={close}>
+                <span>{administrationLabel}</span>
+              </Link>
+              <Menu mode="inline" selectedKeys={selectedAdmin ? [selectedAdmin] : []} items={administration.map((item) => ({ key: item.href, icon: adminIcon(item.href), label: <Link href={item.href} onClick={close}>{item.label}</Link> }))} />
+            </section> : null}
+          </nav>
+        )}
         <Divider />
         <div className="taxi-navigation-drawer__tools">
           <LanguageSelector />
-          {user ? <AccountMenu login={user.login} afterNavigation={close} /> : null}
+          {user ?? login ? <AccountMenu login={user?.login ?? login ?? ""} restricted={restricted} afterNavigation={close} /> : null}
         </div>
       </Drawer>
     </div>
   </Header>;
 }
 
-function Brand() {
+function Brand({ staticMode }: Readonly<{ staticMode?: boolean }>) {
+  if (staticMode) {
+    return <span className="taxi-header__brand taxi-header__brand--static" aria-hidden={false}><EnvironmentFilled className="taxi-header__brand-icon" aria-hidden /><span>Fleet GPS</span></span>;
+  }
   return <Link className="taxi-header__brand" href="/"><EnvironmentFilled className="taxi-header__brand-icon" aria-hidden /><span>Fleet GPS</span></Link>;
 }
 
-function AccountMenu({ login, afterNavigation }: Readonly<{ login: string; afterNavigation?: () => void }>) {
+function AccountMenu({ login, afterNavigation, restricted }: Readonly<{ login: string; afterNavigation?: () => void; restricted?: boolean }>) {
   const [open, setOpen] = useState(false);
   const { busy, label, logout } = useLogout();
   const { t } = useI18n();
-  const items: MenuProps["items"] = [
-    { key: "account", icon: <UserOutlined aria-hidden />, label: <Link href="/account" onClick={() => { setOpen(false); afterNavigation?.(); }}>{t("account.open")}</Link> },
-    { type: "divider" },
-    { key: "logout", danger: true, icon: <LogoutOutlined aria-hidden />, label },
-  ];
+  const items: MenuProps["items"] = restricted
+    ? [{ key: "logout", danger: true, icon: <LogoutOutlined aria-hidden />, label }]
+    : [
+      { key: "account", icon: <UserOutlined aria-hidden />, label: <Link href="/account" onClick={() => { setOpen(false); afterNavigation?.(); }}>{t("account.open")}</Link> },
+      { type: "divider" },
+      { key: "logout", danger: true, icon: <LogoutOutlined aria-hidden />, label },
+    ];
   return <Dropdown open={open} onOpenChange={setOpen} menu={{ items, onClick: ({ key }) => { if (key === "logout") { setOpen(false); void logout(); } } }} trigger={["click"]} placement="bottomRight">
     <Button className="taxi-header__control taxi-header__account-control" type="text" size="small" loading={busy} aria-label={t("account.openMenu")} aria-expanded={open} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " " || event.key === "ArrowDown") { event.preventDefault(); setOpen(true); } }}>
       <Avatar size={24}>{login.slice(0, 1).toUpperCase()}</Avatar>

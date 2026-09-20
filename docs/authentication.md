@@ -77,6 +77,21 @@ unavailable experience with a retry path instead. Nest remains authoritative:
 missing/invalid/expired sessions receive 401, and authenticated principals
 lacking authority receive 403, as above.
 
+### Forced temporary-password onboarding
+
+mustChangePassword=true is a temporary restricted onboarding state, not a
+role or permission. Nest permits only /api/auth/me, /api/auth/logout,
+and /api/auth/change-password; every other product/Admin/account business
+API stays 403. The Web proxy redirects every matched protected
+product/account page except /account/change-password to
+/account/change-password for a positively authenticated restricted user;
+/login resolves through landingFor() to the same page. The application
+shell exposes only the Fleet GPS brand (static), language selection, account
+identity, and logout until onboarding completes. Normal product navigation
+appears after the password is established. A successful password change
+atomically rotates the session, clears the restriction, and the Web layer
+replaces plus refreshes to the landingFor() destination.
+
 ## Current access matrix
 
 | Page / API | Authority |
