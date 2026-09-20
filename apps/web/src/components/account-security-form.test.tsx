@@ -99,12 +99,27 @@ test("first-time establishment wording is localized while normal wording is unch
   assert.match(source, /t\(mandatory \? "auth\.password\.createTitle" : "auth\.password\.title"\)/);
 });
 
-test("success parses AuthUser, lands via contract, replaces, and refreshes the shell", async () => {
+test("mandatory success parses AuthUser and navigates immediately with no hold state", async () => {
   const source = readFileSync("src/components/account-security-form.tsx", "utf8");
   assert.match(source, /parseAuthUser\(await response\.json\(\)\)/);
-  assert.match(source, /router\.replace\(landingFor\(user\)\)/);
-  assert.match(source, /router\.refresh\(\)/);
+  const start = source.indexOf("if (mandatory) {");
+  const immediate = source.slice(start, source.indexOf("return;", start) + "return;".length);
+  assert.match(immediate, /router\.replace\(landingFor\(user\)\)/);
+  assert.match(immediate, /router\.refresh\(\)/);
+  assert.match(immediate, /return;/);
+  assert.doesNotMatch(immediate, /setTimeout/);
+  assert.doesNotMatch(immediate, /setSucceeded/);
+  assert.doesNotMatch(immediate, /SUCCESS_NAVIGATION_DELAY_MS/);
+  // Both navigation call sites use the landing contract.
+  assert.equal((source.match(/router\.replace\(landingFor\(user\)\)/g) ?? []).length, 2);
+  assert.equal((source.match(/router\.refresh\(\)/g) ?? []).length, 2);
+});
+
+test("normal success keeps the existing success-feedback hold before navigating", async () => {
+  const source = readFileSync("src/components/account-security-form.tsx", "utf8");
   assert.match(source, /setSucceeded\(true\)/);
   assert.match(source, /SUCCESS_NAVIGATION_DELAY_MS/);
+  assert.match(source, /timer\.current = setTimeout/);
+  assert.match(source, /succeeded \? <Alert type="success"/);
   assert.doesNotMatch(source, /localStorage|sessionStorage|console\.|URLSearchParams/);
 });

@@ -104,6 +104,14 @@ export function AccountSecurityForm({ mandatory }: Readonly<{ mandatory: boolean
         return;
       }
       if (generation.current !== run) return;
+      if (mandatory) {
+        // Forced onboarding has already completed: entering the normal
+        // application is the success feedback, so navigate immediately
+        // instead of holding the contradictory restricted-state success Alert.
+        router.replace(landingFor(user));
+        router.refresh();
+        return;
+      }
       setSucceeded(true);
       timer.current = setTimeout(() => {
         if (generation.current === run) {
