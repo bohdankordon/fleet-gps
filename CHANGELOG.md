@@ -4,6 +4,23 @@ All notable changes to Fleet GPS are documented here. Release versions are
 immutable Git tags; package versions in `package.json` files are internal
 workspace versions, not the product release version.
 
+## [1.3.1] - 2026-09-21
+
+Trips Map Reliability Fix. Patch over the v1.3.0 Production Rollout Complete baseline: rapid switching between trips and stops could intermittently leave the map empty even though the final selection and track data were valid. The exact v1.3.1 code commit was deployed and manually accepted in production before the release was published.
+
+### Fixed
+
+- Fixed an intermittent Trips map synchronization race where rapidly switching between trips and stops could leave the map empty even though the final selection and track data were valid.
+- Trips map synchronization now distinguishes initial MapLibre structural readiness from transient GeoJSON source-worker activity so the latest selected trip/stop state converges to the map sources and camera.
+
+### Reliability and correctness
+
+- The fix uses deterministic state convergence rather than timers, debounce, refetching, or map recreation.
+- Regression coverage includes rapid EMPTY-to-valid updates, trip/stop transitions, transient busy-source states, partial post-load structure, and camera consistency.
+- The exact v1.3.1 code commit was deployed and manually accepted in production before the release was published.
+- No database schema, API, provider integration, scheduler, feature-flag, or production configuration change is part of this patch.
+- Publishing a GitHub Release does not deploy the application to production.
+
 ## [1.3.0] - 2026-09-21
 
 Production Rollout Complete. Controlled production rollout completed: continuous lossless GPS history
