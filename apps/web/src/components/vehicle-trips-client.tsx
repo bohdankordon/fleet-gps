@@ -30,7 +30,8 @@ import {
 import { selectedStopBoundaryPresentation, selectedTripTrackRequest } from "@/lib/trip-analysis/trip-analysis-selection";
 import { classifyTripAnalysisPresentation } from "@/lib/trip-analysis/trip-analysis-presentation-state";
 import { buildTripAnalysisTimeline, type TripAnalysisSelection, type TripAnalysisTimelineItem } from "@/lib/trip-analysis/trip-analysis-timeline";
-import { ensureTripEventLayer, ensureTripMapLayers, ensureTripSpeedingRouteLayer, TRIP_MAP_LEGEND_ITEMS, TRIP_MAP_PRESENTATION, updateTripEventData, updateTripMapData, updateTripSpeedingRouteData, type TripEventPosition } from "@/lib/trip-analysis/trip-analysis-map-layers";
+import { TRIP_MAP_LEGEND_ITEMS, TRIP_MAP_PRESENTATION, type TripEventPosition } from "@/lib/trip-analysis/trip-analysis-map-layers";
+import { synchronizeTripMap } from "@/lib/trip-analysis/trip-analysis-map-sync";
 import { resolveContainingTrip, tripEventFocusCamera, type VehicleTripsEventFocus } from "@/lib/trip-analysis/trip-analysis-event-focus";
 import { buildSpeedingSegmentGeoJson } from "@/lib/trip-analysis/trip-analysis-speeding-route";
 import { vehicleTrackCamera } from "@/lib/vehicle-track/vehicle-track-camera";
@@ -138,6 +139,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
   const trackController = useRef<AbortController | null>(null);
   const [mapContainer, setMapContainer] = useState<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const mapLoadedRef = useRef(false);
   const modelRef = useRef(model);
   const eventFocusRef = useRef(eventFocus);
   const workspaceRef = useRef<HTMLElement>(null);
@@ -172,16 +174,12 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
     eventFocusRef.current = eventFocus;
     speedingRouteRef.current = speedingRoute;
     const map = mapRef.current;
-    if (map?.isStyleLoaded()) {
-      ensureTripMapLayers(map, model);
-      updateTripMapData(map, model);
-      ensureTripSpeedingRouteLayer(map, speedingRoute.geoJson);
-      updateTripSpeedingRouteData(map, speedingRoute.geoJson);
-      ensureTripEventLayer(map, eventPosition);
-      updateTripEventData(map, eventPosition);
-      applyCamera(map, model, eventPosition);
-      map.resize();
-    }
+    if (!map) return;
+    synchronizeTripMap(
+      map,
+      { model, speedingRoute: speedingRoute.geoJson, eventPosition },
+      { applyCamera: (target) => applyCamera(target, model, eventPosition), structuralReady: mapLoadedRef.current },
+    );
   }, [eventFocus, eventPosition, model, speedingRoute]);
 
   const clearEventFocus = useCallback(() => {
@@ -323,17 +321,16 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
       () => new maplibregl.Map({ container: mapContainer, style: fleetMapStyleUrl(), pitchWithRotate: false, dragRotate: false })
     );
     mapRef.current = map;
+    mapLoadedRef.current = false;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     const onLoad = () => {
-      ensureTripMapLayers(map, modelRef.current);
-      updateTripMapData(map, modelRef.current);
-      ensureTripSpeedingRouteLayer(map, speedingRouteRef.current.geoJson);
-      updateTripSpeedingRouteData(map, speedingRouteRef.current.geoJson);
       const initialPosition = eventFocusRef.current?.kind === "AVAILABLE" ? eventFocusRef.current.event.confirmationPosition : null;
-      ensureTripEventLayer(map, initialPosition);
-      updateTripEventData(map, initialPosition);
-      applyCamera(map, modelRef.current, initialPosition);
-      map.resize();
+      mapLoadedRef.current = true;
+      synchronizeTripMap(
+        map,
+        { model: modelRef.current, speedingRoute: speedingRouteRef.current.geoJson, eventPosition: initialPosition },
+        { applyCamera: (target) => applyCamera(target, modelRef.current, initialPosition), structuralReady: mapLoadedRef.current },
+      );
     };
     const onError = () => setStyleError(true);
     map.on("load", onLoad);
