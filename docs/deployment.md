@@ -198,10 +198,10 @@ until DB, migrations, API, web, auth, readiness, backup and restore are proven:
     POSITION_HISTORY_RETENTION_ENABLED=false
     POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED=false
 
-Continuous and replay ingestion must stay off for now: production preflight rejects `POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED=true` with automatic retention disabled, so continuous ingestion also requires `POSITION_HISTORY_RETENTION_ENABLED=true`. The controlled rollout readiness assessment returned GO, but the rollout itself is intentionally deferred.
+Production preflight rejects `POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED=true` with automatic retention disabled, so continuous ingestion also requires `POSITION_HISTORY_RETENTION_ENABLED=true`. The controlled production rollout is complete: continuous lossless reconciliation, daily 7-day and rolling 90-day replay, and automatic bounded retention are enabled in production.
 
 IMPORTANT: SYNC_SCHEDULER_ENABLED=false disables only the fleet/daily-runs
-scheduler. The Stage 18B durable position-history population-run poller is
+scheduler. The durable position-history population-run poller is
 independent and can perform provider work if a pending/eligible run exists.
 First deployment uses a fresh database with no active run, so no provider work
 can execute. The shared history mutation advisory lock remains 1706170003.

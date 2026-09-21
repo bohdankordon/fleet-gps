@@ -4,6 +4,42 @@ All notable changes to Fleet GPS are documented here. Release versions are
 immutable Git tags; package versions in `package.json` files are internal
 workspace versions, not the product release version.
 
+## [Unreleased] — v1.3.0 (Production Rollout Complete)
+
+Controlled production rollout completed: continuous lossless GPS history
+reconciliation, daily trailing-7-day and rolling 90-day replay, and automatic
+bounded retention are active in production, with the maintenance accelerator
+intentionally disabled in steady state.
+
+### Added
+
+- Vehicle groups with curated display colors and scoped Product Vehicle
+  Access for USER accounts.
+- Password policy with a local common-password blocklist, and forced
+  temporary-password onboarding for new and reset accounts.
+- Speeding investigation improvements: exact trip focus for speeding events,
+  confirmed-episode route highlighting, and speeding episode evidence.
+- Per-user Telegram product delivery as the active notification path, with
+  legacy global delivery disabled.
+
+### Changed
+
+- ADMIN history overview now reads the lossless ingestion-status surface
+  instead of observation-wide aggregates.
+- Retention planning and execution are bounded (no exact pre/post candidate
+  recounts) with budget-aware, retention-work-aware ADMIN UX.
+- Telegram account-linking UX improvements.
+- History ingestion telemetry wiring restored; Node 24 DNS lookup semantics
+  supported by the host monitor (false-critical fix).
+
+### Reliability and correctness
+
+- Operational rollout and monitoring hardening: protected ingestion-status
+  telemetry through the production BFF, production preflight checks, and
+  host-level monitoring.
+- No intentionally breaking public API change is part of this release.
+- Publishing a GitHub Release does not deploy the application to production.
+
 ## [1.2.0] - 2026-09-14
 
 Lossless GPS history ingestion and reconciliation. Continuous and replay ingestion remain default-off, have not been enabled in production, and the controlled rollout readiness assessment returned GO with the rollout itself intentionally deferred.
