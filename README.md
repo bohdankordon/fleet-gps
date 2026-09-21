@@ -291,9 +291,10 @@ configuration. Use the authoritative runbooks:
 
 The project has immutable `v1.0.0`, `v1.1.0`, and `v1.2.0` releases. Product work since `v1.2.0` completes the controlled production rollout: continuous lossless history reconciliation, daily 7-day and rolling 90-day replay, and automatic bounded retention are active in production; per-user Telegram delivery is the active product path with legacy global delivery disabled; vehicle groups with scoped Product Vehicle Access, password policy with forced temporary-password onboarding, and speeding investigation improvements are in place; and the ADMIN history/retention read paths are bounded. See `CHANGELOG.md` for the prepared `v1.3.0` (Production Rollout Complete) release notes.
 
-The old design experiment branches were retired and are not merge or reuse
-inputs. See the [development roadmap](docs/development-roadmap.md) for current
-status instead of treating proposed work as implemented functionality.
+The temporal-profile/ECharts movement-history experiment was retired and is
+not part of the current product baseline. See the
+[development roadmap](docs/development-roadmap.md) for current status instead
+of treating proposed work as implemented functionality.
 
 ## Release / version
 

@@ -12,9 +12,11 @@ trimmed and adapted copy of the Traccar v4.3 `swagger.json` API description
 version: v4.3), with only the document title, host, and scheme values adapted
 and the remaining endpoints/schema content omitted. The vendored copy was
 removed from the current tree; it remains present only in earlier Git history
-and tags. Traccar v4.3 is licensed under the Apache License 2.0; consult the
-upstream Traccar repository for the full license text. No statement here
-implies that any GPS provider granted an independent open-source license.
+and tags. Traccar v4.3 is licensed under the Apache License 2.0; the full
+license text is bundled locally at
+[third_party_licenses/Apache-2.0.txt](./third_party_licenses/Apache-2.0.txt)
+(see also the upstream Traccar repository). No statement here implies that
+any GPS provider granted an independent open-source license.
 
 ## OpenStreetMap geofence data
 
