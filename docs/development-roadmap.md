@@ -15,11 +15,11 @@ This document is the primary living record of the project's development directio
 ## Current state
 
 - Canonical feature-development branch: `main`.
-- Latest published release: `v1.2.0`; the `main` source tree prepares the `v1.3.0` (Production Rollout Complete) release line (see `CHANGELOG.md`), to be tagged immutably after review.
+- Current release baseline: `v1.3.0` (Production Rollout Complete), accepted as the immutable release baseline (see `CHANGELOG.md`).
 - Immutable baseline release: `v1.0.0`.
 - `v1.0.0` annotated tag object: `82fdee34c7eaff7a07fabd47e38fd6a32bbcc6c8`.
 - `v1.0.0` peeled commit: `9bbd9b98c148b2ffed0078078d175d778c67f7ba`.
-- `v1.2.0`, `v1.1.0`, `v1.0.0`, and `v1.0.0-rc.4` are immutable release tags. Normal feature development continues from `main`.
+- `v1.3.0`, `v1.2.0`, `v1.1.0`, `v1.0.0`, and `v1.0.0-rc.4` are immutable release tags. Normal feature development continues from `main`.
 
 ## DONE — Post-release scheduled history soak
 
@@ -171,7 +171,7 @@ Phase 0 repaired six source-backed correctness and truthful-state areas: audit f
 
 ## LATER — Future release readiness
 
-The `v1.3.0` (Production Rollout Complete) release line is prepared on `main` and will be tagged immutably after review. Before creating another immutable release tag:
+The `v1.3.0` (Production Rollout Complete) release line is the current accepted baseline on `main` and will be tagged immutably. Before creating another immutable release tag:
 
 - Finish the intended feature scope.
 - Complete regression checks, typechecking, linting, tests, and builds.

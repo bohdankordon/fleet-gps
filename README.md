@@ -289,7 +289,7 @@ configuration. Use the authoritative runbooks:
 
 ## Project status
 
-The project has immutable `v1.0.0`, `v1.1.0`, and `v1.2.0` releases. Product work since `v1.2.0` completes the controlled production rollout: continuous lossless history reconciliation, daily 7-day and rolling 90-day replay, and automatic bounded retention are active in production; per-user Telegram delivery is the active product path with legacy global delivery disabled; vehicle groups with scoped Product Vehicle Access, password policy with forced temporary-password onboarding, and speeding investigation improvements are in place; and the ADMIN history/retention read paths are bounded. See `CHANGELOG.md` for the prepared `v1.3.0` (Production Rollout Complete) release notes.
+The project has immutable `v1.0.0`, `v1.1.0`, `v1.2.0`, and `v1.3.0` releases. Product work in `v1.3.0` completes the controlled production rollout: continuous lossless history reconciliation, daily 7-day and rolling 90-day replay, and automatic bounded retention are active in production; per-user Telegram delivery is the active product path with legacy global delivery disabled; vehicle groups with scoped Product Vehicle Access, password policy with forced temporary-password onboarding, and speeding investigation improvements are in place; and the ADMIN history/retention read paths are bounded. See `CHANGELOG.md` for the `v1.3.0` (Production Rollout Complete) release notes.
 
 The temporal-profile/ECharts movement-history experiment was retired and is
 not part of the current product baseline. See the
@@ -298,12 +298,12 @@ of treating proposed work as implemented functionality.
 
 ## Release / version
 
-The latest published release is `v1.2.0`; `main` prepares the `v1.3.0`
-(Production Rollout Complete) release line, to be tagged immutably after
-review. Stable releases are immutable Git tags; release candidates use the
-corresponding `-rc.*` suffix. See [CHANGELOG.md](CHANGELOG.md) for release
-history. Package versions in `package.json` files (`0.1.0`) are internal
-workspace versions, not the product release version.
+The current release is `v1.3.0` (Production Rollout Complete), the accepted
+production-rollout baseline. Stable releases are immutable Git tags; release
+candidates use the corresponding `-rc.*` suffix. See [CHANGELOG.md](CHANGELOG.md)
+for release history. Package versions in `package.json` files (`0.1.0`) are
+internal workspace versions, not the product release version. GitHub Release
+publication never deploys the application to production.
 
 ## Security notes
 
