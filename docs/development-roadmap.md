@@ -171,7 +171,7 @@ Phase 0 repaired six source-backed correctness and truthful-state areas: audit f
 
 ## LATER — Future release readiness
 
-The `v1.3.0` (Production Rollout Complete) release line is the current accepted baseline on `main` and will be tagged immutably. Before creating another immutable release tag:
+The `v1.3.0` (Production Rollout Complete) release is the current accepted immutable baseline on `main`. Before creating another immutable release tag:
 
 - Finish the intended feature scope.
 - Complete regression checks, typechecking, linting, tests, and builds.
