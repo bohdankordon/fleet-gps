@@ -4,9 +4,9 @@ All notable changes to Fleet GPS are documented here. Release versions are
 immutable Git tags; package versions in `package.json` files are internal
 workspace versions, not the product release version.
 
-## [Unreleased] — v1.3.0 (Production Rollout Complete)
+## [1.3.0] - 2026-09-21
 
-Controlled production rollout completed: continuous lossless GPS history
+Production Rollout Complete. Controlled production rollout completed: continuous lossless GPS history
 reconciliation, daily trailing-7-day and rolling 90-day replay, and automatic
 bounded retention are active in production, with the maintenance accelerator
 intentionally disabled in steady state.
