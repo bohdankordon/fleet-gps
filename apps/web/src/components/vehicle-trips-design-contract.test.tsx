@@ -12,6 +12,7 @@ const messages = readFileSync("src/i18n/messages.ts", "utf8");
 const tripContract = readFileSync("src/lib/trip-analysis/trip-analysis-contract.ts", "utf8");
 const tripRange = readFileSync("src/lib/trip-analysis/trip-analysis-range.ts", "utf8");
 const tripLayers = readFileSync("src/lib/trip-analysis/trip-analysis-map-layers.ts", "utf8");
+const tripSync = readFileSync("src/lib/trip-analysis/trip-analysis-map-sync.ts", "utf8");
 const customRange = readFileSync("src/lib/vehicle-track/vehicle-track-custom-range.ts", "utf8");
 const tripsPage = readFileSync("src/app/vehicles/[vehicleId]/trips/page.tsx", "utf8");
 
@@ -159,8 +160,10 @@ test("Trips Map layers reuse accepted fleet semantics and keep route, warning, a
   assert.match(tripLayers, /circle-stroke-color": TRIP_MAP_PRESENTATION\.warningAccentColor/);
   assert.match(tripLayers, /circle-color": "transparent"/);
   assert.doesNotMatch(tripLayers, /TRIP_MAP_SELECTED_LAYER_ID|selectedKey/);
-  assert.match(trips, /ensureTripMapLayers/);
-  assert.match(trips, /updateTripMapData/);
+  assert.match(trips, /synchronizeTripMap/);
+  assert.doesNotMatch(trips, /isStyleLoaded/);
+  assert.match(tripSync, /ensureTripMapLayers/);
+  assert.match(tripSync, /updateTripMapData/);
 });
 
 test("Legend mirrors Main Map's trigger and popup surface and derives rows from one contract", () => {
