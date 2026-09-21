@@ -28,6 +28,7 @@ type FakeTripMap = {
   map: MapLibreMap;
   sources: Map<string, FakeSource>;
   setStyleLoaded(next: boolean): void;
+  preseedSource(id: string, data: unknown): void;
   addSourceCalls(): number;
   addLayerCalls(): number;
   resizeCalls(): number;
@@ -40,19 +41,20 @@ function createFakeTripMap(initialStyleLoaded: boolean): FakeTripMap {
   let addSourceCount = 0;
   let addLayerCount = 0;
   let resizeCount = 0;
+  const addSource = (id: string, source: { data?: unknown }): void => {
+    addSourceCount += 1;
+    const entry: FakeSource = {
+      data: source.data,
+      setData(value: unknown) {
+        this.data = value;
+      },
+    };
+    sources.set(id, entry);
+  };
   const map = {
     isStyleLoaded: () => styleLoaded,
     getSource: (id: string) => sources.get(id),
-    addSource: (id: string, source: { data?: unknown }) => {
-      addSourceCount += 1;
-      const entry: FakeSource = {
-        data: source.data,
-        setData(value: unknown) {
-          this.data = value;
-        },
-      };
-      sources.set(id, entry);
-    },
+    addSource,
     getLayer: (id: string) => layers.find((layer) => layer.id === id),
     addLayer: (layer: { id: string; type: string }, before?: string) => {
       addLayerCount += 1;
@@ -70,6 +72,9 @@ function createFakeTripMap(initialStyleLoaded: boolean): FakeTripMap {
     sources,
     setStyleLoaded(next: boolean) {
       styleLoaded = next;
+    },
+    preseedSource(id: string, data: unknown) {
+      addSource(id, { data });
     },
     addSourceCalls: () => addSourceCount,
     addLayerCalls: () => addLayerCount,
@@ -127,10 +132,13 @@ function speedingRoute(): SpeedingRouteGeoJson {
   };
 }
 
-function syncLatest(fake: FakeTripMap, input: TripMapSyncInput) {
+function syncLatest(fake: FakeTripMap, input: TripMapSyncInput, structuralReady: boolean) {
   let cameraInput: TripMapSyncInput | null = null;
-  const status = synchronizeTripMap(fake.map, input, () => {
-    cameraInput = input;
+  const status = synchronizeTripMap(fake.map, input, {
+    applyCamera: () => {
+      cameraInput = input;
+    },
+    structuralReady,
   });
   return { status, cameraInput: () => cameraInput };
 }
@@ -143,13 +151,84 @@ function featureCount(fake: FakeTripMap, id: string): number {
   return (sourceData(fake, id) as { features: unknown[] }).features.length;
 }
 
-test("existing sources converge while the style reports not loaded (rapid-selection race)", () => {
+test("pre-load pending performs no map work and replays latest refs on load", () => {
+  const fake = createFakeTripMap(false);
+  assert.equal(tripMapSourcesExist(fake.map), false);
+  const valid = tripModel();
+  const eventPosition: TripEventPosition = { latitude: 49.25, longitude: 28.45 };
+  const route = speedingRoute();
+  const input: TripMapSyncInput = { model: valid, speedingRoute: route, eventPosition };
+
+  const pending = syncLatest(fake, input, false);
+  assert.equal(pending.status, "pending");
+  assert.equal(fake.addSourceCalls(), 0);
+  assert.equal(fake.addLayerCalls(), 0);
+  assert.equal(pending.cameraInput(), null);
+  assert.equal(fake.resizeCalls(), 0);
+  assert.equal(tripMapSourcesExist(fake.map), false);
+
+  // Even if the style momentarily reports loaded, structure must not be
+  // created before the initial load event establishes structural readiness.
+  fake.setStyleLoaded(true);
+  const stillPending = syncLatest(fake, input, false);
+  assert.equal(stillPending.status, "pending");
+  assert.equal(fake.addSourceCalls(), 0);
+  assert.equal(fake.addLayerCalls(), 0);
+  assert.equal(stillPending.cameraInput(), null);
+  assert.equal(fake.resizeCalls(), 0);
+
+  // Initial load replays the latest refs in one complete pass.
+  const loaded = syncLatest(fake, input, true);
+  assert.equal(loaded.status, "synced");
+  assert.equal(tripMapSourcesExist(fake.map), true);
+  assert.equal(fake.addSourceCalls(), 4);
+  assert.equal(fake.addLayerCalls(), 7);
+  assert.deepEqual(sourceData(fake, TRIP_MAP_LINE_SOURCE_ID), valid.lineGeoJson);
+  assert.deepEqual(sourceData(fake, TRIP_MAP_POINT_SOURCE_ID), valid.pointGeoJson);
+  assert.deepEqual(sourceData(fake, TRIP_SPEEDING_ROUTE_SOURCE_ID), route);
+  assert.equal(featureCount(fake, TRIP_EVENT_SOURCE_ID), 1);
+  assert.equal(loaded.cameraInput(), input);
+  assert.ok(fake.resizeCalls() >= 1);
+});
+
+test("post-load partial structure is repaired while another source is busy", () => {
   const fake = createFakeTripMap(true);
-  const initial = syncLatest(fake, {
-    model: EMPTY_VEHICLE_TRACK_PRESENTATION,
-    speedingRoute: EMPTY_SPEEDING_ROUTE,
-    eventPosition: null,
-  });
+  // Post-load map where only the line source survived (interrupted creation),
+  // now busy processing: structural readiness holds while style idleness does not.
+  fake.preseedSource(TRIP_MAP_LINE_SOURCE_ID, EMPTY_VEHICLE_TRACK_PRESENTATION.lineGeoJson);
+  fake.setStyleLoaded(false);
+
+  const valid = tripModel();
+  const eventPosition: TripEventPosition = { latitude: 49.25, longitude: 28.45 };
+  const route = speedingRoute();
+  const input: TripMapSyncInput = { model: valid, speedingRoute: route, eventPosition };
+  const result = syncLatest(fake, input, true);
+
+  // Structural readiness is independent of transient source-worker readiness:
+  // the helper must not return pending merely because isStyleLoaded is false.
+  assert.equal(result.status, "synced");
+  assert.equal(tripMapSourcesExist(fake.map), true);
+  assert.equal(fake.addSourceCalls(), 4);
+  assert.equal(fake.addLayerCalls(), 7);
+  assert.deepEqual(sourceData(fake, TRIP_MAP_LINE_SOURCE_ID), valid.lineGeoJson);
+  assert.deepEqual(sourceData(fake, TRIP_MAP_POINT_SOURCE_ID), valid.pointGeoJson);
+  assert.deepEqual(sourceData(fake, TRIP_SPEEDING_ROUTE_SOURCE_ID), route);
+  assert.equal(featureCount(fake, TRIP_EVENT_SOURCE_ID), 1);
+  assert.equal(result.cameraInput(), input);
+  assert.ok(fake.resizeCalls() >= 1);
+});
+
+test("post-load existing sources converge while the style reports not loaded (rapid-selection race)", () => {
+  const fake = createFakeTripMap(true);
+  const initial = syncLatest(
+    fake,
+    {
+      model: EMPTY_VEHICLE_TRACK_PRESENTATION,
+      speedingRoute: EMPTY_SPEEDING_ROUTE,
+      eventPosition: null,
+    },
+    true,
+  );
   assert.equal(initial.status, "synced");
   assert.equal(tripMapSourcesExist(fake.map), true);
 
@@ -162,7 +241,7 @@ test("existing sources converge while the style reports not loaded (rapid-select
   assert.equal(valid.lineGeoJson.features.length, 1);
   const eventPosition: TripEventPosition = { latitude: 49.25, longitude: 28.45 };
   const route = speedingRoute();
-  const result = syncLatest(fake, { model: valid, speedingRoute: route, eventPosition });
+  const result = syncLatest(fake, { model: valid, speedingRoute: route, eventPosition }, true);
 
   assert.equal(result.status, "synced");
   assert.deepEqual(sourceData(fake, TRIP_MAP_LINE_SOURCE_ID), valid.lineGeoJson);
@@ -174,51 +253,31 @@ test("existing sources converge while the style reports not loaded (rapid-select
   assert.ok(fake.resizeCalls() >= 1);
 });
 
-test("initial style not ready defers structural creation and replays latest refs on load", () => {
-  const fake = createFakeTripMap(false);
-  assert.equal(tripMapSourcesExist(fake.map), false);
-  const valid = tripModel();
-  const pending = syncLatest(fake, {
-    model: valid,
-    speedingRoute: EMPTY_SPEEDING_ROUTE,
-    eventPosition: null,
-  });
-  assert.equal(pending.status, "pending");
-  assert.equal(fake.addSourceCalls(), 0);
-  assert.equal(fake.addLayerCalls(), 0);
-  assert.equal(tripMapSourcesExist(fake.map), false);
-
-  // Initial map load applies the latest refs.
-  fake.setStyleLoaded(true);
-  const loaded = syncLatest(fake, {
-    model: valid,
-    speedingRoute: EMPTY_SPEEDING_ROUTE,
-    eventPosition: null,
-  });
-  assert.equal(loaded.status, "synced");
-  assert.equal(tripMapSourcesExist(fake.map), true);
-  assert.deepEqual(sourceData(fake, TRIP_MAP_LINE_SOURCE_ID), valid.lineGeoJson);
-  assert.deepEqual(sourceData(fake, TRIP_MAP_POINT_SOURCE_ID), valid.pointGeoJson);
-  assert.equal(loaded.cameraInput()?.model, valid);
-});
-
 test("EMPTY then VALID rapid sequence converges to the valid model", () => {
   const fake = createFakeTripMap(true);
-  const cleared = syncLatest(fake, {
-    model: EMPTY_VEHICLE_TRACK_PRESENTATION,
-    speedingRoute: EMPTY_SPEEDING_ROUTE,
-    eventPosition: null,
-  });
+  const cleared = syncLatest(
+    fake,
+    {
+      model: EMPTY_VEHICLE_TRACK_PRESENTATION,
+      speedingRoute: EMPTY_SPEEDING_ROUTE,
+      eventPosition: null,
+    },
+    true,
+  );
   assert.equal(cleared.status, "synced");
   assert.deepEqual(sourceData(fake, TRIP_MAP_POINT_SOURCE_ID), EMPTY_VEHICLE_TRACK_PRESENTATION.pointGeoJson);
 
   fake.setStyleLoaded(false);
   const valid = tripModel();
-  const converged = syncLatest(fake, {
-    model: valid,
-    speedingRoute: EMPTY_SPEEDING_ROUTE,
-    eventPosition: null,
-  });
+  const converged = syncLatest(
+    fake,
+    {
+      model: valid,
+      speedingRoute: EMPTY_SPEEDING_ROUTE,
+      eventPosition: null,
+    },
+    true,
+  );
   assert.equal(converged.status, "synced");
   assert.equal(featureCount(fake, TRIP_MAP_POINT_SOURCE_ID), 4);
   assert.equal(featureCount(fake, TRIP_MAP_LINE_SOURCE_ID), 1);
@@ -231,7 +290,7 @@ test("STOP to TRIP converges to the trip track while the style is busy", () => {
   const fake = createFakeTripMap(true);
   const stop = stopModel();
   assert.equal(
-    syncLatest(fake, { model: stop, speedingRoute: EMPTY_SPEEDING_ROUTE, eventPosition: null }).status,
+    syncLatest(fake, { model: stop, speedingRoute: EMPTY_SPEEDING_ROUTE, eventPosition: null }, true).status,
     "synced",
   );
   assert.equal(featureCount(fake, TRIP_MAP_POINT_SOURCE_ID), 2);
@@ -239,11 +298,15 @@ test("STOP to TRIP converges to the trip track while the style is busy", () => {
 
   fake.setStyleLoaded(false);
   const trip = tripModel();
-  const result = syncLatest(fake, {
-    model: trip,
-    speedingRoute: EMPTY_SPEEDING_ROUTE,
-    eventPosition: null,
-  });
+  const result = syncLatest(
+    fake,
+    {
+      model: trip,
+      speedingRoute: EMPTY_SPEEDING_ROUTE,
+      eventPosition: null,
+    },
+    true,
+  );
   assert.equal(result.status, "synced");
   assert.deepEqual(sourceData(fake, TRIP_MAP_POINT_SOURCE_ID), trip.pointGeoJson);
   assert.deepEqual(sourceData(fake, TRIP_MAP_LINE_SOURCE_ID), trip.lineGeoJson);
@@ -254,17 +317,21 @@ test("TRIP to STOP converges to stop boundaries while the style is busy", () => 
   const fake = createFakeTripMap(true);
   const trip = tripModel();
   assert.equal(
-    syncLatest(fake, { model: trip, speedingRoute: EMPTY_SPEEDING_ROUTE, eventPosition: null }).status,
+    syncLatest(fake, { model: trip, speedingRoute: EMPTY_SPEEDING_ROUTE, eventPosition: null }, true).status,
     "synced",
   );
 
   fake.setStyleLoaded(false);
   const stop = stopModel();
-  const result = syncLatest(fake, {
-    model: stop,
-    speedingRoute: EMPTY_SPEEDING_ROUTE,
-    eventPosition: null,
-  });
+  const result = syncLatest(
+    fake,
+    {
+      model: stop,
+      speedingRoute: EMPTY_SPEEDING_ROUTE,
+      eventPosition: null,
+    },
+    true,
+  );
   assert.equal(result.status, "synced");
   const points = sourceData(fake, TRIP_MAP_POINT_SOURCE_ID) as {
     features: Array<{ properties: { endpoint: string } }>;
@@ -282,16 +349,20 @@ test("camera always follows the same latest model and event that reached the sou
   const fake = createFakeTripMap(true);
   const firstTrip = tripModel();
   const firstEvent: TripEventPosition = { latitude: 49.2, longitude: 28.4 };
-  syncLatest(fake, { model: firstTrip, speedingRoute: EMPTY_SPEEDING_ROUTE, eventPosition: firstEvent });
+  syncLatest(fake, { model: firstTrip, speedingRoute: EMPTY_SPEEDING_ROUTE, eventPosition: firstEvent }, true);
 
   fake.setStyleLoaded(false);
   const latest = stopModel();
   const latestEvent: TripEventPosition = { latitude: 49.3, longitude: 28.5 };
-  const result = syncLatest(fake, {
-    model: latest,
-    speedingRoute: EMPTY_SPEEDING_ROUTE,
-    eventPosition: latestEvent,
-  });
+  const result = syncLatest(
+    fake,
+    {
+      model: latest,
+      speedingRoute: EMPTY_SPEEDING_ROUTE,
+      eventPosition: latestEvent,
+    },
+    true,
+  );
 
   assert.equal(result.status, "synced");
   assert.deepEqual(sourceData(fake, TRIP_MAP_POINT_SOURCE_ID), latest.pointGeoJson);
@@ -313,7 +384,7 @@ test("rapid randomized selection bursts always converge to the final model", () 
     const fake = createFakeTripMap(true);
     const first = candidates[next() % candidates.length];
     assert.ok(first);
-    syncLatest(fake, { model: first, speedingRoute: EMPTY_SPEEDING_ROUTE, eventPosition: null });
+    syncLatest(fake, { model: first, speedingRoute: EMPTY_SPEEDING_ROUTE, eventPosition: null }, true);
     const burst = 2 + (next() % 6);
     let latest: VehicleTrackPresentationModel = EMPTY_VEHICLE_TRACK_PRESENTATION;
     for (let step = 0; step < burst; step += 1) {
@@ -322,7 +393,7 @@ test("rapid randomized selection bursts always converge to the final model", () 
       latest = candidate;
       // Ordinary source worker activity flips readiness between writes.
       fake.setStyleLoaded(next() % 2 === 0);
-      syncLatest(fake, { model: latest, speedingRoute: EMPTY_SPEEDING_ROUTE, eventPosition: null });
+      syncLatest(fake, { model: latest, speedingRoute: EMPTY_SPEEDING_ROUTE, eventPosition: null }, true);
     }
     // The burst ends while the map is still busy with no further React change:
     // the confirmed failure mode left the previous EMPTY behind.
@@ -333,8 +404,11 @@ test("rapid randomized selection bursts always converge to the final model", () 
       eventPosition: null,
     };
     let cameraInput: TripMapSyncInput | null = null;
-    const status = synchronizeTripMap(fake.map, finalInput, () => {
-      cameraInput = finalInput;
+    const status = synchronizeTripMap(fake.map, finalInput, {
+      applyCamera: () => {
+        cameraInput = finalInput;
+      },
+      structuralReady: true,
     });
     const converged =
       status === "synced" &&
@@ -352,8 +426,11 @@ test("synchronize handles a missing map without side effects", () => {
     synchronizeTripMap(
       null,
       { model: EMPTY_VEHICLE_TRACK_PRESENTATION, speedingRoute: EMPTY_SPEEDING_ROUTE, eventPosition: null },
-      () => {
-        cameraCalls += 1;
+      {
+        applyCamera: () => {
+          cameraCalls += 1;
+        },
+        structuralReady: true,
       },
     ),
     "no-map",

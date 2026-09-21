@@ -139,6 +139,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
   const trackController = useRef<AbortController | null>(null);
   const [mapContainer, setMapContainer] = useState<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const mapLoadedRef = useRef(false);
   const modelRef = useRef(model);
   const eventFocusRef = useRef(eventFocus);
   const workspaceRef = useRef<HTMLElement>(null);
@@ -177,7 +178,7 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
     synchronizeTripMap(
       map,
       { model, speedingRoute: speedingRoute.geoJson, eventPosition },
-      (target) => applyCamera(target, model, eventPosition),
+      { applyCamera: (target) => applyCamera(target, model, eventPosition), structuralReady: mapLoadedRef.current },
     );
   }, [eventFocus, eventPosition, model, speedingRoute]);
 
@@ -320,13 +321,15 @@ export function VehicleTripsClient({ vehicleId, vehicleName, vehicleGroup, shell
       () => new maplibregl.Map({ container: mapContainer, style: fleetMapStyleUrl(), pitchWithRotate: false, dragRotate: false })
     );
     mapRef.current = map;
+    mapLoadedRef.current = false;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     const onLoad = () => {
       const initialPosition = eventFocusRef.current?.kind === "AVAILABLE" ? eventFocusRef.current.event.confirmationPosition : null;
+      mapLoadedRef.current = true;
       synchronizeTripMap(
         map,
         { model: modelRef.current, speedingRoute: speedingRouteRef.current.geoJson, eventPosition: initialPosition },
-        (target) => applyCamera(target, modelRef.current, initialPosition),
+        { applyCamera: (target) => applyCamera(target, modelRef.current, initialPosition), structuralReady: mapLoadedRef.current },
       );
     };
     const onError = () => setStyleError(true);
