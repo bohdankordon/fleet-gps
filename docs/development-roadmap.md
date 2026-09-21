@@ -15,12 +15,11 @@ This document is the primary living record of the project's development directio
 ## Current state
 
 - Canonical feature-development branch: `main`.
-- Accepted Telegram 2D production source: `e59268fe471d22426359bec419a9a03a244d2909` (`sha-e59268fe471d`).
-- Latest published release: `v1.1.0`; the `main` source tree is prepared for the `v1.2.0` release line (see `CHANGELOG.md`), to be tagged immutably after review.
+- Latest published release: `v1.2.0`; the `main` source tree prepares the `v1.3.0` (Production Rollout Complete) release line (see `CHANGELOG.md`), to be tagged immutably after review.
 - Immutable baseline release: `v1.0.0`.
 - `v1.0.0` annotated tag object: `82fdee34c7eaff7a07fabd47e38fd6a32bbcc6c8`.
 - `v1.0.0` peeled commit: `9bbd9b98c148b2ffed0078078d175d778c67f7ba`.
-- `v1.1.0`, `v1.0.0`, and `v1.0.0-rc.4` are immutable release tags. Normal feature development continues from `main`.
+- `v1.2.0`, `v1.1.0`, `v1.0.0`, and `v1.0.0-rc.4` are immutable release tags. Normal feature development continues from `main`.
 
 ## DONE — Post-release scheduled history soak
 
@@ -30,9 +29,9 @@ Natural retention also executed as SYSTEM work with the correct cutoff contract.
 
 ## DONE — Lossless GPS history architecture and rollout readiness
 
-The lossless GPS history program is implemented and rollout-ready: durable per-vehicle completeness cursors with conservative floor bootstrap, a shared historical-window core, default-off continuous reconciliation (recent-tail plus contiguous-backlog lanes) with restart catch-up, durable daily 7-day and rolling 90-day replay generations with fair recurring coordination, retention and completeness integration, capacity remediation accepted at the observed 58-vehicle scale, and protected operational telemetry (request-rate, failure, retry, lock, blocked-stream, recent-tail, cursor-lag, replay-progress, replay-debt, and retention execution and floor-alignment signals) served read-only through the Next.js BFF and the internal Nest API.
+The lossless GPS history program is implemented and rolled out to production: durable per-vehicle completeness cursors with conservative floor bootstrap, a shared historical-window core, continuous reconciliation (recent-tail plus contiguous-backlog lanes) with restart catch-up, durable daily 7-day and rolling 90-day replay generations with fair recurring coordination, retention and completeness integration, capacity remediation accepted at the observed fleet scale, and protected operational telemetry (request-rate, failure, retry, lock, blocked-stream, recent-tail, cursor-lag, replay-progress, replay-debt, and retention execution and floor-alignment signals) served read-only through the Next.js BFF and the internal Nest API.
 
-Implementation and readiness are DONE: the final read-only rollout assessment returned GO FOR CONTROLLED ROLLOUT. Production activation is DEFERRED and has NOT been executed: continuous and replay ingestion remain default-off in every environment template, and the rollout stays intentionally postponed while further product features are developed. See [lossless position-history ingestion](./lossless-position-history-ingestion.md).
+Implementation and readiness are DONE, and the controlled production rollout is complete: continuous lossless reconciliation, daily 7-day and rolling 90-day replay, and automatic bounded retention are active in production. The maintenance accelerator remains intentionally disabled in steady state. See [lossless position-history ingestion](./lossless-position-history-ingestion.md).
 
 ## DONE — Configurability & Magic Numbers Audit
 
@@ -64,19 +63,15 @@ global delivery is recorded under Telegram 2D.
 ## DONE — Telegram 2D — Production bot cutover / legacy transition
 
 **PER-USER TELEGRAM DELIVERY ACCEPTED IN PRODUCTION.** Production runs the
-accepted `e59268fe471d22426359bec419a9a03a244d2909` source/image with alert
-ingestion, secure product linking, recipient planning, and per-user dispatch
-enabled. Legacy global product delivery is disabled. The dedicated product bot
-is `fleet_signal_bot`, and the cutover boundary is
-`2026-08-29T19:39:17.339Z`.
+accepted release line with alert ingestion, secure product linking, recipient
+planning, and per-user dispatch enabled. Legacy global product delivery is
+disabled. The dedicated product Telegram bot serves delivery, and the cutover
+boundary is `2026-08-29T19:39:17.339Z`.
 
-The intended initial account is connected at connection revision 1 with master
-and SPEEDING notifications enabled, INACTIVITY disabled, ALL vehicle scope, and
-preference revision 4. Three natural post-cutover SPEEDING deliveries were
-accepted as SENT on their first attempts, with no duplicates, failed/stale
-delivery, or post-cutover legacy outbox creation. Production remains healthy on
-17 migrations. Detailed operational evidence remains in the focused technical
-and Git history rather than this roadmap.
+Post-cutover deliveries were accepted as SENT on their first attempts, with
+no duplicates, failed/stale delivery, or post-cutover legacy outbox creation.
+Detailed operational evidence remains in the focused technical and Git history
+rather than this roadmap.
 
 ## DONE — Final configurability consistency remediation
 
@@ -146,9 +141,8 @@ authorization semantics.
 History now follows Period Context → Unified Summary → large Map → contextual
 selected-observation details. Exact/sampled boundaries, Kyiv civil time validation,
 stored-point-only routes, authoritative sampled gaps, and quality semantics remain
-unchanged. The temporal-profile experiment is **PARKED** on
-`experiment/history-echarts-timeline` for possible future review and is not part of the
-human-accepted implementation.
+unchanged. The temporal-profile/ECharts movement-history experiment was retired
+and is not part of the current product baseline.
 
 ## DONE / HUMAN ACCEPTED — Events
 
@@ -166,7 +160,7 @@ the accepted Vehicle-family shell while retaining Events range semantics.
 
 ## DONE — Administration correctness baseline and workspaces
 
-Administration uses a shared identity with separate route-based domain workspaces for Users, Business Settings, Audit, GPS History Overview, GPS History Population and Runs, and GPS History Retention. Telegram notification preferences remain under the individual Account area alongside the Account overview, security, and Telegram connection workspaces. These current `v1.1.0` areas are implemented and accepted.
+Administration uses a shared identity with separate route-based domain workspaces for Users, Business Settings, Audit, GPS History Overview, GPS History Population and Runs, and GPS History Retention. Telegram notification preferences remain under the individual Account area alongside the Account overview, security, and Telegram connection workspaces. These current areas are implemented and accepted.
 
 Phase 0 repaired six source-backed correctness and truthful-state areas: audit frontend/backend contract drift including Telegram events and bounded 16-change settings payload; geofence coordinate-change detection comparing validated polygon structure while keeping ring/point counts for safe audit presentation; user mutation Telegram projection via one authoritative read projection; durable active-run explicit JSON envelope for SUCCESS plus NO ACTIVE RUN versus READ FAILURE; settings frontend validation parity with truthful blank-versus-zero handling and human-readable labels; GPS-history read-failure truthfulness preserving last-known data with explicit unavailable indication. Permissions, retention ADMIN-only irreversibility, self-lockout, last-enabled-ADMIN, revision and concurrency guards remain unchanged. Legacy direct geofence management/import remains outside the revision/audit/notifier lifecycle; that gap is documented as a prerequisite before any future browser geofence editor. The correctness baseline required no migration.
 
@@ -177,7 +171,7 @@ Phase 0 repaired six source-backed correctness and truthful-state areas: audit f
 
 ## LATER — Future release readiness
 
-The `v1.2.0` release line is prepared on `main` and will be tagged immutably after review. Before creating another immutable release tag:
+The `v1.3.0` (Production Rollout Complete) release line is prepared on `main` and will be tagged immutably after review. Before creating another immutable release tag:
 
 - Finish the intended feature scope.
 - Complete regression checks, typechecking, linting, tests, and builds.
@@ -209,7 +203,7 @@ See [the current report contract](./fleet-daily-activity-report.md).
 
 These are established operational processes, not open roadmap blockers:
 
-- Natural position-history maintenance continues under its configured budget, and history retention continues naturally. Continuous and replay ingestion stay default-off and unexecuted in production.
+- Natural position-history maintenance continues under its configured budget, and history retention continues naturally. Continuous lossless reconciliation, daily 7-day replay, rolling 90-day replay, and automatic bounded retention are active in production; the maintenance accelerator stays intentionally disabled in steady state.
 - Monitoring and alerts remain enabled.
 - Backup and disaster-recovery procedures already exist.
 - Observe these processes normally; make them roadmap work only when a real failure or regression requires action.

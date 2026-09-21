@@ -22,7 +22,7 @@ For a manual, opt-in production-credential verification of the compiled schedule
 
 ## Position history
 
-The lossless position-history subsystem adds durable per-vehicle completeness cursors, default-off continuous reconciliation (recent-tail plus contiguous-backlog lanes) with restart catch-up, and durable daily 7-day plus rolling 90-day replay generations with retention-aware completeness. Continuous and replay ingestion remain default-off and have not been enabled in production. The read-only operational surface is `GET /api/system/position-history/ingestion-status` (ADMIN `historyAdmin.view` authority, aggregate-only, `Cache-Control: no-store`); production preflight requires automatic retention when continuous ingestion is enabled. See [lossless position-history ingestion](../../docs/lossless-position-history-ingestion.md).
+The lossless position-history subsystem adds durable per-vehicle completeness cursors, continuous reconciliation (recent-tail plus contiguous-backlog lanes) with restart catch-up, and durable daily 7-day plus rolling 90-day replay generations with retention-aware completeness. Continuous reconciliation, recurring replay, and automatic retention are enabled in production. The read-only operational surface is `GET /api/system/position-history/ingestion-status` (ADMIN `historyAdmin.view` authority, aggregate-only, `Cache-Control: no-store`); production preflight requires automatic retention when continuous ingestion is enabled. See [lossless position-history ingestion](../../docs/lossless-position-history-ingestion.md).
 
 ## Read-only Dashboard API
 

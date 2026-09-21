@@ -1,6 +1,6 @@
 # Production deployment and operations runbook
 
-Stage 22 makes the accepted application deployable, recoverable and operationally safe on a single Linux host, currently along the `v1.2.0` release line. It is NOT a product-feature stage; release feature freezes and the Stage 21 security contract remain authoritative.
+This document defines the accepted single-host production deployment, migration, backup, rollback, and operational workflow for Fleet GPS. Release feature freezes and the production security contract remain authoritative.
 
 ## Approved topology
 
@@ -198,14 +198,14 @@ until DB, migrations, API, web, auth, readiness, backup and restore are proven:
     POSITION_HISTORY_RETENTION_ENABLED=false
     POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED=false
 
-Continuous and replay ingestion must stay off for now: production preflight rejects `POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED=true` with automatic retention disabled, so continuous ingestion also requires `POSITION_HISTORY_RETENTION_ENABLED=true`. The controlled rollout readiness assessment returned GO, but the rollout itself is intentionally deferred.
+Production preflight rejects `POSITION_HISTORY_CONTINUOUS_INGESTION_ENABLED=true` with automatic retention disabled, so continuous ingestion also requires `POSITION_HISTORY_RETENTION_ENABLED=true`. The controlled production rollout is complete: continuous lossless reconciliation, daily 7-day and rolling 90-day replay, and automatic bounded retention are enabled in production.
 
 IMPORTANT: SYNC_SCHEDULER_ENABLED=false disables only the fleet/daily-runs
-scheduler. The Stage 18B durable position-history population-run poller is
+scheduler. The durable position-history population-run poller is
 independent and can perform provider work if a pending/eligible run exists.
 First deployment uses a fresh database with no active run, so no provider work
 can execute. The shared history mutation advisory lock remains 1706170003.
-Rollout telemetry is available without enabling anything: an authorized history operator reads the protected same-origin BFF route `GET /api/system/position-history/ingestion-status` (Next.js forwards to the internal Nest API; both responses carry `Cache-Control: no-store`). Publishing a GitHub Release never deploys production and never enables continuous ingestion; rollout remains a separate, explicitly reviewed step. See [lossless position-history ingestion](lossless-position-history-ingestion.md).
+Rollout telemetry is available without enabling anything: an authorized history operator reads the protected same-origin BFF route `GET /api/system/position-history/ingestion-status` (Next.js forwards to the internal Nest API; both responses carry `Cache-Control: no-store`). Publishing a GitHub Release never deploys production and never mutates runtime feature flags; production changes remain separate, explicitly reviewed steps. See [lossless position-history ingestion](lossless-position-history-ingestion.md).
 
 ## Health, readiness and graceful shutdown
 

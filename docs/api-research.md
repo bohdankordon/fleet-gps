@@ -2,7 +2,7 @@
 
 - Дата начала: 2026-08-04.
 - Проверяемый endpoint: `GET /devices`.
-- Ожидаемая авторизация: HTTP Basic Auth с email и password (по `docs/equgps-swagger.json`).
+- Ожидаемая авторизация: HTTP Basic Auth с email и password (по исторической API-спецификации, см. `THIRD_PARTY_NOTICES.md`; файл `docs/equgps-swagger.json` удалён из текущего дерева).
 - Намеренно скрываемые поля: `uniqueId`, `phone`, `contact`, `attributes`, email, пароль, токены и `Authorization`.
 - Swagger заявляет формат `date-time` для `lastUpdate`, но реальный API возвращает `YYYY-MM-DDTHH:mm:ss.SSS+0000` (timezone offset без двоеточия), который не проходит строгую ISO 8601-проверку Zod. Транспортная схема принимает непустую строку, `null` или отсутствие поля, а нормализация выполняется отдельно через `Date.parse` с безопасным fallback для локального времени. Формат подтверждён ручной проверкой 2026-08-04.
 

@@ -21,6 +21,20 @@ logs/
 private/
 .dev-runtime/
 
+# Operational artifacts must never be committed accidentally.
+*.tar
+*.tar.gz
+*.zip
+*.dump
+*.dump.sha256
+review/
+.review/
+acceptance-output/
+.acceptance/
+backups/
+backup/
+ops/backups/
+
 .vscode/
 .idea/
 .DS_Store

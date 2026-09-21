@@ -1,7 +1,7 @@
 # Fleet GPS
 
-Fleet GPS is an internal fleet and commercial-vehicle monitoring application.
-It is designed for company fleets, service and delivery vehicles, work
+Fleet GPS is a self-hosted fleet monitoring and operations platform for
+commercial vehicle fleets: company fleets, service and delivery vehicles, work
 vehicles, and mixed commercial fleets. The system synchronizes operational data
 from eQuGPS, stores an application-owned view in PostgreSQL, presents it through
 an authenticated Web application, evaluates fleet alerts, and delivers
@@ -39,8 +39,9 @@ does not silently call the provider or start a synchronization job.
 
 ### Events and reports
 
-- SPEEDING and INACTIVITY detection, durable alert events, and query and
-  summary views with a read-only operational inbox and history.
+- SPEEDING and INACTIVITY detection, durable alert events with speeding
+  episode evidence and exact trip focus, and query and summary views with a
+  read-only operational inbox and history.
 - Daily fleet activity report with fleet-wide summary and permission-aware
   investigation actions.
 
@@ -48,8 +49,9 @@ does not silently call the provider or start a synchronization job.
 
 - Controlled history population, status, automatic maintenance, retention
   planning, and bounded retention execution. Lossless reconciliation adds
-  durable per-vehicle completeness cursors, default-off continuous lanes with
-  restart catch-up, daily 7-day and rolling 90-day replay generations, and a
+  durable per-vehicle completeness cursors, continuous recent-tail and
+  contiguous-backlog reconciliation with restart catch-up, daily 7-day and
+  rolling 90-day replay generations, bounded 90-day retention, and a
   protected aggregate ingestion-status surface. See
   [lossless position-history ingestion](docs/lossless-position-history-ingestion.md).
 - Revision-protected global business settings for timezone, minimum daily
@@ -232,7 +234,7 @@ documentation instead of running provider- or write-capable commands casually.
 
 ## Telegram notifications
 
-Product Telegram notifications use the dedicated `fleet_signal_bot`. An
+Product Telegram notifications use the dedicated product Telegram bot. An
 eligible account can create a short-lived private-chat link, connect or
 disconnect Telegram, enable master notifications, choose SPEEDING and/or
 INACTIVITY, and select `ALL` or an allowed `SELECTED` vehicle set. Notification
@@ -287,19 +289,21 @@ configuration. Use the authoritative runbooks:
 
 ## Project status
 
-The project has immutable `v1.0.0` and `v1.1.0` releases, and the `main` source tree is prepared for the `v1.2.0` release line (see Release / version below). Completed product work since `v1.1.0` includes the lossless GPS history ingestion and reconciliation subsystem: durable completeness cursors, continuous recent-tail and contiguous-backlog reconciliation, daily and rolling replay generations, retention-aware completeness, and protected rollout telemetry. Continuous and replay ingestion remain default-off and have not been enabled in production; the controlled rollout readiness assessment returned GO, and the rollout itself is intentionally deferred while further product features are developed. Current production is therefore not described as running the `v1.1.0` source tree.
+The project has immutable `v1.0.0`, `v1.1.0`, and `v1.2.0` releases. Product work since `v1.2.0` completes the controlled production rollout: continuous lossless history reconciliation, daily 7-day and rolling 90-day replay, and automatic bounded retention are active in production; per-user Telegram delivery is the active product path with legacy global delivery disabled; vehicle groups with scoped Product Vehicle Access, password policy with forced temporary-password onboarding, and speeding investigation improvements are in place; and the ADMIN history/retention read paths are bounded. See `CHANGELOG.md` for the prepared `v1.3.0` (Production Rollout Complete) release notes.
 
-The old design experiment branches were retired and are not merge or reuse
-inputs. See the [development roadmap](docs/development-roadmap.md) for current
-status instead of treating proposed work as implemented functionality.
+The temporal-profile/ECharts movement-history experiment was retired and is
+not part of the current product baseline. See the
+[development roadmap](docs/development-roadmap.md) for current status instead
+of treating proposed work as implemented functionality.
 
 ## Release / version
 
-The source tree corresponds to the `v1.2.0` release line, which will be tagged immutably from the prepared `main` SHA after review; until the tag exists, `v1.1.0` remains the latest published GitHub Release. Stable releases are immutable
-Git tags; release candidates use the corresponding `-rc.*` suffix. See
-[CHANGELOG.md](CHANGELOG.md) for release history. Package versions in
-`package.json` files (`0.1.0`) are internal workspace versions, not the product
-release version.
+The latest published release is `v1.2.0`; `main` prepares the `v1.3.0`
+(Production Rollout Complete) release line, to be tagged immutably after
+review. Stable releases are immutable Git tags; release candidates use the
+corresponding `-rc.*` suffix. See [CHANGELOG.md](CHANGELOG.md) for release
+history. Package versions in `package.json` files (`0.1.0`) are internal
+workspace versions, not the product release version.
 
 ## Security notes
 
