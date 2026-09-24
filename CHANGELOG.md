@@ -4,6 +4,34 @@ All notable changes to Fleet GPS are documented here. Release versions are
 immutable Git tags; package versions in `package.json` files are internal
 workspace versions, not the product release version.
 
+## [1.3.2] - 2026-09-24
+
+Reliability patch for GPS history replay recovery and backup monitoring correctness.
+
+### Fixed
+
+- Fixed a replay condition where one repeatedly failing historical checkpoint could block useful progress across a rolling replay generation.
+- Replay applies bounded checkpoint-level recovery for scoped transient failures; provider-wide and internal failures remain conservative.
+- Repeated timeout recovery can reduce future replay windows from 6h to 3h to 1h without skipping history.
+- Fixed replay capacity accounting during long cycles so daily and rolling replay retain fair service under constrained throughput.
+- GPS History status shows the oldest incomplete generation and its progress separately from the latest generation.
+- Backup monitoring distinguishes verifier timeout or execution unavailability from a corrupt backup.
+
+### Reliability and correctness
+
+- Failed replay windows remain incomplete until successfully processed.
+- Older replay debt retains priority when eligible, while fully backed-off work does not block newer useful work.
+- Global provider pacing, bounded cycle capacity, leases, and stale-write protections remain enforced.
+- Backup checksum verification remains authoritative.
+- Safe process telemetry exposes replay failure categories and cycle timing without provider errors or credentials.
+
+### Upgrade notes
+
+- No database schema or Prisma migration changes are required.
+- No production feature-flag changes are required.
+- No provider-rate increase is part of this release.
+- Workspace package versions remain `0.1.0`.
+
 ## [1.3.1] - 2026-09-21
 
 Trips Map Reliability Fix. Patch over the v1.3.0 Production Rollout Complete baseline: rapid switching between trips and stops could intermittently leave the map empty even though the final selection and track data were valid. The exact v1.3.1 code commit was deployed and manually accepted in production before the release was published.
