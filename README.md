@@ -54,6 +54,8 @@ does not silently call the provider or start a synchronization job.
   rolling 90-day replay generations, bounded 90-day retention, and a
   protected aggregate ingestion-status surface. See
   [lossless position-history ingestion](docs/lossless-position-history-ingestion.md).
+- Replay recovery keeps useful work moving across backed-off checkpoints, and
+  GPS History status shows progress for the oldest incomplete generation.
 - Revision-protected global business settings for timezone, minimum daily
   distance, position freshness, speeding, inactivity, and trip/stop policy.
 
@@ -81,7 +83,8 @@ does not silently call the provider or start a synchronization job.
 
 - Liveness/readiness endpoints, production monitoring, bounded logs, verified
   backups, off-host recovery support, and source-controlled operational
-  runbooks.
+  runbooks. Backup monitoring distinguishes verification unavailability from
+  an invalid backup.
 
 ## Architecture
 
@@ -289,7 +292,15 @@ configuration. Use the authoritative runbooks:
 
 ## Project status
 
-The project has immutable `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`, and `v1.3.1` releases. Product work in `v1.3.0` completes the controlled production rollout: continuous lossless history reconciliation, daily 7-day and rolling 90-day replay, and automatic bounded retention are active in production; per-user Telegram delivery is the active product path with legacy global delivery disabled; vehicle groups with scoped Product Vehicle Access, password policy with forced temporary-password onboarding, and speeding investigation improvements are in place; and the ADMIN history/retention read paths are bounded. See `CHANGELOG.md` for the `v1.3.0` (Production Rollout Complete) and `v1.3.1` (Trips Map Reliability Fix) release notes.
+The project has immutable `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`,
+`v1.3.1`, and `v1.3.2` releases. The current published release, `v1.3.2`,
+improves GPS history replay recovery and fairness, shows truthful
+oldest-incomplete replay progress, and corrects backup monitoring verification
+status. The `v1.3.x` production baseline includes continuous lossless history
+reconciliation, daily 7-day and rolling 90-day replay, automatic bounded
+retention, per-user Telegram delivery, vehicle groups with scoped access, and
+speeding investigation improvements. See [CHANGELOG.md](CHANGELOG.md) for
+release notes.
 
 The temporal-profile/ECharts movement-history experiment was retired and is
 not part of the current product baseline. See the
@@ -298,10 +309,8 @@ of treating proposed work as implemented functionality.
 
 ## Release / version
 
-The current published release is `v1.3.1` (Trips Map Reliability Fix), a patch
-over the `v1.3.0` (Production Rollout Complete) production-rollout baseline. It
-fixes intermittent Trips map synchronization during rapid trip/stop switching.
-Stable releases are immutable Git tags; release
+The current published release is `v1.3.2`, a reliability patch over the
+`v1.3.x` production baseline. Stable releases are immutable Git tags; release
 candidates use the corresponding `-rc.*` suffix. See [CHANGELOG.md](CHANGELOG.md)
 for release history. Package versions in `package.json` files (`0.1.0`) are
 internal workspace versions, not the product release version. GitHub Release

@@ -15,11 +15,15 @@ This document is the primary living record of the project's development directio
 ## Current state
 
 - Canonical feature-development branch: `main`.
-- Current published release: `v1.3.1` (Trips Map Reliability Fix), a production-accepted patch over the `v1.3.0` (Production Rollout Complete) baseline (see `CHANGELOG.md`). Documentation-only changes after the `v1.3.1` tag are not part of that immutable release.
+- Current published release: `v1.3.2`, an immutable, production-accepted
+  reliability patch over the `v1.3.x` baseline covering replay debt recovery
+  and fairness, truthful replay status, and backup verification semantics
+  (see `CHANGELOG.md`). Later documentation-only commits are intentionally
+  outside this immutable release.
 - Immutable baseline release: `v1.0.0`.
 - `v1.0.0` annotated tag object: `82fdee34c7eaff7a07fabd47e38fd6a32bbcc6c8`.
 - `v1.0.0` peeled commit: `9bbd9b98c148b2ffed0078078d175d778c67f7ba`.
-- `v1.3.1`, `v1.3.0`, `v1.2.0`, `v1.1.0`, `v1.0.0`, and `v1.0.0-rc.4` are immutable release tags. Normal feature development continues from `main`.
+- `v1.3.2`, `v1.3.1`, `v1.3.0`, `v1.2.0`, `v1.1.0`, `v1.0.0`, and `v1.0.0-rc.4` are immutable release tags. Normal feature development continues from `main`.
 
 ## DONE — Post-release scheduled history soak
 
@@ -32,6 +36,12 @@ Natural retention also executed as SYSTEM work with the correct cutoff contract.
 The lossless GPS history program is implemented and rolled out to production: durable per-vehicle completeness cursors with conservative floor bootstrap, a shared historical-window core, continuous reconciliation (recent-tail plus contiguous-backlog lanes) with restart catch-up, durable daily 7-day and rolling 90-day replay generations with fair recurring coordination, retention and completeness integration, capacity remediation accepted at the observed fleet scale, and protected operational telemetry (request-rate, failure, retry, lock, blocked-stream, recent-tail, cursor-lag, replay-progress, replay-debt, and retention execution and floor-alignment signals) served read-only through the Next.js BFF and the internal Nest API.
 
 Implementation and readiness are DONE, and the controlled production rollout is complete: continuous lossless reconciliation, daily 7-day and rolling 90-day replay, and automatic bounded retention are active in production. The maintenance accelerator remains intentionally disabled in steady state. See [lossless position-history ingestion](./lossless-position-history-ingestion.md).
+
+Rolling replay head-of-line recovery is fixed: checkpoint-scoped transient
+failures no longer stall all useful replay work, while older debt retains
+priority when eligible. Replay capacity is accounted for fairly across daily
+and rolling work during long cycles. Rolling replay may still truthfully show
+incomplete debt while natural processing catches up.
 
 ## DONE — Configurability & Magic Numbers Audit
 
@@ -171,7 +181,7 @@ Phase 0 repaired six source-backed correctness and truthful-state areas: audit f
 
 ## LATER — Future release readiness
 
-The `v1.3.1` (Trips Map Reliability Fix) release is the current published patch on `main`, on top of the `v1.3.0` (Production Rollout Complete) baseline. Before creating another immutable release tag:
+The current published release is `v1.3.2`. For a future release:
 
 - Finish the intended feature scope.
 - Complete regression checks, typechecking, linting, tests, and builds.
@@ -204,7 +214,9 @@ See [the current report contract](./fleet-daily-activity-report.md).
 These are established operational processes, not open roadmap blockers:
 
 - Natural position-history maintenance continues under its configured budget, and history retention continues naturally. Continuous lossless reconciliation, daily 7-day replay, rolling 90-day replay, and automatic bounded retention are active in production; the maintenance accelerator stays intentionally disabled in steady state.
-- Monitoring and alerts remain enabled.
+- Monitoring and alerts remain enabled. Backup monitoring distinguishes an
+  actually invalid backup from unavailable verification; checksum verification
+  remains authoritative.
 - Backup and disaster-recovery procedures already exist.
 - Observe these processes normally; make them roadmap work only when a real failure or regression requires action.
 
