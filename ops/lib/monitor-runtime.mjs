@@ -7,10 +7,19 @@ import { promises as fs } from "node:fs";
 import https from "node:https";
 import path from "node:path";
 import { parseComposePsLines } from "./monitor-checks.mjs";
+import { BACKUP_VERIFICATION } from "./monitor-config.mjs";
 import { controlledEnvironment } from "./controlled-environment.mjs";
 
 const API_READY_SCRIPT = "fetch('http://127.0.0.1:3000/api/health/ready').then(function(r){process.exit(r.ok?0:1)}).catch(function(){process.exit(1)})";
 const POSTGRES_READY_CMD = 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"';
+export const BACKUP_VERIFY_TIMEOUT_MS = 30_000;
+
+// Only a completed verifier exit can reject a backup. Spawn errors and missing
+// exit statuses are not integrity verdicts; never return command output here.
+export function classifyBackupVerification(result) {
+  if (result?.error || !Number.isInteger(result?.status)) return BACKUP_VERIFICATION.UNAVAILABLE;
+  return result.status === 0 ? BACKUP_VERIFICATION.VALID : BACKUP_VERIFICATION.INVALID;
+}
 
 // Local-loopback HTTPS probe options. DNS is forced to loopback while SNI,
 // certificate hostname validation, and the Host header all use the real
@@ -156,14 +165,18 @@ export function createProductionRuntime({ repositoryRoot, envFile, dockerBin = "
   }
 
   function verifyBackup(dumpPath) {
-    const result = spawnSync(shBin, [backupVerifyPath, dumpPath], {
-      cwd: repositoryRoot,
-      env: process.env,
-      timeout: probeTimeout,
-      encoding: "utf8",
-      maxBuffer: 1024 * 1024,
-    });
-    return result.status === 0;
+    try {
+      const result = spawnSync(shBin, [backupVerifyPath, dumpPath], {
+        cwd: repositoryRoot,
+        env: process.env,
+        timeout: BACKUP_VERIFY_TIMEOUT_MS,
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024,
+      });
+      return classifyBackupVerification(result);
+    } catch {
+      return BACKUP_VERIFICATION.UNAVAILABLE;
+    }
   }
 
   return Object.freeze({

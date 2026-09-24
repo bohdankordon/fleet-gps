@@ -16,6 +16,7 @@ export const CHECK_IDS = Object.freeze({
   BACKUP_MISSING: "BACKUP_MISSING",
   BACKUP_STALE: "BACKUP_STALE",
   BACKUP_INVALID: "BACKUP_INVALID",
+  BACKUP_VERIFY_UNAVAILABLE: "BACKUP_VERIFY_UNAVAILABLE",
 });
 
 export const SEVERITY = Object.freeze({
@@ -42,6 +43,13 @@ export const CHECK_DESCRIPTIONS = Object.freeze({
   [CHECK_IDS.BACKUP_MISSING]: "No finalized managed daily backup exists",
   [CHECK_IDS.BACKUP_STALE]: "Latest finalized daily backup is stale",
   [CHECK_IDS.BACKUP_INVALID]: "Latest managed daily backup failed integrity verification",
+  [CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE]: "Latest daily backup integrity verification could not complete",
+});
+
+export const BACKUP_VERIFICATION = Object.freeze({
+  VALID: "valid",
+  INVALID: "invalid",
+  UNAVAILABLE: "unavailable",
 });
 
 export const MONITOR_THRESHOLDS = Object.freeze({

@@ -51,6 +51,7 @@ healthy, warning, or critical. The IDs are:
     BACKUP_MISSING
     BACKUP_STALE
     BACKUP_INVALID
+    BACKUP_VERIFY_UNAVAILABLE
 
 Docker and container checks: the production Compose stack is inspected through
 the same explicit env file used by deployment. Caddy, web, api and postgres must
@@ -100,11 +101,14 @@ its .sha256 sidecar) that are regular, non-symlink files count.
 
     no finalized managed daily pair           BACKUP_MISSING (CRITICAL)
     latest finalized daily pair older than 30h BACKUP_STALE   (CRITICAL)
-    latest managed pair fails verification    BACKUP_INVALID  (CRITICAL)
+    completed verification rejects latest pair BACKUP_INVALID (CRITICAL)
+    verification cannot complete              BACKUP_VERIFY_UNAVAILABLE (WARNING)
 
 Integrity reuses the accepted Stage 22 checksum verifier (ops/backup-verify.sh);
 no second, weaker parser is introduced. No restore and no database mutation are
 performed.
+The verifier has a dedicated 30-second timeout; ordinary probes retain their
+10-second timeout. A timeout or execution failure does not prove corruption.
 
 ## Integrity verification cache
 
@@ -115,6 +119,10 @@ always verified; a changed file identity is re-verified; an unchanged pair is
 re-verified on a bounded 6-hour interval. The cache is not a substitute for
 Stage 22 backup-time verification, and a cached result is never trusted for a
 different backup basename or file identity.
+Successful verification advances the cache timestamp; a completed rejection
+invalidates the cache. If verification cannot complete, the monitor preserves
+any prior cache without advancing its timestamp or creating a successful entry.
+The current pair remains due for verification on a later run.
 
 ## Incident dedup and notifications
 

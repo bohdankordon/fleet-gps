@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  BACKUP_VERIFICATION,
   CHECK_IDS,
   SEVERITY,
   diskFreePercentFromStatfs,
   diskSeverityForFreePercent,
+  incidentFingerprint,
+  incidentFingerprints,
 } from "../lib/monitor-config.mjs";
 import {
   backupTimestampMs,
@@ -15,6 +18,8 @@ import {
   runAllChecks,
   selectLatestDailyBackup,
 } from "../lib/monitor-checks.mjs";
+import { BACKUP_VERIFY_TIMEOUT_MS, classifyBackupVerification } from "../lib/monitor-runtime.mjs";
+import { buildIncidentMessage } from "../lib/monitor-message.mjs";
 
 const config = Object.freeze({ siteHostname: "taxi.example.test", backupDir: "/backups", appImageTag: "v1.0.0", alertsEnabled: false, botToken: null, chatId: null });
 const NOW = Date.UTC(2026, 7, 14, 12, 0, 0);
@@ -36,7 +41,7 @@ function fakeRuntime(overrides = {}) {
     statfs: async () => ({ blocks: 1000, bavail: 500 }),
     listDirectory: async () => [],
     statFile: async () => ({ size: 100, mtimeMs: NOW - 60_000 }),
-    verifyBackup: async () => true,
+    verifyBackup: async () => BACKUP_VERIFICATION.VALID,
     ...overrides,
   };
 }
@@ -115,12 +120,22 @@ test("integrity cache decision reverifies new, changed, and periodic identities"
   assert.equal(decideIntegrityVerification(pair, cache, 5000 + 6 * 60 * 60 * 1000).reason, "periodic");
 });
 
+test("verifier classification only rejects a completed nonzero exit", () => {
+  assert.equal(BACKUP_VERIFY_TIMEOUT_MS, 30_000);
+  assert.equal(classifyBackupVerification({ status: 0 }), BACKUP_VERIFICATION.VALID);
+  assert.equal(classifyBackupVerification({ status: 1, stderr: "rejected" }), BACKUP_VERIFICATION.INVALID);
+  assert.equal(classifyBackupVerification({ status: null, error: { code: "ETIMEDOUT", message: "secret path" } }), BACKUP_VERIFICATION.UNAVAILABLE);
+  assert.equal(classifyBackupVerification({ status: null, error: { code: "ENOENT" } }), BACKUP_VERIFICATION.UNAVAILABLE);
+  assert.equal(classifyBackupVerification({ status: null }), BACKUP_VERIFICATION.UNAVAILABLE);
+  assert.equal(classifyBackupVerification({ status: 1, error: { code: "EIO" } }), BACKUP_VERIFICATION.UNAVAILABLE);
+});
+
 test("all healthy services produce a healthy evaluation", async () => {
   const backup = recentBackup();
   const runtime = fakeRuntime({
     listDirectory: async () => backup.entries,
     statFile: backup.statFile,
-    verifyBackup: async () => true,
+    verifyBackup: async () => BACKUP_VERIFICATION.VALID,
   });
   const { results, cache } = await runAllChecks({ runtime, config, now: NOW, integrityCache: null });
   assert.equal(overallSeverity(results), SEVERITY.HEALTHY);
@@ -130,7 +145,10 @@ test("all healthy services produce a healthy evaluation", async () => {
   assert.equal(statusFor(results, CHECK_IDS.API_READINESS), SEVERITY.HEALTHY);
   assert.equal(statusFor(results, CHECK_IDS.POSTGRES_READINESS), SEVERITY.HEALTHY);
   assert.equal(statusFor(results, CHECK_IDS.BACKUP_MISSING), SEVERITY.HEALTHY);
+  assert.equal(statusFor(results, CHECK_IDS.BACKUP_INVALID), SEVERITY.HEALTHY);
+  assert.equal(statusFor(results, CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE), SEVERITY.HEALTHY);
   assert.notEqual(cache, null);
+  assert.equal(cache.verifiedAt, NOW);
 });
 
 test("a stopped web container is detected and restored cleanly", async () => {
@@ -244,6 +262,7 @@ test("no finalized daily backup is reported as BACKUP_MISSING", async () => {
   assert.equal(statusFor(results, CHECK_IDS.BACKUP_MISSING), SEVERITY.CRITICAL);
   assert.equal(statusFor(results, CHECK_IDS.BACKUP_STALE), SEVERITY.HEALTHY);
   assert.equal(statusFor(results, CHECK_IDS.BACKUP_INVALID), SEVERITY.HEALTHY);
+  assert.equal(statusFor(results, CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE), SEVERITY.HEALTHY);
 });
 
 function recentBackup() {
@@ -264,15 +283,17 @@ test("a valid recent backup is healthy and verified", async () => {
     statFile: backup.statFile,
     verifyBackup: async () => {
       verifyCalls += 1;
-      return true;
+      return BACKUP_VERIFICATION.VALID;
     },
   });
   const { results, cache } = await runAllChecks({ runtime, config, now: NOW, integrityCache: null });
   assert.equal(statusFor(results, CHECK_IDS.BACKUP_MISSING), SEVERITY.HEALTHY);
   assert.equal(statusFor(results, CHECK_IDS.BACKUP_STALE), SEVERITY.HEALTHY);
   assert.equal(statusFor(results, CHECK_IDS.BACKUP_INVALID), SEVERITY.HEALTHY);
+  assert.equal(statusFor(results, CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE), SEVERITY.HEALTHY);
   assert.equal(verifyCalls, 1);
   assert.equal(cache.dump.basename, backup.dump);
+  assert.equal(cache.verifiedAt, NOW);
 });
 
 test("a valid but >30h backup is reported as BACKUP_STALE without rehashing", async () => {
@@ -283,11 +304,13 @@ test("a valid but >30h backup is reported as BACKUP_STALE without rehashing", as
     statFile: async (file) => ({ size: 100, mtimeMs: NOW - 40 * 60 * 60 * 1000 }),
     verifyBackup: async () => {
       verifyCalls += 1;
-      return true;
+      return BACKUP_VERIFICATION.VALID;
     },
   });
   const { results } = await runAllChecks({ runtime, config, now: NOW, integrityCache: null });
   assert.equal(statusFor(results, CHECK_IDS.BACKUP_STALE), SEVERITY.CRITICAL);
+  assert.equal(statusFor(results, CHECK_IDS.BACKUP_INVALID), SEVERITY.HEALTHY);
+  assert.equal(statusFor(results, CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE), SEVERITY.HEALTHY);
   assert.equal(verifyCalls, 0);
 });
 
@@ -296,11 +319,86 @@ test("a corrupt latest backup is reported as BACKUP_INVALID and invalidates the 
   const runtime = fakeRuntime({
     listDirectory: async () => backup.entries,
     statFile: backup.statFile,
-    verifyBackup: async () => false,
+    verifyBackup: async () => BACKUP_VERIFICATION.INVALID,
   });
   const { results, cache } = await runAllChecks({ runtime, config, now: NOW, integrityCache: null });
   assert.equal(statusFor(results, CHECK_IDS.BACKUP_INVALID), SEVERITY.CRITICAL);
+  assert.equal(statusFor(results, CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE), SEVERITY.HEALTHY);
   assert.equal(cache, null);
+});
+
+test("unavailable verification preserves a due cache and retries successfully", async () => {
+  const backup = recentBackup();
+  let outcome = BACKUP_VERIFICATION.VALID;
+  let verifyCalls = 0;
+  const runtime = fakeRuntime({
+    listDirectory: async () => backup.entries,
+    statFile: backup.statFile,
+    verifyBackup: async () => {
+      verifyCalls += 1;
+      return outcome;
+    },
+  });
+  const first = await runAllChecks({ runtime, config, now: NOW, integrityCache: null });
+  outcome = BACKUP_VERIFICATION.UNAVAILABLE;
+  const dueAt = NOW + 6 * 60 * 60 * 1000;
+  const unavailable = await runAllChecks({ runtime, config, now: dueAt, integrityCache: first.cache });
+  assert.equal(statusFor(unavailable.results, CHECK_IDS.BACKUP_INVALID), SEVERITY.HEALTHY);
+  assert.equal(statusFor(unavailable.results, CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE), SEVERITY.WARNING);
+  assert.strictEqual(unavailable.cache, first.cache);
+  assert.equal(unavailable.cache.verifiedAt, NOW);
+  outcome = BACKUP_VERIFICATION.VALID;
+  const retried = await runAllChecks({ runtime, config, now: dueAt + 60_000, integrityCache: unavailable.cache });
+  assert.equal(verifyCalls, 3);
+  assert.equal(statusFor(retried.results, CHECK_IDS.BACKUP_INVALID), SEVERITY.HEALTHY);
+  assert.equal(statusFor(retried.results, CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE), SEVERITY.HEALTHY);
+  assert.equal(retried.cache.verifiedAt, dueAt + 60_000);
+});
+
+test("unavailable new pair cannot trust historical cache; later rejection becomes critical", async () => {
+  const backup = recentBackup();
+  const priorCache = Object.freeze({ version: 1, dump: { basename: "older.dump", size: 100, mtimeMs: 1 }, sha: { basename: "older.dump.sha256", size: 80, mtimeMs: 1 }, verifiedAt: NOW });
+  let outcome = BACKUP_VERIFICATION.UNAVAILABLE;
+  let verifyCalls = 0;
+  const runtime = fakeRuntime({
+    listDirectory: async () => backup.entries,
+    statFile: backup.statFile,
+    verifyBackup: async () => {
+      verifyCalls += 1;
+      return outcome;
+    },
+  });
+  const unavailable = await runAllChecks({ runtime, config, now: NOW, integrityCache: priorCache });
+  assert.equal(statusFor(unavailable.results, CHECK_IDS.BACKUP_INVALID), SEVERITY.HEALTHY);
+  assert.equal(statusFor(unavailable.results, CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE), SEVERITY.WARNING);
+  assert.strictEqual(unavailable.cache, priorCache);
+  outcome = BACKUP_VERIFICATION.INVALID;
+  const rejected = await runAllChecks({ runtime, config, now: NOW + 60_000, integrityCache: unavailable.cache });
+  assert.equal(verifyCalls, 2);
+  assert.equal(statusFor(rejected.results, CHECK_IDS.BACKUP_INVALID), SEVERITY.CRITICAL);
+  assert.equal(statusFor(rejected.results, CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE), SEVERITY.HEALTHY);
+  assert.equal(rejected.cache, null);
+});
+
+test("unavailable verification without cache creates no verdict or cache", async () => {
+  const backup = recentBackup();
+  const runtime = fakeRuntime({ listDirectory: async () => backup.entries, statFile: backup.statFile, verifyBackup: async () => BACKUP_VERIFICATION.UNAVAILABLE });
+  const result = await runAllChecks({ runtime, config, now: NOW, integrityCache: null });
+  assert.equal(statusFor(result.results, CHECK_IDS.BACKUP_INVALID), SEVERITY.HEALTHY);
+  assert.equal(statusFor(result.results, CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE), SEVERITY.WARNING);
+  assert.equal(result.cache, null);
+});
+
+test("unavailable incident has a stable safe fingerprint and fixed notification", async () => {
+  const backup = recentBackup();
+  const timeoutOutcome = classifyBackupVerification({ status: null, error: { code: "ETIMEDOUT", message: "secret path" }, stderr: "raw checksum" });
+  const runtime = fakeRuntime({ listDirectory: async () => backup.entries, statFile: backup.statFile, verifyBackup: async () => timeoutOutcome });
+  const { results } = await runAllChecks({ runtime, config, now: NOW, integrityCache: null });
+  const fingerprints = incidentFingerprints(results);
+  assert.deepEqual(fingerprints, [incidentFingerprint(CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE, SEVERITY.WARNING)]);
+  const message = buildIncidentMessage({ fingerprints, siteHostname: config.siteHostname, appImageTag: config.appImageTag, utcTimestamp: "2026-08-14T12:00:00.000Z" });
+  assert.match(message, /BACKUP_VERIFY_UNAVAILABLE \(warning\): Latest daily backup integrity verification could not complete/);
+  assert.doesNotMatch(message, /BACKUP_INVALID|ETIMEDOUT|secret path|raw checksum|\/backups|stderr/);
 });
 
 test("the integrity cache avoids rehashing an unchanged backup every minute", async () => {
@@ -311,7 +409,7 @@ test("the integrity cache avoids rehashing an unchanged backup every minute", as
     statFile: backup.statFile,
     verifyBackup: async () => {
       verifyCalls += 1;
-      return true;
+      return BACKUP_VERIFICATION.VALID;
     },
   });
   const first = await runAllChecks({ runtime, config, now: NOW, integrityCache: null });
@@ -329,7 +427,7 @@ test("a newly observed or replaced backup is always verified", async () => {
     statFile: backupA.statFile,
     verifyBackup: async () => {
       verifyCalls += 1;
-      return true;
+      return BACKUP_VERIFICATION.VALID;
     },
   });
   const first = await runAllChecks({ runtime: runtimeA, config, now: NOW, integrityCache: null });
@@ -341,7 +439,7 @@ test("a newly observed or replaced backup is always verified", async () => {
     statFile: async (file) => ({ size: 200, mtimeMs: NOW - 30 * 60_000 }),
     verifyBackup: async () => {
       verifyCalls += 1;
-      return true;
+      return BACKUP_VERIFICATION.VALID;
     },
   });
   const second = await runAllChecks({ runtime: runtimeB, config, now: NOW, integrityCache: first.cache });
