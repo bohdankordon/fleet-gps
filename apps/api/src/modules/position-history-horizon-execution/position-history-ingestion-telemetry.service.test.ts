@@ -18,6 +18,7 @@ test("runtime timestamps are safe and counters reset on new service instance", (
   assert.equal(empty.requestStartsSinceProcessStart, 0);
   assert.equal(empty.lastCycleStartedAt, null);
   assert.equal(empty.lastCycleCompletedAt, null);
+  assert.deepEqual([empty.cyclesCompletedSinceProcessStart, empty.lastCycleDurationMs, empty.maxCycleDurationMsSinceProcessStart, empty.cyclesExceedingPollIntervalSinceProcessStart], [0, null, null, 0]);
   assert.ok(empty.processStartedAt instanceof Date);
   telemetry.markPollerStarted();
   assert.equal(telemetry.isPollerStarted(), true);
@@ -29,8 +30,15 @@ test("runtime timestamps are safe and counters reset on new service instance", (
   assert.equal(done.cycleInFlight, false);
   assert.equal(done.lastCycleStartedAt?.toISOString(), "2026-09-14T12:00:00.000Z");
   assert.equal(done.lastCycleCompletedAt?.toISOString(), "2026-09-14T12:00:01.000Z");
+  assert.deepEqual([done.cyclesCompletedSinceProcessStart, done.lastCycleDurationMs, done.maxCycleDurationMsSinceProcessStart, done.cyclesExceedingPollIntervalSinceProcessStart], [1, 1000, 1000, 0]);
+  telemetry.startCycle(new Date(first.nowMs()));
+  first.advance(30_000);
+  telemetry.completeCycle(new Date(first.nowMs()));
+  const slow = telemetry.snapshot(new Date(first.nowMs()));
+  assert.deepEqual([slow.cyclesCompletedSinceProcessStart, slow.lastCycleDurationMs, slow.maxCycleDurationMsSinceProcessStart, slow.cyclesExceedingPollIntervalSinceProcessStart], [2, 30_000, 30_000, 1]);
   const second = new PositionHistoryIngestionTelemetryService(first.clock);
   assert.equal(second.snapshot(new Date(first.nowMs())).requestStartsSinceProcessStart, 0);
+  assert.equal(second.snapshot(new Date(first.nowMs())).cyclesCompletedSinceProcessStart, 0);
   assert.equal(second.isPollerStarted(), false);
 });
 

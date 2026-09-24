@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parsePositionHistoryIngestionStatus, PositionHistoryIngestionStatusContractError } from "./position-history-ingestion-status-contract";
-import { positionHistoryIngestionStatusFixture } from "./position-history-ingestion-status-fixture";
+import { positionHistoryIngestionStatusFixture, positionHistoryIngestionStatusStateFixture } from "./position-history-ingestion-status-fixture";
 
 test("accepts the supported aggregate ingestion status without sensitive fields", () => {
   const parsed = parsePositionHistoryIngestionStatus(positionHistoryIngestionStatusFixture());
@@ -22,4 +22,12 @@ test("rejects debt, cursor, retention, and scope inconsistencies", () => {
   const skip = { ...base.retention, lastOutcome: "SUCCESS" as const, lastAttemptAt: base.retention.currentRetentionPolicyFloor, lastSkipCategory: "LOCK_UNAVAILABLE" as const };
   assert.throws(() => parsePositionHistoryIngestionStatus({ ...base, retention: skip }), PositionHistoryIngestionStatusContractError);
   assert.throws(() => parsePositionHistoryIngestionStatus({ ...base, extra: 1 }), PositionHistoryIngestionStatusContractError);
+});
+
+test("accepts queued latest generation beside active debt and rejects fabricated active progress", () => {
+  const debt = positionHistoryIngestionStatusStateFixture("DEBT");
+  const rolling = parsePositionHistoryIngestionStatus(debt).replay.rolling;
+  assert.deepEqual([rolling.checkpointsTotal, rolling.activeCheckpointsTotal, rolling.estimatedRemainingWindows, rolling.queuedIncompleteGenerations], [0, 741, 10_488, 1]);
+  assert.throws(() => parsePositionHistoryIngestionStatus({ ...debt, replay: { ...debt.replay, rolling: { ...rolling, activeCheckpointsCompleted: 741 } } }), PositionHistoryIngestionStatusContractError);
+  assert.throws(() => parsePositionHistoryIngestionStatus({ ...debt, providerTraffic: { ...debt.providerTraffic, lastFailureCategory: "raw provider error" } }), PositionHistoryIngestionStatusContractError);
 });

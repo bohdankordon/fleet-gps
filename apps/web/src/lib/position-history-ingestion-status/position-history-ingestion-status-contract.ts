@@ -26,13 +26,22 @@ const replaySummary = z.object({
   oldestIncompleteGenerationAnchor: nullableTimestamp,
   oldestOverdueGenerationAnchor: nullableTimestamp,
   hasReplayDebt: z.boolean(),
+  activeGenerationAnchor: nullableTimestamp,
+  activeState: replayState.nullable(),
+  activeCheckpointsTotal: count,
+  activeCheckpointsCompleted: count,
+  activeCheckpointsRemaining: count,
+  activeProgressPercent: percent,
+  activeIsOverdue: z.boolean(),
+  queuedIncompleteGenerations: count,
+  estimatedRemainingWindows: count,
 }).strict();
 
 export const positionHistoryIngestionStatusSchema = z.object({
   generatedAt: timestamp,
   configuration: z.object({ continuousIngestionEnabled: z.boolean(), automaticRetentionEnabled: z.boolean() }).strict(),
-  runtime: z.object({ pollerStarted: z.boolean(), cycleInFlight: z.boolean(), lastCycleStartedAt: nullableTimestamp, lastCycleCompletedAt: nullableTimestamp, processStartedAt: timestamp }).strict(),
-  providerTraffic: z.object({ requestStartsLastMinute: count, requestStartsSinceProcessStart: count, retriesSinceProcessStart: count, rateLimitResponsesSinceProcessStart: count, provider5xxSinceProcessStart: count, networkFailuresSinceProcessStart: count, timeoutsSinceProcessStart: count, contractFailuresSinceProcessStart: count, storageFailuresSinceProcessStart: count, providerBlockedResponsesSinceProcessStart: count, unknownFailuresSinceProcessStart: count }).strict(),
+  runtime: z.object({ pollerStarted: z.boolean(), cycleInFlight: z.boolean(), lastCycleStartedAt: nullableTimestamp, lastCycleCompletedAt: nullableTimestamp, processStartedAt: timestamp, cyclesCompletedSinceProcessStart: count, lastCycleDurationMs: count.nullable(), maxCycleDurationMsSinceProcessStart: count.nullable(), cyclesExceedingPollIntervalSinceProcessStart: count }).strict(),
+  providerTraffic: z.object({ requestStartsLastMinute: count, requestStartsSinceProcessStart: count, retriesSinceProcessStart: count, rateLimitResponsesSinceProcessStart: count, provider5xxSinceProcessStart: count, networkFailuresSinceProcessStart: count, timeoutsSinceProcessStart: count, contractFailuresSinceProcessStart: count, storageFailuresSinceProcessStart: count, providerBlockedResponsesSinceProcessStart: count, unknownFailuresSinceProcessStart: count, lastFailureCategory: z.enum(["rate_limit", "provider_5xx", "network", "timeout", "contract", "storage", "provider_blocked", "unknown"]).nullable(), lastFailureAt: nullableTimestamp }).strict(),
   coordination: z.object({ historyLockContentionSinceProcessStart: count, providerBlockedStreams: count, durablePopulationActive: z.boolean() }).strict(),
   cursor: z.object({ mappedVehicles: count, cursorCount: count, missingCursorCount: count, medianLagSeconds: z.number().int().nonnegative().nullable(), worstLagSeconds: z.number().int().nonnegative().nullable(), oldestConfirmedThrough: nullableTimestamp, currentSafeBoundary: timestamp }).strict(),
   recentTail: z.object({ lastSuccessAt: nullableTimestamp, successesSinceProcessStart: count, failuresSinceProcessStart: count }).strict(),
@@ -44,6 +53,9 @@ export const positionHistoryIngestionStatusSchema = z.object({
     if (summary.checkpointsCompleted + summary.checkpointsRemaining !== summary.checkpointsTotal) context.addIssue({ code: "custom", message: "replay checkpoint count" });
     if (summary.overdueIncompleteGenerations > summary.incompleteGenerations) context.addIssue({ code: "custom", message: "replay overdue count" });
     if (summary.hasReplayDebt !== (summary.overdueIncompleteGenerations > 0)) context.addIssue({ code: "custom", message: "replay debt flag" });
+    if (summary.activeCheckpointsCompleted + summary.activeCheckpointsRemaining !== summary.activeCheckpointsTotal) context.addIssue({ code: "custom", message: "active replay checkpoint count" });
+    if (summary.queuedIncompleteGenerations !== Math.max(0, summary.incompleteGenerations - (summary.activeGenerationAnchor === null ? 0 : 1))) context.addIssue({ code: "custom", message: "queued replay count" });
+    if (summary.activeGenerationAnchor === null && (summary.activeState !== null || summary.activeCheckpointsTotal !== 0 || summary.activeProgressPercent !== null || summary.estimatedRemainingWindows !== 0)) context.addIssue({ code: "custom", message: "empty active replay" });
     if (summary.state === "NOT_CREATED") {
       if (summary.generationAnchor !== null || summary.checkpointsTotal !== 0 || summary.progressPercent !== null || summary.incompleteGenerations !== 0 || summary.hasReplayDebt) context.addIssue({ code: "custom", message: "replay empty state" });
     }

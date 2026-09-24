@@ -36,6 +36,21 @@ test("daily and rolling replay render current and overdue generations truthfully
   assert.equal(debt.includes("Текущее поколение завершено"), false);
 });
 
+test("queued latest 0/0 yields to active rolling progress and safe process diagnostics", () => {
+  const html = renderOverview({ data: positionHistoryIngestionStatusStateFixture("DEBT") }, "uk");
+  assert.ok(html.includes("Покоління в обробці"));
+  assert.ok(html.includes("366 / 741"));
+  assert.ok(html.includes("10 488") || html.includes("10,488"));
+  assert.ok(html.includes("Останнє покоління"));
+  assert.ok(html.includes("у черзі"));
+  assert.equal(html.includes("0 / 0"), false);
+  const source = readFileSync("src/components/position-history-overview.tsx", "utf8");
+  assert.match(source, /failureCategoryKeys\[data\.providerTraffic\.lastFailureCategory\]/);
+  assert.match(source, /data\.runtime\.maxCycleDurationMsSinceProcessStart/);
+  assert.equal(createTranslator("uk")("history.diagnostics.failure.timeout"), "Таймаут");
+  assert.equal(html.includes("raw exception"), false);
+});
+
 test("unavailable status is never rendered as a factual zero", () => {
   const html = renderOverview({ data: null, statusError: "UNAVAILABLE" });
   assert.ok(html.includes("Текущее состояние истории недоступно"));
@@ -87,9 +102,9 @@ test("every new overview message key exists in uk, ru, and en", () => {
     "history.ingestion.title", "history.ingestion.help", "history.ingestion.continuous", "history.ingestion.retention", "history.ingestion.poller", "history.ingestion.cycle", "history.ingestion.cycleStart", "history.ingestion.cycleEnd", "history.ingestion.processStart", "history.ingestion.unavailableTitle", "history.ingestion.unavailableText",
     "history.cursor.title", "history.cursor.help", "history.cursor.mapped", "history.cursor.present", "history.cursor.missing", "history.cursor.medianLag", "history.cursor.worstLag", "history.cursor.oldest", "history.cursor.boundary",
     "history.recentTail.title", "history.recentTail.help", "history.recentTail.lastSuccess", "history.recentTail.successes", "history.recentTail.failures",
-    "history.replay.title", "history.replay.help", "history.replay.daily", "history.replay.rolling", "history.replay.state.notCreated", "history.replay.state.pending", "history.replay.state.running", "history.replay.state.completed", "history.replay.completed", "history.replay.remaining", "history.replay.generation", "history.replay.range", "history.replay.current", "history.replay.incomplete", "history.replay.overdue", "history.replay.debt", "history.replay.oldestOverdue", "history.replay.debtTitle", "history.replay.debtText", "history.replay.currentTitle", "history.replay.currentText",
+    "history.replay.title", "history.replay.help", "history.replay.daily", "history.replay.rolling", "history.replay.state.notCreated", "history.replay.state.pending", "history.replay.state.running", "history.replay.state.completed", "history.replay.completed", "history.replay.remaining", "history.replay.generation", "history.replay.processingGeneration", "history.replay.latestGeneration", "history.replay.queued", "history.replay.queuedCount", "history.replay.estimatedWindows", "history.replay.estimateHelp", "history.replay.range", "history.replay.current", "history.replay.incomplete", "history.replay.overdue", "history.replay.debt", "history.replay.oldestOverdue", "history.replay.debtTitle", "history.replay.debtText", "history.replay.currentTitle", "history.replay.currentText",
     "history.retentionState.help", "history.retentionState.enabled", "history.retentionState.running", "history.retentionState.lastAttempt", "history.retentionState.lastCompleted", "history.retentionState.outcome", "history.retentionState.outcome.notObserved", "history.retentionState.outcome.success", "history.retentionState.outcome.skipped", "history.retentionState.outcome.failed", "history.retentionState.skipCategory", "history.retentionState.skip.lockUnavailable", "history.retentionState.skip.activePopulation", "history.retentionState.nextExecution", "history.retentionState.floor", "history.retentionState.behind", "history.retentionState.atOrBeyond", "history.retentionState.aligned",
-    "history.diagnostics.title", "history.diagnostics.scope", "history.diagnostics.scopeText", "history.diagnostics.requestRate", "history.diagnostics.requestStarts", "history.diagnostics.retries", "history.diagnostics.rateLimits", "history.diagnostics.provider5xx", "history.diagnostics.network", "history.diagnostics.timeouts", "history.diagnostics.contract", "history.diagnostics.storage", "history.diagnostics.providerBlocked", "history.diagnostics.unknown", "history.diagnostics.lockContention", "history.diagnostics.blockedStreams",
+    "history.diagnostics.title", "history.diagnostics.scope", "history.diagnostics.scopeText", "history.diagnostics.requestRate", "history.diagnostics.requestStarts", "history.diagnostics.retries", "history.diagnostics.rateLimits", "history.diagnostics.provider5xx", "history.diagnostics.network", "history.diagnostics.timeouts", "history.diagnostics.contract", "history.diagnostics.storage", "history.diagnostics.providerBlocked", "history.diagnostics.unknown", "history.diagnostics.lockContention", "history.diagnostics.blockedStreams", "history.diagnostics.lastFailureCategory", "history.diagnostics.lastFailureAt", "history.diagnostics.cyclesCompleted", "history.diagnostics.lastCycleDuration", "history.diagnostics.maxCycleDuration", "history.diagnostics.slowCycles", "history.diagnostics.ms", "history.diagnostics.failure.rateLimit", "history.diagnostics.failure.provider5xx", "history.diagnostics.failure.network", "history.diagnostics.failure.timeout", "history.diagnostics.failure.contract", "history.diagnostics.failure.storage", "history.diagnostics.failure.providerBlocked", "history.diagnostics.failure.unknown",
     "history.overview.definitions.title", "history.overview.definitions.durable", "history.overview.definitions.process", "history.overview.definitions.boundary", "history.overview.definitions.debt",
   ] as const;
   for (const locale of SUPPORTED_LOCALES) {

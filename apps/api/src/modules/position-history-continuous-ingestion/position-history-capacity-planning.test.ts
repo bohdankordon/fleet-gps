@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { POSITION_HISTORY_CONTINUOUS_POLL_INTERVAL_MS, POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS } from "./position-history-continuous-ingestion.constants";
-import { PositionHistoryCapacityAllocator, positionHistoryInitialBacklogCapacityModel } from "./position-history-capacity-planning";
+import { POSITION_HISTORY_CAPACITY_MAX_ACCRUAL_MS, PositionHistoryCapacityAllocator, positionHistoryCapacityElapsedMinutes, positionHistoryInitialBacklogCapacityModel } from "./position-history-capacity-planning";
 import { POSITION_HISTORY_COORDINATED_REQUEST_START_BUDGET } from "./position-history-replay-orchestration.constants";
 
 type Simulation = Readonly<{
@@ -48,7 +48,7 @@ function simulate(vehicles: number, days: number, resetAtDay: number | null = nu
     const recentArrival = vehicles * POSITION_HISTORY_CONTINUOUS_POLL_INTERVAL_MS / (5 * 60_000);
     recentDemand += recentArrival;
     recentQueue += recentArrival;
-    const plan = allocator.plan({ daily: { due: dailyQueue >= 1, overdue: false }, rolling: { due: rollingQueue >= 1, overdue: false } });
+    const plan = allocator.plan({ daily: { due: dailyQueue >= 1, overdue: false }, rolling: { due: rollingQueue >= 1, overdue: false } }, cycleAt);
     assert.equal(plan.length, POSITION_HISTORY_COORDINATED_REQUEST_START_BUDGET);
     for (let slot = 0; slot < plan.length; slot += 1) {
       const startedAt = cycleAt + slot * POSITION_HISTORY_CONTINUOUS_REQUEST_START_GAP_MS;
@@ -95,7 +95,66 @@ test("overdue replay accrues extra deterministic service without adding request 
     const allocator = new PositionHistoryCapacityAllocator();
     const totals = { daily: 0, rolling: 0 };
     for (let cycle = 0; cycle < 400; cycle += 1) {
-      const plan = allocator.plan({ daily: { due: true, overdue }, rolling: { due: true, overdue } });
+      const plan = allocator.plan({ daily: { due: true, overdue }, rolling: { due: true, overdue } }, cycle * POSITION_HISTORY_CONTINUOUS_POLL_INTERVAL_MS);
+      assert.equal(plan.length, 5);
+      totals.daily += plan.filter((lane) => lane === "DAILY_7_DAY").length;
+      totals.rolling += plan.filter((lane) => lane === "ROLLING_90_DAY").length;
+    }
+    return totals;
+  };
+  const normal = count(false);
+  const overdue = count(true);
+  assert.ok(overdue.daily > normal.daily);
+  assert.ok(overdue.rolling > normal.rolling);
+});
+
+test("irregular plans credit actual elapsed time while five slots remain the physical ceiling", () => {
+  for (const interval of [10_500, 20_000, 30_000, 60_000]) {
+    assert.equal(positionHistoryCapacityElapsedMinutes(1_000, 1_000 + interval), interval / 60_000);
+    const allocator = new PositionHistoryCapacityAllocator();
+    const totals = { recent: 0, daily: 0, rolling: 0, backlog: 0 };
+    const cycles = Math.ceil(10 * 60_000 / interval);
+    for (let cycle = 0; cycle < cycles; cycle += 1) {
+      const plan = allocator.plan({ daily: { due: true, overdue: false }, rolling: { due: true, overdue: false } }, cycle * interval);
+      assert.equal(plan.length, POSITION_HISTORY_COORDINATED_REQUEST_START_BUDGET);
+      totals.recent += plan.filter((lane) => lane === "RECENT_TAIL").length;
+      totals.daily += plan.filter((lane) => lane === "DAILY_7_DAY").length;
+      totals.rolling += plan.filter((lane) => lane === "ROLLING_90_DAY").length;
+      totals.backlog += plan.filter((lane) => lane === "CONTIGUOUS_BACKLOG").length;
+    }
+    assert.ok(totals.recent > 0, "recent-tail keeps service");
+    assert.equal(totals.recent + totals.daily + totals.rolling + totals.backlog, cycles * 5);
+    if (interval === 10_500) {
+      assert.ok(totals.daily >= 19 && totals.daily <= 21, "daily gets approximately 2/min where capacity permits");
+      assert.ok(totals.rolling >= 39 && totals.rolling <= 41, "rolling gets approximately 4/min where capacity permits");
+    } else {
+      assert.ok(cycles * 5 < 26 * 10, "the slower cycle frequency cannot deliver all configured lane targets");
+    }
+  }
+});
+
+test("long pause, clock rollback, and process reset have bounded safe accrual", () => {
+  assert.equal(positionHistoryCapacityElapsedMinutes(null, 1_000), 10_500 / 60_000);
+  assert.equal(positionHistoryCapacityElapsedMinutes(1_000, 1_000 + POSITION_HISTORY_CAPACITY_MAX_ACCRUAL_MS * 100), 1);
+  assert.equal(positionHistoryCapacityElapsedMinutes(1_000, 900), 0);
+  assert.throws(() => positionHistoryCapacityElapsedMinutes(1_000, Number.NaN));
+  const pressure = { daily: { due: true, overdue: true }, rolling: { due: true, overdue: true } };
+  const allocator = new PositionHistoryCapacityAllocator();
+  allocator.plan(pressure, 0);
+  assert.equal(allocator.plan(pressure, 3_600_000).length, 5);
+  assert.equal(allocator.plan(pressure, 3_599_000).length, 5);
+  assert.equal(new PositionHistoryCapacityAllocator().plan(pressure, 3_600_000).length, 5);
+});
+
+test("overdue lanes gain service under irregular elapsed plans without exceeding five slots", () => {
+  const times: number[] = [];
+  let at = 0;
+  for (let index = 0; index < 600; index += 1) { times.push(at); at += [10_500, 10_000, 9_500][index % 3]!; }
+  const count = (overdue: boolean) => {
+    const allocator = new PositionHistoryCapacityAllocator();
+    const totals = { daily: 0, rolling: 0 };
+    for (const at of times) {
+      const plan = allocator.plan({ daily: { due: true, overdue }, rolling: { due: true, overdue } }, at);
       assert.equal(plan.length, 5);
       totals.daily += plan.filter((lane) => lane === "DAILY_7_DAY").length;
       totals.rolling += plan.filter((lane) => lane === "ROLLING_90_DAY").length;

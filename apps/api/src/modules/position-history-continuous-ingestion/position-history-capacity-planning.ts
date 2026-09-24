@@ -9,20 +9,32 @@ export type PositionHistoryCapacityPressure = Readonly<{
   rolling: PositionHistoryReplayPressure;
 }>;
 
-const minutesPerCycle = POSITION_HISTORY_CONTINUOUS_POLL_INTERVAL_MS / 60_000;
+export const POSITION_HISTORY_CAPACITY_MAX_ACCRUAL_MS = 60_000;
+
+export function positionHistoryCapacityElapsedMinutes(lastPlanAtMs: number | null, atMs: number): number {
+  if (!Number.isFinite(atMs) || (lastPlanAtMs !== null && !Number.isFinite(lastPlanAtMs))) throw new Error("Invalid history capacity planning instant.");
+  return (lastPlanAtMs === null
+    ? POSITION_HISTORY_CONTINUOUS_POLL_INTERVAL_MS
+    : Math.min(POSITION_HISTORY_CAPACITY_MAX_ACCRUAL_MS, Math.max(0, atMs - lastPlanAtMs))) / 60_000;
+}
 
 /** Small process-local deficit allocator; all correctness/progress remains durable. */
 export class PositionHistoryCapacityAllocator {
   private recentDeficit = 0;
   private dailyDeficit = 0;
   private rollingDeficit = 0;
+  private lastPlanAtMs: number | null = null;
 
-  public plan(pressure: PositionHistoryCapacityPressure): readonly PositionHistoryCapacityLane[] {
-    this.recentDeficit += POSITION_HISTORY_CAPACITY_RECENT_STARTS_PER_MINUTE * minutesPerCycle;
+  public plan(pressure: PositionHistoryCapacityPressure, atMs: number): readonly PositionHistoryCapacityLane[] {
+    // The first plan receives one nominal tick. Later plans credit elapsed time,
+    // capped so a paused process cannot turn missed time into a large burst.
+    const elapsedMinutes = positionHistoryCapacityElapsedMinutes(this.lastPlanAtMs, atMs);
+    this.lastPlanAtMs = atMs;
+    this.recentDeficit += POSITION_HISTORY_CAPACITY_RECENT_STARTS_PER_MINUTE * elapsedMinutes;
     const dailyRate = pressure.daily.overdue ? POSITION_HISTORY_CAPACITY_OVERDUE_DAILY_STARTS_PER_MINUTE : POSITION_HISTORY_CAPACITY_DAILY_STARTS_PER_MINUTE;
     const rollingRate = pressure.rolling.overdue ? POSITION_HISTORY_CAPACITY_OVERDUE_ROLLING_STARTS_PER_MINUTE : POSITION_HISTORY_CAPACITY_ROLLING_STARTS_PER_MINUTE;
-    this.dailyDeficit = pressure.daily.due ? this.dailyDeficit + dailyRate * minutesPerCycle : 0;
-    this.rollingDeficit = pressure.rolling.due ? this.rollingDeficit + rollingRate * minutesPerCycle : 0;
+    this.dailyDeficit = pressure.daily.due ? this.dailyDeficit + dailyRate * elapsedMinutes : 0;
+    this.rollingDeficit = pressure.rolling.due ? this.rollingDeficit + rollingRate * elapsedMinutes : 0;
 
     const lanes: PositionHistoryCapacityLane[] = [];
     for (let slot = 0; slot < POSITION_HISTORY_COORDINATED_REQUEST_START_BUDGET; slot += 1) {

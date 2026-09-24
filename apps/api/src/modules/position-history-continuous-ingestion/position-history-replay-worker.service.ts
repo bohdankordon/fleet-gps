@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import { EquGpsHttpError, EquGpsRateLimitError } from "@taxi-gps/equgps";
-import { PositionHistoryReplayKind, type PositionHistoryReplayRun } from "../../generated/prisma/client";
+import { PositionHistoryReplayKind, type PositionHistoryReplayCheckpoint, type PositionHistoryReplayRun } from "../../generated/prisma/client";
 import { PositionHistoryHistoricalWindowOversizedError, PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
-import { recordedPositionHistoryHistoricalWindowFailureAccounting } from "../position-history-historical-window/position-history-historical-window-failure-diagnostics";
+import { classifyPositionHistoryHistoricalWindowProviderFailure, recordedPositionHistoryHistoricalWindowFailureAccounting, recordedPositionHistoryHistoricalWindowProviderFailure } from "../position-history-historical-window/position-history-historical-window-failure-diagnostics";
 import { PositionHistoryAutomaticRequestPacer, POSITION_HISTORY_AUTOMATIC_REQUEST_START_GAP_MS } from "../position-history-horizon-execution";
 import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import { PositionHistoryHorizonAlreadyRunningError, PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
@@ -27,6 +27,8 @@ function emptyResult(kind: PositionHistoryReplayKind): MutableResult {
 export class PositionHistoryReplayWorkerService {
   private readonly nextEligible = new Map<string, number>();
   private readonly failures = new Map<string, number>();
+  private readonly checkpointNextEligible = new Map<string, Readonly<{ runId: string; at: number }>>();
+  private readonly checkpointFailures = new Map<string, number>();
 
   public constructor(
     @Inject(POSITION_HISTORY_REPLAY_REPOSITORY) private readonly repository: PositionHistoryReplayRepository,
@@ -99,11 +101,21 @@ export class PositionHistoryReplayWorkerService {
     }, POSITION_HISTORY_REPLAY_HEARTBEAT_MS);
     const pacer = new PositionHistoryAutomaticRequestPacer(this.clock, this.sleeper, POSITION_HISTORY_AUTOMATIC_REQUEST_START_GAP_MS);
     try {
-      const checkpoint = (await this.repository.listIncompleteCheckpoints(claimed.id, 1))[0];
+      const hasCheckpointBackoff = [...this.checkpointNextEligible.values()].some((entry) => entry.runId === claimed.id);
+      const incomplete = await this.repository.listIncompleteCheckpoints(claimed.id, hasCheckpointBackoff ? 10_000 : 1);
+      const checkpoint = incomplete.find((item) => (this.checkpointNextEligible.get(item.id)?.at ?? 0) <= this.now().getTime());
       if (checkpoint === undefined) {
+        if (incomplete.length > 0) {
+          const earliestRetry = Math.min(...incomplete.map((item) => this.checkpointNextEligible.get(item.id)?.at ?? Number.POSITIVE_INFINITY));
+          if (Number.isFinite(earliestRetry)) this.nextEligible.set(claimed.id, earliestRetry);
+          result.checkpointsRemaining = incomplete.length;
+          result.outcome = await this.state.yieldRun({ runId: claimed.id, leaseOwner, now: this.now() }) ? "YIELDED" : "STALE";
+          return Object.freeze(result);
+        }
         result.outcome = await this.state.completeRun({ runId: claimed.id, leaseOwner, now: this.now() }) ? "COMPLETED_RUN" : "STALE";
         return Object.freeze(result);
       }
+      this.nextEligible.delete(claimed.id);
       const effectiveNextFrom = new Date(Math.min(Math.max(checkpoint.nextFrom.getTime(), positionHistoryPolicyFloor(now).getTime()), checkpoint.rangeTo.getTime()));
       if (effectiveNextFrom.getTime() > checkpoint.nextFrom.getTime()) {
         await this.repository.retireReplayCheckpointPrefix({
@@ -164,6 +176,8 @@ export class PositionHistoryReplayWorkerService {
           if (response.rateLimitResponses > 0) this.telemetry.recordRateLimitResponses(response.rateLimitResponses);
         }
         result.checkpointWindowsCompleted += 1;
+        this.checkpointNextEligible.delete(checkpoint.id);
+        this.checkpointFailures.delete(checkpoint.id);
         result.checkpointsRemaining = await this.repository.countIncompleteCheckpoints(claimed.id);
         this.failures.delete(claimed.id);
         this.nextEligible.delete(claimed.id);
@@ -182,9 +196,12 @@ export class PositionHistoryReplayWorkerService {
             if (rateLimitToAdd > 1) this.telemetry.recordRateLimitResponses(rateLimitToAdd - 1);
           } else if (rateLimitToAdd > 0) this.telemetry.recordRateLimitResponses(rateLimitToAdd);
         }
-        await this.state.yieldRun({ runId: claimed.id, leaseOwner, now: this.now() });
-        result.outcome = "FAILED";
-        this.scheduleRunFailure(claimed, error);
+        const yielded = await this.state.yieldRun({ runId: claimed.id, leaseOwner, now: this.now() });
+        result.outcome = yielded ? "FAILED" : "STALE";
+        if (yielded) {
+          if (this.isCheckpointScopedFailure(error)) this.scheduleCheckpointFailure(claimed, checkpoint, error);
+          else this.scheduleRunFailure(claimed, error);
+        }
       }
       return Object.freeze(result);
     } finally {
@@ -193,9 +210,33 @@ export class PositionHistoryReplayWorkerService {
     }
   }
 
+  private isCheckpointScopedFailure(error: unknown): boolean {
+    const diagnostic = recordedPositionHistoryHistoricalWindowProviderFailure(error)
+      ?? classifyPositionHistoryHistoricalWindowProviderFailure(error, { maxRetryAfterMs: 60_000 });
+    if (diagnostic.category === "timeout" || diagnostic.category === "network" || diagnostic.category === "http") return true;
+    // Credentials and rate limits are shared. Only other known 4xx responses
+    // may be isolated to this window without fanning out provider-wide faults.
+    return diagnostic.category === "permanent_http" && diagnostic.status !== undefined
+      && diagnostic.status >= 400 && diagnostic.status < 500
+      && diagnostic.status !== 401 && diagnostic.status !== 403 && diagnostic.status !== 429;
+  }
+
+  private scheduleCheckpointFailure(run: PositionHistoryReplayRun, checkpoint: PositionHistoryReplayCheckpoint, error: unknown): void {
+    const diagnostic = recordedPositionHistoryHistoricalWindowProviderFailure(error)
+      ?? classifyPositionHistoryHistoricalWindowProviderFailure(error, { maxRetryAfterMs: 60_000 });
+    const stable = diagnostic.category === "permanent_http";
+    const count = (this.checkpointFailures.get(checkpoint.id) ?? 0) + 1;
+    this.checkpointFailures.set(checkpoint.id, count);
+    const delay = stable ? POSITION_HISTORY_REPLAY_STABLE_FAILURE_BACKOFF_MS
+      : POSITION_HISTORY_REPLAY_FAILURE_BACKOFF_MS[Math.min(count - 1, POSITION_HISTORY_REPLAY_FAILURE_BACKOFF_MS.length - 1)]!;
+    this.checkpointNextEligible.set(checkpoint.id, { runId: run.id, at: this.now().getTime() + delay });
+  }
+
   private scheduleRunFailure(run: PositionHistoryReplayRun, error: unknown): void {
     const now = this.now().getTime();
-    if (error instanceof EquGpsHttpError && error.status !== undefined && error.status >= 400 && error.status < 500) {
+    const diagnostic = recordedPositionHistoryHistoricalWindowProviderFailure(error)
+      ?? classifyPositionHistoryHistoricalWindowProviderFailure(error, { maxRetryAfterMs: 60_000 });
+    if (diagnostic.category === "permanent_http") {
       this.nextEligible.set(run.id, now + POSITION_HISTORY_REPLAY_STABLE_FAILURE_BACKOFF_MS);
       this.telemetry?.setProviderBlocked(`replay:${run.id}`, now + POSITION_HISTORY_REPLAY_STABLE_FAILURE_BACKOFF_MS);
       return;

@@ -39,7 +39,7 @@ test("due replay receives deterministic service while each cycle remains bounded
   const coordinator = new PositionHistoryWorkloadCoordinatorService(continuous, replay);
   for (let cycle = 0; cycle < 20; cycle += 1) {
     const before = starts;
-    await coordinator.processCycle();
+    await coordinator.processCycle(cycle * 10_500);
     cycleStarts.push(starts - before);
   }
   assert.ok(cycleStarts.every((value) => value === 5));
