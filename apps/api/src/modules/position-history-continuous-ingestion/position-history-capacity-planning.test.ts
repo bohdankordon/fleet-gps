@@ -109,7 +109,7 @@ test("overdue replay accrues extra deterministic service without adding request 
 });
 
 test("irregular plans credit actual elapsed time while five slots remain the physical ceiling", () => {
-  for (const interval of [10_500, 20_000, 30_000, 60_000]) {
+  for (const interval of [10_500, 20_000, 30_000, 52_500, 60_000]) {
     assert.equal(positionHistoryCapacityElapsedMinutes(1_000, 1_000 + interval), interval / 60_000);
     const allocator = new PositionHistoryCapacityAllocator();
     const totals = { recent: 0, daily: 0, rolling: 0, backlog: 0 };
@@ -129,6 +129,47 @@ test("irregular plans credit actual elapsed time while five slots remain the phy
       assert.ok(totals.rolling >= 39 && totals.rolling <= 41, "rolling gets approximately 4/min where capacity permits");
     } else {
       assert.ok(cycles * 5 < 26 * 10, "the slower cycle frequency cannot deliver all configured lane targets");
+    }
+  }
+});
+
+test("all-due overload shares service by configured rates instead of starving replay", () => {
+  const cycles = 1_000;
+  const count = (interval: number, overdueRolling: boolean) => {
+    const allocator = new PositionHistoryCapacityAllocator();
+    const totals = { recent: 0, daily: 0, rolling: 0, backlog: 0 };
+    for (let cycle = 0; cycle < cycles; cycle += 1) {
+      const plan = allocator.plan({ daily: { due: true, overdue: true }, rolling: { due: true, overdue: overdueRolling } }, cycle * interval);
+      assert.ok(plan.length <= 5);
+      for (const lane of plan) {
+        if (lane === "RECENT_TAIL") totals.recent += 1;
+        else if (lane === "DAILY_7_DAY") totals.daily += 1;
+        else if (lane === "ROLLING_90_DAY") totals.rolling += 1;
+        else totals.backlog += 1;
+      }
+    }
+    return totals;
+  };
+  for (const interval of [10_500, 20_000, 30_000, 52_500, 60_000]) {
+    const normal = count(interval, false);
+    const overdue = count(interval, true);
+    assert.equal(overdue.recent + overdue.daily + overdue.rolling + overdue.backlog, cycles * 5);
+    assert.ok(overdue.recent > overdue.rolling && overdue.rolling > overdue.daily);
+    assert.ok(overdue.daily > 0 && overdue.rolling > 0, `${interval}ms cycles must not starve replay`);
+    assert.ok(overdue.rolling > normal.rolling, "overdue rolling gains service under the same physical capacity");
+    const elapsedMinutes = (10_500 + (cycles - 1) * interval) / 60_000;
+    const demand = 28 * elapsedMinutes;
+    if (demand <= cycles * 5) {
+      assert.ok(Math.abs(overdue.recent - 20 * elapsedMinutes) <= 2);
+      assert.ok(Math.abs(overdue.daily - 3 * elapsedMinutes) <= 2);
+      assert.ok(Math.abs(overdue.rolling - 5 * elapsedMinutes) <= 2);
+      assert.ok(overdue.backlog > 0);
+    } else {
+      assert.equal(overdue.backlog, 0);
+      assert.ok(Math.abs(overdue.recent - cycles * 5 * 20 / 28) < cycles * 5 * 0.02);
+      assert.ok(Math.abs(overdue.daily - cycles * 5 * 3 / 28) < cycles * 5 * 0.02);
+      assert.ok(Math.abs(overdue.rolling - cycles * 5 * 5 / 28) < cycles * 5 * 0.02);
+      if (interval === 52_500) assert.ok(overdue.daily > 100 && overdue.rolling > 100, "old raw-deficit selection converged to almost all recent-tail");
     }
   }
 });

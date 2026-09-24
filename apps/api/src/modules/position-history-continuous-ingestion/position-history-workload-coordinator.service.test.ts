@@ -59,3 +59,16 @@ test("rate limiting or lock contention in higher-priority continuous work suppre
     assert.equal(replayCalls, 0);
   }
 });
+
+test("a scoped replay failure stops the coordinator after one failed quantum", async () => {
+  let replayCalls = 0;
+  let continuousCalls = 0;
+  const continuous = { processCycle: async () => { continuousCalls += 1; return empty(); } } as unknown as PositionHistoryContinuousIngestionWorkerService;
+  const replay = {
+    inspectPressure: async () => ({ due: true, overdue: true }),
+    processKind: async (kind: PositionHistoryReplayKind) => { replayCalls += 1; return { ...replayResult(kind), outcome: "FAILED" as const }; },
+  } as unknown as PositionHistoryReplayWorkerService;
+  await new PositionHistoryWorkloadCoordinatorService(continuous, replay).processCycle(52_500);
+  assert.equal(replayCalls, 1);
+  assert.equal(continuousCalls, 1, "failed replay does not trigger fallback requests in the same cycle");
+});

@@ -39,11 +39,14 @@ export class PositionHistoryCapacityAllocator {
     const lanes: PositionHistoryCapacityLane[] = [];
     for (let slot = 0; slot < POSITION_HISTORY_COORDINATED_REQUEST_START_BUDGET; slot += 1) {
       const candidates = [
-        { lane: "RECENT_TAIL" as const, deficit: this.recentDeficit, overdue: false, order: 0 },
-        ...(pressure.daily.due ? [{ lane: "DAILY_7_DAY" as const, deficit: this.dailyDeficit, overdue: pressure.daily.overdue, order: 1 }] : []),
-        ...(pressure.rolling.due ? [{ lane: "ROLLING_90_DAY" as const, deficit: this.rollingDeficit, overdue: pressure.rolling.overdue, order: 2 }] : []),
+        { lane: "RECENT_TAIL" as const, deficit: this.recentDeficit, rate: POSITION_HISTORY_CAPACITY_RECENT_STARTS_PER_MINUTE, order: 0 },
+        ...(pressure.daily.due ? [{ lane: "DAILY_7_DAY" as const, deficit: this.dailyDeficit, rate: dailyRate, order: 1 }] : []),
+        ...(pressure.rolling.due ? [{ lane: "ROLLING_90_DAY" as const, deficit: this.rollingDeficit, rate: rollingRate, order: 2 }] : []),
       ].filter(({ deficit }) => deficit > 0)
-        .sort((left, right) => (right.deficit + (right.overdue ? 0.5 : 0)) - (left.deficit + (left.overdue ? 0.5 : 0)) || left.order - right.order);
+        // Under overload, raw deficit grows fastest for recent-tail and would
+        // starve replay. Dividing by rate compares how far behind each lane is
+        // in service time; overdue rates already supply their higher weight.
+        .sort((left, right) => right.deficit / right.rate - left.deficit / left.rate || left.order - right.order);
       const selected = candidates[0];
       if (selected === undefined) {
         lanes.push("CONTIGUOUS_BACKLOG");

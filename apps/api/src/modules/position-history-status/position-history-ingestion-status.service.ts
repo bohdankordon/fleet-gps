@@ -27,6 +27,7 @@ export type PositionHistoryIngestionReplaySummary = Readonly<{
   oldestIncompleteGenerationAnchor: string | null;
   oldestOverdueGenerationAnchor: string | null;
   hasReplayDebt: boolean;
+  /** Oldest durably incomplete generation; it may be backed off while newer work runs. */
   activeGenerationAnchor: string | null;
   activeState: PositionHistoryIngestionReplayState | null;
   activeCheckpointsTotal: number;
@@ -34,6 +35,7 @@ export type PositionHistoryIngestionReplaySummary = Readonly<{
   activeCheckpointsRemaining: number;
   activeProgressPercent: number | null;
   activeIsOverdue: boolean;
+  /** Number of newer incomplete generations, which may also receive work. */
   queuedIncompleteGenerations: number;
   /** Six-hour windows at best; adaptive fallback and retries can require more requests. */
   estimatedRemainingWindows: number;

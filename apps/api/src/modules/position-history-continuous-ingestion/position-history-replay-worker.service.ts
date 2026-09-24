@@ -29,6 +29,8 @@ export class PositionHistoryReplayWorkerService {
   private readonly failures = new Map<string, number>();
   private readonly checkpointNextEligible = new Map<string, Readonly<{ runId: string; at: number }>>();
   private readonly checkpointFailures = new Map<string, number>();
+  private readonly checkpointExhaustedUntil = new Map<string, number>();
+  private readonly checkpointWindowTier = new Map<string, number>();
 
   public constructor(
     @Inject(POSITION_HISTORY_REPLAY_REPOSITORY) private readonly repository: PositionHistoryReplayRepository,
@@ -78,10 +80,25 @@ export class PositionHistoryReplayWorkerService {
       const target = positionHistoryReplayTarget(kind, safeNow);
       await this.repository.ensureRun(target);
     }
-    const candidate = await this.state.findClaimable(now, kind);
+    let candidate = await this.state.findClaimable(now, kind);
     if (candidate === null) return Object.freeze(result);
-    result.generationAnchor = new Date(candidate.generationAnchor.getTime());
+    // A provider-wide/run-wide backoff remains a hard stop. Only a generation
+    // whose *checkpoints* are all temporarily ineligible may yield capacity to
+    // a newer one. Keep the ordered scan bounded and let the old run win again
+    // as soon as its earliest retry is due.
     if ((this.nextEligible.get(candidate.id) ?? 0) > now.getTime()) return Object.freeze(result);
+    if ((this.checkpointExhaustedUntil.get(candidate.id) ?? 0) > now.getTime()) {
+      const candidates = await this.state.findClaimableCandidates(now, kind, 8);
+      candidate = null;
+      for (const run of candidates) {
+        if ((this.nextEligible.get(run.id) ?? 0) > now.getTime()) return Object.freeze(result);
+        if ((this.checkpointExhaustedUntil.get(run.id) ?? 0) > now.getTime()) continue;
+        candidate = run;
+        break;
+      }
+      if (candidate === null) return Object.freeze(result);
+    }
+    result.generationAnchor = new Date(candidate.generationAnchor.getTime());
 
     if (await this.repository.countCheckpoints(candidate.id) === 0) {
       if (vehicles.length === 0) return Object.freeze(result);
@@ -107,15 +124,15 @@ export class PositionHistoryReplayWorkerService {
       if (checkpoint === undefined) {
         if (incomplete.length > 0) {
           const earliestRetry = Math.min(...incomplete.map((item) => this.checkpointNextEligible.get(item.id)?.at ?? Number.POSITIVE_INFINITY));
-          if (Number.isFinite(earliestRetry)) this.nextEligible.set(claimed.id, earliestRetry);
           result.checkpointsRemaining = incomplete.length;
           result.outcome = await this.state.yieldRun({ runId: claimed.id, leaseOwner, now: this.now() }) ? "YIELDED" : "STALE";
+          if (result.outcome === "YIELDED" && Number.isFinite(earliestRetry)) this.checkpointExhaustedUntil.set(claimed.id, earliestRetry);
           return Object.freeze(result);
         }
         result.outcome = await this.state.completeRun({ runId: claimed.id, leaseOwner, now: this.now() }) ? "COMPLETED_RUN" : "STALE";
         return Object.freeze(result);
       }
-      this.nextEligible.delete(claimed.id);
+      this.checkpointExhaustedUntil.delete(claimed.id);
       const effectiveNextFrom = new Date(Math.min(Math.max(checkpoint.nextFrom.getTime(), positionHistoryPolicyFloor(now).getTime()), checkpoint.rangeTo.getTime()));
       if (effectiveNextFrom.getTime() > checkpoint.nextFrom.getTime()) {
         await this.repository.retireReplayCheckpointPrefix({
@@ -135,12 +152,17 @@ export class PositionHistoryReplayWorkerService {
       const vehicle = await this.repository.findMappedVehicle(checkpoint.vehicleId);
       if (vehicle === null || vehicle.disabled) {
         result.outcome = await this.state.yieldRun({ runId: claimed.id, leaseOwner, now: this.now() }) ? "YIELDED" : "STALE";
-        this.nextEligible.set(claimed.id, this.now().getTime() + POSITION_HISTORY_REPLAY_STABLE_FAILURE_BACKOFF_MS);
+        // The mapping belongs to this checkpoint. Other mapped vehicles and
+        // generations can still make progress while this one is rechecked.
+        if (result.outcome === "YIELDED") this.checkpointNextEligible.set(checkpoint.id, { runId: claimed.id, at: this.now().getTime() + POSITION_HISTORY_REPLAY_STABLE_FAILURE_BACKOFF_MS });
         return Object.freeze(result);
       }
 
       try {
-        const windowEnds = positionHistoryReplayAdaptiveWindowEnds(checkpoint.nextFrom, checkpoint.rangeTo);
+        const preferredHours = [6, 3, 1] as const;
+        const maximumWindowMs = preferredHours[this.checkpointWindowTier.get(checkpoint.id) ?? 0]! * 3_600_000;
+        const windowEnds = positionHistoryReplayAdaptiveWindowEnds(checkpoint.nextFrom, checkpoint.rangeTo)
+          .filter((end) => end.getTime() - checkpoint.nextFrom.getTime() <= maximumWindowMs);
         let response: Awaited<ReturnType<PositionHistoryHistoricalWindowService["read"]>> | null = null;
         let windowTo: Date | null = null;
         for (let index = 0; index < windowEnds.length; index += 1) {
@@ -178,6 +200,7 @@ export class PositionHistoryReplayWorkerService {
         result.checkpointWindowsCompleted += 1;
         this.checkpointNextEligible.delete(checkpoint.id);
         this.checkpointFailures.delete(checkpoint.id);
+        if (persisted.checkpointStatus === "COMPLETED") this.checkpointWindowTier.delete(checkpoint.id);
         result.checkpointsRemaining = await this.repository.countIncompleteCheckpoints(claimed.id);
         this.failures.delete(claimed.id);
         this.nextEligible.delete(claimed.id);
@@ -213,22 +236,18 @@ export class PositionHistoryReplayWorkerService {
   private isCheckpointScopedFailure(error: unknown): boolean {
     const diagnostic = recordedPositionHistoryHistoricalWindowProviderFailure(error)
       ?? classifyPositionHistoryHistoricalWindowProviderFailure(error, { maxRetryAfterMs: 60_000 });
-    if (diagnostic.category === "timeout" || diagnostic.category === "network" || diagnostic.category === "http") return true;
-    // Credentials and rate limits are shared. Only other known 4xx responses
-    // may be isolated to this window without fanning out provider-wide faults.
-    return diagnostic.category === "permanent_http" && diagnostic.status !== undefined
-      && diagnostic.status >= 400 && diagnostic.status < 500
-      && diagnostic.status !== 401 && diagnostic.status !== 403 && diagnostic.status !== 429;
+    return diagnostic.category === "timeout" || diagnostic.category === "network" || diagnostic.category === "http";
   }
 
   private scheduleCheckpointFailure(run: PositionHistoryReplayRun, checkpoint: PositionHistoryReplayCheckpoint, error: unknown): void {
     const diagnostic = recordedPositionHistoryHistoricalWindowProviderFailure(error)
       ?? classifyPositionHistoryHistoricalWindowProviderFailure(error, { maxRetryAfterMs: 60_000 });
-    const stable = diagnostic.category === "permanent_http";
+    // An exhausted timeout shrinks only a future quantum. Never chain all
+    // window tiers after slow timeout retries under this lock.
+    if (diagnostic.category === "timeout") this.checkpointWindowTier.set(checkpoint.id, Math.min(2, (this.checkpointWindowTier.get(checkpoint.id) ?? 0) + 1));
     const count = (this.checkpointFailures.get(checkpoint.id) ?? 0) + 1;
     this.checkpointFailures.set(checkpoint.id, count);
-    const delay = stable ? POSITION_HISTORY_REPLAY_STABLE_FAILURE_BACKOFF_MS
-      : POSITION_HISTORY_REPLAY_FAILURE_BACKOFF_MS[Math.min(count - 1, POSITION_HISTORY_REPLAY_FAILURE_BACKOFF_MS.length - 1)]!;
+    const delay = POSITION_HISTORY_REPLAY_FAILURE_BACKOFF_MS[Math.min(count - 1, POSITION_HISTORY_REPLAY_FAILURE_BACKOFF_MS.length - 1)]!;
     this.checkpointNextEligible.set(checkpoint.id, { runId: run.id, at: this.now().getTime() + delay });
   }
 

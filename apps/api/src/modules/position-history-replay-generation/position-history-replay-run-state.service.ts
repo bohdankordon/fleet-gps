@@ -32,6 +32,22 @@ export class PositionHistoryReplayRunStateService {
     });
   }
 
+  /** Ordered, bounded alternatives when an older run has no eligible checkpoint yet. */
+  public findClaimableCandidates(now: Date, kind: PositionHistoryReplayKind, limit: number): Promise<PositionHistoryReplayRun[]> {
+    if (!finiteDate(now) || !Object.values(PositionHistoryReplayKind).includes(kind) || !Number.isSafeInteger(limit) || limit < 1 || limit > 8) throw new PositionHistoryReplayInputError();
+    return this.database.getClient().positionHistoryReplayRun.findMany({
+      where: {
+        kind,
+        OR: [
+          { status: PositionHistoryReplayRunStatus.PENDING },
+          { status: PositionHistoryReplayRunStatus.RUNNING, leaseExpiresAt: { lte: now } },
+        ],
+      },
+      orderBy: [{ generationAnchor: "asc" }, { kind: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+      take: limit,
+    });
+  }
+
   public async claimRun(input: ClaimPositionHistoryReplayRunInput): Promise<OwnedPositionHistoryReplayRun | null> {
     if (!validOwnership(input) || !finiteDate(input.leaseExpiresAt) || input.leaseExpiresAt <= input.now) throw new PositionHistoryReplayInputError();
     const candidate = await this.database.getClient().positionHistoryReplayRun.findUnique({ where: { id: input.runId } });

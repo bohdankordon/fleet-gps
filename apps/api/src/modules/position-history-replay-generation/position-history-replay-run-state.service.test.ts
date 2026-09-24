@@ -94,3 +94,18 @@ test("completion is fenced by ownership and complete checkpoint truth", async ()
   assert.equal(await item.state.completeRun({ runId: item.get().id, leaseOwner: ownerA, now: t0 }), true);
   assert.equal(item.get().status, PositionHistoryReplayRunStatus.COMPLETED);
 });
+
+test("generation alternatives are ordered, bounded, and include only claimable leases", async () => {
+  let query: any;
+  const client = { positionHistoryReplayRun: { findMany: async (input: unknown) => { query = input; return [base()]; } } } as unknown as PrismaClient;
+  const state = new PositionHistoryReplayRunStateService({ getClient: () => client } as DatabaseService);
+  assert.equal((await state.findClaimableCandidates(t0, PositionHistoryReplayKind.ROLLING_90_DAY, 8)).length, 1);
+  assert.equal(query.take, 8);
+  assert.equal(query.where.kind, PositionHistoryReplayKind.ROLLING_90_DAY);
+  assert.deepEqual(query.where.OR, [
+    { status: PositionHistoryReplayRunStatus.PENDING },
+    { status: PositionHistoryReplayRunStatus.RUNNING, leaseExpiresAt: { lte: t0 } },
+  ]);
+  assert.deepEqual(query.orderBy[0], { generationAnchor: "asc" });
+  assert.throws(() => state.findClaimableCandidates(t0, PositionHistoryReplayKind.ROLLING_90_DAY, 9));
+});
