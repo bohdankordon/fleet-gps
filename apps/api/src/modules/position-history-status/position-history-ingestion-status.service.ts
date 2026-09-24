@@ -27,16 +27,16 @@ export type PositionHistoryIngestionReplaySummary = Readonly<{
   oldestIncompleteGenerationAnchor: string | null;
   oldestOverdueGenerationAnchor: string | null;
   hasReplayDebt: boolean;
-  /** Oldest durably incomplete generation; it may be backed off while newer work runs. */
-  activeGenerationAnchor: string | null;
-  activeState: PositionHistoryIngestionReplayState | null;
-  activeCheckpointsTotal: number;
-  activeCheckpointsCompleted: number;
-  activeCheckpointsRemaining: number;
-  activeProgressPercent: number | null;
-  activeIsOverdue: boolean;
-  /** Number of newer incomplete generations, which may also receive work. */
-  queuedIncompleteGenerations: number;
+  /** Durable oldest incomplete run; newer runs may receive work during its backoff. */
+  oldestIncompleteState: PositionHistoryIngestionReplayState | null;
+  oldestIncompleteRangeFrom: string | null;
+  oldestIncompleteRangeTo: string | null;
+  oldestIncompleteCheckpointsTotal: number;
+  oldestIncompleteCheckpointsCompleted: number;
+  oldestIncompleteCheckpointsRemaining: number;
+  oldestIncompleteProgressPercent: number | null;
+  oldestIncompleteIsOverdue: boolean;
+  newerIncompleteGenerations: number;
   /** Six-hour windows at best; adaptive fallback and retries can require more requests. */
   estimatedRemainingWindows: number;
 }>;
@@ -287,14 +287,15 @@ export class PositionHistoryIngestionStatusService {
         oldestIncompleteGenerationAnchor: null,
         oldestOverdueGenerationAnchor: null,
         hasReplayDebt: false,
-        activeGenerationAnchor: null,
-        activeState: null,
-        activeCheckpointsTotal: 0,
-        activeCheckpointsCompleted: 0,
-        activeCheckpointsRemaining: 0,
-        activeProgressPercent: null,
-        activeIsOverdue: false,
-        queuedIncompleteGenerations: 0,
+        oldestIncompleteState: null,
+        oldestIncompleteRangeFrom: null,
+        oldestIncompleteRangeTo: null,
+        oldestIncompleteCheckpointsTotal: 0,
+        oldestIncompleteCheckpointsCompleted: 0,
+        oldestIncompleteCheckpointsRemaining: 0,
+        oldestIncompleteProgressPercent: null,
+        oldestIncompleteIsOverdue: false,
+        newerIncompleteGenerations: 0,
         estimatedRemainingWindows: 0,
       });
     }
@@ -307,18 +308,18 @@ export class PositionHistoryIngestionStatusService {
     const isCurrent = latest.generationAnchor.getTime() === expected.generationAnchor.getTime();
     const completed = state === "COMPLETED" && progress.remaining === 0;
     const debtSuspected = !completed && latest.generationAnchor.getTime() < expected.generationAnchor.getTime();
-    const incompleteRuns: readonly { id: string; generationAnchor: Date; status: PositionHistoryIngestionReplayState }[] = await client.positionHistoryReplayRun.findMany({
+    const incompleteRuns: readonly { id: string; generationAnchor: Date; rangeFrom: Date; rangeTo: Date; status: PositionHistoryIngestionReplayState }[] = await client.positionHistoryReplayRun.findMany({
       where: { kind, status: { not: PositionHistoryReplayRunStatus.COMPLETED } },
       orderBy: [{ generationAnchor: "asc" }, { id: "asc" }],
-      select: { id: true, generationAnchor: true, status: true },
+      select: { id: true, generationAnchor: true, rangeFrom: true, rangeTo: true, status: true },
     });
-    const active = incompleteRuns[0] ?? null;
-    const activeTotal = active === null ? 0 : await client.positionHistoryReplayCheckpoint.count({ where: { runId: active.id } });
-    const incompleteCheckpoints: readonly { nextFrom: Date; rangeTo: Date }[] = active === null ? [] : await client.positionHistoryReplayCheckpoint.findMany({
-      where: { runId: active.id, status: { not: PositionBackfillStatus.COMPLETED } },
+    const oldestIncomplete = incompleteRuns[0] ?? null;
+    const oldestIncompleteTotal = oldestIncomplete === null ? 0 : await client.positionHistoryReplayCheckpoint.count({ where: { runId: oldestIncomplete.id } });
+    const incompleteCheckpoints: readonly { nextFrom: Date; rangeTo: Date }[] = oldestIncomplete === null ? [] : await client.positionHistoryReplayCheckpoint.findMany({
+      where: { runId: oldestIncomplete.id, status: { not: PositionBackfillStatus.COMPLETED } },
       select: { nextFrom: true, rangeTo: true },
     });
-    const activeProgress = replayProgress(activeTotal, incompleteCheckpoints.length);
+    const oldestIncompleteProgress = replayProgress(oldestIncompleteTotal, incompleteCheckpoints.length);
     const overdueAnchors = incompleteRuns.map((run) => run.generationAnchor).filter((anchor) => anchor.getTime() < expected.generationAnchor.getTime());
     return Object.freeze({
       state,
@@ -333,17 +334,18 @@ export class PositionHistoryIngestionStatusService {
       debtSuspected,
       incompleteGenerations: incompleteRuns.length,
       overdueIncompleteGenerations: overdueAnchors.length,
-      oldestIncompleteGenerationAnchor: incompleteRuns.length === 0 ? null : incompleteRuns[0]!.generationAnchor.toISOString(),
+      oldestIncompleteGenerationAnchor: oldestIncomplete?.generationAnchor.toISOString() ?? null,
       oldestOverdueGenerationAnchor: overdueAnchors.length === 0 ? null : overdueAnchors[0]!.toISOString(),
       hasReplayDebt: overdueAnchors.length > 0,
-      activeGenerationAnchor: active?.generationAnchor.toISOString() ?? null,
-      activeState: active?.status ?? null,
-      activeCheckpointsTotal: activeTotal,
-      activeCheckpointsCompleted: activeProgress.completed,
-      activeCheckpointsRemaining: activeProgress.remaining,
-      activeProgressPercent: activeProgress.progressPercent,
-      activeIsOverdue: active !== null && active.generationAnchor.getTime() < expected.generationAnchor.getTime(),
-      queuedIncompleteGenerations: Math.max(0, incompleteRuns.length - (active === null ? 0 : 1)),
+      oldestIncompleteState: oldestIncomplete?.status ?? null,
+      oldestIncompleteRangeFrom: oldestIncomplete?.rangeFrom.toISOString() ?? null,
+      oldestIncompleteRangeTo: oldestIncomplete?.rangeTo.toISOString() ?? null,
+      oldestIncompleteCheckpointsTotal: oldestIncompleteTotal,
+      oldestIncompleteCheckpointsCompleted: oldestIncompleteProgress.completed,
+      oldestIncompleteCheckpointsRemaining: oldestIncompleteProgress.remaining,
+      oldestIncompleteProgressPercent: oldestIncompleteProgress.progressPercent,
+      oldestIncompleteIsOverdue: oldestIncomplete !== null && oldestIncomplete.generationAnchor.getTime() < expected.generationAnchor.getTime(),
+      newerIncompleteGenerations: Math.max(0, incompleteRuns.length - (oldestIncomplete === null ? 0 : 1)),
       estimatedRemainingWindows: estimatedReplayRemainingWindows(incompleteCheckpoints),
     });
   }

@@ -165,24 +165,26 @@ function ReplayFacts({ summary, titleKey }: Readonly<{ summary: ReplaySummary; t
   const { locale, t } = useI18n();
   const number = (value: number) => formatNumber(locale, value);
   const instant = (value: string | null) => value === null ? t("common.notAvailable") : (formatDateTime(locale, value) ?? t("common.notAvailable"));
-  const oldestIncomplete = summary.activeGenerationAnchor !== null;
-  const displayedPercent = oldestIncomplete ? summary.activeProgressPercent : summary.progressPercent;
+  const oldestIncomplete = summary.oldestIncompleteGenerationAnchor !== null;
+  const displayedPercent = oldestIncomplete ? summary.oldestIncompleteProgressPercent : summary.progressPercent;
+  const displayedRangeFrom = oldestIncomplete ? summary.oldestIncompleteRangeFrom : summary.rangeFrom;
+  const displayedRangeTo = oldestIncomplete ? summary.oldestIncompleteRangeTo : summary.rangeTo;
   return <article className="history-replay__card" aria-label={t(titleKey)}>
     <div className="history-replay__card-heading">
       <Typography.Title level={3}>{t(titleKey)}</Typography.Title>
-      <Tag color={replayStateColors[summary.activeState ?? summary.state]}>{t(replayStateKeys[summary.activeState ?? summary.state])}</Tag>
+      <Tag color={replayStateColors[summary.oldestIncompleteState ?? summary.state]}>{t(replayStateKeys[summary.oldestIncompleteState ?? summary.state])}</Tag>
     </div>
     {displayedPercent !== null && <p className="history-replay__progress"><span className="history-meter" aria-hidden><span style={{ width: `${displayedPercent}%` }} /></span><strong className="history-numeric">{number(displayedPercent)}%</strong></p>}
     <Descriptions className="history-fact-descriptions" bordered size="small" column={1} colon={false}>
-      {oldestIncomplete && <Descriptions.Item label={t("history.replay.oldestIncompleteGeneration")}><span className="history-fact-value">{instant(summary.activeGenerationAnchor)}</span></Descriptions.Item>}
-      <Descriptions.Item label={t("history.replay.completed")}><span className="history-fact-value">{number(oldestIncomplete ? summary.activeCheckpointsCompleted : summary.checkpointsCompleted)} / {number(oldestIncomplete ? summary.activeCheckpointsTotal : summary.checkpointsTotal)}</span></Descriptions.Item>
-      <Descriptions.Item label={t("history.replay.remaining")}><span className="history-fact-value">{number(oldestIncomplete ? summary.activeCheckpointsRemaining : summary.checkpointsRemaining)}</span></Descriptions.Item>
+      {oldestIncomplete && <Descriptions.Item label={t("history.replay.oldestIncompleteGeneration")}><span className="history-fact-value">{instant(summary.oldestIncompleteGenerationAnchor)}</span></Descriptions.Item>}
+      <Descriptions.Item label={t("history.replay.completed")}><span className="history-fact-value">{number(oldestIncomplete ? summary.oldestIncompleteCheckpointsCompleted : summary.checkpointsCompleted)} / {number(oldestIncomplete ? summary.oldestIncompleteCheckpointsTotal : summary.checkpointsTotal)}</span></Descriptions.Item>
+      <Descriptions.Item label={t("history.replay.remaining")}><span className="history-fact-value">{number(oldestIncomplete ? summary.oldestIncompleteCheckpointsRemaining : summary.checkpointsRemaining)}</span></Descriptions.Item>
       {oldestIncomplete && <Descriptions.Item label={t("history.replay.estimatedWindows")}><span className="history-fact-value">{number(summary.estimatedRemainingWindows)}</span></Descriptions.Item>}
-      <Descriptions.Item label={t("history.replay.latestGeneration")}><span className="history-fact-value">{instant(summary.generationAnchor)}{oldestIncomplete && summary.activeGenerationAnchor !== summary.generationAnchor ? ` · ${t("history.replay.newer")}` : ""}</span></Descriptions.Item>
-      <Descriptions.Item label={t("history.replay.range")}><span className="history-fact-value history-range-inline"><time dateTime={summary.rangeFrom ?? undefined}>{instant(summary.rangeFrom)}</time><span aria-hidden>→</span><time dateTime={summary.rangeTo ?? undefined}>{instant(summary.rangeTo)}</time></span></Descriptions.Item>
-      <Descriptions.Item label={t("history.replay.current")}><span className="history-fact-value">{t(summary.isCurrent ? "common.yes" : "common.no")}</span></Descriptions.Item>
+      <Descriptions.Item label={t(oldestIncomplete ? "history.replay.oldestIncompleteRange" : "history.replay.latestRange")}><span className="history-fact-value history-range-inline"><time dateTime={displayedRangeFrom ?? undefined}>{instant(displayedRangeFrom)}</time><span aria-hidden>→</span><time dateTime={displayedRangeTo ?? undefined}>{instant(displayedRangeTo)}</time></span></Descriptions.Item>
+      <Descriptions.Item label={t("history.replay.latestGeneration")}><span className="history-fact-value">{instant(summary.generationAnchor)}{oldestIncomplete && summary.oldestIncompleteGenerationAnchor !== summary.generationAnchor ? ` · ${t("history.replay.newer")}` : ""}</span></Descriptions.Item>
+      <Descriptions.Item label={t("history.replay.latestCurrent")}><span className="history-fact-value">{t(summary.isCurrent ? "common.yes" : "common.no")}</span></Descriptions.Item>
       <Descriptions.Item label={t("history.replay.incomplete")}><span className="history-fact-value">{number(summary.incompleteGenerations)}</span></Descriptions.Item>
-      <Descriptions.Item label={t("history.replay.newerIncompleteCount")}><span className="history-fact-value">{number(summary.queuedIncompleteGenerations)}</span></Descriptions.Item>
+      <Descriptions.Item label={t("history.replay.newerIncompleteCount")}><span className="history-fact-value">{number(summary.newerIncompleteGenerations)}</span></Descriptions.Item>
       <Descriptions.Item label={t("history.replay.overdue")}><span className="history-fact-value">{number(summary.overdueIncompleteGenerations)}</span></Descriptions.Item>
       <Descriptions.Item label={t("history.replay.debt")}><span className="history-fact-value">{t(summary.hasReplayDebt ? "common.yes" : "common.no")}</span></Descriptions.Item>
       {summary.oldestOverdueGenerationAnchor !== null && <Descriptions.Item label={t("history.replay.oldestOverdue")}><span className="history-fact-value">{instant(summary.oldestOverdueGenerationAnchor)}</span></Descriptions.Item>}

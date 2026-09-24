@@ -26,14 +26,15 @@ const replaySummary = z.object({
   oldestIncompleteGenerationAnchor: nullableTimestamp,
   oldestOverdueGenerationAnchor: nullableTimestamp,
   hasReplayDebt: z.boolean(),
-  activeGenerationAnchor: nullableTimestamp,
-  activeState: replayState.nullable(),
-  activeCheckpointsTotal: count,
-  activeCheckpointsCompleted: count,
-  activeCheckpointsRemaining: count,
-  activeProgressPercent: percent,
-  activeIsOverdue: z.boolean(),
-  queuedIncompleteGenerations: count,
+  oldestIncompleteState: replayState.nullable(),
+  oldestIncompleteRangeFrom: nullableTimestamp,
+  oldestIncompleteRangeTo: nullableTimestamp,
+  oldestIncompleteCheckpointsTotal: count,
+  oldestIncompleteCheckpointsCompleted: count,
+  oldestIncompleteCheckpointsRemaining: count,
+  oldestIncompleteProgressPercent: percent,
+  oldestIncompleteIsOverdue: z.boolean(),
+  newerIncompleteGenerations: count,
   estimatedRemainingWindows: count,
 }).strict();
 
@@ -53,9 +54,15 @@ export const positionHistoryIngestionStatusSchema = z.object({
     if (summary.checkpointsCompleted + summary.checkpointsRemaining !== summary.checkpointsTotal) context.addIssue({ code: "custom", message: "replay checkpoint count" });
     if (summary.overdueIncompleteGenerations > summary.incompleteGenerations) context.addIssue({ code: "custom", message: "replay overdue count" });
     if (summary.hasReplayDebt !== (summary.overdueIncompleteGenerations > 0)) context.addIssue({ code: "custom", message: "replay debt flag" });
-    if (summary.activeCheckpointsCompleted + summary.activeCheckpointsRemaining !== summary.activeCheckpointsTotal) context.addIssue({ code: "custom", message: "active replay checkpoint count" });
-    if (summary.queuedIncompleteGenerations !== Math.max(0, summary.incompleteGenerations - (summary.activeGenerationAnchor === null ? 0 : 1))) context.addIssue({ code: "custom", message: "queued replay count" });
-    if (summary.activeGenerationAnchor === null && (summary.activeState !== null || summary.activeCheckpointsTotal !== 0 || summary.activeProgressPercent !== null || summary.estimatedRemainingWindows !== 0)) context.addIssue({ code: "custom", message: "empty active replay" });
+    if (summary.oldestIncompleteCheckpointsCompleted + summary.oldestIncompleteCheckpointsRemaining !== summary.oldestIncompleteCheckpointsTotal) context.addIssue({ code: "custom", message: "oldest incomplete replay checkpoint count" });
+    if (summary.newerIncompleteGenerations !== Math.max(0, summary.incompleteGenerations - (summary.oldestIncompleteGenerationAnchor === null ? 0 : 1))) context.addIssue({ code: "custom", message: "newer incomplete replay count" });
+    if (summary.oldestIncompleteGenerationAnchor === null) {
+      if (summary.incompleteGenerations !== 0 || summary.oldestIncompleteState !== null || summary.oldestIncompleteRangeFrom !== null || summary.oldestIncompleteRangeTo !== null || summary.oldestIncompleteCheckpointsTotal !== 0 || summary.oldestIncompleteCheckpointsCompleted !== 0 || summary.oldestIncompleteCheckpointsRemaining !== 0 || summary.oldestIncompleteProgressPercent !== null || summary.oldestIncompleteIsOverdue || summary.estimatedRemainingWindows !== 0) context.addIssue({ code: "custom", message: "empty oldest incomplete replay" });
+    } else {
+      if (summary.incompleteGenerations === 0 || !["PENDING", "RUNNING"].includes(summary.oldestIncompleteState ?? "") || summary.oldestIncompleteRangeFrom === null || summary.oldestIncompleteRangeTo === null) context.addIssue({ code: "custom", message: "missing oldest incomplete replay details" });
+      if (summary.oldestIncompleteRangeFrom !== null && summary.oldestIncompleteRangeTo !== null && Date.parse(summary.oldestIncompleteRangeFrom) >= Date.parse(summary.oldestIncompleteRangeTo)) context.addIssue({ code: "custom", message: "oldest incomplete replay range" });
+      if (summary.oldestIncompleteProgressPercent !== (summary.oldestIncompleteCheckpointsTotal === 0 ? null : Math.floor(100 * summary.oldestIncompleteCheckpointsCompleted / summary.oldestIncompleteCheckpointsTotal))) context.addIssue({ code: "custom", message: "oldest incomplete replay progress" });
+    }
     if (summary.state === "NOT_CREATED") {
       if (summary.generationAnchor !== null || summary.checkpointsTotal !== 0 || summary.progressPercent !== null || summary.incompleteGenerations !== 0 || summary.hasReplayDebt) context.addIssue({ code: "custom", message: "replay empty state" });
     }

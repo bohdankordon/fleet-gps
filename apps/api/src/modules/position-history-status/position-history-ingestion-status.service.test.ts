@@ -73,7 +73,7 @@ test("status reports config truthfully and exposes safe boundary deterministical
   }
 });
 
-test("replay empty, active, and completed states are truthful without creating work", async () => {
+test("replay empty, incomplete, and completed states are truthful without creating work", async () => {
   const emptyDb = database();
   const emptyService = new PositionHistoryIngestionStatusService(config(false, false), emptyDb.service, telemetry());
   const empty = await emptyService.inspect(new Date("2026-09-14T12:00:00Z"));
@@ -106,7 +106,7 @@ test("replay empty, active, and completed states are truthful without creating w
   assert.equal(completed.replay.daily.estimatedRemainingWindows, 0);
 });
 
-test("latest queued 0/0 and oldest incomplete progress are distinct durable facts", async () => {
+test("latest 0/0 and oldest incomplete progress and range are distinct durable facts", async () => {
   const oldAnchor = new Date("2026-09-01T02:00:00Z");
   const latestAnchor = new Date("2026-09-08T02:00:00Z");
   const run = (id: string, generationAnchor: Date) => ({ id, generationAnchor, rangeFrom: new Date(generationAnchor.getTime() - 90 * 86_400_000), rangeTo: generationAnchor, status: "PENDING" });
@@ -126,9 +126,11 @@ test("latest queued 0/0 and oldest incomplete progress are distinct durable fact
   });
   const summary = (await new PositionHistoryIngestionStatusService(config(true, true), db.service, telemetry()).inspect(new Date("2026-09-14T12:00:00Z"))).replay.rolling;
   assert.deepEqual([summary.checkpointsTotal, summary.checkpointsCompleted, summary.progressPercent], [0, 0, null]);
-  assert.deepEqual([summary.activeGenerationAnchor, summary.activeCheckpointsTotal, summary.activeCheckpointsCompleted, summary.activeCheckpointsRemaining, summary.activeProgressPercent], [oldAnchor.toISOString(), 3, 1, 2, 33]);
+  assert.deepEqual([summary.oldestIncompleteGenerationAnchor, summary.oldestIncompleteCheckpointsTotal, summary.oldestIncompleteCheckpointsCompleted, summary.oldestIncompleteCheckpointsRemaining, summary.oldestIncompleteProgressPercent], [oldAnchor.toISOString(), 3, 1, 2, 33]);
+  assert.deepEqual([summary.oldestIncompleteRangeFrom, summary.oldestIncompleteRangeTo], [run("old", oldAnchor).rangeFrom.toISOString(), oldAnchor.toISOString()]);
+  assert.deepEqual([summary.rangeFrom, summary.rangeTo], [run("latest", latestAnchor).rangeFrom.toISOString(), latestAnchor.toISOString()]);
   assert.equal(summary.estimatedRemainingWindows, 3);
-  assert.deepEqual([summary.incompleteGenerations, summary.queuedIncompleteGenerations, summary.overdueIncompleteGenerations, summary.activeIsOverdue], [2, 1, 1, true]);
+  assert.deepEqual([summary.incompleteGenerations, summary.newerIncompleteGenerations, summary.overdueIncompleteGenerations, summary.oldestIncompleteIsOverdue], [2, 1, 1, true]);
 });
 
 test("status exposes only normalized last failure and bounded process cycle timing", async () => {
@@ -234,7 +236,7 @@ test("replay debt aggregates distinguish current processing from hidden older de
           const latest = latestOf(args.where.kind);
           return latest === null ? null : { id: latest.id, generationAnchor: latest.generationAnchor, rangeFrom: new Date(latest.generationAnchor.getTime() - dayMs), rangeTo: latest.generationAnchor, status: latest.status };
         },
-        findMany: async (args: any): Promise<any> => byKind(args.where.kind).filter((run) => run.status !== "COMPLETED").sort((a, b) => a.generationAnchor.getTime() - b.generationAnchor.getTime()),
+        findMany: async (args: any): Promise<any> => byKind(args.where.kind).filter((run) => run.status !== "COMPLETED").sort((a, b) => a.generationAnchor.getTime() - b.generationAnchor.getTime()).map((run) => ({ ...run, rangeFrom: new Date(run.generationAnchor.getTime() - dayMs), rangeTo: run.generationAnchor })),
       },
       positionHistoryReplayCheckpoint: { count: async (args: any): Promise<number> => (args.where?.status === undefined ? 2 : 0), findMany: async (): Promise<readonly unknown[]> => [] },
     });
@@ -299,7 +301,7 @@ test("replay debt counts several old incomplete generations and ignores complete
     vehicleHistoryIngestionCursor: { findMany: async (): Promise<readonly unknown[]> => [] },
     positionHistoryReplayRun: {
       findFirst: async (): Promise<any> => ({ id: "d-current", generationAnchor: dailyCurrent, rangeFrom: new Date(dailyCurrent.getTime() - dayMs), rangeTo: dailyCurrent, status: "RUNNING" }),
-      findMany: async (): Promise<any> => runs.filter((run) => run.status !== "COMPLETED").sort((a, b) => a.generationAnchor.getTime() - b.generationAnchor.getTime()),
+      findMany: async (): Promise<any> => runs.filter((run) => run.status !== "COMPLETED").sort((a, b) => a.generationAnchor.getTime() - b.generationAnchor.getTime()).map((run) => ({ ...run, rangeFrom: new Date(run.generationAnchor.getTime() - dayMs), rangeTo: run.generationAnchor })),
       upsert: async (): Promise<never> => { written.push("run.upsert"); throw new Error("must not write"); },
       create: async (): Promise<never> => { written.push("run.create"); throw new Error("must not write"); },
     },
