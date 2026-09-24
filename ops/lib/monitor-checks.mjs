@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   BACKUP_DUMP_NAME_RE,
   BACKUP_SHA_NAME_RE,
+  BACKUP_VERIFICATION,
   CHECK_IDS,
   MONITOR_THRESHOLDS,
   SEVERITY,
@@ -119,11 +120,12 @@ function diskCheckResult(checkId, statfs, detailWhenUnavailable) {
   return { checkId, status, detail: freePercent.toFixed(1) + "% free" };
 }
 
-function backupFreshnessResults({ missing, stale, invalid }) {
+function backupFreshnessResults({ missing, stale, invalid, unavailable }) {
   return [
     { checkId: CHECK_IDS.BACKUP_MISSING, status: missing ? SEVERITY.CRITICAL : SEVERITY.HEALTHY, detail: missing ? "no finalized managed daily backup" : "daily backup present" },
     { checkId: CHECK_IDS.BACKUP_STALE, status: stale ? SEVERITY.CRITICAL : SEVERITY.HEALTHY, detail: stale ? "latest daily backup older than 30h" : "daily backup fresh" },
-    { checkId: CHECK_IDS.BACKUP_INVALID, status: invalid ? SEVERITY.CRITICAL : SEVERITY.HEALTHY, detail: invalid ? "latest daily backup failed integrity verification" : "daily backup integrity verified" },
+    { checkId: CHECK_IDS.BACKUP_INVALID, status: invalid ? SEVERITY.CRITICAL : SEVERITY.HEALTHY, detail: invalid ? "latest daily backup failed integrity verification" : "no completed verification rejected backup" },
+    { checkId: CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE, status: unavailable ? SEVERITY.WARNING : SEVERITY.HEALTHY, detail: unavailable ? "latest daily backup integrity verification could not complete" : "no incomplete verification" },
   ];
 }
 
@@ -202,6 +204,7 @@ export async function runAllChecks({ runtime, config, now, integrityCache }) {
   let missing = false;
   let stale = false;
   let invalid = false;
+  let unavailable = false;
 
   if (latestPair === null) {
     missing = true;
@@ -220,23 +223,25 @@ export async function runAllChecks({ runtime, config, now, integrityCache }) {
         const latest = { dump: { name: latestPair.dump, ...dumpMeta }, sha: { name: latestPair.sha, ...shaMeta } };
         const decision = decideIntegrityVerification(latest, cache, now);
         if (decision.shouldVerify) {
-          const verified = await runtime.verifyBackup(dumpPath);
-          if (verified) {
+          const verification = await runtime.verifyBackup(dumpPath);
+          if (verification === BACKUP_VERIFICATION.VALID) {
             cache = Object.freeze({
               version: 1,
               dump: Object.freeze({ basename: latestPair.dump, size: dumpMeta.size, mtimeMs: dumpMeta.mtimeMs }),
               sha: Object.freeze({ basename: latestPair.sha, size: shaMeta.size, mtimeMs: shaMeta.mtimeMs }),
               verifiedAt: now,
             });
-          } else {
+          } else if (verification === BACKUP_VERIFICATION.INVALID) {
             invalid = true;
             cache = null;
+          } else {
+            unavailable = true;
           }
         }
       }
     }
   }
 
-  results.push(...backupFreshnessResults({ missing, stale, invalid }));
+  results.push(...backupFreshnessResults({ missing, stale, invalid, unavailable }));
   return { results, cache };
 }

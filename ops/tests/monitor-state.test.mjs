@@ -72,6 +72,21 @@ test("a change in the incident set alerts immediately", () => {
   assert.deepEqual(changed.plan.reportFingerprints, [fp(API, SEVERITY.CRITICAL), fp(WEB, SEVERITY.CRITICAL)]);
 });
 
+test("backup verification unavailable deduplicates, recovers, then permits a distinct invalid incident", () => {
+  const unavailable = fp(CHECK_IDS.BACKUP_VERIFY_UNAVAILABLE, SEVERITY.WARNING);
+  const invalid = fp(CHECK_IDS.BACKUP_INVALID, SEVERITY.CRITICAL);
+  const first = advance(emptyState(), [unavailable], { now: T0 });
+  assert.equal(first.plan.kind, NOTIFICATION_KIND.INCIDENT);
+  assert.deepEqual(first.plan.reportFingerprints, [unavailable]);
+  const same = advance(first.next, [unavailable], { now: T0 + MINUTE });
+  assert.equal(same.plan.kind, NOTIFICATION_KIND.NONE);
+  const recovered = advance(same.next, [], { now: T0 + 2 * MINUTE });
+  assert.equal(recovered.plan.kind, NOTIFICATION_KIND.RECOVERY);
+  const rejected = advance(recovered.next, [invalid], { now: T0 + 3 * MINUTE });
+  assert.equal(rejected.plan.kind, NOTIFICATION_KIND.INCIDENT);
+  assert.deepEqual(rejected.plan.reportFingerprints, [invalid]);
+});
+
 test("WARNING to CRITICAL escalation alerts immediately", () => {
   const started = advance(emptyState(), [fp(DB_DISK, SEVERITY.WARNING)], { now: T0 }).next;
   const escalated = advance(started, [fp(DB_DISK, SEVERITY.CRITICAL)], { now: T0 + MINUTE });
