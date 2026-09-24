@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { performance } from "node:perf_hooks";
 import { PositionHistoryReplayKind } from "../../generated/prisma/client";
 import { PositionHistoryCapacityAllocator, type PositionHistoryCapacityLane } from "./position-history-capacity-planning";
 import type { PositionHistoryContinuousCycleResult, PositionHistoryContinuousLane } from "./position-history-continuous-ingestion.types";
@@ -39,12 +40,12 @@ export class PositionHistoryWorkloadCoordinatorService {
     private readonly replay: PositionHistoryReplayWorkerService,
   ) {}
 
-  public async processCycle(): Promise<PositionHistoryContinuousCycleResult> {
+  public async processCycle(atMs = performance.now()): Promise<PositionHistoryContinuousCycleResult> {
     const [dailyPressure, rollingPressure] = await Promise.all([
       this.replay.inspectPressure(PositionHistoryReplayKind.DAILY_7_DAY),
       this.replay.inspectPressure(PositionHistoryReplayKind.ROLLING_90_DAY),
     ]);
-    const plan = this.allocator.plan({ daily: dailyPressure, rolling: rollingPressure });
+    const plan = this.allocator.plan({ daily: dailyPressure, rolling: rollingPressure }, atMs);
     const plannedContinuous = plan.map(continuousLane).filter((lane): lane is PositionHistoryContinuousLane => lane !== null);
     let result = empty();
     let requestStarts = 0;
@@ -62,7 +63,9 @@ export class PositionHistoryWorkloadCoordinatorService {
       const replay = await this.replay.processKind(kind);
       requestStarts += replay.requests;
       this.log(replay);
-      if (replay.rateLimitResponses > 0 || replay.outcome === "LOCK_UNAVAILABLE") return result;
+      // A failed replay quantum can include provider retries. Defer any other
+      // checkpoint to the next cycle instead of fanning out on this one.
+      if (replay.rateLimitResponses > 0 || replay.outcome === "LOCK_UNAVAILABLE" || replay.outcome === "FAILED") return result;
     }
 
     const remaining = POSITION_HISTORY_COORDINATED_REQUEST_START_BUDGET - requestStarts;

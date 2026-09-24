@@ -8,6 +8,7 @@ import {
 } from "@taxi-gps/equgps";
 import { recordedPositionHistoryHistoricalWindowProviderFailure } from "../position-history-historical-window/position-history-historical-window-failure-diagnostics";
 import { PositionHistoryBackfillProviderContractError } from "../position-history-historical-window/position-history-historical-window.errors";
+import { POSITION_HISTORY_CONTINUOUS_POLL_INTERVAL_MS } from "../position-history-continuous-ingestion/position-history-continuous-poll-timing";
 
 export type PositionHistoryIngestionFailureCategory =
   | "rate_limit"
@@ -75,6 +76,10 @@ export type PositionHistoryIngestionTelemetrySnapshot = Readonly<{
   cycleInFlight: boolean;
   lastCycleStartedAt: Date | null;
   lastCycleCompletedAt: Date | null;
+  cyclesCompletedSinceProcessStart: number;
+  lastCycleDurationMs: number | null;
+  maxCycleDurationMsSinceProcessStart: number | null;
+  cyclesExceedingPollIntervalSinceProcessStart: number;
   requestStartsLastMinute: number;
   requestStartsSinceProcessStart: number;
   retriesSinceProcessStart: number;
@@ -107,6 +112,10 @@ export class PositionHistoryIngestionTelemetryService {
   private cycleInFlight = false;
   private lastCycleStartedAt: Date | null = null;
   private lastCycleCompletedAt: Date | null = null;
+  private cyclesCompleted = 0;
+  private lastCycleDurationMs: number | null = null;
+  private maxCycleDurationMs: number | null = null;
+  private cyclesExceedingPollInterval = 0;
   private requestStarts: number[] = [];
   private requestStartsTotal = 0;
   private retriesTotal = 0;
@@ -156,6 +165,13 @@ export class PositionHistoryIngestionTelemetryService {
     if (!Number.isFinite(completed.getTime())) throw new Error("Invalid ingestion telemetry cycle instant.");
     this.cycleInFlight = false;
     this.lastCycleCompletedAt = completed;
+    if (this.lastCycleStartedAt !== null) {
+      const durationMs = Math.max(0, completed.getTime() - this.lastCycleStartedAt.getTime());
+      this.cyclesCompleted += 1;
+      this.lastCycleDurationMs = durationMs;
+      this.maxCycleDurationMs = Math.max(this.maxCycleDurationMs ?? 0, durationMs);
+      if (durationMs > POSITION_HISTORY_CONTINUOUS_POLL_INTERVAL_MS) this.cyclesExceedingPollInterval += 1;
+    }
   }
 
   public recordRequestStart(at?: Date): void {
@@ -282,6 +298,10 @@ export class PositionHistoryIngestionTelemetryService {
       cycleInFlight: this.cycleInFlight,
       lastCycleStartedAt: this.lastCycleStartedAt === null ? null : copyDate(this.lastCycleStartedAt),
       lastCycleCompletedAt: this.lastCycleCompletedAt === null ? null : copyDate(this.lastCycleCompletedAt),
+      cyclesCompletedSinceProcessStart: this.cyclesCompleted,
+      lastCycleDurationMs: this.lastCycleDurationMs,
+      maxCycleDurationMsSinceProcessStart: this.maxCycleDurationMs,
+      cyclesExceedingPollIntervalSinceProcessStart: this.cyclesExceedingPollInterval,
       requestStartsLastMinute,
       requestStartsSinceProcessStart: this.requestStartsTotal,
       retriesSinceProcessStart: this.retriesTotal,

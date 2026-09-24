@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PositionHistoryReplayKind } from "../../generated/prisma/client";
+import { EquGpsTimeoutError } from "@taxi-gps/equgps";
 import type { ApiConfig } from "../../config/api-config";
 import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
-import { replayProgress, PositionHistoryIngestionStatusService, summarizeCursorLag } from "./position-history-ingestion-status.service";
+import { estimatedReplayRemainingWindows, replayProgress, PositionHistoryIngestionStatusService, summarizeCursorLag } from "./position-history-ingestion-status.service";
 
 function telemetry() {
   return new PositionHistoryIngestionTelemetryService({ now: () => new Date("2026-09-14T12:00:00Z") });
@@ -53,6 +54,13 @@ test("replay progress derives totals, remaining, and percent without writes", ()
   assert.deepEqual(replayProgress(4, 1), { completed: 3, remaining: 1, progressPercent: 75 });
   assert.deepEqual(replayProgress(2, 0), { completed: 2, remaining: 0, progressPercent: 100 });
 });
+test("remaining windows conservatively ceil each durable incomplete range", () => {
+  assert.equal(estimatedReplayRemainingWindows([
+    { nextFrom: new Date("2026-09-01T00:00Z"), rangeTo: new Date("2026-09-01T04:00Z") },
+    { nextFrom: new Date("2026-09-01T00:00Z"), rangeTo: new Date("2026-09-01T07:00Z") },
+  ]), 3);
+  assert.equal(estimatedReplayRemainingWindows([]), 0);
+});
 test("status reports config truthfully and exposes safe boundary deterministically", async () => {
   for (const [continuous, retention] of [[false, false], [false, true], [true, true]] as const) {
     const item = database();
@@ -65,7 +73,7 @@ test("status reports config truthfully and exposes safe boundary deterministical
   }
 });
 
-test("replay empty, active, and completed states are truthful without creating work", async () => {
+test("replay empty, incomplete, and completed states are truthful without creating work", async () => {
   const emptyDb = database();
   const emptyService = new PositionHistoryIngestionStatusService(config(false, false), emptyDb.service, telemetry());
   const empty = await emptyService.inspect(new Date("2026-09-14T12:00:00Z"));
@@ -95,6 +103,47 @@ test("replay empty, active, and completed states are truthful without creating w
   assert.equal(completed.replay.daily.checkpointsRemaining, 0);
   assert.equal(completed.replay.daily.progressPercent, 100);
   assert.equal(completed.replay.daily.debtSuspected, false);
+  assert.equal(completed.replay.daily.estimatedRemainingWindows, 0);
+});
+
+test("latest 0/0 and oldest incomplete progress and range are distinct durable facts", async () => {
+  const oldAnchor = new Date("2026-09-01T02:00:00Z");
+  const latestAnchor = new Date("2026-09-08T02:00:00Z");
+  const run = (id: string, generationAnchor: Date) => ({ id, generationAnchor, rangeFrom: new Date(generationAnchor.getTime() - 90 * 86_400_000), rangeTo: generationAnchor, status: "PENDING" });
+  const checkpoints = [
+    { nextFrom: new Date("2026-09-01T00:00Z"), rangeTo: new Date("2026-09-01T04:00Z") },
+    { nextFrom: new Date("2026-09-01T00:00Z"), rangeTo: new Date("2026-09-01T07:00Z") },
+  ];
+  const db = database({
+    positionHistoryReplayRun: {
+      findFirst: async (args: any): Promise<any> => args.where.kind === PositionHistoryReplayKind.ROLLING_90_DAY ? run("latest", latestAnchor) : null,
+      findMany: async (args: any): Promise<any> => args.where.kind === PositionHistoryReplayKind.ROLLING_90_DAY ? [run("old", oldAnchor), run("latest", latestAnchor)] : [],
+    },
+    positionHistoryReplayCheckpoint: {
+      count: async (args: any): Promise<number> => args.where.runId === "old" ? 3 : 0,
+      findMany: async (args: any): Promise<any> => args.where.runId === "old" ? checkpoints : [],
+    },
+  });
+  const summary = (await new PositionHistoryIngestionStatusService(config(true, true), db.service, telemetry()).inspect(new Date("2026-09-14T12:00:00Z"))).replay.rolling;
+  assert.deepEqual([summary.checkpointsTotal, summary.checkpointsCompleted, summary.progressPercent], [0, 0, null]);
+  assert.deepEqual([summary.oldestIncompleteGenerationAnchor, summary.oldestIncompleteCheckpointsTotal, summary.oldestIncompleteCheckpointsCompleted, summary.oldestIncompleteCheckpointsRemaining, summary.oldestIncompleteProgressPercent], [oldAnchor.toISOString(), 3, 1, 2, 33]);
+  assert.deepEqual([summary.oldestIncompleteRangeFrom, summary.oldestIncompleteRangeTo], [run("old", oldAnchor).rangeFrom.toISOString(), oldAnchor.toISOString()]);
+  assert.deepEqual([summary.rangeFrom, summary.rangeTo], [run("latest", latestAnchor).rangeFrom.toISOString(), latestAnchor.toISOString()]);
+  assert.equal(summary.estimatedRemainingWindows, 3);
+  assert.deepEqual([summary.incompleteGenerations, summary.newerIncompleteGenerations, summary.overdueIncompleteGenerations, summary.oldestIncompleteIsOverdue], [2, 1, 1, true]);
+});
+
+test("status exposes only normalized last failure and bounded process cycle timing", async () => {
+  const tele = telemetry();
+  const start = new Date("2026-09-14T11:59:00Z");
+  tele.startCycle(start);
+  tele.completeCycle(new Date(start.getTime() + 48_000));
+  tele.recordProviderFailure(new EquGpsTimeoutError("getHistoricalPositions"), new Date(start.getTime() + 48_000));
+  const response = await new PositionHistoryIngestionStatusService(config(true, true), database().service, tele).inspect(new Date("2026-09-14T12:00:00Z"));
+  assert.deepEqual([response.runtime.cyclesCompletedSinceProcessStart, response.runtime.lastCycleDurationMs, response.runtime.maxCycleDurationMsSinceProcessStart, response.runtime.cyclesExceedingPollIntervalSinceProcessStart], [1, 48_000, 48_000, 1]);
+  assert.equal(response.providerTraffic.lastFailureCategory, "timeout");
+  assert.equal(response.providerTraffic.lastFailureAt, "2026-09-14T11:59:48.000Z");
+  assert.equal(JSON.stringify(response).includes("getHistoricalPositions"), false);
 });
 
 test("status read performs zero writes, zero provider calls, and bounded aggregates only", async () => {
@@ -187,9 +236,9 @@ test("replay debt aggregates distinguish current processing from hidden older de
           const latest = latestOf(args.where.kind);
           return latest === null ? null : { id: latest.id, generationAnchor: latest.generationAnchor, rangeFrom: new Date(latest.generationAnchor.getTime() - dayMs), rangeTo: latest.generationAnchor, status: latest.status };
         },
-        findMany: async (args: any): Promise<any> => byKind(args.where.kind).filter((run) => run.status !== "COMPLETED").sort((a, b) => a.generationAnchor.getTime() - b.generationAnchor.getTime()).map((run) => ({ generationAnchor: run.generationAnchor })),
+        findMany: async (args: any): Promise<any> => byKind(args.where.kind).filter((run) => run.status !== "COMPLETED").sort((a, b) => a.generationAnchor.getTime() - b.generationAnchor.getTime()).map((run) => ({ ...run, rangeFrom: new Date(run.generationAnchor.getTime() - dayMs), rangeTo: run.generationAnchor })),
       },
-      positionHistoryReplayCheckpoint: { count: async (args: any): Promise<number> => (args.where?.status === undefined ? 2 : 0) },
+      positionHistoryReplayCheckpoint: { count: async (args: any): Promise<number> => (args.where?.status === undefined ? 2 : 0), findMany: async (): Promise<readonly unknown[]> => [] },
     });
   };
   const kinds = [PositionHistoryReplayKind.DAILY_7_DAY, PositionHistoryReplayKind.ROLLING_90_DAY] as const;
@@ -252,11 +301,11 @@ test("replay debt counts several old incomplete generations and ignores complete
     vehicleHistoryIngestionCursor: { findMany: async (): Promise<readonly unknown[]> => [] },
     positionHistoryReplayRun: {
       findFirst: async (): Promise<any> => ({ id: "d-current", generationAnchor: dailyCurrent, rangeFrom: new Date(dailyCurrent.getTime() - dayMs), rangeTo: dailyCurrent, status: "RUNNING" }),
-      findMany: async (): Promise<any> => runs.filter((run) => run.status !== "COMPLETED").sort((a, b) => a.generationAnchor.getTime() - b.generationAnchor.getTime()).map((run) => ({ generationAnchor: run.generationAnchor })),
+      findMany: async (): Promise<any> => runs.filter((run) => run.status !== "COMPLETED").sort((a, b) => a.generationAnchor.getTime() - b.generationAnchor.getTime()).map((run) => ({ ...run, rangeFrom: new Date(run.generationAnchor.getTime() - dayMs), rangeTo: run.generationAnchor })),
       upsert: async (): Promise<never> => { written.push("run.upsert"); throw new Error("must not write"); },
       create: async (): Promise<never> => { written.push("run.create"); throw new Error("must not write"); },
     },
-    positionHistoryReplayCheckpoint: { count: async (): Promise<number> => 0, createMany: async (): Promise<never> => { written.push("checkpoint.create"); throw new Error("must not write"); } },
+    positionHistoryReplayCheckpoint: { count: async (): Promise<number> => 0, findMany: async (): Promise<readonly unknown[]> => [], createMany: async (): Promise<never> => { written.push("checkpoint.create"); throw new Error("must not write"); } },
     positionHistoryPopulationRun: { findFirst: async (): Promise<null> => null },
   };
   const response = await new PositionHistoryIngestionStatusService(config(true, true), { getClient: (): unknown => client } as any, telemetry()).inspect(now);

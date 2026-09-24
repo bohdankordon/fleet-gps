@@ -33,6 +33,7 @@ const retentionOutcomeKeys = {
 } as const;
 
 const retentionSkipKeys = { LOCK_UNAVAILABLE: "history.retentionState.skip.lockUnavailable", ACTIVE_POPULATION: "history.retentionState.skip.activePopulation" } as const;
+const failureCategoryKeys = { rate_limit: "history.diagnostics.failure.rateLimit", provider_5xx: "history.diagnostics.failure.provider5xx", network: "history.diagnostics.failure.network", timeout: "history.diagnostics.failure.timeout", contract: "history.diagnostics.failure.contract", storage: "history.diagnostics.failure.storage", provider_blocked: "history.diagnostics.failure.providerBlocked", unknown: "history.diagnostics.failure.unknown" } as const;
 
 export function PositionHistoryOverview({ data, statusError, administrationNavigation, historyNavigation }: Props) {
   const { locale, t } = useI18n();
@@ -143,6 +144,12 @@ export function PositionHistoryOverview({ data, statusError, administrationNavig
           <Alert type="info" showIcon title={t("history.diagnostics.scope")} description={t("history.diagnostics.scopeText")} />
           <Descriptions className="history-fact-descriptions history-diagnostics" bordered size="small" column={2} colon={false}>
             {diagnostics.map(([key, value]) => <Descriptions.Item key={key} label={t(key)}><span className="history-fact-value">{number(value)}</span></Descriptions.Item>)}
+            <Descriptions.Item label={t("history.diagnostics.lastFailureCategory")}><span className="history-fact-value">{data.providerTraffic.lastFailureCategory === null ? t("common.notAvailable") : t(failureCategoryKeys[data.providerTraffic.lastFailureCategory])}</span></Descriptions.Item>
+            <Descriptions.Item label={t("history.diagnostics.lastFailureAt")}><span className="history-fact-value">{instant(data.providerTraffic.lastFailureAt)}</span></Descriptions.Item>
+            <Descriptions.Item label={t("history.diagnostics.cyclesCompleted")}><span className="history-fact-value">{number(data.runtime.cyclesCompletedSinceProcessStart)}</span></Descriptions.Item>
+            <Descriptions.Item label={t("history.diagnostics.lastCycleDuration")}><span className="history-fact-value">{data.runtime.lastCycleDurationMs === null ? t("common.notAvailable") : `${number(data.runtime.lastCycleDurationMs)} ${t("history.diagnostics.ms")}`}</span></Descriptions.Item>
+            <Descriptions.Item label={t("history.diagnostics.maxCycleDuration")}><span className="history-fact-value">{data.runtime.maxCycleDurationMsSinceProcessStart === null ? t("common.notAvailable") : `${number(data.runtime.maxCycleDurationMsSinceProcessStart)} ${t("history.diagnostics.ms")}`}</span></Descriptions.Item>
+            <Descriptions.Item label={t("history.diagnostics.slowCycles")}><span className="history-fact-value">{number(data.runtime.cyclesExceedingPollIntervalSinceProcessStart)}</span></Descriptions.Item>
           </Descriptions>
         </>,
       }, {
@@ -158,23 +165,31 @@ function ReplayFacts({ summary, titleKey }: Readonly<{ summary: ReplaySummary; t
   const { locale, t } = useI18n();
   const number = (value: number) => formatNumber(locale, value);
   const instant = (value: string | null) => value === null ? t("common.notAvailable") : (formatDateTime(locale, value) ?? t("common.notAvailable"));
+  const oldestIncomplete = summary.oldestIncompleteGenerationAnchor !== null;
+  const displayedPercent = oldestIncomplete ? summary.oldestIncompleteProgressPercent : summary.progressPercent;
+  const displayedRangeFrom = oldestIncomplete ? summary.oldestIncompleteRangeFrom : summary.rangeFrom;
+  const displayedRangeTo = oldestIncomplete ? summary.oldestIncompleteRangeTo : summary.rangeTo;
   return <article className="history-replay__card" aria-label={t(titleKey)}>
     <div className="history-replay__card-heading">
       <Typography.Title level={3}>{t(titleKey)}</Typography.Title>
-      <Tag color={replayStateColors[summary.state]}>{t(replayStateKeys[summary.state])}</Tag>
+      <Tag color={replayStateColors[summary.oldestIncompleteState ?? summary.state]}>{t(replayStateKeys[summary.oldestIncompleteState ?? summary.state])}</Tag>
     </div>
-    {summary.progressPercent !== null && <p className="history-replay__progress"><span className="history-meter" aria-hidden><span style={{ width: `${summary.progressPercent}%` }} /></span><strong className="history-numeric">{number(summary.progressPercent)}%</strong></p>}
+    {displayedPercent !== null && <p className="history-replay__progress"><span className="history-meter" aria-hidden><span style={{ width: `${displayedPercent}%` }} /></span><strong className="history-numeric">{number(displayedPercent)}%</strong></p>}
     <Descriptions className="history-fact-descriptions" bordered size="small" column={1} colon={false}>
-      <Descriptions.Item label={t("history.replay.completed")}><span className="history-fact-value">{number(summary.checkpointsCompleted)} / {number(summary.checkpointsTotal)}</span></Descriptions.Item>
-      <Descriptions.Item label={t("history.replay.remaining")}><span className="history-fact-value">{number(summary.checkpointsRemaining)}</span></Descriptions.Item>
-      <Descriptions.Item label={t("history.replay.generation")}><span className="history-fact-value">{instant(summary.generationAnchor)}</span></Descriptions.Item>
-      <Descriptions.Item label={t("history.replay.range")}><span className="history-fact-value history-range-inline"><time dateTime={summary.rangeFrom ?? undefined}>{instant(summary.rangeFrom)}</time><span aria-hidden>→</span><time dateTime={summary.rangeTo ?? undefined}>{instant(summary.rangeTo)}</time></span></Descriptions.Item>
-      <Descriptions.Item label={t("history.replay.current")}><span className="history-fact-value">{t(summary.isCurrent ? "common.yes" : "common.no")}</span></Descriptions.Item>
+      {oldestIncomplete && <Descriptions.Item label={t("history.replay.oldestIncompleteGeneration")}><span className="history-fact-value">{instant(summary.oldestIncompleteGenerationAnchor)}</span></Descriptions.Item>}
+      <Descriptions.Item label={t("history.replay.completed")}><span className="history-fact-value">{number(oldestIncomplete ? summary.oldestIncompleteCheckpointsCompleted : summary.checkpointsCompleted)} / {number(oldestIncomplete ? summary.oldestIncompleteCheckpointsTotal : summary.checkpointsTotal)}</span></Descriptions.Item>
+      <Descriptions.Item label={t("history.replay.remaining")}><span className="history-fact-value">{number(oldestIncomplete ? summary.oldestIncompleteCheckpointsRemaining : summary.checkpointsRemaining)}</span></Descriptions.Item>
+      {oldestIncomplete && <Descriptions.Item label={t("history.replay.estimatedWindows")}><span className="history-fact-value">{number(summary.estimatedRemainingWindows)}</span></Descriptions.Item>}
+      <Descriptions.Item label={t(oldestIncomplete ? "history.replay.oldestIncompleteRange" : "history.replay.latestRange")}><span className="history-fact-value history-range-inline"><time dateTime={displayedRangeFrom ?? undefined}>{instant(displayedRangeFrom)}</time><span aria-hidden>→</span><time dateTime={displayedRangeTo ?? undefined}>{instant(displayedRangeTo)}</time></span></Descriptions.Item>
+      <Descriptions.Item label={t("history.replay.latestGeneration")}><span className="history-fact-value">{instant(summary.generationAnchor)}{oldestIncomplete && summary.oldestIncompleteGenerationAnchor !== summary.generationAnchor ? ` · ${t("history.replay.newer")}` : ""}</span></Descriptions.Item>
+      <Descriptions.Item label={t("history.replay.latestCurrent")}><span className="history-fact-value">{t(summary.isCurrent ? "common.yes" : "common.no")}</span></Descriptions.Item>
       <Descriptions.Item label={t("history.replay.incomplete")}><span className="history-fact-value">{number(summary.incompleteGenerations)}</span></Descriptions.Item>
+      <Descriptions.Item label={t("history.replay.newerIncompleteCount")}><span className="history-fact-value">{number(summary.newerIncompleteGenerations)}</span></Descriptions.Item>
       <Descriptions.Item label={t("history.replay.overdue")}><span className="history-fact-value">{number(summary.overdueIncompleteGenerations)}</span></Descriptions.Item>
       <Descriptions.Item label={t("history.replay.debt")}><span className="history-fact-value">{t(summary.hasReplayDebt ? "common.yes" : "common.no")}</span></Descriptions.Item>
       {summary.oldestOverdueGenerationAnchor !== null && <Descriptions.Item label={t("history.replay.oldestOverdue")}><span className="history-fact-value">{instant(summary.oldestOverdueGenerationAnchor)}</span></Descriptions.Item>}
     </Descriptions>
+    {oldestIncomplete && <Typography.Text type="secondary">{t("history.replay.estimateHelp")}</Typography.Text>}
     {summary.hasReplayDebt
       ? <Alert type="warning" showIcon title={t("history.replay.debtTitle")} description={t("history.replay.debtText", { count: number(summary.overdueIncompleteGenerations) })} />
       : summary.state === "COMPLETED" && summary.isCurrent && <Alert type="success" showIcon title={t("history.replay.currentTitle")} description={t("history.replay.currentText")} />}
