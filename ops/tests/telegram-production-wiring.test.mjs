@@ -26,6 +26,7 @@ test("production Compose gives API all Telegram 2A-2C settings and gives Web onl
     "TELEGRAM_PER_USER_DISPATCH_INTERVAL_MS",
     "TELEGRAM_PER_USER_DISPATCH_BATCH_SIZE",
     "TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE",
+    "SITE_ADDRESS",
   ]) assert.match(api, new RegExp(`^\\s+${name}:`, "m"));
   assert.match(web, /^\s+TELEGRAM_PRODUCT_WEBHOOK_SECRET:/m);
   assert.equal(web.includes("TELEGRAM_PRODUCT_BOT_TOKEN"), false);

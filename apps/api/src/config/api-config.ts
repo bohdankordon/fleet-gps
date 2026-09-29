@@ -50,6 +50,7 @@ export type TelegramPerUserDispatchConfig = Readonly<{
 export type ApiConfig = Readonly<{
   host: string;
   port: number;
+  publicSiteOrigin?: string | null;
   equGps: EquGpsConfig;
   database: DatabaseConfig;
   syncScheduler: SyncSchedulerConfig;
@@ -113,6 +114,17 @@ function productBotUsername(value: string | undefined): string | null | undefine
   return /^[A-Za-z][A-Za-z0-9_]{4,31}bot$/i.test(normalized) ? normalized : undefined;
 }
 
+function publicSiteOrigin(value: string | undefined): string | null | undefined {
+  if (value === undefined || value.trim() === "") return null;
+  try {
+    const address = value.trim();
+    if (!/^https:\/\/[^/?#]+\/?$/.test(address)) return undefined;
+    const url = new URL(address);
+    if (url.protocol !== "https:" || !url.hostname || url.username || url.password || url.search || url.hash || url.pathname !== "/") return undefined;
+    return url.origin;
+  } catch { return undefined; }
+}
+
 const absoluteInstantPattern = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|([+-])(\d{2}):(\d{2}))$/;
 
 function daysInMonth(year: number, month: number): number {
@@ -168,6 +180,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
   const telegramProductLinkingEnabled = parseBoolean(env.TELEGRAM_PRODUCT_LINKING_ENABLED);
   const telegramPerUserNotificationsEnabled = parseBoolean(env.TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED);
   const telegramPerUserDispatchEnabled = parseBoolean(env.TELEGRAM_PER_USER_DISPATCH_ENABLED);
+  const siteOrigin = publicSiteOrigin(env.SITE_ADDRESS);
   const telegramPerUserDispatchIntervalMs = parseInteger(env.TELEGRAM_PER_USER_DISPATCH_INTERVAL_MS, 60_000, 1_000, 3_600_000);
   const telegramPerUserDispatchBatchSize = parseInteger(env.TELEGRAM_PER_USER_DISPATCH_BATCH_SIZE, 20, 1, 100);
   const telegramPerUserDispatchNotBefore = absoluteInstant(env.TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE);
@@ -207,6 +220,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
   if (telegramProductLinkingEnabled === undefined) issues.push("TELEGRAM_PRODUCT_LINKING_ENABLED");
   if (telegramPerUserNotificationsEnabled === undefined) issues.push("TELEGRAM_PER_USER_NOTIFICATIONS_ENABLED");
   if (telegramPerUserDispatchEnabled === undefined) issues.push("TELEGRAM_PER_USER_DISPATCH_ENABLED");
+  if (siteOrigin === undefined || (telegramPerUserDispatchEnabled === true && siteOrigin === null)) issues.push("SITE_ADDRESS");
   if (telegramPerUserDispatchIntervalMs === undefined) issues.push("TELEGRAM_PER_USER_DISPATCH_INTERVAL_MS");
   if (telegramPerUserDispatchBatchSize === undefined) issues.push("TELEGRAM_PER_USER_DISPATCH_BATCH_SIZE");
   if (telegramPerUserDispatchEnabled === true && telegramProductBotToken === null) issues.push("TELEGRAM_PRODUCT_BOT_TOKEN");
@@ -241,6 +255,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
     telegramProductLinkingEnabled === undefined ||
     telegramPerUserNotificationsEnabled === undefined ||
     telegramPerUserDispatchEnabled === undefined ||
+    siteOrigin === undefined ||
     telegramPerUserDispatchIntervalMs === undefined ||
     telegramPerUserDispatchBatchSize === undefined ||
     telegramPerUserDispatchNotBefore === undefined ||
@@ -256,6 +271,7 @@ export function parseApiConfig(env: Environment): ApiConfig {
     return Object.freeze({
       host,
       port,
+      publicSiteOrigin: siteOrigin,
       database: Object.freeze({ url: databaseUrl.trim(), poolMax, connectionTimeoutMs, idleTimeoutMs }),
       syncScheduler: Object.freeze({ enabled: schedulerEnabled, fleetIntervalSeconds, runsIntervalSeconds, shutdownTimeoutMs }),
       alertIngestion: Object.freeze({ enabled: alertIngestionEnabled }),

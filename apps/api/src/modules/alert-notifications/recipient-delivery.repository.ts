@@ -36,7 +36,7 @@ function evaluate(row: DeliveryForRecheck, timezone: string): RecipientDispatchE
   if (event.vehicle.disabled) return { kind: "SUPPRESS", code: "VEHICLE_DISABLED" };
   if (event.type === "SPEEDING") {
     if (event.speedZone === null || event.confirmationSpeedKph === null || event.speedThresholdKph === null) return { kind: "SUPPRESS", code: "VEHICLE_DISABLED" };
-    return { kind: "ELIGIBLE", source: { chatId: connection.telegramChatId, vehicleName: event.vehicle.name, timezone, confirmedAt: event.confirmedAt, alertType: "SPEEDING", speedZone: event.speedZone, confirmationSpeedKph: event.confirmationSpeedKph, speedThresholdKph: event.speedThresholdKph } };
+    return { kind: "ELIGIBLE", source: { chatId: connection.telegramChatId, vehicleName: event.vehicle.name, timezone, confirmedAt: event.confirmedAt, alertType: "SPEEDING", eventId: event.id, vehicleId: event.vehicleId, canViewTrips: user.role === AuthRole.ADMIN || user.permissions.some((permission) => permission.key === "trips.view"), speedZone: event.speedZone, confirmationSpeedKph: event.confirmationSpeedKph, speedThresholdKph: event.speedThresholdKph } };
   }
   if (event.confirmationTraveledDistanceMeters === null || event.distanceThresholdMeters === null || event.durationThresholdMinutes === null) return { kind: "SUPPRESS", code: "VEHICLE_DISABLED" };
   return { kind: "ELIGIBLE", source: { chatId: connection.telegramChatId, vehicleName: event.vehicle.name, timezone, confirmedAt: event.confirmedAt, alertType: "INACTIVITY", confirmationTraveledDistanceMeters: event.confirmationTraveledDistanceMeters, distanceThresholdMeters: event.distanceThresholdMeters, durationThresholdMinutes: event.durationThresholdMinutes } };

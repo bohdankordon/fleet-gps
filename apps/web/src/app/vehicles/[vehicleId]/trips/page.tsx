@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { VehicleDetailShell } from "@/components/vehicle-detail-shell";
 import { VehicleTripsClient } from "@/components/vehicle-trips-client";
 import { VehicleTripsUnavailable } from "@/components/vehicle-trips-unavailable";
@@ -9,9 +9,17 @@ import { resolveInitialTripAnalysisRange } from "@/lib/trip-analysis/trip-analys
 import { loadVehicleTripsPageState } from "@/lib/trip-analysis/vehicle-trips-page-loader";
 import { fetchVehicleDetails } from "@/lib/vehicle-details/vehicle-details-client";
 import { fetchSpeedingEventInvestigation } from "@/lib/alert-events/alert-events-client";
+import { resolveAuthUser } from "@/lib/auth/auth-user";
+import { tripEventLoginRedirect, tripEventReturnTo } from "@/lib/auth/return-to";
 export const dynamic = "force-dynamic"; export const revalidate = 0;
 export default async function VehicleTripsPage({ params, searchParams }: Readonly<{ params: Promise<{ vehicleId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }>) {
   const [{ vehicleId }, query] = await Promise.all([params, searchParams]);
+  const returnTo = tripEventReturnTo(vehicleId, query);
+  if (returnTo !== null) {
+    const auth = await resolveAuthUser();
+    const loginRedirect = tripEventLoginRedirect(returnTo, auth.kind);
+    if (loginRedirect !== null) redirect(loginRedirect);
+  }
   const resolved = await loadVehicleTripsPageState(vehicleId, query, { fetchSettings: fetchRuntimeSettings, resolveRange: resolveInitialTripAnalysisRange, fetchDetails: (id) => fetchVehicleDetails(id), fetchAnalysis: (id, range) => fetchTripAnalysis(id, range), fetchEventInvestigation: (eventId) => fetchSpeedingEventInvestigation(eventId) });
   if (resolved.kind === "not-found") notFound();
   if (resolved.kind === "context-unavailable") { const { t } = await getServerI18n(); return <VehicleDetailShell vehicleId={vehicleId} vehicleName={resolved.vehicleName ?? t("trips.title")} activeTab="trips" generatedAt={resolved.generatedAt}><VehicleTripsUnavailable /></VehicleDetailShell>; }

@@ -64,7 +64,7 @@ Create a real .env.production (gitignored, host permissions 0600) from
 .env.production.example. It must define the application secrets plus the
 Stage 22 deployment fields:
 
-    SITE_ADDRESS          public site address, e.g. https://taxi.example.com
+    SITE_ADDRESS          canonical HTTPS origin for Caddy and API speeding links, e.g. https://taxi.example.com
     APP_IMAGE_TAG         exact immutable release identity (see below)
     DATABASE_URL          postgresql://<user>:<password>@postgres:5432/<db>?schema=public
     POSTGRES_USER         must match the DATABASE_URL user
