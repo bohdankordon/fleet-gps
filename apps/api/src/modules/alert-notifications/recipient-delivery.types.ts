@@ -7,7 +7,7 @@ export class RecipientDeliveryLostLeaseError extends Error {
 export type ClaimedRecipientDelivery = Readonly<{ id: string; notificationId: string; userId: string; connectionRevision: number; leaseToken: string; attemptCount: number; createdAt: Date }>;
 
 export type RecipientAlertMessageSource =
-  | Readonly<{ chatId: bigint; vehicleName: string; timezone: string; confirmedAt: Date; alertType: "SPEEDING"; speedZone: "CITY" | "OUTSIDE_CITY"; confirmationSpeedKph: number; speedThresholdKph: number }>
+  | Readonly<{ chatId: bigint; vehicleName: string; timezone: string; confirmedAt: Date; alertType: "SPEEDING"; eventId: string; vehicleId: string; canViewTrips: boolean; speedZone: "CITY" | "OUTSIDE_CITY"; confirmationSpeedKph: number; speedThresholdKph: number }>
   | Readonly<{ chatId: bigint; vehicleName: string; timezone: string; confirmedAt: Date; alertType: "INACTIVITY"; confirmationTraveledDistanceMeters: number; distanceThresholdMeters: number; durationThresholdMinutes: number }>;
 
 export type RecipientDispatchEligibility = Readonly<{ kind: "ELIGIBLE"; source: RecipientAlertMessageSource }> | Readonly<{ kind: "SUPPRESS"; code: RecipientDeliveryFailureCode }> | Readonly<{ kind: "LOST_LEASE" }>;

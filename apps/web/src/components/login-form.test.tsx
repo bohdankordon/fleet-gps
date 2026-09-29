@@ -134,8 +134,8 @@ test("stale responses cannot overwrite newer state and unmount aborts flight", (
   assert.match(formSource, /attemptLogin\(login, password, fetch, controller\.signal\)/);
 });
 
-test("success navigates through the unchanged landing contract", () => {
-  assert.match(formSource, /router\.replace\(landingFor\(result\.user\)\)/);
+test("success navigates through the validated login destination", () => {
+  assert.match(formSource, /router\.replace\(postAuthDestination\(result\.user, returnTo\)\)/);
   assert.match(formSource, /router\.refresh\(\)/);
   assert.match(formSource, /setSucceeded\(true\)/);
 });
@@ -147,10 +147,9 @@ test("landing keeps mustChangePassword first and no-access last", () => {
   assert.equal(landingFor({ id: "a", login: "admin", role: "ADMIN", permissions: [], mustChangePassword: false }), "/");
 });
 
-test("authenticated GET on login still redirects without redirect query support", () => {
+test("authenticated GET on login uses the validated destination", () => {
   assert.match(pageSource, /resolveAuthUser\(\)/);
-  assert.match(pageSource, /redirect\(landingFor\(resolution\.user\)\)/);
-  assert.doesNotMatch(pageSource, /returnTo|callback|redirect\?|searchParams/i);
+  assert.match(pageSource, /redirect\(postAuthDestination\(resolution\.user, returnTo\)\)/);
   assert.doesNotMatch(render(), /returnTo|callbackUrl/i);
 });
 

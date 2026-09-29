@@ -7,6 +7,7 @@ import { AlertNotificationMessageFormatter } from "./alert-notification-message.
 import { RecipientDeliveryRepository, validateRecipientDeliveryBatchLimit } from "./recipient-delivery.repository";
 import { RecipientDeliveryLostLeaseError } from "./recipient-delivery.types";
 import { recipientDeliveryExhausted, recipientDeliveryRetryDelayMs } from "./recipient-delivery-retry.policy";
+import { speedingTripLink } from "./speeding-trip-link";
 
 export type RecipientDeliveryDispatchResult = Readonly<{ claimed: number; sent: number; retryScheduled: number; suppressed: number; failed: number; lostLease: number }>;
 const empty = (): RecipientDeliveryDispatchResult => Object.freeze({ claimed: 0, sent: 0, retryScheduled: 0, suppressed: 0, failed: 0, lostLease: 0 });
@@ -28,7 +29,11 @@ export class RecipientDeliveryDispatcherService {
         const recheck = await this.repository.recheck(delivery.id, delivery.leaseToken);
         if (recheck.kind === "LOST_LEASE") { result = { ...result, lostLease: result.lostLease + 1 }; continue; }
         if (recheck.kind === "SUPPRESS") { await this.repository.markSuppressed(delivery.id, delivery.leaseToken, recheck.code); result = { ...result, suppressed: result.suppressed + 1 }; continue; }
-        try { await this.transport.sendAlertConfirmed(recheck.source.chatId, this.formatter.formatAlertConfirmed(recheck.source)); }
+        const source = recheck.source;
+        const action = source.alertType === "SPEEDING" && source.canViewTrips
+          ? { button: { text: "Відкрити в Fleet GPS", url: speedingTripLink(this.config.publicSiteOrigin!, source.vehicleId, source.eventId, source.confirmedAt, new Date()) } }
+          : undefined;
+        try { await this.transport.sendAlertConfirmed(source.chatId, this.formatter.formatAlertConfirmed(source), action); }
         catch (error) {
           if (!(error instanceof TelegramProductTransportError)) throw error;
           const exhausted = recipientDeliveryExhausted(delivery.attemptCount + 1, delivery.createdAt);

@@ -15,6 +15,18 @@ test("product transport sends only the explicit webhook chat ID and a minimal Uk
   assert.equal(calls[0]!.url.includes("TELEGRAM_CHAT_ID"), false);
 });
 
+test("speeding action sends exactly one Telegram URL button while plain alerts retain their payload", async () => {
+  const bodies: unknown[] = [];
+  const sender = transport((async (_input, init) => { bodies.push(JSON.parse(String(init?.body))); return Response.json({ ok: true, result: { message_id: 1 } }); }) as typeof fetch);
+  const button = { text: "Відкрити в Fleet GPS", url: "https://fleet.example.test/vehicles/00000000-0000-4000-8000-000000000001/trips?event=00000000-0000-4000-8000-000000000002" };
+  await sender.sendAlertConfirmed(chatId, "speeding", { button });
+  await sender.sendAlertConfirmed(chatId, "inactivity");
+  assert.deepEqual(bodies, [
+    { chat_id: "4000000001", text: "speeding", reply_markup: { inline_keyboard: [[button]] } },
+    { chat_id: "4000000001", text: "inactivity" },
+  ]);
+});
+
 test("product transport strictly rejects Telegram HTTP, payload, network, and timeout failures without leaking credentials", async () => {
   const failures: Array<[string, typeof fetch]> = [
     ["ok false", async () => Response.json({ ok: false, result: {} })],

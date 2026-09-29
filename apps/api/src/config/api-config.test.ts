@@ -24,6 +24,7 @@ test("API config applies safe defaults, freezes config, and preserves the input 
 
   assert.equal(config.host, "127.0.0.1");
   assert.equal(config.port, 3_000);
+  assert.equal(config.publicSiteOrigin, null);
   assert.equal(config.equGps.requestTimeoutMs, 15_000);
   assert.equal(config.equGps.runsRequestTimeoutMs, 45_000);
   assert.deepEqual(config.database, {
@@ -78,11 +79,21 @@ test("per-user Telegram recipient planning is independently opt-in and needs no 
 
 test("per-user recipient dispatch is independently opt-in, bounded, and requires a product token plus absolute cutover boundary when enabled", () => {
   assert.deepEqual(parseApiConfig(valid()).telegramPerUserDispatch, { enabled: false, dispatchIntervalMs: 60_000, batchSize: 20, dispatchNotBefore: null });
-  const enabled = parseApiConfig({ ...valid(), TELEGRAM_PER_USER_DISPATCH_ENABLED: "true", TELEGRAM_PRODUCT_BOT_TOKEN: "product-token", TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE: "2026-08-30T14:05:00Z" }).telegramPerUserDispatch!;
+  const enabled = parseApiConfig({ ...valid(), SITE_ADDRESS: "https://fleet.example.test", TELEGRAM_PER_USER_DISPATCH_ENABLED: "true", TELEGRAM_PRODUCT_BOT_TOKEN: "product-token", TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE: "2026-08-30T14:05:00Z" }).telegramPerUserDispatch!;
   assert.deepEqual({ ...enabled, dispatchNotBefore: enabled.dispatchNotBefore?.toISOString() }, { enabled: true, dispatchIntervalMs: 60_000, batchSize: 20, dispatchNotBefore: "2026-08-30T14:05:00.000Z" });
   for (const [field, value] of [["TELEGRAM_PER_USER_DISPATCH_ENABLED", "TRUE"], ["TELEGRAM_PER_USER_DISPATCH_INTERVAL_MS", "999"], ["TELEGRAM_PER_USER_DISPATCH_BATCH_SIZE", "101"]] as const) assert.throws(() => parseApiConfig({ ...valid(), [field]: value }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes(field));
   for (const value of ["tomorrow", "2026-08-30", "2026-08-30T14:05:00", "2026-08-30T14:05:00+0000", "2026-02-30T14:05:00Z", "2026-08-30T24:05:00Z", "2026-08-30T14:05:00+14:01"]) assert.throws(() => parseApiConfig({ ...valid(), TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE: value }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes("TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE"));
   assert.throws(() => parseApiConfig({ ...valid(), TELEGRAM_PER_USER_DISPATCH_ENABLED: "true" }), (error: unknown) => error instanceof ApiConfigurationError && error.issues.includes("TELEGRAM_PRODUCT_BOT_TOKEN") && error.issues.includes("TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE"));
+});
+
+test("SITE_ADDRESS is a normalized HTTPS origin and required for per-user dispatch", () => {
+  const dispatch = { ...productionValid(), TELEGRAM_PER_USER_DISPATCH_ENABLED: "true", TELEGRAM_PRODUCT_BOT_TOKEN: "synthetic-product-token", TELEGRAM_PER_USER_DISPATCH_NOT_BEFORE: "2026-08-30T14:05:00Z" };
+  assert.equal(parseApiConfig({ ...dispatch, SITE_ADDRESS: "https://fleet.example.test/" }).publicSiteOrigin, "https://fleet.example.test");
+  assert.equal(parseApiConfig({ ...valid() }).publicSiteOrigin, null);
+  for (const address of [undefined, "http://fleet.example.test", "https://user:password@fleet.example.test", "https://fleet.example.test/?q=1", "https://fleet.example.test/#fragment", "https://fleet.example.test/other", "https://fleet.example.test/./"]) {
+    try { parseApiConfig({ ...dispatch, SITE_ADDRESS: address }); assert.fail("expected SITE_ADDRESS rejection"); }
+    catch (error) { assert.ok(error instanceof ApiConfigurationError); assert.ok(error.issues.includes("SITE_ADDRESS")); assert.equal(`${error.message} ${JSON.stringify(error)}`.includes("password"), false); }
+  }
 });
 
 test("legacy and per-user dispatch are mutually exclusive while linking and shadow planning remain valid", () => {

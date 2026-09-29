@@ -2,11 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Form } from "antd";
-import { landingFor } from "@/lib/auth/auth-contract";
+import { postAuthDestination } from "@/lib/auth/return-to";
 import { attemptLogin, type LoginFormError } from "@/lib/auth/login-form-core";
 import { LoginFormView, type LoginFormValues } from "./login-form-view";
 
-export function LoginForm() {
+export function LoginForm({ returnTo }: Readonly<{ returnTo?: string | null }> = {}) {
   const router = useRouter();
   const [form] = Form.useForm<LoginFormValues>();
   const [error, setError] = useState<LoginFormError | null>(null);
@@ -64,7 +64,7 @@ export function LoginForm() {
       if (result.kind === "success") {
         // Keep the form locked until navigation takes over.
         setSucceeded(true);
-        router.replace(landingFor(result.user));
+        router.replace(postAuthDestination(result.user, returnTo));
         router.refresh();
         return;
       }

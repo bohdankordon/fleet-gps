@@ -87,6 +87,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      SITE_ADDRESS: ${SITE_ADDRESS:?SITE_ADDRESS is required (e.g. https://taxi.example.com)}
       # Listen on all container interfaces. The api container publishes no host
       # port and sits on internal-only networks, so this is not host exposure.
       HOST: 0.0.0.0

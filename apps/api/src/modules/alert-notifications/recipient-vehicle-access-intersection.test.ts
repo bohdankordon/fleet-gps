@@ -66,6 +66,19 @@ test("B2 existing safety checks are preserved", async () => {
   assert.deepEqual(recipientDeliveryRepositoryInternals.evaluate(row({ mustChangePassword: true }) as never, "UTC"), { kind: "SUPPRESS", code: "ACCOUNT_SECURITY_RESTRICTED" });
   assert.deepEqual(recipientDeliveryRepositoryInternals.evaluate(row({ permissions: [] }) as never, "UTC"), { kind: "SUPPRESS", code: "PERMISSION_REVOKED" });
 });
+
+test("dispatch recheck exposes only a Trips capability for SPEEDING, without suppressing other recipients", () => {
+  const event = { id: "00000000-0000-4000-8000-000000000008", vehicleId, type: "SPEEDING", speedZone: "CITY", confirmationSpeedKph: 70, speedThresholdKph: 60, vehicle: { disabled: false, name: "Car A" }, confirmedAt: new Date("2026-09-29T12:00:00Z") };
+  const user = { disabled: false, mustChangePassword: false, role: AuthRole.USER, permissions: [{ key: "events.view" }, { key: "vehicles.view" }], telegramConnection: { status: TelegramConnectionStatus.CONNECTED, telegramUserId: 1n, telegramChatId: 2n, connectionRevision: 1 }, notificationPreferences: { enabled: true, speedingEnabled: true, inactivityEnabled: true, vehicleScope: NotificationVehicleScope.ALL, vehicles: [] } };
+  const evaluate = (role: AuthRole, permissions = user.permissions) => recipientDeliveryRepositoryInternals.evaluate({ user: { ...user, role, permissions }, connectionRevision: 1, notification: { alertEvent: event } } as never, "UTC");
+  const regular = evaluate(AuthRole.USER);
+  const allowed = evaluate(AuthRole.USER, [...user.permissions, { key: "trips.view" }]);
+  const admin = evaluate(AuthRole.ADMIN);
+  for (const result of [regular, allowed, admin]) assert.equal(result.kind, "ELIGIBLE");
+  if (regular.kind === "ELIGIBLE" && regular.source.alertType === "SPEEDING") assert.equal(regular.source.canViewTrips, false);
+  if (allowed.kind === "ELIGIBLE" && allowed.source.alertType === "SPEEDING") assert.equal(allowed.source.canViewTrips, true);
+  if (admin.kind === "ELIGIBLE" && admin.source.alertType === "SPEEDING") assert.equal(admin.source.canViewTrips, true);
+});
 test("B2 dispatcher suppresses revoked access without calling Telegram transport", async () => {
   const { RecipientDeliveryDispatcherService } = await import("./recipient-delivery-dispatcher.service");
   const { AlertNotificationMessageFormatter } = await import("./alert-notification-message.formatter");

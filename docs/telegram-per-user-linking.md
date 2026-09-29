@@ -121,6 +121,16 @@ user connection BROKEN. Delivery is at-least-once: a process crash after
 Telegram accepts a message but before SENT is persisted can produce a later
 duplicate after lease recovery.
 
+For SPEEDING, the dispatch recheck also computes whether the recipient is ADMIN
+or currently has `trips.view`. Eligible recipients with this capability receive
+one “Відкрити в Fleet GPS” inline URL button to the existing Trips event-focus
+route. Recipients without it still receive the same alert text without a button.
+INACTIVITY remains text only. The API builds the absolute HTTPS URL from the
+server-only `SITE_ADDRESS` origin; the URL carries only vehicle/event UUIDs and
+the bounded investigation range. Web/API authorization still applies on open.
+If the browser session has expired, the validated Trips event path survives
+login through `returnTo`, after mandatory password change takes priority.
+
 This dispatcher is additive. The legacy global outbox and its retry behavior
 remain unchanged; the 2D configuration and cutover safeguards prevent the two
 systems from being intentionally operated at once.
@@ -135,6 +145,10 @@ shared `TELEGRAM_PRODUCT_WEBHOOK_SECRET` at server runtime for the fixed
 webhook ingress. It is never a `NEXT_PUBLIC_*` variable, and the product bot
 token is never passed to Web. The API and Web webhook values must be the same
 logical secret.
+
+Compose also passes the existing canonical `SITE_ADDRESS` to the API runtime.
+Per-user dispatch requires it to be an HTTPS origin without credentials, query,
+fragment, or application path. It is not a `NEXT_PUBLIC_*` variable.
 
 The deploy-dark configuration is legacy delivery on with product linking,
 per-user planning, and per-user dispatch all explicitly off. Product bot

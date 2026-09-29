@@ -4,6 +4,7 @@ import { classifyMeResponse, type AuthResolution } from "./lib/auth/auth-resolut
 import { escapeHtml, unavailableCopy } from "./lib/auth/auth-unavailable-copy";
 import { LOCALE_COOKIE_NAME, resolveLocalePreference, type AppLocale } from "./i18n/locales";
 import { parseWebConfig } from "./lib/web-config";
+import { parseReturnTo } from "./lib/auth/return-to";
 
 const ADMIN_ONLY_ROUTE_PREFIXES = [
   "/admin/users",
@@ -99,7 +100,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (!required && !adminOnly && !accountOnly) return NextResponse.next();
   const resolution = await resolveRequestAuth(request);
   const api = path.startsWith("/api/");
-  if (resolution.kind === "unauthenticated") return api ? NextResponse.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 }) : NextResponse.redirect(new URL("/login", request.url));
+  if (resolution.kind === "unauthenticated") {
+    // Let the Trips page preserve a validated event investigation through login.
+    if (/^\/vehicles\/[^/]+\/trips$/.test(path) && parseReturnTo(path + request.nextUrl.search) !== null) return NextResponse.next();
+    return api ? NextResponse.json({ statusCode: 401, error: "Unauthorized" }, { status: 401 }) : NextResponse.redirect(new URL("/login", request.url));
+  }
   if (resolution.kind === "unavailable") {
     if (api) return jsonServiceUnavailable();
     return pageServiceUnavailable(request, resolveLocalePreference(request.cookies.get(LOCALE_COOKIE_NAME)?.value, request.headers.get("accept-language")).locale);

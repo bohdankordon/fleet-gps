@@ -287,6 +287,19 @@ test("forced password onboarding redirects every protected product page to chang
   assertAllowed(await proxyAs("/account/change-password", { ...admin, mustChangePassword: true }));
 });
 
+test("only a valid unauthenticated Trips event route reaches the page for return-to", async () => {
+  const vehicle = "00000000-0000-4000-8000-000000000001";
+  const event = "00000000-0000-4000-8000-000000000002";
+  const deepLink = `/vehicles/${vehicle}/trips?from=2026-09-29T11%3A30%3A00.000Z&to=2026-09-29T12%3A15%3A00.000Z&event=${event}`;
+  assertAllowed(await proxy(request(deepLink)));
+  assertRedirect(await proxy(request(`/vehicles/${vehicle}/trips`)), "/login");
+  assertRedirect(await proxy(request(`${deepLink}&token=secret`)), "/login");
+  assertRedirect(await proxyAs(deepLink, { ...user, permissions: [] }), "/forbidden");
+  assertRedirect(await proxyAs(deepLink, { ...user, mustChangePassword: true }), "/account/change-password");
+  const down = await proxyWithMe(deepLink, async () => { throw new Error("down"); });
+  assert.equal(down.response.status, 503);
+});
+
 test("forced-password precedence beats ADMIN and permission routing", async () => {
   const fleetUser: AuthUser = { ...user, permissions: ["fleet.view"], mustChangePassword: true };
   assertRedirect(await proxyAs("/", fleetUser), "/account/change-password");

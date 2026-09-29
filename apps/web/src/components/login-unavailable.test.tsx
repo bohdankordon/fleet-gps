@@ -33,13 +33,13 @@ test("unavailable card covers UK and RU without credential fields", () => {
 
 test("login page keeps the accepted card and routes unavailable away from the form", () => {
   assert.match(pageSource, /resolveAuthUser\(\)/);
-  assert.match(pageSource, /landingFor\(resolution\.user\)/);
+  assert.match(pageSource, /postAuthDestination\(resolution\.user, returnTo\)/);
   assert.match(pageSource, /LoginUnavailable/);
   assert.doesNotMatch(pageSource, /getAuthUser/);
   assert.equal((pageSource.match(/<h1/g) ?? []).length, 1);
   assert.match(pageSource, /login-page/);
   assert.match(pageSource, /login-card/);
-  assert.doesNotMatch(pageSource, /returnTo|callback|redirect\?/i);
+  assert.match(pageSource, /parseReturnTo\(query\.returnTo\)/);
 });
 
 test("unavailable retry target stays a same-origin login reload", () => {

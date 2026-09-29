@@ -2,7 +2,8 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { ApiConfig } from "../../config/api-config";
 import { API_CONFIG } from "../../config/api-config.tokens";
 export type TelegramProductFailureCode = "NETWORK" | "TIMEOUT" | "HTTP_429" | "HTTP_4XX" | "HTTP_5XX" | "INVALID_RESPONSE";
-export interface TelegramProductBotTransport { sendLinkSuccess(chatId: bigint): Promise<void>; sendLinkFailure(chatId: bigint): Promise<void>; sendHelp(chatId: bigint): Promise<void>; sendAlertConfirmed(chatId: bigint, text: string): Promise<void>; }
+export type TelegramAlertAction = Readonly<{ button: Readonly<{ text: string; url: string }> }>;
+export interface TelegramProductBotTransport { sendLinkSuccess(chatId: bigint): Promise<void>; sendLinkFailure(chatId: bigint): Promise<void>; sendHelp(chatId: bigint): Promise<void>; sendAlertConfirmed(chatId: bigint, text: string, action?: TelegramAlertAction): Promise<void>; }
 export const TELEGRAM_PRODUCT_BOT_TRANSPORT = Symbol("TELEGRAM_PRODUCT_BOT_TRANSPORT");
 export const TELEGRAM_PRODUCT_BOT_TIMEOUT_MS = 5_000;
 export class TelegramProductTransportError extends Error {
@@ -13,12 +14,12 @@ export class TelegramProductBotHttpTransport implements TelegramProductBotTransp
   private fetcher: typeof fetch = fetch;
   private timeoutMs = TELEGRAM_PRODUCT_BOT_TIMEOUT_MS;
   public constructor(@Inject(API_CONFIG) private readonly config: ApiConfig) {}
-  private async send(chatId: bigint, text: string, requireLinkingEnabled: boolean): Promise<void> {
+  private async send(chatId: bigint, text: string, requireLinkingEnabled: boolean, action?: TelegramAlertAction): Promise<void> {
     const token = this.config.telegramProductLinking?.botToken;
     if (!token || (requireLinkingEnabled && !this.config.telegramProductLinking?.enabled)) return;
     const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
-      const response = await this.fetcher(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ chat_id: chatId.toString(), text }), signal: controller.signal });
+      const response = await this.fetcher(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ chat_id: chatId.toString(), text, ...(action ? { reply_markup: { inline_keyboard: [[action.button]] } } : {}) }), signal: controller.signal });
       const payload: unknown = await response.json().catch(() => null);
       if (response.ok && typeof payload === "object" && payload !== null && !Array.isArray(payload) && (payload as Record<string, unknown>).ok === true && typeof (payload as Record<string, unknown>).result === "object" && (payload as Record<string, unknown>).result !== null) return;
       const description = typeof payload === "object" && payload !== null && !Array.isArray(payload) ? (payload as Record<string, unknown>).description : undefined;
@@ -36,5 +37,5 @@ export class TelegramProductBotHttpTransport implements TelegramProductBotTransp
   public sendLinkSuccess(chatId: bigint): Promise<void> { return this.send(chatId, "Telegram підключено до Fleet GPS.", true); }
   public sendLinkFailure(chatId: bigint): Promise<void> { return this.send(chatId, "Посилання недійсне. Створіть нове в Fleet GPS.", true); }
   public sendHelp(chatId: bigint): Promise<void> { return this.send(chatId, "Відкрийте Fleet GPS, щоб підключити Telegram.", true); }
-  public sendAlertConfirmed(chatId: bigint, text: string): Promise<void> { return this.send(chatId, text, false); }
+  public sendAlertConfirmed(chatId: bigint, text: string, action?: TelegramAlertAction): Promise<void> { return this.send(chatId, text, false, action); }
 }
