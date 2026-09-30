@@ -4,6 +4,46 @@ All notable changes to Fleet GPS are documented here. Release versions are
 immutable Git tags; package versions in `package.json` files are internal
 workspace versions, not the product release version.
 
+## [1.3.4] - 2026-09-30
+
+Post-login navigation reliability patch over the v1.3.x production baseline.
+
+### Fixed
+
+- Successful login now performs one full-document navigation to the validated
+  post-auth destination instead of combining Next App Router `replace()` and
+  `refresh()`.
+- Fixed the reproduced Firefox post-login failure where the authenticated
+  transition could hit Location/History API rate limiting, throw
+  `Uncaught DOMException: The operation is insecure`, and reach Next's global
+  `This page couldn't load` fallback.
+- The fresh document request rebuilds the server-authenticated RootLayout using
+  the already-installed session cookie.
+
+### Preserved behavior
+
+- Authentication and session creation semantics are unchanged.
+- Role/permission landing behavior remains unchanged.
+- Forced password-change precedence remains unchanged.
+- Validated SPEEDING Trips `returnTo` remains supported.
+- Unsafe/external return destinations remain rejected.
+
+### Reliability
+
+- Controlled production rollout passed.
+- Repeated real Firefox logout/login cycles passed without recurrence.
+- Existing legitimate Telegram SPEEDING deep-link login continuation was
+  re-tested successfully and preserved the correct event-focused Trips
+  investigation context.
+
+### Upgrade notes
+
+- No database schema or Prisma migration changes are required.
+- No production configuration or feature-flag changes are required.
+- Workspace package versions remain `0.1.0`.
+- GitHub Release publication does not deploy production; the exact target had
+  already been deployed and accepted before publication.
+
 ## [1.3.3] - 2026-09-30
 
 SPEEDING Telegram investigation deep links over the v1.3.x production baseline.

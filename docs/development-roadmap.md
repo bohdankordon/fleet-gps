@@ -15,16 +15,14 @@ This document is the primary living record of the project's development directio
 ## Current state
 
 - Canonical feature-development branch: `main`.
-- Current published release: `v1.3.3`, an immutable, production- and
-  human-accepted patch over the `v1.3.x` baseline covering direct,
-  authorization-aware SPEEDING Telegram navigation to the existing Trips
-  investigation flow, including safe login continuation
-  (see `CHANGELOG.md`). Later documentation-only commits are intentionally
-  outside this immutable release.
+- Current published release: `v1.3.4`, an immutable, production- and
+  human-accepted post-login navigation reliability patch over the `v1.3.x`
+  baseline (see `CHANGELOG.md`). Later documentation-only commits are
+  intentionally outside this immutable release.
 - Immutable baseline release: `v1.0.0`.
 - `v1.0.0` annotated tag object: `82fdee34c7eaff7a07fabd47e38fd6a32bbcc6c8`.
 - `v1.0.0` peeled commit: `9bbd9b98c148b2ffed0078078d175d778c67f7ba`.
-- `v1.3.3`, `v1.3.2`, `v1.3.1`, `v1.3.0`, `v1.2.0`, `v1.1.0`, `v1.0.0`, and `v1.0.0-rc.4` are immutable release tags. Normal feature development continues from `main`.
+- `v1.3.4`, `v1.3.3`, `v1.3.2`, `v1.3.1`, `v1.3.0`, `v1.2.0`, `v1.1.0`, `v1.0.0`, and `v1.0.0-rc.4` are immutable release tags. Normal feature development continues from `main`.
 
 ## DONE — Post-release scheduled history soak
 
@@ -94,6 +92,18 @@ SPEEDING delivery, and INACTIVITY remains text-only.
 The button reuses the existing event-focused Trips investigation flow, with
 validated same-origin login continuation preserving the context. Controlled
 production rollout passed, followed by real human production acceptance.
+
+## DONE / HUMAN ACCEPTED — Post-login navigation reliability
+
+Authentication itself succeeded; the visible Firefox failure occurred during
+the post-login client transition. Successful login now uses one fresh document
+navigation to rebuild the authenticated application state while preserving the
+validated destination.
+
+Controlled production technical rollout passed. Repeated real Firefox
+logout/login cycles passed without recurrence, and the existing legitimate
+Telegram SPEEDING `returnTo` flow was re-tested successfully, preserving the
+correct event-focused Trips investigation context.
 
 ## DONE — Final configurability consistency remediation
 
@@ -193,7 +203,7 @@ Phase 0 repaired six source-backed correctness and truthful-state areas: audit f
 
 ## LATER — Future release readiness
 
-The current published release is `v1.3.3`. For a future release:
+The current published release is `v1.3.4`. For a future release:
 
 - Finish the intended feature scope.
 - Complete regression checks, typechecking, linting, tests, and builds.
