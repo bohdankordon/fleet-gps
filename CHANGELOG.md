@@ -4,6 +4,33 @@ All notable changes to Fleet GPS are documented here. Release versions are
 immutable Git tags; package versions in `package.json` files are internal
 workspace versions, not the product release version.
 
+## [1.3.3] - 2026-09-30
+
+SPEEDING Telegram investigation deep links over the v1.3.x production baseline.
+
+### Added
+
+- Eligible per-user SPEEDING notifications can include one `Відкрити в Fleet GPS` button opening the existing event-focused Vehicle Trips investigation for the relevant SPEEDING event.
+- A narrowly validated same-origin Trips event `returnTo` preserves investigation context through login.
+
+### Authorization and safety
+
+- The button requires current `ADMIN` or `trips.view` capability at dispatch; existing vehicle-access authorization remains authoritative.
+- Recipients eligible for SPEEDING delivery without Trips access still receive the normal text alert without the button. INACTIVITY remains text-only.
+- Forced password change retains priority over return navigation. Deep links contain only public route identifiers and bounded timestamps, with no credentials, session data, Telegram data, or recipient identifiers.
+
+### Reliability
+
+- The feature reuses the existing Trips event-focus flow rather than adding a second trip resolver.
+- Controlled production rollout and real human production acceptance both completed successfully before release publication.
+
+### Upgrade notes
+
+- No database schema, Prisma migration, or production feature-flag changes are required.
+- The existing canonical `SITE_ADDRESS` is now supplied to the API runtime for public SPEEDING deep links.
+- Workspace package versions remain `0.1.0`.
+- GitHub Release publication does not deploy the application to production.
+
 ## [1.3.2] - 2026-09-24
 
 Reliability patch for GPS history replay recovery and backup monitoring correctness.

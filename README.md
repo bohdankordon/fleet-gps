@@ -76,6 +76,9 @@ does not silently call the provider or start a synchronization job.
 
 - Per-user Telegram linking, notification preferences, event-type controls,
   `ALL` or `SELECTED` vehicle scope, recipient planning, and delivery.
+- Authorized SPEEDING notifications can include a `Відкрити в Fleet GPS`
+  button for direct trip investigation. Recipients without Trips capability
+  still receive the normal text alert; INACTIVITY remains text-only.
 - Account overview, security, and notification-preference workspaces with a
   no-access experience for accounts without product permissions.
 
@@ -293,14 +296,13 @@ configuration. Use the authoritative runbooks:
 ## Project status
 
 The project has immutable `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`,
-`v1.3.1`, and `v1.3.2` releases. The current published release, `v1.3.2`,
-improves GPS history replay recovery and fairness, shows truthful
-oldest-incomplete replay progress, and corrects backup monitoring verification
-status. The `v1.3.x` production baseline includes continuous lossless history
-reconciliation, daily 7-day and rolling 90-day replay, automatic bounded
-retention, per-user Telegram delivery, vehicle groups with scoped access, and
-speeding investigation improvements. See [CHANGELOG.md](CHANGELOG.md) for
-release notes.
+`v1.3.1`, `v1.3.2`, and `v1.3.3` releases. The current published release,
+`v1.3.3`, adds authorization-aware SPEEDING Telegram investigation links with
+safe login continuation. The `v1.3.x` production baseline includes continuous
+lossless history reconciliation, daily 7-day and rolling 90-day replay,
+automatic bounded retention, per-user Telegram delivery, vehicle groups with
+scoped access, and speeding investigation improvements. See
+[CHANGELOG.md](CHANGELOG.md) for release notes.
 
 The temporal-profile/ECharts movement-history experiment was retired and is
 not part of the current product baseline. See the
@@ -309,10 +311,12 @@ of treating proposed work as implemented functionality.
 
 ## Release / version
 
-The current published release is `v1.3.2`, a reliability patch over the
-`v1.3.x` production baseline. Stable releases are immutable Git tags; release
-candidates use the corresponding `-rc.*` suffix. See [CHANGELOG.md](CHANGELOG.md)
-for release history. Package versions in `package.json` files (`0.1.0`) are
+The current published release is `v1.3.3`, the production- and human-accepted
+SPEEDING Telegram investigation deep-link patch over the `v1.3.x` production
+baseline, with authorization-aware navigation and safe login continuation.
+Stable releases are immutable Git tags; release candidates use the corresponding
+`-rc.*` suffix. See [CHANGELOG.md](CHANGELOG.md) for release history.
+Package versions in `package.json` files (`0.1.0`) are
 internal workspace versions, not the product release version. GitHub Release
 publication never deploys the application to production.
 
