@@ -1,13 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Form } from "antd";
 import { postAuthDestination } from "@/lib/auth/return-to";
 import { attemptLogin, type LoginFormError } from "@/lib/auth/login-form-core";
 import { LoginFormView, type LoginFormValues } from "./login-form-view";
 
 export function LoginForm({ returnTo }: Readonly<{ returnTo?: string | null }> = {}) {
-  const router = useRouter();
   const [form] = Form.useForm<LoginFormValues>();
   const [error, setError] = useState<LoginFormError | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,10 +60,10 @@ export function LoginForm({ returnTo }: Readonly<{ returnTo?: string | null }> =
       const result = await attemptLogin(login, password, fetch, controller.signal);
       if (generation.current !== run) return;
       if (result.kind === "success") {
-        // Keep the form locked until navigation takes over.
+        const destination = postAuthDestination(result.user, returnTo);
+        // Keep the form locked while a fresh document rebuilds the authenticated root layout.
         setSucceeded(true);
-        router.replace(postAuthDestination(result.user, returnTo));
-        router.refresh();
+        window.location.replace(destination);
         return;
       }
       if (result.kind === "invalid-credentials" || result.kind === "rate-limited") {

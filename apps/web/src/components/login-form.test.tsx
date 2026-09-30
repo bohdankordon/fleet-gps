@@ -11,7 +11,7 @@ import { createTranslator } from "../i18n/core";
 import { MESSAGE_CATALOG } from "../i18n/messages";
 import { I18nProvider } from "../i18n/client";
 
-function render(error: LoginFormError | null = null, busy = false): string {
+function render(error: LoginFormError | null = null, busy = false, locked = busy): string {
   function Harness() {
     const [form] = Form.useForm<LoginFormValues>();
     const summaryRef = useRef<HTMLDivElement | null>(null);
@@ -19,7 +19,7 @@ function render(error: LoginFormError | null = null, busy = false): string {
       <LoginFormView
         form={form}
         busy={busy}
-        locked={busy}
+        locked={locked}
         error={error}
         summaryRef={summaryRef}
         onFinish={() => undefined}
@@ -134,10 +134,25 @@ test("stale responses cannot overwrite newer state and unmount aborts flight", (
   assert.match(formSource, /attemptLogin\(login, password, fetch, controller\.signal\)/);
 });
 
-test("success navigates through the validated login destination", () => {
-  assert.match(formSource, /router\.replace\(postAuthDestination\(result\.user, returnTo\)\)/);
-  assert.match(formSource, /router\.refresh\(\)/);
-  assert.match(formSource, /setSucceeded\(true\)/);
+test("success locks the form before one document replacement to the validated destination", () => {
+  const success = formSource.match(/if \(result\.kind === "success"\) \{([\s\S]*?)\n      \}/)?.[1];
+  assert.ok(success);
+  assert.match(success, /const destination = postAuthDestination\(result\.user, returnTo\);[\s\S]*setSucceeded\(true\);\s*window\.location\.replace\(destination\);\s*return;/);
+  assert.equal((formSource.match(/window\.location\.replace\(/g) ?? []).length, 1);
+});
+
+test("successful document navigation needs no App Router or second navigation", () => {
+  assert.doesNotMatch(formSource, /useRouter|next\/navigation|router\.(?:replace|refresh)\(/);
+  assert.equal((formSource.match(/window\.location\./g) ?? []).length, 1);
+  assert.doesNotMatch(formSource, /window\.history|window\.location\.assign/);
+});
+
+test("success keeps controls locked after the pending request finishes", () => {
+  assert.match(formSource, /const locked = busy \|\| succeeded/);
+  const html = render(null, false, true);
+  assert.match(html, /disabled/);
+  assert.ok(html.includes(createTranslator("ru")("auth.login.submit")));
+  assert.match(viewSource, /disabled=\{locked\}/);
 });
 
 test("landing keeps mustChangePassword first and no-access last", () => {
