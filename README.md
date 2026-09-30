@@ -63,6 +63,8 @@ does not silently call the provider or start a synchronization job.
 
 - Local username/password authentication with opaque sessions, forced initial
   password change, `ADMIN` and `USER` roles, and explicit USER permissions.
+- Successful authentication transitions through a fresh document request so
+  server-authenticated application state is rebuilt from the installed session.
 - One-group-per-vehicle organization with curated display colors, plus Product
   Vehicle Access that independently limits a USER to all vehicles or the union
   of selected groups and direct vehicle grants. ADMIN always has the full fleet.
@@ -296,12 +298,13 @@ configuration. Use the authoritative runbooks:
 ## Project status
 
 The project has immutable `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.3.0`,
-`v1.3.1`, `v1.3.2`, and `v1.3.3` releases. The current published release,
-`v1.3.3`, adds authorization-aware SPEEDING Telegram investigation links with
-safe login continuation. The `v1.3.x` production baseline includes continuous
+`v1.3.1`, `v1.3.2`, `v1.3.3`, and `v1.3.4` releases. The current published
+release, `v1.3.4`, is the production- and human-accepted post-login navigation
+reliability patch. The `v1.3.x` production baseline includes continuous
 lossless history reconciliation, daily 7-day and rolling 90-day replay,
 automatic bounded retention, per-user Telegram delivery, vehicle groups with
-scoped access, and speeding investigation improvements. See
+scoped access, speeding investigation improvements, and authorization-aware
+SPEEDING Telegram investigation links with safe login continuation. See
 [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 The temporal-profile/ECharts movement-history experiment was retired and is
@@ -311,9 +314,10 @@ of treating proposed work as implemented functionality.
 
 ## Release / version
 
-The current published release is `v1.3.3`, the production- and human-accepted
-SPEEDING Telegram investigation deep-link patch over the `v1.3.x` production
-baseline, with authorization-aware navigation and safe login continuation.
+The current published release is `v1.3.4`, the production- and human-accepted
+post-login navigation reliability patch over the `v1.3.x` production baseline.
+Authentication and session semantics are unchanged; validated SPEEDING Trips
+login continuation remains supported.
 Stable releases are immutable Git tags; release candidates use the corresponding
 `-rc.*` suffix. See [CHANGELOG.md](CHANGELOG.md) for release history.
 Package versions in `package.json` files (`0.1.0`) are
