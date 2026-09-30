@@ -15,15 +15,16 @@ This document is the primary living record of the project's development directio
 ## Current state
 
 - Canonical feature-development branch: `main`.
-- Current published release: `v1.3.2`, an immutable, production-accepted
-  reliability patch over the `v1.3.x` baseline covering replay debt recovery
-  and fairness, truthful replay status, and backup verification semantics
+- Current published release: `v1.3.3`, an immutable, production- and
+  human-accepted patch over the `v1.3.x` baseline covering direct,
+  authorization-aware SPEEDING Telegram navigation to the existing Trips
+  investigation flow, including safe login continuation
   (see `CHANGELOG.md`). Later documentation-only commits are intentionally
   outside this immutable release.
 - Immutable baseline release: `v1.0.0`.
 - `v1.0.0` annotated tag object: `82fdee34c7eaff7a07fabd47e38fd6a32bbcc6c8`.
 - `v1.0.0` peeled commit: `9bbd9b98c148b2ffed0078078d175d778c67f7ba`.
-- `v1.3.2`, `v1.3.1`, `v1.3.0`, `v1.2.0`, `v1.1.0`, `v1.0.0`, and `v1.0.0-rc.4` are immutable release tags. Normal feature development continues from `main`.
+- `v1.3.3`, `v1.3.2`, `v1.3.1`, `v1.3.0`, `v1.2.0`, `v1.1.0`, `v1.0.0`, and `v1.0.0-rc.4` are immutable release tags. Normal feature development continues from `main`.
 
 ## DONE — Post-release scheduled history soak
 
@@ -82,6 +83,17 @@ Post-cutover deliveries were accepted as SENT on their first attempts, with
 no duplicates, failed/stale delivery, or post-cutover legacy outbox creation.
 Detailed operational evidence remains in the focused technical and Git history
 rather than this roadmap.
+
+## DONE / HUMAN ACCEPTED — SPEEDING Telegram investigation deep link
+
+Eligible SPEEDING recipients with `ADMIN` or `trips.view` capability at dispatch
+receive the Fleet GPS investigation button. Existing vehicle authorization
+remains authoritative; recipients without Trips capability retain text-only
+SPEEDING delivery, and INACTIVITY remains text-only.
+
+The button reuses the existing event-focused Trips investigation flow, with
+validated same-origin login continuation preserving the context. Controlled
+production rollout passed, followed by real human production acceptance.
 
 ## DONE — Final configurability consistency remediation
 
@@ -181,7 +193,7 @@ Phase 0 repaired six source-backed correctness and truthful-state areas: audit f
 
 ## LATER — Future release readiness
 
-The current published release is `v1.3.2`. For a future release:
+The current published release is `v1.3.3`. For a future release:
 
 - Finish the intended feature scope.
 - Complete regression checks, typechecking, linting, tests, and builds.
