@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { EquGpsHttpError, EquGpsNetworkError, EquGpsRateLimitError, EquGpsTimeoutError } from "@taxi-gps/equgps";
 import { PositionBackfillStatus, PositionHistoryReplayKind, PositionHistoryReplayRunStatus, type PositionHistoryReplayCheckpoint, type PositionHistoryReplayRun } from "../../generated/prisma/client";
-import type { PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
+import { PositionHistoryHistoricalWindowOversizedError, type PositionHistoryHistoricalWindowService } from "../position-history-historical-window";
 import type { PositionHistoryHorizonExecutionLockService } from "../position-history-horizon-execution/position-history-horizon-execution-lock.service";
 import { PositionHistoryIngestionTelemetryService } from "../position-history-horizon-execution/position-history-ingestion-telemetry.service";
 import type { PositionHistoryReplayRepository, PositionHistoryReplayRunStateService } from "../position-history-replay-generation";
+import { positionHistoryReplayTimeoutRecoveryKey } from "./position-history-replay-planning";
 import { PositionHistoryReplayWorkerService } from "./position-history-replay-worker.service";
 
 const anchor = new Date("2026-09-14T02:00:00Z");
@@ -176,11 +177,11 @@ test("provider-wide failure in a newer generation cannot be bypassed by candidat
   assert.equal(item.checkpoints[0]!.nextFrom.getTime(), from.getTime());
 });
 
-test("exhausted timeout reduces future checkpoint quanta from six to three to one hour", async () => {
+test("exhausted timeouts reduce future quanta 6h to 3h to 1h to 30m to 15m", async () => {
   const item = recoveryHarness();
   item.checkpoints[1]!.status = PositionBackfillStatus.COMPLETED;
   item.failures.set(77, new EquGpsTimeoutError());
-  for (const delay of [60_000, 120_000, 240_000]) {
+  for (const delay of [60_000, 120_000, 240_000, 480_000]) {
     const requestsBefore = item.requests.length;
     assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
     assert.equal(item.requests.length, requestsBefore + 1, "one exhausted timeout quantum does not chain window tiers");
@@ -189,8 +190,43 @@ test("exhausted timeout reduces future checkpoint quanta from six to three to on
   }
   item.failures.delete(77);
   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "COMPLETED_WINDOW");
-  assert.deepEqual(item.requestWindows.map((window) => (window.to.getTime() - window.from.getTime()) / 3_600_000), [6, 3, 1, 1]);
-  assert.equal(item.checkpoints[0]!.nextFrom.getTime(), from.getTime() + 3_600_000, "success persists only the one-hour span actually fetched");
+  assert.deepEqual(item.requestWindows.map((window) => (window.to.getTime() - window.from.getTime()) / 60_000), [360, 180, 60, 30, 15]);
+  assert.equal(item.checkpoints[0]!.nextFrom.getTime(), from.getTime() + 15 * 60_000, "success persists only the fifteen-minute span actually fetched");
+});
+
+test("a successful thirty-minute request advances durable progress by exactly thirty minutes", async () => {
+  const item = recoveryHarness();
+  item.checkpoints[1]!.status = PositionBackfillStatus.COMPLETED;
+  item.failures.set(77, new EquGpsTimeoutError());
+  for (const delay of [60_000, 120_000, 240_000]) {
+    assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+    item.advance(delay);
+  }
+  item.failures.delete(77);
+  assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "COMPLETED_WINDOW");
+  assert.deepEqual(item.requestWindows.map((window) => (window.to.getTime() - window.from.getTime()) / 60_000), [360, 180, 60, 30]);
+  assert.equal(item.checkpoints[0]!.nextFrom.getTime(), from.getTime() + 30 * 60_000);
+  assert.notEqual(item.checkpoints[0]!.status, PositionBackfillStatus.COMPLETED);
+});
+
+test("a failing fifteen-minute interval stays truthfully incomplete and never shrinks below fifteen minutes", async () => {
+  const item = recoveryHarness();
+  item.checkpoints[1]!.status = PositionBackfillStatus.COMPLETED;
+  item.failures.set(77, new EquGpsTimeoutError());
+  for (const delay of [60_000, 120_000, 240_000, 480_000, 960_000]) {
+    assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+    assert.equal(item.checkpoints[0]!.nextFrom.getTime(), from.getTime());
+    assert.notEqual(item.checkpoints[0]!.status, PositionBackfillStatus.COMPLETED);
+    item.advance(delay);
+  }
+  assert.deepEqual(item.requestWindows.map((window) => (window.to.getTime() - window.from.getTime()) / 60_000), [360, 180, 60, 30, 15]);
+  // Still at the floor: another exhausted timeout retries fifteen minutes,
+  // keeps nextFrom, and keeps the checkpoint incomplete under bounded backoff.
+  assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+  assert.deepEqual(item.requestWindows.map((window) => (window.to.getTime() - window.from.getTime()) / 60_000), [360, 180, 60, 30, 15, 15]);
+  assert.equal(item.checkpoints[0]!.nextFrom.getTime(), from.getTime());
+  assert.notEqual(item.checkpoints[0]!.status, PositionBackfillStatus.COMPLETED);
+  assert.equal(item.runs[0]!.status, PositionHistoryReplayRunStatus.PENDING);
 });
 
 for (const failure of [new EquGpsNetworkError(), new EquGpsHttpError(503)]) {
@@ -256,3 +292,327 @@ for (const failure of [new EquGpsHttpError(503)]) {
     assert.equal(item.checkpoints[0]!.nextFrom.getTime(), from.getTime());
   });
 }
+
+function crossGenerationHarness() {
+  let nowMs = Date.parse("2026-09-14T03:00:00Z");
+  let failure: unknown = undefined;
+  const requestMinutes: number[] = [];
+  const vehicle = firstVehicle;
+  const sliceTo = new Date(from.getTime() + 12 * 3_600_000);
+  const oldRunId = "123e4567-e89b-42d3-a456-426614174021";
+  const newRunId = "123e4567-e89b-42d3-a456-426614174022";
+  const runs: PositionHistoryReplayRun[] = [oldRunId, newRunId].map((id, index) => ({
+    id, kind: PositionHistoryReplayKind.ROLLING_90_DAY, generationAnchor: new Date(anchor.getTime() + index * 7 * 86_400_000), rangeFrom: from, rangeTo: anchor,
+    status: PositionHistoryReplayRunStatus.PENDING, leaseOwner: null, leaseExpiresAt: null, startedAt: null, completedAt: null, createdAt: anchor, updatedAt: anchor,
+  }));
+  const checkpoints: PositionHistoryReplayCheckpoint[] = [oldRunId, newRunId].map((runId, index) => ({
+    id: index === 0 ? "123e4567-e89b-42d3-a456-426614174023" : "123e4567-e89b-42d3-a456-426614174024",
+    runId, vehicleId: vehicle, rangeFrom: from, rangeTo: sliceTo, nextFrom: from,
+    status: PositionBackfillStatus.PENDING, createdAt: anchor, updatedAt: anchor,
+  }));
+  const repository = {
+    listEligibleVehicles: async () => [{ vehicleId: vehicle, externalDeviceId: 77, disabled: false }],
+    ensureRun: async () => runs[1],
+    ensureCheckpoints: async () => undefined,
+    findRun: async () => runs[1],
+    countCheckpoints: async (runId: string) => checkpoints.filter((item) => item.runId === runId).length,
+    listIncompleteCheckpoints: async (runId: string, limit: number) => checkpoints.filter((item) => item.runId === runId && item.status !== PositionBackfillStatus.COMPLETED).slice(0, limit),
+    countIncompleteCheckpoints: async (runId: string) => checkpoints.filter((item) => item.runId === runId && item.status !== PositionBackfillStatus.COMPLETED).length,
+    findMappedVehicle: async () => ({ vehicleId: vehicle, externalDeviceId: 77, disabled: false }),
+    persistReplayWindow: async (input: { checkpointId: string; expectedNextFrom: Date; nextFrom: Date }) => {
+      const item = checkpoints.find((checkpoint) => checkpoint.id === input.checkpointId)!;
+      assert.equal(item.nextFrom.getTime(), input.expectedNextFrom.getTime());
+      item.nextFrom = input.nextFrom;
+      item.status = input.nextFrom.getTime() === item.rangeTo.getTime() ? PositionBackfillStatus.COMPLETED : PositionBackfillStatus.RUNNING;
+      return { inserted: 0, duplicates: 0, checkpointStatus: item.status };
+    },
+  } as unknown as PositionHistoryReplayRepository;
+  const state = {
+    findClaimable: async () => runs.find((run) => run.status === PositionHistoryReplayRunStatus.PENDING) ?? null,
+    findClaimableCandidates: async (_now: Date, _kind: PositionHistoryReplayKind, limit: number) => runs.filter((run) => run.status === PositionHistoryReplayRunStatus.PENDING).slice(0, limit),
+    claimRun: async (input: { runId: string; leaseOwner: string; leaseExpiresAt: Date; now: Date }) => {
+      const run = runs.find((item) => item.id === input.runId)!;
+      run.status = PositionHistoryReplayRunStatus.RUNNING;
+      run.leaseOwner = input.leaseOwner;
+      run.leaseExpiresAt = input.leaseExpiresAt;
+      run.startedAt ??= input.now;
+      return run;
+    },
+    renewLease: async () => true,
+    yieldRun: async (input: { runId: string }) => {
+      const run = runs.find((item) => item.id === input.runId)!;
+      run.status = PositionHistoryReplayRunStatus.PENDING;
+      run.leaseOwner = null;
+      run.leaseExpiresAt = null;
+      return true;
+    },
+    completeRun: async (input: { runId: string }) => {
+      runs.find((item) => item.id === input.runId)!.status = PositionHistoryReplayRunStatus.COMPLETED;
+      return true;
+    },
+  } as unknown as PositionHistoryReplayRunStateService;
+  const historical = { read: async (request: { externalDeviceId: number; from: Date; to: Date }, options: { beforeRequestStart?: () => Promise<void> }) => {
+    await options.beforeRequestStart?.();
+    requestMinutes.push((request.to.getTime() - request.from.getTime()) / 60_000);
+    if (failure !== undefined) throw failure;
+    return { fetchFrom: request.from, fetchTo: request.to, fetchedAt: new Date(nowMs), providerRows: 0, candidates: [], skippedInvalid: 0, requests: 1, retries: 0, rateLimitResponses: 0 };
+  } } as unknown as PositionHistoryHistoricalWindowService;
+  const clock = { now: () => new Date(nowMs) };
+  const sleeper = { sleep: async (durationMs: number) => { nowMs += durationMs; } };
+  const lock = { runExclusive: async <T>(work: () => Promise<T>) => work() } as PositionHistoryHorizonExecutionLockService;
+  const spawnWorker = () => new PositionHistoryReplayWorkerService(repository, state, historical, lock, clock, sleeper, { start: () => () => undefined }, new PositionHistoryIngestionTelemetryService(clock));
+  return { worker: spawnWorker(), spawnWorker, runs, checkpoints, requestMinutes, state, fail: (error: unknown) => { failure = error; }, advance: (ms: number) => { nowMs += ms; } };
+}
+
+ function sharedBackoffHarness() {
+   // Two runs of DIFFERENT replay kinds sharing one logical checkpoint
+   // slice (same vehicle, rangeFrom, rangeTo, nextFrom). The kinds only
+   // interleave turns deterministically: the shared recovery key is
+   // kind-independent, so this models two generations contending for the
+   // same pathological point without depending on same-kind
+   // oldest-wins scheduling.
+   let nowMs = Date.parse("2026-09-14T03:00:00Z");
+   const failures = new Map<number, unknown>();
+   const requestMinutes: number[] = [];
+   const vehicle = firstVehicle;
+   const sliceTo = new Date(from.getTime() + 12 * 3_600_000);
+   const rollingRunId = "123e4567-e89b-42d3-a456-426614174031";
+   const dailyRunId = "123e4567-e89b-42d3-a456-426614174032";
+  const runs: Record<"rolling" | "daily", PositionHistoryReplayRun> = {
+     rolling: { id: rollingRunId, kind: PositionHistoryReplayKind.ROLLING_90_DAY, generationAnchor: anchor, rangeFrom: from, rangeTo: anchor, status: PositionHistoryReplayRunStatus.PENDING, leaseOwner: null, leaseExpiresAt: null, startedAt: null, completedAt: null, createdAt: anchor, updatedAt: anchor },
+     daily: { id: dailyRunId, kind: PositionHistoryReplayKind.DAILY_7_DAY, generationAnchor: anchor, rangeFrom: from, rangeTo: anchor, status: PositionHistoryReplayRunStatus.PENDING, leaseOwner: null, leaseExpiresAt: null, startedAt: null, completedAt: null, createdAt: anchor, updatedAt: anchor },
+   };
+  const checkpoints: Record<"rolling" | "daily", PositionHistoryReplayCheckpoint> = {
+     rolling: { id: "123e4567-e89b-42d3-a456-426614174033", runId: rollingRunId, vehicleId: vehicle, rangeFrom: from, rangeTo: sliceTo, nextFrom: from, status: PositionBackfillStatus.PENDING, createdAt: anchor, updatedAt: anchor },
+     daily: { id: "123e4567-e89b-42d3-a456-426614174034", runId: dailyRunId, vehicleId: vehicle, rangeFrom: from, rangeTo: sliceTo, nextFrom: from, status: PositionBackfillStatus.PENDING, createdAt: anchor, updatedAt: anchor },
+   };
+   const allRuns = [runs.rolling, runs.daily];
+   const allCheckpoints = [checkpoints.rolling, checkpoints.daily];
+   const repository = {
+     listEligibleVehicles: async () => [{ vehicleId: vehicle, externalDeviceId: 77, disabled: false }],
+     ensureRun: async (target: { kind: PositionHistoryReplayKind }) => allRuns.find((run) => run.kind === target.kind)!,
+     ensureCheckpoints: async () => undefined,
+     findRun: async (kind: PositionHistoryReplayKind) => allRuns.find((run) => run.kind === kind) ?? null,
+     countCheckpoints: async (runId: string) => allCheckpoints.filter((item) => item.runId === runId).length,
+     listIncompleteCheckpoints: async (runId: string, limit: number) => allCheckpoints.filter((item) => item.runId === runId && item.status !== PositionBackfillStatus.COMPLETED).slice(0, limit),
+     countIncompleteCheckpoints: async (runId: string) => allCheckpoints.filter((item) => item.runId === runId && item.status !== PositionBackfillStatus.COMPLETED).length,
+     findMappedVehicle: async () => ({ vehicleId: vehicle, externalDeviceId: 77, disabled: false }),
+     persistReplayWindow: async (input: { checkpointId: string; expectedNextFrom: Date; nextFrom: Date }) => {
+       const item = allCheckpoints.find((checkpoint) => checkpoint.id === input.checkpointId)!;
+       assert.equal(item.nextFrom.getTime(), input.expectedNextFrom.getTime());
+       item.nextFrom = input.nextFrom;
+       item.status = input.nextFrom.getTime() === item.rangeTo.getTime() ? PositionBackfillStatus.COMPLETED : PositionBackfillStatus.RUNNING;
+       return { inserted: 0, duplicates: 0, checkpointStatus: item.status };
+     },
+   } as unknown as PositionHistoryReplayRepository;
+   const state = {
+     findClaimable: async (_now: Date, kind: PositionHistoryReplayKind) => allRuns.find((run) => run.kind === kind && run.status === PositionHistoryReplayRunStatus.PENDING) ?? null,
+     findClaimableCandidates: async (_now: Date, kind: PositionHistoryReplayKind, limit: number) => allRuns.filter((run) => run.kind === kind && run.status === PositionHistoryReplayRunStatus.PENDING).slice(0, limit),
+     claimRun: async (input: { runId: string; leaseOwner: string; leaseExpiresAt: Date; now: Date }) => {
+       const run = allRuns.find((item) => item.id === input.runId)!;
+       run.status = PositionHistoryReplayRunStatus.RUNNING;
+       run.leaseOwner = input.leaseOwner;
+       run.leaseExpiresAt = input.leaseExpiresAt;
+       run.startedAt ??= input.now;
+       return run;
+     },
+     renewLease: async () => true,
+     yieldRun: async (input: { runId: string }) => {
+       const run = allRuns.find((item) => item.id === input.runId)!;
+       run.status = PositionHistoryReplayRunStatus.PENDING;
+       run.leaseOwner = null;
+       run.leaseExpiresAt = null;
+       return true;
+     },
+     completeRun: async (input: { runId: string }) => {
+       allRuns.find((item) => item.id === input.runId)!.status = PositionHistoryReplayRunStatus.COMPLETED;
+       return true;
+     },
+   } as unknown as PositionHistoryReplayRunStateService;
+   const historical = { read: async (request: { externalDeviceId: number; from: Date; to: Date }, options: { beforeRequestStart?: () => Promise<void> }) => {
+     await options.beforeRequestStart?.();
+     requestMinutes.push((request.to.getTime() - request.from.getTime()) / 60_000);
+     const failure = failures.get(request.externalDeviceId);
+     if (failure !== undefined) throw failure;
+     return { fetchFrom: request.from, fetchTo: request.to, fetchedAt: new Date(nowMs), providerRows: 0, candidates: [], skippedInvalid: 0, requests: 1, retries: 0, rateLimitResponses: 0 };
+   } } as unknown as PositionHistoryHistoricalWindowService;
+   const clock = { now: () => new Date(nowMs) };
+   const sleeper = { sleep: async (durationMs: number) => { nowMs += durationMs; } };
+   const lock = { runExclusive: async <T>(work: () => Promise<T>) => work() } as PositionHistoryHorizonExecutionLockService;
+   const spawnWorker = () => new PositionHistoryReplayWorkerService(repository, state, historical, lock, clock, sleeper, { start: () => () => undefined }, new PositionHistoryIngestionTelemetryService(clock));
+   return { worker: spawnWorker(), spawnWorker, runs, checkpoints, requestMinutes, now: () => nowMs, failDevice: (deviceId: number, error: unknown) => { failures.set(deviceId, error); }, clearDevice: (deviceId: number) => { failures.delete(deviceId); }, advance: (ms: number) => { nowMs += ms; } };
+ }
+
+ function sharedEligibleAt(item: ReturnType<typeof sharedBackoffHarness>, checkpoint: PositionHistoryReplayCheckpoint): number {
+   const key = positionHistoryReplayTimeoutRecoveryKey({ vehicleId: checkpoint.vehicleId, rangeFrom: checkpoint.rangeFrom, rangeTo: checkpoint.rangeTo, nextFrom: checkpoint.nextFrom });
+   return (item.worker as unknown as { sharedTimeoutRecovery: Map<string, { eligibleAt: number }> }).sharedTimeoutRecovery.get(key)?.eligibleAt ?? 0;
+ }
+
+ test("shared timeout backoff escalates across generations instead of restarting at one minute", async () => {
+   const item = sharedBackoffHarness();
+   item.failDevice(77, new EquGpsTimeoutError());
+   // Older generation: 6h fails (shared 1m), then 3h fails (shared 2m).
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   item.advance(60_000);
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   assert.deepEqual(item.requestMinutes, [360, 180]);
+   item.advance(120_000);
+   // Newer generation inherits the learned tier and starts at 1h, not 6h.
+   // Its failure escalates the ONE shared sequence to 4m.
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.DAILY_7_DAY)).outcome, "FAILED");
+   assert.deepEqual(item.requestMinutes, [360, 180, 60]);
+   // Neither generation may bypass the shared four-minute backoff, and the
+   // run retry time honors the later of the two fences (max, not min).
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "YIELDED");
+   const sharedFence = sharedEligibleAt(item, item.checkpoints.rolling);
+   assert.ok(sharedFence - item.now() > 3 * 60_000, "shared fence is minutes out, not one minute");
+   assert.equal((item.worker as unknown as { checkpointExhaustedUntil: Map<string, number> }).checkpointExhaustedUntil.get(item.runs.rolling.id), sharedFence);
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.DAILY_7_DAY)).outcome, "YIELDED");
+   assert.deepEqual(item.requestMinutes, [360, 180, 60]);
+   // Two minutes is not enough against the shared four-minute fence.
+   item.advance(120_000);
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.DAILY_7_DAY)).outcome, "NO_WORK");
+   assert.deepEqual(item.requestMinutes, [360, 180, 60]);
+   // After four minutes the newer generation acts at the learned 30m tier
+   // and escalates the shared sequence to 8m.
+   item.advance(120_000);
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.DAILY_7_DAY)).outcome, "FAILED");
+   assert.deepEqual(item.requestMinutes, [360, 180, 60, 30]);
+   // Four minutes is not enough against the shared eight-minute fence.
+   item.advance(240_000);
+  assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "YIELDED");
+   assert.deepEqual(item.requestMinutes, [360, 180, 60, 30]);
+   // After eight minutes the older generation acts at the 15m floor.
+   item.advance(240_000);
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   assert.deepEqual(item.requestMinutes, [360, 180, 60, 30, 15]);
+   // The floor holds: another exhausted 15m timeout stays truthfully
+   // incomplete and never shrinks further.
+   item.advance(960_000);
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   assert.deepEqual(item.requestMinutes, [360, 180, 60, 30, 15, 15]);
+   assert.equal(item.checkpoints.rolling.nextFrom.getTime(), from.getTime());
+   assert.equal(item.checkpoints.daily.nextFrom.getTime(), from.getTime());
+   assert.equal(item.checkpoints.rolling.status, PositionBackfillStatus.PENDING);
+   assert.equal(item.checkpoints.daily.status, PositionBackfillStatus.PENDING);
+   assert.equal(item.runs.rolling.status, PositionHistoryReplayRunStatus.PENDING);
+   assert.equal(item.runs.daily.status, PositionHistoryReplayRunStatus.PENDING);
+ });
+
+ test("a successful request clears shared backoff pressure but retains learned tier evidence", async () => {
+   const item = sharedBackoffHarness();
+   item.failDevice(77, new EquGpsTimeoutError());
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   item.advance(60_000);
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   item.advance(120_000);
+   item.clearDevice(77);
+   // Older generation succeeds at the learned 1h tier and moves to a new key.
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "COMPLETED_WINDOW");
+   assert.deepEqual(item.requestMinutes, [360, 180, 60]);
+   assert.equal(item.checkpoints.rolling.nextFrom.getTime(), from.getTime() + 3_600_000);
+   // Newer generation still at the old position: no residual backoff (acts
+   // immediately) and uses the retained 1h tier instead of restarting at 6h.
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.DAILY_7_DAY)).outcome, "COMPLETED_WINDOW");
+   assert.deepEqual(item.requestMinutes, [360, 180, 60, 60]);
+   assert.equal(item.checkpoints.daily.nextFrom.getTime(), from.getTime() + 3_600_000);
+   assert.equal(item.checkpoints.rolling.nextFrom.getTime(), from.getTime() + 3_600_000, "older durable progress is untouched");
+   assert.equal(item.runs.rolling.status, PositionHistoryReplayRunStatus.PENDING);
+   assert.equal(item.runs.daily.status, PositionHistoryReplayRunStatus.PENDING);
+ });
+
+ test("a short shared backoff does not release a checkpoint under a longer local backoff", async () => {
+   const item = sharedBackoffHarness();
+   item.failDevice(77, new EquGpsNetworkError());
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   item.advance(60_000);
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   item.advance(120_000);
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   item.advance(240_000);
+   assert.deepEqual(item.requestMinutes, [360, 360, 360], "network failures never shrink later windows");
+   item.failDevice(77, new EquGpsTimeoutError());
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   assert.deepEqual(item.requestMinutes, [360, 360, 360, 360]);
+   // Shared fence expires after one minute, but the local eight-minute
+   // fence still holds: the run must not become eligible.
+   item.advance(60_000);
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "YIELDED");
+   assert.deepEqual(item.requestMinutes, [360, 360, 360, 360]);
+   item.advance(420_000);
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   assert.deepEqual(item.requestMinutes, [360, 360, 360, 360, 180]);
+ });
+
+ for (const failure of [new EquGpsNetworkError(), new EquGpsHttpError(503), new EquGpsRateLimitError(), new EquGpsHttpError(400), new PositionHistoryHistoricalWindowOversizedError()]) {
+   test("shared timeout backoff ignores " + failure.name, async () => {
+     const item = sharedBackoffHarness();
+     item.failDevice(77, failure);
+     assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+     assert.ok(item.requestMinutes.length > 0, "the failure was actually exercised");
+     assert.equal((item.worker as unknown as { sharedTimeoutRecovery: Map<string, unknown> }).sharedTimeoutRecovery.size, 0);
+   });
+ }
+
+ test("a fresh worker forgets shared backoff immediately and retries from durable truth", async () => {
+   const item = sharedBackoffHarness();
+   item.failDevice(77, new EquGpsTimeoutError());
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   item.advance(60_000);
+   assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+   const fresh = item.spawnWorker();
+   item.clearDevice(77);
+   // No clock advance: a restarted process knows neither the shared tier
+   // nor the shared backoff and retries the normal wide window at once.
+   assert.equal((await fresh.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "COMPLETED_WINDOW");
+   assert.deepEqual(item.requestMinutes, [360, 180, 360]);
+   assert.equal(item.checkpoints.rolling.nextFrom.getTime(), from.getTime() + 6 * 3_600_000);
+ });
+
+test("timeout recovery for one logical position does not affect another vehicle", async () => {
+  const item = recoveryHarness();
+  item.failures.set(77, new EquGpsTimeoutError());
+  assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+  assert.equal((item.worker as unknown as { sharedTimeoutRecovery: Map<string, unknown> }).sharedTimeoutRecovery.size, 1, "one shared record for the failed logical position");
+  const healthy = await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY);
+  assert.equal(healthy.outcome, "COMPLETED_WINDOW");
+  assert.deepEqual(item.requestWindows.map((window) => (window.to.getTime() - window.from.getTime()) / 3_600_000), [6, 6]);
+  assert.equal(item.checkpoints[0]!.nextFrom.getTime(), from.getTime());
+  assert.equal(item.checkpoints[1]!.nextFrom.getTime(), from.getTime() + 6 * 3_600_000);
+  assert.equal((item.worker as unknown as { sharedTimeoutRecovery: Map<string, unknown> }).sharedTimeoutRecovery.size, 1, "healthy sibling work creates no shared timeout state");
+});
+
+test("a fresh worker forgets shared recovery optimization but keeps durable correctness", async () => {
+  const item = crossGenerationHarness();
+  item.fail(new EquGpsTimeoutError());
+  assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+  const fresh = item.spawnWorker();
+  item.fail(undefined);
+  item.advance(60_000);
+  const result = await fresh.processKind(PositionHistoryReplayKind.ROLLING_90_DAY);
+  assert.equal(result.outcome, "COMPLETED_WINDOW");
+  assert.deepEqual(item.requestMinutes, [360, 360], "a restarted process retries from the normal wide window");
+  assert.equal(item.checkpoints[0]!.nextFrom.getTime(), from.getTime() + 6 * 3_600_000);
+});
+
+test("an oversized one-hour response never falls through to thirty or fifteen minutes", async () => {
+  const item = crossGenerationHarness();
+  item.fail(new PositionHistoryHistoricalWindowOversizedError());
+  assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+  assert.deepEqual(item.requestMinutes, [360, 180, 60]);
+  assert.equal(item.checkpoints[0]!.nextFrom.getTime(), from.getTime());
+  // Oversized responses do not activate timeout recovery: the next quantum
+  // retries the same wide subdivision instead of shrinking sub-hour.
+  item.advance(60_000);
+  assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "FAILED");
+  assert.deepEqual(item.requestMinutes, [360, 180, 60, 360, 180, 60]);
+  assert.equal(item.checkpoints[0]!.nextFrom.getTime(), from.getTime());
+});
+
+test("a lost generation lease still performs zero provider requests", async () => {
+  const item = crossGenerationHarness();
+  (item.state as unknown as { claimRun: () => Promise<null> }).claimRun = async () => null;
+  assert.equal((await item.worker.processKind(PositionHistoryReplayKind.ROLLING_90_DAY)).outcome, "STALE");
+  assert.deepEqual(item.requestMinutes, []);
+  assert.equal(item.checkpoints[0]!.nextFrom.getTime(), from.getTime());
+});

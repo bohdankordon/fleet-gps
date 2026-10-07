@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PositionHistoryReplayKind } from "../../generated/prisma/client";
 import { POSITION_HISTORY_ABSOLUTE_DAY_MS } from "../position-history-horizon/position-history-horizon.policy";
-import { canonicalDailyPositionHistoryReplayAnchor, positionHistoryReplayAdaptiveWindowEnds, positionHistoryReplayCheckpoints, positionHistoryReplayTarget } from "./position-history-replay-planning";
+import { canonicalDailyPositionHistoryReplayAnchor, clampPositionHistoryReplayTimeoutTier, nextPositionHistoryReplayTimeoutTier, positionHistoryReplayAdaptiveWindowEnds, positionHistoryReplayCheckpoints, positionHistoryReplayTarget, positionHistoryReplayTimeoutRecoveryKey, positionHistoryReplayTimeoutWindowEnds, positionHistoryReplayTimeoutWindowMs } from "./position-history-replay-planning";
 
 const vehicle = (vehicleId: string) => ({ vehicleId, externalDeviceId: 1, disabled: false });
 
@@ -43,4 +43,38 @@ test("replay offers deterministic 6h, 3h, and 1h adaptive endpoints from the sam
     "2026-09-01T02:00:00.000Z",
     "2026-09-01T01:00:00.000Z",
   ]);
+});
+
+test("timeout recovery windows step 6h to 3h to 1h to 30m to 15m with a hard floor", () => {
+  assert.deepEqual([0, 1, 2, 3, 4].map(positionHistoryReplayTimeoutWindowMs), [6 * 3_600_000, 3 * 3_600_000, 3_600_000, 30 * 60_000, 15 * 60_000]);
+  assert.equal(clampPositionHistoryReplayTimeoutTier(-3), 0);
+  assert.equal(clampPositionHistoryReplayTimeoutTier(99), 4);
+  assert.equal(clampPositionHistoryReplayTimeoutTier(Number.NaN), 0);
+  assert.equal(nextPositionHistoryReplayTimeoutTier(2), 3);
+  assert.equal(nextPositionHistoryReplayTimeoutTier(4), 4, "the fifteen-minute floor never shrinks further");
+});
+
+test("timeout quanta honor the learned maximum while oversized fallback never goes sub-hour", () => {
+  const from = new Date("2026-09-01T00:00:00Z");
+  const to = new Date("2026-09-02T00:00:00Z");
+  const ends = (tier: number) => positionHistoryReplayTimeoutWindowEnds(from, to, tier).map((value) => value.toISOString());
+  assert.deepEqual(ends(0), ["2026-09-01T06:00:00.000Z", "2026-09-01T03:00:00.000Z", "2026-09-01T01:00:00.000Z"]);
+  assert.deepEqual(ends(1), ["2026-09-01T03:00:00.000Z", "2026-09-01T01:00:00.000Z"]);
+  assert.deepEqual(ends(2), ["2026-09-01T01:00:00.000Z"]);
+  assert.deepEqual(ends(3), ["2026-09-01T00:30:00.000Z"]);
+  assert.deepEqual(ends(4), ["2026-09-01T00:15:00.000Z"]);
+  assert.deepEqual(
+    positionHistoryReplayTimeoutWindowEnds(from, new Date("2026-09-01T00:10:00.000Z"), 4).map((value) => value.toISOString()),
+    ["2026-09-01T00:10:00.000Z"],
+  );
+});
+
+test("recovery keys identify equivalent logical positions across generations", () => {
+  const logical = { vehicleId: "vehicle-a", rangeFrom: new Date("2026-09-01T02:00:00Z"), rangeTo: new Date("2026-09-08T02:00:00Z"), nextFrom: new Date("2026-09-01T02:00:00Z") };
+  assert.equal(positionHistoryReplayTimeoutRecoveryKey(logical), positionHistoryReplayTimeoutRecoveryKey({ ...logical }));
+  assert.notEqual(positionHistoryReplayTimeoutRecoveryKey(logical), positionHistoryReplayTimeoutRecoveryKey({ ...logical, vehicleId: "vehicle-b" }));
+  assert.notEqual(positionHistoryReplayTimeoutRecoveryKey(logical), positionHistoryReplayTimeoutRecoveryKey({ ...logical, rangeTo: new Date("2026-09-09T02:00:00Z") }));
+  assert.notEqual(positionHistoryReplayTimeoutRecoveryKey(logical), positionHistoryReplayTimeoutRecoveryKey({ ...logical, nextFrom: new Date("2026-09-01T02:30:00.000Z") }));
+  assert.throws(() => positionHistoryReplayTimeoutRecoveryKey({ ...logical, vehicleId: "" }));
+  assert.throws(() => positionHistoryReplayTimeoutRecoveryKey({ ...logical, nextFrom: logical.rangeTo }));
 });
