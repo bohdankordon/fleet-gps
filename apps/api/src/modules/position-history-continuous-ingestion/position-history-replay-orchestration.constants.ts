@@ -33,10 +33,9 @@ export const POSITION_HISTORY_REPLAY_OVERSIZED_FALLBACK_FLOOR_WINDOW_MS = 60 * 6
 // falls back to existing per-checkpoint behavior without affecting durable
 // correctness.
 export const POSITION_HISTORY_REPLAY_TIMEOUT_RECOVERY_MAX_ENTRIES = 500;
-// Timeout-specific cross-generation cooldown mirroring the first bounded
-// checkpoint backoff. Prevents equivalent generation-scoped checkpoints from
-// immediately re-hammering the same pathological logical point.
-export const POSITION_HISTORY_REPLAY_TIMEOUT_RECOVERY_COOLDOWN_MS = 60_000;
+// Shared logical timeout backoff reuses the existing bounded checkpoint
+// backoff sequence (1m -> 2m -> 4m -> 8m -> 16m -> 30m capped), driven by a
+// per-logical-position timeout failure count. No new or faster schedule.
 export const POSITION_HISTORY_REPLAY_DAILY_DAYS = 7;
 export const POSITION_HISTORY_REPLAY_ROLLING_DAYS = 90;
 export const POSITION_HISTORY_REPLAY_LEASE_DURATION_MS = 120_000;

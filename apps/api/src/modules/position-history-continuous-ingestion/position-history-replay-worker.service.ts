@@ -12,7 +12,7 @@ import { POSITION_HISTORY_REPLAY_REPOSITORY, PositionHistoryReplayRunStateServic
 import { POSITION_HISTORY_CONTINUOUS_FINALITY_DELAY_MS } from "./position-history-continuous-ingestion.constants";
 import { POSITION_HISTORY_CONTINUOUS_CLOCK, POSITION_HISTORY_CONTINUOUS_SLEEPER } from "./position-history-continuous-ingestion.tokens";
 import type { PositionHistoryContinuousClock, PositionHistoryContinuousSleeper } from "./position-history-continuous-ingestion.types";
-import { POSITION_HISTORY_REPLAY_FAILURE_BACKOFF_MS, POSITION_HISTORY_REPLAY_HEARTBEAT_MS, POSITION_HISTORY_REPLAY_LEASE_DURATION_MS, POSITION_HISTORY_REPLAY_STABLE_FAILURE_BACKOFF_MS, POSITION_HISTORY_REPLAY_TIMEOUT_RECOVERY_COOLDOWN_MS, POSITION_HISTORY_REPLAY_TIMEOUT_RECOVERY_MAX_ENTRIES } from "./position-history-replay-orchestration.constants";
+import { POSITION_HISTORY_REPLAY_FAILURE_BACKOFF_MS, POSITION_HISTORY_REPLAY_HEARTBEAT_MS, POSITION_HISTORY_REPLAY_LEASE_DURATION_MS, POSITION_HISTORY_REPLAY_STABLE_FAILURE_BACKOFF_MS, POSITION_HISTORY_REPLAY_TIMEOUT_RECOVERY_MAX_ENTRIES } from "./position-history-replay-orchestration.constants";
 import { POSITION_HISTORY_REPLAY_HEARTBEAT_SCHEDULER } from "./position-history-replay-orchestration.tokens";
 import type { PositionHistoryReplayHeartbeatScheduler, PositionHistoryReplayPressure, PositionHistoryReplayQuantumResult } from "./position-history-replay-orchestration.types";
 import { clampPositionHistoryReplayTimeoutTier, nextPositionHistoryReplayTimeoutTier, positionHistoryReplayCheckpoints, positionHistoryReplayTarget, positionHistoryReplayTimeoutRecoveryKey, positionHistoryReplayTimeoutWindowEnds } from "./position-history-replay-planning";
@@ -23,6 +23,14 @@ function emptyResult(kind: PositionHistoryReplayKind): MutableResult {
   return { kind, outcome: "NO_WORK", generationAnchor: null, requests: 0, providerRows: 0, inserted: 0, duplicates: 0, invalid: 0, retries: 0, rateLimitResponses: 0, checkpointWindowsCompleted: 0, policyRetiredPrefixes: 0, checkpointsRemaining: null };
 }
 
+// Bounded process-local timeout-recovery record for one logical checkpoint
+// position (vehicleId + rangeFrom + rangeTo + nextFrom). Optimization only:
+// it may narrow a future quantum window and delay its retry, but never
+// carries progress, status, completion, inserted observations, or CAS
+// expectations across generations. Eviction and process restart safely fall
+// back to per-checkpoint behavior from durable truth.
+type SharedReplayTimeoutRecovery = { tier: number; timeoutFailures: number; eligibleAt: number };
+
 @Injectable()
 export class PositionHistoryReplayWorkerService {
   private readonly nextEligible = new Map<string, number>();
@@ -31,14 +39,11 @@ export class PositionHistoryReplayWorkerService {
   private readonly checkpointFailures = new Map<string, number>();
   private readonly checkpointExhaustedUntil = new Map<string, number>();
   private readonly checkpointWindowTier = new Map<string, number>();
-  // Bounded process-local timeout-recovery knowledge shared across
-  // equivalent logical checkpoint positions (vehicleId + rangeFrom + rangeTo
-  // + nextFrom). Optimization only: it may narrow a future quantum window
-  // but never carries progress, status, completion, inserted observations,
-  // or CAS expectations across generations. Eviction and process restart
-  // safely fall back to per-checkpoint behavior from durable truth.
-  private readonly sharedTimeoutTiers = new Map<string, number>();
-  private readonly sharedTimeoutCooldowns = new Map<string, number>();
+  // Shared timeout-recovery knowledge keyed by logical checkpoint position.
+  // One bounded record per position holds the learned tier, the shared
+  // timeout failure count driving the shared retry backoff, and the shared
+  // eligibleAt fence. See SharedReplayTimeoutRecovery.
+  private readonly sharedTimeoutRecovery = new Map<string, SharedReplayTimeoutRecovery>();
 
   public constructor(
     @Inject(POSITION_HISTORY_REPLAY_REPOSITORY) private readonly repository: PositionHistoryReplayRepository,
@@ -126,16 +131,20 @@ export class PositionHistoryReplayWorkerService {
     }, POSITION_HISTORY_REPLAY_HEARTBEAT_MS);
     const pacer = new PositionHistoryAutomaticRequestPacer(this.clock, this.sleeper, POSITION_HISTORY_AUTOMATIC_REQUEST_START_GAP_MS);
     try {
-      this.pruneSharedTimeoutCooldowns(this.now().getTime());
-      const hasCheckpointBackoff = [...this.checkpointNextEligible.values()].some((entry) => entry.runId === claimed.id) || this.sharedTimeoutCooldowns.size > 0;
+      const nowMs = this.now().getTime();
+      const hasCheckpointBackoff = [...this.checkpointNextEligible.values()].some((entry) => entry.runId === claimed.id) || [...this.sharedTimeoutRecovery.values()].some((record) => record.eligibleAt > nowMs);
       const incomplete = await this.repository.listIncompleteCheckpoints(claimed.id, hasCheckpointBackoff ? 10_000 : 1);
       const eligibleAt = this.now().getTime();
-      // A checkpoint behind a shared timeout cooldown is skipped so a ready
+      // A checkpoint is eligible only when BOTH fences permit it: its own
+      // checkpoint-specific backoff and the shared logical-position timeout
+      // backoff. A checkpoint behind either fence is skipped so a ready
       // sibling checkpoint in the same generation can still make progress.
-      const checkpoint = incomplete.find((item) => (this.checkpointNextEligible.get(item.id)?.at ?? 0) <= eligibleAt && (this.sharedTimeoutCooldowns.get(positionHistoryReplayTimeoutRecoveryKey({ vehicleId: item.vehicleId, rangeFrom: item.rangeFrom, rangeTo: item.rangeTo, nextFrom: item.nextFrom })) ?? 0) <= eligibleAt);
+      const checkpoint = incomplete.find((item) => (this.checkpointNextEligible.get(item.id)?.at ?? 0) <= eligibleAt && (this.sharedTimeoutRecovery.get(positionHistoryReplayTimeoutRecoveryKey({ vehicleId: item.vehicleId, rangeFrom: item.rangeFrom, rangeTo: item.rangeTo, nextFrom: item.nextFrom }))?.eligibleAt ?? 0) <= eligibleAt);
       if (checkpoint === undefined) {
         if (incomplete.length > 0) {
-          const earliestRetry = Math.min(...incomplete.map((item) => Math.min(this.checkpointNextEligible.get(item.id)?.at ?? Number.POSITIVE_INFINITY, this.sharedTimeoutCooldowns.get(positionHistoryReplayTimeoutRecoveryKey({ vehicleId: item.vehicleId, rangeFrom: item.rangeFrom, rangeTo: item.rangeTo, nextFrom: item.nextFrom })) ?? Number.POSITIVE_INFINITY)));
+          // Each checkpoint becomes retryable at the LATER of its two
+          // fences; the run becomes retryable at the EARLIEST of those.
+          const earliestRetry = Math.min(...incomplete.map((item) => Math.max(this.checkpointNextEligible.get(item.id)?.at ?? 0, this.sharedTimeoutRecovery.get(positionHistoryReplayTimeoutRecoveryKey({ vehicleId: item.vehicleId, rangeFrom: item.rangeFrom, rangeTo: item.rangeTo, nextFrom: item.nextFrom }))?.eligibleAt ?? 0)));
           result.checkpointsRemaining = incomplete.length;
           result.outcome = await this.state.yieldRun({ runId: claimed.id, leaseOwner, now: this.now() }) ? "YIELDED" : "STALE";
           if (result.outcome === "YIELDED" && Number.isFinite(earliestRetry)) this.checkpointExhaustedUntil.set(claimed.id, earliestRetry);
@@ -178,7 +187,7 @@ export class PositionHistoryReplayWorkerService {
         const recoveryKey = positionHistoryReplayTimeoutRecoveryKey({ vehicleId: checkpoint.vehicleId, rangeFrom: checkpoint.rangeFrom, rangeTo: checkpoint.rangeTo, nextFrom: checkpoint.nextFrom });
         const effectiveTier = Math.max(
           clampPositionHistoryReplayTimeoutTier(this.checkpointWindowTier.get(checkpoint.id) ?? 0),
-          clampPositionHistoryReplayTimeoutTier(this.sharedTimeoutTiers.get(recoveryKey) ?? 0),
+          clampPositionHistoryReplayTimeoutTier(this.sharedTimeoutRecovery.get(recoveryKey)?.tier ?? 0),
         );
         // windowEnds honors the timeout maximum while preserving the
         // oversized-response contract: within one quantum, oversized
@@ -223,12 +232,17 @@ export class PositionHistoryReplayWorkerService {
         this.checkpointFailures.delete(checkpoint.id);
         // Success moves durable progress to a distinct new logical position,
         // which may begin from the normal wide tier unless that exact new
-        // position has independently learned otherwise. The shared tier for
-        // the completed position is retained so sibling generations still
-        // stuck there keep the shortcut; only the cooldown is cleared so
-        // they may proceed promptly.
+        // position has independently learned otherwise. A successful request
+        // clears the shared logical timeout failure count and backoff for
+        // the completed position, but retains its learned tier so sibling
+        // generations still located at that old position keep the proven
+        // smaller request window.
         this.checkpointWindowTier.delete(checkpoint.id);
-        this.sharedTimeoutCooldowns.delete(recoveryKey);
+        const completedRecovery = this.sharedTimeoutRecovery.get(recoveryKey);
+        if (completedRecovery !== undefined) {
+          completedRecovery.timeoutFailures = 0;
+          completedRecovery.eligibleAt = 0;
+        }
         result.checkpointsRemaining = await this.repository.countIncompleteCheckpoints(claimed.id);
         this.failures.delete(claimed.id);
         this.nextEligible.delete(claimed.id);
@@ -278,20 +292,28 @@ export class PositionHistoryReplayWorkerService {
     // incomplete under the existing bounded backoff.
     if (diagnostic.category === "timeout") {
       const recoveryKey = positionHistoryReplayTimeoutRecoveryKey({ vehicleId: checkpoint.vehicleId, rangeFrom: checkpoint.rangeFrom, rangeTo: checkpoint.rangeTo, nextFrom: checkpoint.nextFrom });
+      const stored = this.sharedTimeoutRecovery.get(recoveryKey);
+      const sharedTier = clampPositionHistoryReplayTimeoutTier(stored?.tier ?? 0);
+      const sharedFailures = stored?.timeoutFailures ?? 0;
       const effectiveTier = Math.max(
         clampPositionHistoryReplayTimeoutTier(this.checkpointWindowTier.get(checkpoint.id) ?? 0),
-        clampPositionHistoryReplayTimeoutTier(this.sharedTimeoutTiers.get(recoveryKey) ?? 0),
+        sharedTier,
       );
       const recoveredTier = nextPositionHistoryReplayTimeoutTier(effectiveTier);
       this.checkpointWindowTier.set(checkpoint.id, recoveredTier);
       // Share the most conservative (smallest) learned window with
-      // equivalent positions in other generations. Progress, status,
-      // completion, and CAS expectations are never shared.
-      this.storeSharedTimeoutTier(recoveryKey, Math.max(clampPositionHistoryReplayTimeoutTier(this.sharedTimeoutTiers.get(recoveryKey) ?? 0), recoveredTier));
-      // Timeout-specific cooldown so equivalent generation-scoped checkpoints
-      // do not immediately re-hammer the same pathological logical point.
-      // Unrelated vehicles, ranges, and positions are never affected.
-      this.storeSharedTimeoutCooldown(recoveryKey, this.now().getTime() + POSITION_HISTORY_REPLAY_TIMEOUT_RECOVERY_COOLDOWN_MS);
+      // equivalent positions in other generations, and escalate the shared
+      // logical retry backoff using the existing bounded backoff sequence.
+      // Only timeouts advance this state; progress, status, completion, and
+      // CAS expectations are never shared. Unrelated vehicles, ranges, and
+      // positions are never affected.
+      const timeoutFailures = sharedFailures + 1;
+      const sharedDelay = POSITION_HISTORY_REPLAY_FAILURE_BACKOFF_MS[Math.min(timeoutFailures - 1, POSITION_HISTORY_REPLAY_FAILURE_BACKOFF_MS.length - 1)]!;
+      this.storeSharedTimeoutRecovery(recoveryKey, {
+        tier: Math.max(sharedTier, recoveredTier),
+        timeoutFailures,
+        eligibleAt: this.now().getTime() + sharedDelay,
+      });
     }
     const count = (this.checkpointFailures.get(checkpoint.id) ?? 0) + 1;
     this.checkpointFailures.set(checkpoint.id, count);
@@ -299,28 +321,14 @@ export class PositionHistoryReplayWorkerService {
     this.checkpointNextEligible.set(checkpoint.id, { runId: run.id, at: this.now().getTime() + delay });
   }
 
-  private storeSharedTimeoutTier(key: string, tier: number): void {
+  private storeSharedTimeoutRecovery(key: string, record: SharedReplayTimeoutRecovery): void {
     // Bounded FIFO eviction: losing the optimization falls back to existing
     // per-checkpoint behavior and never affects durable correctness.
-    if (!this.sharedTimeoutTiers.has(key) && this.sharedTimeoutTiers.size >= POSITION_HISTORY_REPLAY_TIMEOUT_RECOVERY_MAX_ENTRIES) {
-      const oldest = this.sharedTimeoutTiers.keys().next();
-      if (!oldest.done) this.sharedTimeoutTiers.delete(oldest.value);
+    if (!this.sharedTimeoutRecovery.has(key) && this.sharedTimeoutRecovery.size >= POSITION_HISTORY_REPLAY_TIMEOUT_RECOVERY_MAX_ENTRIES) {
+      const oldest = this.sharedTimeoutRecovery.keys().next();
+      if (!oldest.done) this.sharedTimeoutRecovery.delete(oldest.value);
     }
-    this.sharedTimeoutTiers.set(key, tier);
-  }
-
-  private storeSharedTimeoutCooldown(key: string, eligibleAt: number): void {
-    if (!this.sharedTimeoutCooldowns.has(key) && this.sharedTimeoutCooldowns.size >= POSITION_HISTORY_REPLAY_TIMEOUT_RECOVERY_MAX_ENTRIES) {
-      const oldest = this.sharedTimeoutCooldowns.keys().next();
-      if (!oldest.done) this.sharedTimeoutCooldowns.delete(oldest.value);
-    }
-    this.sharedTimeoutCooldowns.set(key, eligibleAt);
-  }
-
-  private pruneSharedTimeoutCooldowns(nowMs: number): void {
-    for (const [key, eligibleAt] of this.sharedTimeoutCooldowns) {
-      if (eligibleAt <= nowMs) this.sharedTimeoutCooldowns.delete(key);
-    }
+    this.sharedTimeoutRecovery.set(key, record);
   }
 
   private scheduleRunFailure(run: PositionHistoryReplayRun, error: unknown): void {
